@@ -47,6 +47,24 @@ def _find_library():
 _lib_path = _find_library()
 if _lib_path:
     try:
+        # Load error library first (required by libscotch)
+        lib_dir = Path(_lib_path).parent
+        if sys.platform == "darwin":
+            err_lib_names = ["libscotcherr.dylib"]
+        elif sys.platform == "win32":
+            err_lib_names = ["scotcherr.dll", "libscotcherr.dll"]
+        else:
+            err_lib_names = ["libscotcherr.so"]
+
+        for err_lib_name in err_lib_names:
+            err_lib_path = lib_dir / err_lib_name
+            if err_lib_path.exists():
+                try:
+                    ctypes.CDLL(str(err_lib_path), mode=ctypes.RTLD_GLOBAL)
+                except:
+                    pass
+                break
+
         _libscotch = ctypes.CDLL(_lib_path)
     except OSError as e:
         _libscotch = None

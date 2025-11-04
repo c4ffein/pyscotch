@@ -41,6 +41,7 @@ test_results.txt
 # Scotch build artifacts
 lib/
 include/
+scotch/
 external/scotch/build/
 external/scotch/lib/
 external/scotch/bin/
