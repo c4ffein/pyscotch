@@ -1,19 +1,11 @@
 # Instructions for Claude AI
 
-## Scotch Library Source
+## Scotch Submodule Setup
 
-**IMPORTANT**: This environment cannot connect to the Inria GitLab server.
-
-When working with the scotch library dependency:
-
-- **DO NOT** attempt to clone the submodule from `https://gitlab.inria.fr/scotch/scotch.git`
-- **INSTEAD**: Clone from the GitHub mirror at `https://github.com/live-clones/scotch`
-
-### Quick Setup
+At the start of each session, initialize the scotch submodule:
 
 ```bash
-# Clone scotch from GitHub (not the GitLab submodule)
-git clone https://github.com/live-clones/scotch scotch/
+git submodule update --init --recursive
 ```
 
-The GitHub repository is a live mirror of the official Inria GitLab repository and is accessible from this environment.
+If this fails, inform the user they likely forgot to grant access to `gitlab.inria.fr` in their environment configuration.
