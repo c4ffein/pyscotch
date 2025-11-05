@@ -2,6 +2,19 @@
 PyScotch - Python wrapper for PT-Scotch library
 
 Provides Python bindings for the PT-Scotch graph partitioning library.
+
+This package offers:
+- Graph partitioning for distributed computing
+- Mesh partitioning for parallel processing
+- Sparse matrix ordering for efficient factorization
+- High-level Python API with comprehensive type hints
+- Command-line interface for common operations
+
+Example:
+    >>> from pyscotch import Graph
+    >>> graph = Graph()
+    >>> graph.load("input.grf")
+    >>> partitions = graph.partition(nparts=4)
 """
 
 from .graph import Graph

@@ -58,3 +58,28 @@ Thumbs.db
 
 # Documentation
 docs/_build/
+docs/_static/
+docs/_templates/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# pytest
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environment
+.env
+.venv
+
+# Distribution / packaging
+.Python
+pip-log.txt
+pip-delete-this-directory.txt

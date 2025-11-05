@@ -21,8 +21,18 @@ class Mapping:
 
         Args:
             mapping_array: Array of domain assignments for each vertex
+
+        Raises:
+            ValueError: If mapping_array is empty or contains negative values
         """
+        if len(mapping_array) == 0:
+            raise ValueError("mapping_array cannot be empty")
+
         self.mapping = np.asarray(mapping_array, dtype=np.int64)
+
+        if np.any(self.mapping < 0):
+            raise ValueError("mapping_array cannot contain negative domain values")
+
         self.size = len(self.mapping)
 
     def save(self, filename: Union[str, Path]) -> None:
@@ -92,7 +102,19 @@ class Mapping:
 
         Returns:
             Array of vertex indices in the domain
+
+        Raises:
+            ValueError: If domain is invalid
         """
+        if domain < 0:
+            raise ValueError(f"domain must be non-negative, got {domain}")
+
+        max_domain = int(np.max(self.mapping))
+        if domain > max_domain:
+            raise ValueError(
+                f"domain {domain} exceeds maximum domain {max_domain}"
+            )
+
         return np.where(self.mapping == domain)[0]
 
     def num_partitions(self) -> int:

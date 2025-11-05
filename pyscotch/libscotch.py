@@ -3,6 +3,7 @@ Low-level ctypes bindings to the PT-Scotch C library.
 """
 
 import ctypes
+import ctypes.util
 import os
 import sys
 from ctypes import (
@@ -10,6 +11,11 @@ from ctypes import (
     POINTER, Structure, byref
 )
 from pathlib import Path
+
+# Constants
+# Size in bytes for opaque C structure placeholders
+# This must be large enough to hold the actual Scotch C structures
+_OPAQUE_STRUCTURE_SIZE = 256
 
 # Type definitions matching Scotch's types
 SCOTCH_Num = c_long
@@ -38,7 +44,10 @@ def _find_library():
     for lib_name in lib_names:
         try:
             return ctypes.util.find_library(lib_name.replace("lib", "").replace(".so", "").replace(".dylib", ""))
-        except:
+        except (OSError, AttributeError, TypeError):
+            # OSError: Library loading failed
+            # AttributeError: ctypes.util not available
+            # TypeError: Invalid library name
             continue
 
     return None
@@ -61,7 +70,8 @@ if _lib_path:
             if err_lib_path.exists():
                 try:
                     ctypes.CDLL(str(err_lib_path), mode=ctypes.RTLD_GLOBAL)
-                except:
+                except OSError:
+                    # Error library load failed, but continue trying main library
                     pass
                 break
 
@@ -80,31 +90,31 @@ else:
 
 class SCOTCH_Graph(Structure):
     """Opaque graph structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * 256)]  # Reserve 256 bytes
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Mesh(Structure):
     """Opaque mesh structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * 256)]  # Reserve 256 bytes
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Strat(Structure):
     """Opaque strategy structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * 256)]  # Reserve 256 bytes
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Arch(Structure):
     """Opaque architecture structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * 256)]  # Reserve 256 bytes
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Mapping(Structure):
     """Opaque mapping structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * 256)]  # Reserve 256 bytes
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Ordering(Structure):
     """Opaque ordering structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * 256)]  # Reserve 256 bytes
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Geom(Structure):
     """Opaque geometry structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * 256)]  # Reserve 256 bytes
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 
 # Function signatures
