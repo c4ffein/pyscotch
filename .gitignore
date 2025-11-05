@@ -41,6 +41,8 @@ test_results.txt
 # Scotch build artifacts
 lib/
 include/
+# Note: scotch submodule is at external/scotch/ - don't ignore it!
+# Only ignore build artifacts within the submodule
 external/scotch/build/
 external/scotch/lib/
 external/scotch/bin/
@@ -56,3 +58,28 @@ Thumbs.db
 
 # Documentation
 docs/_build/
+docs/_static/
+docs/_templates/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# pytest
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environment
+.env
+.venv
+
+# Distribution / packaging
+.Python
+pip-log.txt
+pip-delete-this-directory.txt

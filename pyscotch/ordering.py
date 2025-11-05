@@ -22,12 +22,23 @@ class Ordering:
         Args:
             permutation: Forward permutation (new_pos = perm[old_pos])
             inverse_permutation: Inverse permutation (old_pos = invp[new_pos])
+
+        Raises:
+            ValueError: If permutation is empty or arrays have mismatched sizes
         """
+        if len(permutation) == 0:
+            raise ValueError("permutation cannot be empty")
+
         self.permutation = np.asarray(permutation, dtype=np.int64)
         self.size = len(self.permutation)
 
         if inverse_permutation is not None:
             self.inverse_permutation = np.asarray(inverse_permutation, dtype=np.int64)
+            if len(self.inverse_permutation) != self.size:
+                raise ValueError(
+                    f"inverse_permutation size ({len(self.inverse_permutation)}) "
+                    f"must match permutation size ({self.size})"
+                )
         else:
             # Compute inverse if not provided
             self.inverse_permutation = np.zeros(self.size, dtype=np.int64)
@@ -91,7 +102,14 @@ class Ordering:
 
         Returns:
             Reordered array
+
+        Raises:
+            ValueError: If array size doesn't match ordering size
         """
+        if len(array) != self.size:
+            raise ValueError(
+                f"array size ({len(array)}) must match ordering size ({self.size})"
+            )
         return array[self.permutation]
 
     def apply_inverse(self, array: np.ndarray) -> np.ndarray:
@@ -103,7 +121,14 @@ class Ordering:
 
         Returns:
             Reordered array using inverse permutation
+
+        Raises:
+            ValueError: If array size doesn't match ordering size
         """
+        if len(array) != self.size:
+            raise ValueError(
+                f"array size ({len(array)}) must match ordering size ({self.size})"
+            )
         return array[self.inverse_permutation]
 
     def __len__(self) -> int:

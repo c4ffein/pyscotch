@@ -39,6 +39,12 @@ class Graph:
             raise RuntimeError(f"Failed to initialize graph (error code: {ret})")
 
         self._initialized = True
+        # Keep references to arrays to prevent garbage collection
+        self._verttab = None
+        self._vendtab = None  # Added vendtab reference
+        self._edgetab = None
+        self._velotab = None
+        self._edlotab = None
 
     def __del__(self):
         """Clean up graph resources."""
@@ -133,24 +139,52 @@ class Graph:
             baseval: Base value for indexing (0 or 1)
 
         Raises:
+            ValueError: If input arrays are invalid
             RuntimeError: If building fails
         """
+        # Input validation
+        if len(verttab) < 2:
+            raise ValueError("verttab must have at least 2 elements (for 1 vertex)")
+        if baseval not in (0, 1):
+            raise ValueError(f"baseval must be 0 or 1, got {baseval}")
+
         vertnbr = len(verttab) - 1
         edgenbr = len(edgetab)
 
-        # Convert to ctypes arrays
-        verttab_c = verttab.astype(np.int64).ctypes.data_as(POINTER(lib.SCOTCH_Num))
-        edgetab_c = edgetab.astype(np.int64).ctypes.data_as(POINTER(lib.SCOTCH_Num))
+        # Validate vertex weights array size if provided
+        if velotab is not None and len(velotab) != vertnbr:
+            raise ValueError(
+                f"velotab length ({len(velotab)}) must match number of vertices ({vertnbr})"
+            )
 
-        velotab_c = velotab.astype(np.int64).ctypes.data_as(POINTER(lib.SCOTCH_Num)) if velotab is not None else None
-        edlotab_c = edlotab.astype(np.int64).ctypes.data_as(POINTER(lib.SCOTCH_Num)) if edlotab is not None else None
+        # Validate edge weights array size if provided
+        if edlotab is not None and len(edlotab) != edgenbr:
+            raise ValueError(
+                f"edlotab length ({len(edlotab)}) must match number of edges ({edgenbr})"
+            )
+
+        # Store arrays to prevent garbage collection
+        self._verttab = verttab.astype(np.int64)
+        self._vendtab = self._verttab[1:]  # Store slice to keep it alive
+        self._edgetab = edgetab.astype(np.int64)
+        self._velotab = velotab.astype(np.int64) if velotab is not None else None
+        self._edlotab = edlotab.astype(np.int64) if edlotab is not None else None
+
+        # Convert to ctypes arrays
+        verttab_c = self._verttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+        # vendtab points to verttab[1] (standard Scotch pattern)
+        vendtab_c = self._vendtab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+        edgetab_c = self._edgetab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        velotab_c = self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._velotab is not None else None
+        edlotab_c = self._edlotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._edlotab is not None else None
 
         ret = lib.SCOTCH_graphBuild(
             byref(self._graph),
             lib.SCOTCH_Num(baseval),
             lib.SCOTCH_Num(vertnbr),
             verttab_c,
-            None,  # vendtab (can be NULL)
+            vendtab_c,  # Points to verttab[1], standard Scotch CSR pattern
             velotab_c,
             None,  # vlbltab
             lib.SCOTCH_Num(edgenbr),
@@ -159,7 +193,10 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(f"Failed to build graph (error code: {ret})")
+            raise RuntimeError(
+                f"Failed to build graph with {vertnbr} vertices and {edgenbr} edges "
+                f"(Scotch error code: {ret})"
+            )
 
     def check(self) -> bool:
         """
@@ -199,12 +236,21 @@ class Graph:
             Array of partition assignments for each vertex
 
         Raises:
+            ValueError: If nparts is invalid
             RuntimeError: If partitioning fails
         """
+        if nparts < 1:
+            raise ValueError(f"nparts must be at least 1, got {nparts}")
+
         from .strategy import Strategy
         from .arch import Architecture
 
         vertnbr, _ = self.size()
+
+        if nparts > vertnbr:
+            raise ValueError(
+                f"nparts ({nparts}) cannot exceed number of vertices ({vertnbr})"
+            )
 
         # Create partition array
         parttab = np.zeros(vertnbr, dtype=np.int64)
@@ -217,16 +263,40 @@ class Graph:
         # Use provided strategy or create default
         if strategy is None:
             strategy = Strategy()
+            strategy.set_mapping_default()
 
-        ret = lib.SCOTCH_graphMap(
+        # Use 3-step API: Init -> Compute -> Exit
+        # This is the recommended pattern from Scotch C examples
+        mappdat = lib.SCOTCH_Mapping()
+
+        # Step 1: Initialize mapping
+        ret = lib.SCOTCH_graphMapInit(
             byref(self._graph),
+            byref(mappdat),
             byref(arch._arch),
-            byref(strategy._strat),
             parttab_c,
         )
+        if ret != 0:
+            raise RuntimeError(
+                f"Failed to initialize mapping for {nparts} parts "
+                f"(Scotch error code: {ret})"
+            )
+
+        # Step 2: Compute mapping
+        ret = lib.SCOTCH_graphMapCompute(
+            byref(self._graph),
+            byref(mappdat),
+            byref(strategy._strat),
+        )
+
+        # Step 3: Clean up mapping (always, even on error)
+        lib.SCOTCH_graphMapExit(byref(self._graph), byref(mappdat))
 
         if ret != 0:
-            raise RuntimeError(f"Failed to partition graph (error code: {ret})")
+            raise RuntimeError(
+                f"Failed to compute partition into {nparts} parts "
+                f"({vertnbr} vertices) (Scotch error code: {ret})"
+            )
 
         return parttab
 
@@ -274,7 +344,10 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(f"Failed to order graph (error code: {ret})")
+            raise RuntimeError(
+                f"Failed to order graph with {vertnbr} vertices "
+                f"(Scotch error code: {ret})"
+            )
 
         return permtab, peritab
 
@@ -310,9 +383,29 @@ class Graph:
 
         Returns:
             New Graph instance
+
+        Raises:
+            ValueError: If edges list is empty or inputs are invalid
         """
+        if not edges:
+            raise ValueError("edges list cannot be empty")
+
         if num_vertices is None:
             num_vertices = max(max(e) for e in edges) + 1
+
+        # Validate vertex indices
+        max_vertex = max(max(e) for e in edges)
+        if max_vertex >= num_vertices:
+            raise ValueError(
+                f"Edge contains vertex {max_vertex} but num_vertices is {num_vertices}"
+            )
+
+        # Validate weights if provided
+        if vertex_weights is not None and len(vertex_weights) != num_vertices:
+            raise ValueError(
+                f"vertex_weights length ({len(vertex_weights)}) must match "
+                f"num_vertices ({num_vertices})"
+            )
 
         # Build adjacency structure
         adj = [[] for _ in range(num_vertices)]

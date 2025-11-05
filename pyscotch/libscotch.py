@@ -3,6 +3,7 @@ Low-level ctypes bindings to the PT-Scotch C library.
 """
 
 import ctypes
+import ctypes.util
 import os
 import sys
 from ctypes import (
@@ -10,6 +11,11 @@ from ctypes import (
     POINTER, Structure, byref
 )
 from pathlib import Path
+
+# Constants
+# Size in bytes for opaque C structure placeholders
+# This must be large enough to hold the actual Scotch C structures
+_OPAQUE_STRUCTURE_SIZE = 256
 
 # Type definitions matching Scotch's types
 SCOTCH_Num = c_long
@@ -38,7 +44,10 @@ def _find_library():
     for lib_name in lib_names:
         try:
             return ctypes.util.find_library(lib_name.replace("lib", "").replace(".so", "").replace(".dylib", ""))
-        except:
+        except (OSError, AttributeError, TypeError):
+            # OSError: Library loading failed
+            # AttributeError: ctypes.util not available
+            # TypeError: Invalid library name
             continue
 
     return None
@@ -47,7 +56,26 @@ def _find_library():
 _lib_path = _find_library()
 if _lib_path:
     try:
-        _libscotch = ctypes.CDLL(_lib_path)
+        # Load error library first (required by libscotch)
+        lib_dir = Path(_lib_path).parent
+        if sys.platform == "darwin":
+            err_lib_names = ["libscotcherr.dylib"]
+        elif sys.platform == "win32":
+            err_lib_names = ["scotcherr.dll", "libscotcherr.dll"]
+        else:
+            err_lib_names = ["libscotcherr.so"]
+
+        for err_lib_name in err_lib_names:
+            err_lib_path = lib_dir / err_lib_name
+            if err_lib_path.exists():
+                try:
+                    ctypes.CDLL(str(err_lib_path), mode=ctypes.RTLD_GLOBAL)
+                except OSError:
+                    # Error library load failed, but continue trying main library
+                    pass
+                break
+
+        _libscotch = ctypes.CDLL(_lib_path, mode=ctypes.RTLD_GLOBAL)
     except OSError as e:
         _libscotch = None
         print(f"Warning: Could not load Scotch library from {_lib_path}: {e}", file=sys.stderr)
@@ -57,33 +85,36 @@ else:
 
 
 # Opaque structure types (as used in Scotch)
+# These structures need to be large enough to hold the actual C structures
+# We use byte arrays to reserve the space without knowing the exact layout
+
 class SCOTCH_Graph(Structure):
     """Opaque graph structure."""
-    pass
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Mesh(Structure):
     """Opaque mesh structure."""
-    pass
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Strat(Structure):
     """Opaque strategy structure."""
-    pass
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Arch(Structure):
     """Opaque architecture structure."""
-    pass
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Mapping(Structure):
     """Opaque mapping structure."""
-    pass
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Ordering(Structure):
     """Opaque ordering structure."""
-    pass
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 class SCOTCH_Geom(Structure):
     """Opaque geometry structure."""
-    pass
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
 
 # Function signatures
@@ -175,6 +206,33 @@ if _libscotch:
             POINTER(SCOTCH_Num),  # maptab
         ]
         SCOTCH_graphMap.restype = c_int
+
+        # SCOTCH_graphMapInit
+        SCOTCH_graphMapInit = _libscotch.SCOTCH_graphMapInit
+        SCOTCH_graphMapInit.argtypes = [
+            POINTER(SCOTCH_Graph),
+            POINTER(SCOTCH_Mapping),
+            POINTER(SCOTCH_Arch),
+            POINTER(SCOTCH_Num),  # parttab
+        ]
+        SCOTCH_graphMapInit.restype = c_int
+
+        # SCOTCH_graphMapCompute
+        SCOTCH_graphMapCompute = _libscotch.SCOTCH_graphMapCompute
+        SCOTCH_graphMapCompute.argtypes = [
+            POINTER(SCOTCH_Graph),
+            POINTER(SCOTCH_Mapping),
+            POINTER(SCOTCH_Strat),
+        ]
+        SCOTCH_graphMapCompute.restype = c_int
+
+        # SCOTCH_graphMapExit
+        SCOTCH_graphMapExit = _libscotch.SCOTCH_graphMapExit
+        SCOTCH_graphMapExit.argtypes = [
+            POINTER(SCOTCH_Graph),
+            POINTER(SCOTCH_Mapping),
+        ]
+        SCOTCH_graphMapExit.restype = None
 
         # SCOTCH_graphOrder
         SCOTCH_graphOrder = _libscotch.SCOTCH_graphOrder

@@ -17,6 +17,19 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/c4ffein/pyscotch",
+    project_urls={
+        "Bug Reports": "https://github.com/c4ffein/pyscotch/issues",
+        "Source": "https://github.com/c4ffein/pyscotch",
+    },
+    keywords=[
+        "graph-partitioning",
+        "mesh-partitioning",
+        "sparse-matrix",
+        "scientific-computing",
+        "pt-scotch",
+        "scotch",
+        "parallel-computing",
+    ],
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -59,7 +72,7 @@ setup(
     },
     include_package_data=True,
     package_data={
-        "pyscotch": ["lib/*", "include/*"],
+        "pyscotch": ["lib/*", "include/*", "py.typed"],
     },
     zip_safe=False,
 )
