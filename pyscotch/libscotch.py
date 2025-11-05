@@ -207,6 +207,33 @@ if _libscotch:
         ]
         SCOTCH_graphMap.restype = c_int
 
+        # SCOTCH_graphMapInit
+        SCOTCH_graphMapInit = _libscotch.SCOTCH_graphMapInit
+        SCOTCH_graphMapInit.argtypes = [
+            POINTER(SCOTCH_Graph),
+            POINTER(SCOTCH_Mapping),
+            POINTER(SCOTCH_Arch),
+            POINTER(SCOTCH_Num),  # parttab
+        ]
+        SCOTCH_graphMapInit.restype = c_int
+
+        # SCOTCH_graphMapCompute
+        SCOTCH_graphMapCompute = _libscotch.SCOTCH_graphMapCompute
+        SCOTCH_graphMapCompute.argtypes = [
+            POINTER(SCOTCH_Graph),
+            POINTER(SCOTCH_Mapping),
+            POINTER(SCOTCH_Strat),
+        ]
+        SCOTCH_graphMapCompute.restype = c_int
+
+        # SCOTCH_graphMapExit
+        SCOTCH_graphMapExit = _libscotch.SCOTCH_graphMapExit
+        SCOTCH_graphMapExit.argtypes = [
+            POINTER(SCOTCH_Graph),
+            POINTER(SCOTCH_Mapping),
+        ]
+        SCOTCH_graphMapExit.restype = None
+
         # SCOTCH_graphOrder
         SCOTCH_graphOrder = _libscotch.SCOTCH_graphOrder
         SCOTCH_graphOrder.argtypes = [

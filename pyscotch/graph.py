@@ -41,6 +41,7 @@ class Graph:
         self._initialized = True
         # Keep references to arrays to prevent garbage collection
         self._verttab = None
+        self._vendtab = None  # Added vendtab reference
         self._edgetab = None
         self._velotab = None
         self._edlotab = None
@@ -164,12 +165,15 @@ class Graph:
 
         # Store arrays to prevent garbage collection
         self._verttab = verttab.astype(np.int64)
+        self._vendtab = self._verttab[1:]  # Store slice to keep it alive
         self._edgetab = edgetab.astype(np.int64)
         self._velotab = velotab.astype(np.int64) if velotab is not None else None
         self._edlotab = edlotab.astype(np.int64) if edlotab is not None else None
 
         # Convert to ctypes arrays
         verttab_c = self._verttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+        # vendtab points to verttab[1] (standard Scotch pattern)
+        vendtab_c = self._vendtab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
         edgetab_c = self._edgetab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
         velotab_c = self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._velotab is not None else None
@@ -180,7 +184,7 @@ class Graph:
             lib.SCOTCH_Num(baseval),
             lib.SCOTCH_Num(vertnbr),
             verttab_c,
-            None,  # vendtab (can be NULL)
+            vendtab_c,  # Points to verttab[1], standard Scotch CSR pattern
             velotab_c,
             None,  # vlbltab
             lib.SCOTCH_Num(edgenbr),
@@ -261,16 +265,36 @@ class Graph:
             strategy = Strategy()
             strategy.set_mapping_default()
 
-        ret = lib.SCOTCH_graphMap(
+        # Use 3-step API: Init -> Compute -> Exit
+        # This is the recommended pattern from Scotch C examples
+        mappdat = lib.SCOTCH_Mapping()
+
+        # Step 1: Initialize mapping
+        ret = lib.SCOTCH_graphMapInit(
             byref(self._graph),
+            byref(mappdat),
             byref(arch._arch),
-            byref(strategy._strat),
             parttab_c,
         )
+        if ret != 0:
+            raise RuntimeError(
+                f"Failed to initialize mapping for {nparts} parts "
+                f"(Scotch error code: {ret})"
+            )
+
+        # Step 2: Compute mapping
+        ret = lib.SCOTCH_graphMapCompute(
+            byref(self._graph),
+            byref(mappdat),
+            byref(strategy._strat),
+        )
+
+        # Step 3: Clean up mapping (always, even on error)
+        lib.SCOTCH_graphMapExit(byref(self._graph), byref(mappdat))
 
         if ret != 0:
             raise RuntimeError(
-                f"Failed to partition graph into {nparts} parts "
+                f"Failed to compute partition into {nparts} parts "
                 f"({vertnbr} vertices) (Scotch error code: {ret})"
             )
 
