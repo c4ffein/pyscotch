@@ -56,7 +56,16 @@ def _find_library():
 _lib_path = _find_library()
 if _lib_path:
     try:
-        # Load error library first (required by libscotch)
+        # Preload dependencies first (zlib is required by libscotch)
+        try:
+            zlib_path = ctypes.util.find_library('z')
+            if zlib_path:
+                ctypes.CDLL(zlib_path, mode=ctypes.RTLD_GLOBAL)
+        except (OSError, AttributeError, TypeError):
+            # zlib preload failed, but continue
+            pass
+
+        # Load error library (required by libscotch)
         lib_dir = Path(_lib_path).parent
         if sys.platform == "darwin":
             err_lib_names = ["libscotcherr.dylib"]

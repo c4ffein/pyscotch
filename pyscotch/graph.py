@@ -165,26 +165,25 @@ class Graph:
 
         # Store arrays to prevent garbage collection
         self._verttab = verttab.astype(np.int64)
-        self._vendtab = self._verttab[1:]  # Store slice to keep it alive
         self._edgetab = edgetab.astype(np.int64)
         self._velotab = velotab.astype(np.int64) if velotab is not None else None
         self._edlotab = edlotab.astype(np.int64) if edlotab is not None else None
 
         # Convert to ctypes arrays
         verttab_c = self._verttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-        # vendtab points to verttab[1] (standard Scotch pattern)
-        vendtab_c = self._vendtab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
         edgetab_c = self._edgetab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
         velotab_c = self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._velotab is not None else None
         edlotab_c = self._edlotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._edlotab is not None else None
 
+        # Pass verttab as vendtab to trigger Scotch's (vendtab == verttab) check
+        # which automatically uses verttab[i+1] as the end index for vertex i
         ret = lib.SCOTCH_graphBuild(
             byref(self._graph),
             lib.SCOTCH_Num(baseval),
             lib.SCOTCH_Num(vertnbr),
             verttab_c,
-            vendtab_c,  # Points to verttab[1], standard Scotch CSR pattern
+            verttab_c,  # Same pointer as verttab - Scotch will use verttab[i+1]
             velotab_c,
             None,  # vlbltab
             lib.SCOTCH_Num(edgenbr),
