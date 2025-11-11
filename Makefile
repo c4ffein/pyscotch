@@ -111,6 +111,11 @@ check-submodule:
 		git submodule update --init --recursive; \
 		echo "✓ Submodule initialized"; \
 	fi
+	@if [ ! -f "$(SCOTCH_SRC)/Makefile.inc" ]; then \
+		echo "Creating default Makefile.inc..."; \
+		cp patches/Makefile.inc.default $(SCOTCH_SRC)/Makefile.inc; \
+		echo "✓ Makefile.inc created"; \
+	fi
 	@echo "Checking for required patches..."
 	@if ! grep -q "SCOTCH_NUM_MPI.*SCOTCH_NAME_PUBLIC" $(SCOTCH_DIR)/src/libscotch/module.h; then \
 		echo "Applying scotch-suffix-fixes.patch..."; \

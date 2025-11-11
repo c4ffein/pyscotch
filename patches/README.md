@@ -1,6 +1,19 @@
 # Scotch Patches
 
-This directory contains temporary patches for the Scotch library until fixes are merged upstream.
+This directory contains temporary patches and configuration files for building Scotch.
+
+## Makefile.inc.default
+
+**Purpose**: Default build configuration for Scotch
+
+**Description**: Scotch doesn't come with a `Makefile.inc` by default. This file provides a working configuration for Linux with:
+- GCC for sequential compilation (`CCS = gcc`)
+- MPI (mpicc) for parallel PT-Scotch (`CCP = mpicc`, `CCD = mpicc`)
+- Shared library support (`.so`)
+- Compression support (zlib)
+- Thread support (pthread)
+
+**Auto-applied**: Automatically copied to `external/scotch/src/Makefile.inc` during `make check-submodule` if it doesn't exist.
 
 ## scotch-suffix-fixes.patch
 
@@ -44,15 +57,16 @@ Building with suffixes worked fine, but when loading BOTH 32-bit and 64-bit vari
 
 **Upstream Status**: Reported to Scotch maintainers. Will be fixed in future release.
 
-## How the Patch is Applied
+## How the Patches/Config are Applied
 
-The patch is automatically applied during the build process by the Makefile:
+Everything is automatically applied during the build process by the Makefile:
 
 1. `make check-submodule` - Initializes git submodule if needed
-2. Patch is applied to `external/scotch/src/libscotch/module.h`
-3. `make build-32` or `make build-64` - Builds Scotch with suffix flags
+2. `Makefile.inc.default` is copied to `external/scotch/src/Makefile.inc` if missing
+3. `scotch-suffix-fixes.patch` is applied to `external/scotch/src/libscotch/module.h`
+4. `make build-32` or `make build-64` - Builds Scotch with suffix flags
 
-The patch application is idempotent - it can be safely applied multiple times.
+All steps are idempotent - they can be safely run multiple times.
 
 ## Removing the Patch
 
