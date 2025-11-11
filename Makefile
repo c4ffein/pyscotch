@@ -44,10 +44,11 @@ help:
 	@echo "  See patches/README.md for details"
 	@echo ""
 	@echo "Other targets:"
-	@echo "  make install      - Install Python package"
-	@echo "  make test         - Run tests"
-	@echo "  make clean        - Clean Python build artifacts"
-	@echo "  make clean-scotch - Clean all Scotch builds"
+	@echo "  make install         - Install Python package"
+	@echo "  make test            - Run tests"
+	@echo "  make clean           - Clean Python build artifacts"
+	@echo "  make clean-scotch    - Clean all Scotch builds"
+	@echo "  make check-submodule - Gets Scotch as a submodule (and auto-applies the temporary fix)"
 	@echo ""
 
 # Build all variants
