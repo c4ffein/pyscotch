@@ -1,0 +1,37 @@
+diff --git a/src/libscotch/module.h b/src/libscotch/module.h
+index 8c57226..0d23e48 100644
+--- a/src/libscotch/module.h
++++ b/src/libscotch/module.h
+@@ -267,6 +267,7 @@
+ #define SCOTCH_COARSENNOMERGE       SCOTCH_NAME_PUBLIC (SCOTCH_COARSENNOMERGE)
+ #define SCOTCH_NUMMAX               SCOTCH_NAME_PUBLIC (SCOTCH_NUMMAX)
+ #define SCOTCH_NUMSTRING            SCOTCH_NAME_PUBLIC (SCOTCH_NUMSTRING)
++#define SCOTCH_NUM_MPI              SCOTCH_NAME_PUBLIC (SCOTCH_NUM_MPI)
+ #define SCOTCH_STRATDEFAULT         SCOTCH_NAME_PUBLIC (SCOTCH_STRATDEFAULT)
+ #define SCOTCH_STRATQUALITY         SCOTCH_NAME_PUBLIC (SCOTCH_STRATQUALITY)
+ #define SCOTCH_STRATSPEED           SCOTCH_NAME_PUBLIC (SCOTCH_STRATSPEED)
+@@ -287,6 +288,7 @@
+ #define SCOTCH_Dgraph               SCOTCH_NAME_PUBLIC (SCOTCH_Dgraph)
+ #define SCOTCH_DgraphHaloReq        SCOTCH_NAME_PUBLIC (SCOTCH_DgraphHaloReq)
+ #define SCOTCH_Dmapping             SCOTCH_NAME_PUBLIC (SCOTCH_Dmapping)
++#define SCOTCH_Dmesh                SCOTCH_NAME_PUBLIC (SCOTCH_Dmesh)
+ #define SCOTCH_Dordering            SCOTCH_NAME_PUBLIC (SCOTCH_Dordering)
+ #define SCOTCH_Geom                 SCOTCH_NAME_PUBLIC (SCOTCH_Geom)
+ #define SCOTCH_Graph                SCOTCH_NAME_PUBLIC (SCOTCH_Graph)
+@@ -1245,6 +1247,16 @@
+ #define SCOTCH_dgraphScatter        SCOTCH_NAME_PUBLIC (SCOTCH_dgraphScatter)
+ #define SCOTCH_dgraphSize           SCOTCH_NAME_PUBLIC (SCOTCH_dgraphSize)
+ #define SCOTCH_dgraphStat           SCOTCH_NAME_PUBLIC (SCOTCH_dgraphStat)
++#define SCOTCH_dmeshAlloc           SCOTCH_NAME_PUBLIC (SCOTCH_dmeshAlloc)
++#define SCOTCH_dmeshBuildAdm        SCOTCH_NAME_PUBLIC (SCOTCH_dmeshBuildAdm)
++#define SCOTCH_dmeshData            SCOTCH_NAME_PUBLIC (SCOTCH_dmeshData)
++#define SCOTCH_dmeshDgraphDual      SCOTCH_NAME_PUBLIC (SCOTCH_dmeshDgraphDual)
++#define SCOTCH_dmeshExit            SCOTCH_NAME_PUBLIC (SCOTCH_dmeshExit)
++#define SCOTCH_dmeshFree            SCOTCH_NAME_PUBLIC (SCOTCH_dmeshFree)
++#define SCOTCH_dmeshInit            SCOTCH_NAME_PUBLIC (SCOTCH_dmeshInit)
++#define SCOTCH_dmeshLoad            SCOTCH_NAME_PUBLIC (SCOTCH_dmeshLoad)
++#define SCOTCH_dmeshSize            SCOTCH_NAME_PUBLIC (SCOTCH_dmeshSize)
++#define SCOTCH_dmeshSizeof          SCOTCH_NAME_PUBLIC (SCOTCH_dmeshSizeof)
+ #define SCOTCH_dmapAlloc            SCOTCH_NAME_PUBLIC (SCOTCH_dmapAlloc)
+ #define SCOTCH_dmapSizeof           SCOTCH_NAME_PUBLIC (SCOTCH_dmapSizeof)
+ #define SCOTCH_dorderAlloc          SCOTCH_NAME_PUBLIC (SCOTCH_dorderAlloc)

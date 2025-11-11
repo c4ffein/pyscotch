@@ -164,10 +164,12 @@ class Graph:
             )
 
         # Store arrays to prevent garbage collection
-        self._verttab = verttab.astype(np.int64)
-        self._edgetab = edgetab.astype(np.int64)
-        self._velotab = velotab.astype(np.int64) if velotab is not None else None
-        self._edlotab = edlotab.astype(np.int64) if edlotab is not None else None
+        # Use dtype matching the compiled Scotch library (detected at import)
+        scotch_dtype = lib.get_scotch_dtype()
+        self._verttab = verttab.astype(scotch_dtype)
+        self._edgetab = edgetab.astype(scotch_dtype)
+        self._velotab = velotab.astype(scotch_dtype) if velotab is not None else None
+        self._edlotab = edlotab.astype(scotch_dtype) if edlotab is not None else None
 
         # Convert to ctypes arrays
         verttab_c = self._verttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
@@ -251,18 +253,18 @@ class Graph:
                 f"nparts ({nparts}) cannot exceed number of vertices ({vertnbr})"
             )
 
-        # Create partition array
-        parttab = np.zeros(vertnbr, dtype=np.int64)
+        # Create partition array (dtype matches compiled Scotch)
+        parttab = np.zeros(vertnbr, dtype=lib.get_scotch_dtype())
         parttab_c = parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
         # Create architecture
         arch = Architecture()
         arch.complete(nparts)
 
-        # Use provided strategy or create default
+        # Use provided strategy or create default (empty) strategy
+        # Note: For SCOTCH_graphPart, an empty/unmodified strategy works best
         if strategy is None:
-            strategy = Strategy()
-            strategy.set_mapping_default()
+            strategy = Strategy()  # Don't call set_mapping_default() - empty strategy works better
 
         # Use 3-step API: Init -> Compute -> Exit
         # This is the recommended pattern from Scotch C examples
@@ -319,9 +321,9 @@ class Graph:
 
         vertnbr, _ = self.size()
 
-        # Create ordering arrays
-        permtab = np.zeros(vertnbr, dtype=np.int64)
-        peritab = np.zeros(vertnbr, dtype=np.int64)
+        # Create ordering arrays (dtype matches compiled Scotch)
+        permtab = np.zeros(vertnbr, dtype=lib.get_scotch_dtype())
+        peritab = np.zeros(vertnbr, dtype=lib.get_scotch_dtype())
         cblkptr = lib.SCOTCH_Num()
 
         permtab_c = permtab.ctypes.data_as(POINTER(lib.SCOTCH_Num))

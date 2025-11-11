@@ -10,7 +10,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib64/
 parts/
 sdist/
 var/
@@ -39,13 +38,17 @@ htmlcov/
 test_results.txt
 
 # Scotch build artifacts
-lib/
-include/
+scotch-builds/
 # Note: scotch submodule is at external/scotch/ - don't ignore it!
-# Only ignore build artifacts within the submodule
+# Only ignore build artifacts within the submodule - even though we're not supposed to build here
 external/scotch/build/
 external/scotch/lib/
 external/scotch/bin/
+external/scotch/include/
+
+# Multi-variant implementation backups
+pyscotch/libscotch_old.py
+demo_both_versions.py
 
 # Example outputs
 *.map

@@ -23,6 +23,7 @@ from .strategy import Strategy
 from .arch import Architecture
 from .mapping import Mapping
 from .ordering import Ordering
+from .libscotch import get_scotch_int_size, get_scotch_dtype
 
 __version__ = "0.1.0"
 __all__ = [
@@ -32,4 +33,6 @@ __all__ = [
     "Architecture",
     "Mapping",
     "Ordering",
+    "get_scotch_int_size",
+    "get_scotch_dtype",
 ]

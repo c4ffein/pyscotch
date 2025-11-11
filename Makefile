@@ -3,14 +3,11 @@
 # Directories
 SCOTCH_DIR = external/scotch
 SCOTCH_SRC = $(SCOTCH_DIR)/src
-SCOTCH_BUILD = $(SCOTCH_DIR)/build
-LIB_DIR = lib
-INCLUDE_DIR = include
+BUILDS_DIR = scotch-builds
 
 # Compiler settings
 CC = gcc
 MPICC = mpicc
-CFLAGS = -O3 -fPIC -DCOMMON_PTHREAD -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_RENAME -DSCOTCH_PTHREAD
 LDFLAGS = -lm -lpthread -lz
 
 # Platform detection
@@ -25,82 +22,105 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 # Targets
-.PHONY: all build-scotch build-ptscotch clean clean-scotch install test help
+.PHONY: all build-all build-32 build-64 clean clean-scotch install test help
 
 help:
 	@echo "PyScotch Build System"
 	@echo "====================="
 	@echo ""
-	@echo "Available targets:"
-	@echo "  make build-scotch    - Build the Scotch library"
-	@echo "  make build-ptscotch  - Build the PT-Scotch library (parallel)"
-	@echo "  make all            - Build both Scotch and PT-Scotch"
-	@echo "  make install        - Install Python package"
-	@echo "  make clean          - Clean build artifacts"
-	@echo "  make clean-scotch   - Clean Scotch build"
-	@echo "  make test           - Run tests"
+	@echo "Build targets:"
+	@echo "  make build-all    - Build all 4 variants (scotch+ptscotch × 32+64-bit)"
+	@echo "  make build-32     - Build both scotch and ptscotch with 32-bit integers"
+	@echo "  make build-64     - Build both scotch and ptscotch with 64-bit integers"
+	@echo ""
+	@echo "Output structure:"
+	@echo "  scotch-builds/lib32/  - Sequential & parallel libraries (32-bit)"
+	@echo "  scotch-builds/lib64/  - Sequential & parallel libraries (64-bit)"
+	@echo "  scotch-builds/inc32/  - Headers (32-bit: SCOTCH_Num = int)"
+	@echo "  scotch-builds/inc64/  - Headers (64-bit: SCOTCH_Num = int64_t)"
+	@echo ""
+	@echo "Patches:"
+	@echo "  Temporary patches in patches/ are auto-applied during build"
+	@echo "  See patches/README.md for details"
+	@echo ""
+	@echo "Other targets:"
+	@echo "  make install      - Install Python package"
+	@echo "  make test         - Run tests"
+	@echo "  make clean        - Clean Python build artifacts"
+	@echo "  make clean-scotch - Clean all Scotch builds"
 	@echo ""
 
-all: build-scotch build-ptscotch
+# Build all variants
+all: build-all
 
-# Create necessary directories
-$(LIB_DIR):
-	mkdir -p $(LIB_DIR)
+build-all: build-32 build-64
+	@echo ""
+	@echo "✓ All Scotch variants built successfully!"
+	@echo "  - scotch-builds/lib32/ (sequential + parallel, 32-bit)"
+	@echo "  - scotch-builds/lib64/ (sequential + parallel, 64-bit)"
 
-$(INCLUDE_DIR):
-	mkdir -p $(INCLUDE_DIR)
+# Build 32-bit variants (sequential + parallel) with suffix
+build-32: check-submodule
+	@echo "=========================================="
+	@echo "Building 32-bit Scotch with suffix '_32'"
+	@echo "=========================================="
+	@mkdir -p $(BUILDS_DIR)/lib32 $(BUILDS_DIR)/inc32
+	@cd $(SCOTCH_SRC) && $(MAKE) realclean
+	@echo ""
+	@echo "[1/2] Building sequential scotch (32-bit + suffix)..."
+	@cd $(SCOTCH_SRC) && \
+		$(MAKE) scotch CFLAGS="$$(grep '^CFLAGS' Makefile.inc | cut -d= -f2-) -DSCOTCH_NAME_SUFFIX=_32 -DSCOTCH_RENAME_ALL" || true
+	@echo ""
+	@echo "[2/2] Building parallel ptscotch (32-bit + suffix)..."
+	@cd $(SCOTCH_SRC) && \
+		$(MAKE) ptscotch CFLAGS="$$(grep '^CFLAGS' Makefile.inc | cut -d= -f2-) -DSCOTCH_NAME_SUFFIX=_32 -DSCOTCH_RENAME_ALL" || true
+	@echo ""
+	@echo "Copying 32-bit libraries and headers..."
+	@cp -f $(SCOTCH_DIR)/lib/lib*scotch*.$(SHARED_EXT) $(BUILDS_DIR)/lib32/ 2>/dev/null || true
+	@cp -f $(SCOTCH_DIR)/lib/lib*scotch*.a $(BUILDS_DIR)/lib32/ 2>/dev/null || true
+	@cp -f $(SCOTCH_DIR)/include/*.h $(BUILDS_DIR)/inc32/ 2>/dev/null || true
+	@echo "✓ 32-bit build complete: scotch-builds/{lib32,inc32}/"
 
-# Check if scotch submodule exists
+# Build 64-bit variants (sequential + parallel) with suffix
+build-64: check-submodule
+	@echo "=========================================="
+	@echo "Building 64-bit Scotch with suffix '_64'"
+	@echo "=========================================="
+	@mkdir -p $(BUILDS_DIR)/lib64 $(BUILDS_DIR)/inc64
+	@cd $(SCOTCH_SRC) && $(MAKE) realclean
+	@echo ""
+	@echo "[1/2] Building sequential scotch (64-bit + suffix)..."
+	@cd $(SCOTCH_SRC) && \
+		$(MAKE) scotch CFLAGS="$$(grep '^CFLAGS' Makefile.inc | cut -d= -f2-) -DINTSIZE64 -DSCOTCH_NAME_SUFFIX=_64 -DSCOTCH_RENAME_ALL" || true
+	@echo ""
+	@echo "[2/2] Building parallel ptscotch (64-bit + suffix)..."
+	@cd $(SCOTCH_SRC) && \
+		$(MAKE) ptscotch CFLAGS="$$(grep '^CFLAGS' Makefile.inc | cut -d= -f2-) -DINTSIZE64 -DSCOTCH_NAME_SUFFIX=_64 -DSCOTCH_RENAME_ALL" || true
+	@echo ""
+	@echo "Copying 64-bit libraries and headers..."
+	@cp -f $(SCOTCH_DIR)/lib/lib*scotch*.$(SHARED_EXT) $(BUILDS_DIR)/lib64/ 2>/dev/null || true
+	@cp -f $(SCOTCH_DIR)/lib/lib*scotch*.a $(BUILDS_DIR)/lib64/ 2>/dev/null || true
+	@cp -f $(SCOTCH_DIR)/include/*.h $(BUILDS_DIR)/inc64/ 2>/dev/null || true
+	@echo "✓ 64-bit build complete: scotch-builds/{lib64,inc64}/"
+
+# Check if scotch submodule exists and apply patches
 check-submodule:
 	@if [ ! -d "$(SCOTCH_DIR)" ] || [ ! -f "$(SCOTCH_DIR)/README.md" ]; then \
 		echo "Error: Scotch submodule not found!"; \
-		echo "Please run: git submodule add https://gitlab.inria.fr/scotch/scotch.git external/scotch"; \
-		echo "Then run: git submodule update --init --recursive"; \
+		echo "Please run: git submodule update --init --recursive"; \
 		exit 1; \
 	fi
-
-# Build Scotch (sequential version)
-build-scotch: check-submodule $(LIB_DIR) $(INCLUDE_DIR)
-	@echo "Building Scotch library..."
-	@if [ -f "$(SCOTCH_SRC)/Makefile" ]; then \
-		cd $(SCOTCH_SRC) && \
-		$(MAKE) scotch || true; \
+	@echo "Checking for required patches..."
+	@if ! grep -q "SCOTCH_NUM_MPI.*SCOTCH_NAME_PUBLIC" $(SCOTCH_DIR)/src/libscotch/module.h; then \
+		echo "Applying scotch-suffix-fixes.patch..."; \
+		cd $(SCOTCH_DIR) && git apply ../../patches/scotch-suffix-fixes.patch && \
+		echo "✓ Patch applied successfully"; \
 	else \
-		echo "Warning: Scotch Makefile not found. Creating stub library."; \
-		echo "Please ensure the scotch submodule is properly initialized."; \
+		echo "✓ Patches already applied"; \
 	fi
-	@echo "Copying libraries and headers..."
-	@if [ -d "$(SCOTCH_DIR)/lib" ]; then \
-		cp -f $(SCOTCH_DIR)/lib/libscotch*.a $(LIB_DIR)/ 2>/dev/null || true; \
-		cp -f $(SCOTCH_DIR)/lib/libscotch*.$(SHARED_EXT) $(LIB_DIR)/ 2>/dev/null || true; \
-	fi
-	@if [ -d "$(SCOTCH_DIR)/include" ]; then \
-		cp -f $(SCOTCH_DIR)/include/*.h $(INCLUDE_DIR)/ 2>/dev/null || true; \
-	fi
-	@echo "Scotch build complete!"
-
-# Build PT-Scotch (parallel version)
-build-ptscotch: check-submodule $(LIB_DIR) $(INCLUDE_DIR)
-	@echo "Building PT-Scotch library..."
-	@if [ -f "$(SCOTCH_SRC)/Makefile" ]; then \
-		cd $(SCOTCH_SRC) && \
-		$(MAKE) ptscotch || true; \
-	else \
-		echo "Warning: Scotch Makefile not found. Creating stub library."; \
-		echo "Please ensure the scotch submodule is properly initialized."; \
-	fi
-	@echo "Copying libraries and headers..."
-	@if [ -d "$(SCOTCH_DIR)/lib" ]; then \
-		cp -f $(SCOTCH_DIR)/lib/libptscotch*.a $(LIB_DIR)/ 2>/dev/null || true; \
-		cp -f $(SCOTCH_DIR)/lib/libptscotch*.$(SHARED_EXT) $(LIB_DIR)/ 2>/dev/null || true; \
-	fi
-	@if [ -d "$(SCOTCH_DIR)/include" ]; then \
-		cp -f $(SCOTCH_DIR)/include/*.h $(INCLUDE_DIR)/ 2>/dev/null || true; \
-	fi
-	@echo "PT-Scotch build complete!"
 
 # Install Python package
-install: build-scotch
+install:
 	pip install -e .
 
 # Run tests
@@ -114,12 +134,13 @@ clean:
 	find . -type f -name "*.pyc" -delete
 	find . -type f -name "*.pyo" -delete
 
-# Clean Scotch build
+# Clean Scotch builds
 clean-scotch:
 	@if [ -f "$(SCOTCH_SRC)/Makefile" ]; then \
-		cd $(SCOTCH_SRC) && $(MAKE) clean; \
+		cd $(SCOTCH_SRC) && $(MAKE) realclean; \
 	fi
-	rm -rf $(LIB_DIR) $(INCLUDE_DIR)
+	rm -rf $(BUILDS_DIR)
+	rm -rf lib lib32 lib64 include include32 include64
 
 # Full clean
 distclean: clean clean-scotch

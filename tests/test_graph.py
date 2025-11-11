@@ -5,16 +5,9 @@ Unit tests for Graph class.
 import pytest
 import numpy as np
 from pathlib import Path
-
-# These tests will only run if the Scotch library is built
-try:
-    from pyscotch import Graph, Strategy, Mapping
-    SCOTCH_AVAILABLE = True
-except (ImportError, RuntimeError):
-    SCOTCH_AVAILABLE = False
+from pyscotch import Graph, Strategy, Mapping
 
 
-@pytest.mark.skipif(not SCOTCH_AVAILABLE, reason="Scotch library not available")
 class TestGraph:
     """Test Graph functionality."""
 
@@ -125,7 +118,6 @@ class TestGraph:
         assert sizes[2] == 1
 
 
-@pytest.mark.skipif(not SCOTCH_AVAILABLE, reason="Scotch library not available")
 class TestStrategy:
     """Test Strategy functionality."""
 

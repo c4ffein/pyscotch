@@ -9,17 +9,20 @@ import pytest
 import numpy as np
 from pathlib import Path
 import tempfile
-
-# These tests will only run if the Scotch library is built
-try:
-    from pyscotch import Graph, Strategy, Architecture, Mapping, Ordering
-    from pyscotch import libscotch as lib
-    SCOTCH_AVAILABLE = True
-except (ImportError, RuntimeError):
-    SCOTCH_AVAILABLE = False
+from pyscotch import Graph, Strategy, Architecture, Mapping, Ordering
+from pyscotch import libscotch as lib
 
 
-@pytest.mark.skipif(not SCOTCH_AVAILABLE, reason="Scotch library not available")
+@pytest.fixture(autouse=True, scope="module")
+def ensure_sequential_variant():
+    """Ensure we're using a sequential variant for these compatibility tests."""
+    # These tests use sequential Scotch API (Graph, not Dgraph)
+    variant = lib.get_active_variant()
+    if variant and variant.parallel:
+        # Switch to sequential variant with same int size
+        lib.set_active_variant(variant.int_size, parallel=False)
+
+
 class TestArchitecture:
     """Tests based on test_scotch_arch.c"""
 
@@ -38,7 +41,6 @@ class TestArchitecture:
             assert arch is not None
 
 
-@pytest.mark.skipif(not SCOTCH_AVAILABLE, reason="Scotch library not available")
 class TestGraphBasic:
     """Basic graph tests based on Scotch C tests."""
 
@@ -164,7 +166,6 @@ class TestGraphBasic:
         assert graph.check() is True
 
 
-@pytest.mark.skipif(not SCOTCH_AVAILABLE, reason="Scotch library not available")
 class TestGraphPartitioning:
     """Graph partitioning tests based on Scotch C tests."""
 
@@ -253,7 +254,6 @@ class TestGraphPartitioning:
         assert partitions.max() <= 1
 
 
-@pytest.mark.skipif(not SCOTCH_AVAILABLE, reason="Scotch library not available")
 class TestGraphOrdering:
     """Graph ordering tests based on Scotch C tests."""
 
@@ -309,7 +309,6 @@ class TestGraphOrdering:
             assert inverse[permutation[i]] == i
 
 
-@pytest.mark.skipif(not SCOTCH_AVAILABLE, reason="Scotch library not available")
 class TestStrategy:
     """Strategy tests based on Scotch C tests."""
 
