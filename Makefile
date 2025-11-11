@@ -107,9 +107,9 @@ build-64: check-submodule
 # Check if scotch submodule exists and apply patches
 check-submodule:
 	@if [ ! -d "$(SCOTCH_DIR)" ] || [ ! -f "$(SCOTCH_DIR)/README.md" ]; then \
-		echo "Error: Scotch submodule not found!"; \
-		echo "Please run: git submodule update --init --recursive"; \
-		exit 1; \
+		echo "Scotch submodule not initialized. Initializing..."; \
+		git submodule update --init --recursive; \
+		echo "✓ Submodule initialized"; \
 	fi
 	@echo "Checking for required patches..."
 	@if ! grep -q "SCOTCH_NUM_MPI.*SCOTCH_NAME_PUBLIC" $(SCOTCH_DIR)/src/libscotch/module.h; then \
