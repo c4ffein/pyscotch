@@ -1,0 +1,94 @@
+name: Test PyScotch
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+      fail-fast: false
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          gfortran \
+          libopenmpi-dev \
+          openmpi-bin \
+          zlib1g-dev \
+          flex \
+          bison
+
+    - name: Verify MPI installation
+      run: |
+        which mpicc
+        mpicc --version
+        which mpirun
+        mpirun --version
+
+    - name: Build all Scotch variants (32/64-bit × seq/parallel)
+      run: |
+        make build-all
+
+    - name: Verify all 4 variants built
+      run: |
+        echo "32-bit libraries:"
+        ls -lh scotch-builds/lib32/
+        echo ""
+        echo "64-bit libraries:"
+        ls -lh scotch-builds/lib64/
+        echo ""
+        echo "Checking for all 4 variants:"
+        test -f scotch-builds/lib32/libscotch.so
+        test -f scotch-builds/lib32/libptscotch.so
+        test -f scotch-builds/lib64/libscotch.so
+        test -f scotch-builds/lib64/libptscotch.so
+        echo "✓ All 4 variants present!"
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov numpy
+
+    - name: Install PyScotch
+      run: |
+        pip install -e .
+
+    - name: Verify PyScotch imports
+      run: |
+        python -c "from pyscotch import Graph, Strategy, Architecture; print('✓ PyScotch imports work')"
+        python -c "from pyscotch import libscotch; print(f'Available variants: {libscotch.list_available_variants()}')"
+
+    - name: Run test suite
+      run: |
+        pytest tests/ -v --tb=short --cov=pyscotch --cov-report=term-missing
+
+    - name: Test summary
+      if: always()
+      run: |
+        echo "Test Results Summary:"
+        pytest tests/ --collect-only | grep "test session starts" -A 100 | tail -5
+
+    - name: Upload coverage reports
+      if: matrix.python-version == '3.12'
+      uses: codecov/codecov-action@v3
+      with:
+        fail_ci_if_error: false
