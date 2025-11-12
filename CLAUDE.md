@@ -6,3 +6,4 @@
 
 ## Testing strategy
 - When importing a test from Scotch, maximize the similarity with the existing test. NEVER PUT THE DUST UNDER THE RUG.
+- ALWAYS KEEP THE EXACT SAME ASSERTIONS. THE TESTS **NEVER** ARE THE PROBLEM. DON'T TRY TO MODIFY THE TEST. FIX THE IMPLEMENTATION.
