@@ -52,8 +52,11 @@ class TestGraphBasic:
 
     def test_graph_size_empty(self):
         """Test getting size of an uninitialized graph."""
-        # This test may segfault - let's skip for now
-        pytest.skip("Empty graph size query may not be safe")
+        # Empty graph should have 0 vertices and 0 edges
+        graph = Graph()
+        vertnbr, edgenbr = graph.size()
+        assert vertnbr == 0
+        assert edgenbr == 0
 
     def test_simple_triangle_csr(self):
         """Test building a simple triangle graph using CSR format.
