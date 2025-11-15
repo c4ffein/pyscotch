@@ -23,7 +23,14 @@ from .strategy import Strategy
 from .arch import Architecture
 from .mapping import Mapping
 from .ordering import Ordering
-from .libscotch import get_scotch_int_size, get_scotch_dtype
+from .libscotch import (
+    get_scotch_int_size,
+    get_scotch_dtype,
+    SCOTCH_COARSENNONE,
+    SCOTCH_COARSENFOLD,
+    SCOTCH_COARSENFOLDDUP,
+    SCOTCH_COARSENNOMERGE,
+)
 
 __version__ = "0.1.0"
 __all__ = [
@@ -35,4 +42,8 @@ __all__ = [
     "Ordering",
     "get_scotch_int_size",
     "get_scotch_dtype",
+    "SCOTCH_COARSENNONE",
+    "SCOTCH_COARSENFOLD",
+    "SCOTCH_COARSENFOLDDUP",
+    "SCOTCH_COARSENNOMERGE",
 ]

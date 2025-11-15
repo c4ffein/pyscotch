@@ -1,28 +1,29 @@
 """
-Ported from: external/scotch/src/check/test_common_thread.c
+NOT PORTED: external/scotch/src/check/test_common_thread.c
 
-Common threading utilities
+Common threading utilities - INTERNAL THREADING API
+
+REASON FOR NOT PORTING:
+This test file tests Scotch's internal threading primitives, which are NOT
+part of the public API exposed in scotch.h.
+
+The test uses these internal functions from common_thread.h:
+- threadLaunch(&contdat, func, data) - Launch thread group
+- threadBarrier(descptr) - Thread barrier synchronization
+- threadReduce(descptr, data, size, func, ...) - Thread reduction
+- threadScan(descptr, data, size, func, ...) - Thread scan operation
+- threadContextExit(&contdat) - Clean up thread context
+
+These are internal threading primitives that Scotch uses to implement
+parallel algorithms (PT-Scotch). They are implementation details not
+exposed to external users.
+
+PyScotch bindings focus on the public API in scotch.h. Threading is
+handled internally by Scotch when using PT-Scotch variants. Users don't
+directly interact with these threading primitives.
+
+If you need to test parallel behavior, use the public PT-Scotch functions
+(SCOTCH_dgraph* family) which use these threading primitives internally.
 """
 
-import pytest
-import numpy as np
-from pathlib import Path
-
-from pyscotch import Graph
-from pyscotch import libscotch as lib
-
-
-@pytest.fixture(autouse=True, scope="module")
-def ensure_variant():
-    """Sequential Scotch only (not PT-Scotch)."""
-    variant = lib.get_active_variant()
-    if variant:
-        lib.set_active_variant(variant.int_size, parallel=False)
-
-
-class TestCommonThread:
-    """Tests from test_common_thread.c"""
-
-    def test_placeholder(self):
-        """Placeholder test - port actual tests from C file."""
-        raise NotImplementedError("TODO: Port from test_common_thread.c")
+# No tests - this file documents why test_common_thread.c is not ported

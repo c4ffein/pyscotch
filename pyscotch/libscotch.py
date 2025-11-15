@@ -20,6 +20,12 @@ from typing import Optional, Tuple, Dict
 # Constants
 _OPAQUE_STRUCTURE_SIZE = 256
 
+# Graph coarsening flags (from scotch.h)
+SCOTCH_COARSENNONE = 0x0000
+SCOTCH_COARSENFOLD = 0x0100
+SCOTCH_COARSENFOLDDUP = 0x0300
+SCOTCH_COARSENNOMERGE = 0x4000
+
 
 # Opaque structure types (shared across all variants)
 class SCOTCH_Graph(Structure):
@@ -77,6 +83,7 @@ class ScotchVariant:
         # Type definitions for this variant
         self.SCOTCH_Num = c_long if int_size == 64 else c_int
         self.SCOTCH_Idx = c_long if int_size == 64 else c_int
+        self.SCOTCH_GraphPart2 = ctypes.c_ubyte  # unsigned char for partition IDs
 
         # Library handles (loaded with RTLD_LOCAL for isolation)
         self._libscotch = None
@@ -223,6 +230,101 @@ class ScotchVariant:
                 POINTER(self.SCOTCH_Num),
             ]
             self.SCOTCH_graphOrder.restype = c_int
+
+            self.SCOTCH_graphColor = self._get_func("SCOTCH_graphColor")
+            self.SCOTCH_graphColor.argtypes = [
+                POINTER(SCOTCH_Graph),
+                POINTER(self.SCOTCH_Num),
+                POINTER(self.SCOTCH_Num),
+                self.SCOTCH_Num,
+            ]
+            self.SCOTCH_graphColor.restype = c_int
+
+            self.SCOTCH_graphData = self._get_func("SCOTCH_graphData")
+            self.SCOTCH_graphData.argtypes = [
+                POINTER(SCOTCH_Graph),
+                POINTER(self.SCOTCH_Num),  # baseval
+                POINTER(self.SCOTCH_Num),  # vertnbr
+                POINTER(POINTER(self.SCOTCH_Num)),  # verttab
+                POINTER(POINTER(self.SCOTCH_Num)),  # vendtab
+                POINTER(POINTER(self.SCOTCH_Num)),  # velotab
+                POINTER(POINTER(self.SCOTCH_Num)),  # vlbltab
+                POINTER(self.SCOTCH_Num),  # edgenbr
+                POINTER(POINTER(self.SCOTCH_Num)),  # edgetab
+                POINTER(POINTER(self.SCOTCH_Num)),  # edlotab
+            ]
+            self.SCOTCH_graphData.restype = None
+
+            self.SCOTCH_graphInduceList = self._get_func("SCOTCH_graphInduceList")
+            self.SCOTCH_graphInduceList.argtypes = [
+                POINTER(SCOTCH_Graph),  # source graph
+                self.SCOTCH_Num,  # number of vertices to keep
+                POINTER(self.SCOTCH_Num),  # list of vertices
+                POINTER(SCOTCH_Graph),  # induced graph
+            ]
+            self.SCOTCH_graphInduceList.restype = c_int
+
+            self.SCOTCH_graphInducePart = self._get_func("SCOTCH_graphInducePart")
+            self.SCOTCH_graphInducePart.argtypes = [
+                POINTER(SCOTCH_Graph),  # source graph
+                self.SCOTCH_Num,  # number of vertices in partition
+                POINTER(self.SCOTCH_GraphPart2),  # partition array
+                self.SCOTCH_GraphPart2,  # partition to extract
+                POINTER(SCOTCH_Graph),  # induced graph
+            ]
+            self.SCOTCH_graphInducePart.restype = c_int
+
+            # Graph coarsening functions
+            self.SCOTCH_graphCoarsen = self._get_func("SCOTCH_graphCoarsen")
+            self.SCOTCH_graphCoarsen.argtypes = [
+                POINTER(SCOTCH_Graph),  # fine graph
+                self.SCOTCH_Num,  # coarvertnbr minimum
+                c_double,  # coarrat ratio
+                self.SCOTCH_Num,  # flagval flags
+                POINTER(SCOTCH_Graph),  # coarse graph
+                POINTER(self.SCOTCH_Num),  # multinode array
+            ]
+            self.SCOTCH_graphCoarsen.restype = c_int
+
+            self.SCOTCH_graphCoarsenMatch = self._get_func("SCOTCH_graphCoarsenMatch")
+            self.SCOTCH_graphCoarsenMatch.argtypes = [
+                POINTER(SCOTCH_Graph),  # fine graph
+                POINTER(self.SCOTCH_Num),  # coarvertnbr (in/out)
+                c_double,  # coarrat ratio
+                self.SCOTCH_Num,  # flagval flags
+                POINTER(self.SCOTCH_Num),  # mate array
+            ]
+            self.SCOTCH_graphCoarsenMatch.restype = c_int
+
+            self.SCOTCH_graphCoarsenBuild = self._get_func("SCOTCH_graphCoarsenBuild")
+            self.SCOTCH_graphCoarsenBuild.argtypes = [
+                POINTER(SCOTCH_Graph),  # fine graph
+                self.SCOTCH_Num,  # coarvertnbr
+                POINTER(self.SCOTCH_Num),  # mate array
+                POINTER(SCOTCH_Graph),  # coarse graph
+                POINTER(self.SCOTCH_Num),  # multinode array
+            ]
+            self.SCOTCH_graphCoarsenBuild.restype = c_int
+
+            # Graph diameter function
+            self.SCOTCH_graphDiamPV = self._get_func("SCOTCH_graphDiamPV")
+            self.SCOTCH_graphDiamPV.argtypes = [
+                POINTER(SCOTCH_Graph),  # graph
+            ]
+            self.SCOTCH_graphDiamPV.restype = self.SCOTCH_Num  # Returns diameter
+
+            # Random number functions
+            self.SCOTCH_randomReset = self._get_func("SCOTCH_randomReset")
+            self.SCOTCH_randomReset.argtypes = []
+            self.SCOTCH_randomReset.restype = None
+
+            self.SCOTCH_randomVal = self._get_func("SCOTCH_randomVal")
+            self.SCOTCH_randomVal.argtypes = [self.SCOTCH_Num]
+            self.SCOTCH_randomVal.restype = self.SCOTCH_Num
+
+            self.SCOTCH_randomSeed = self._get_func("SCOTCH_randomSeed")
+            self.SCOTCH_randomSeed.argtypes = [self.SCOTCH_Num]
+            self.SCOTCH_randomSeed.restype = None
 
             # Strategy functions
             self.SCOTCH_stratInit = self._get_func("SCOTCH_stratInit")

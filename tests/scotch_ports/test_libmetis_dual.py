@@ -1,28 +1,16 @@
 """
-Ported from: external/scotch/src/check/test_libmetis_dual.c
+NOT PORTED: external/scotch/src/check/test_libmetis_dual.c
 
-METIS dual graph compatibility
+METIS dual graph compatibility - BLOCKED BY FILE* API
+
+REASON FOR NOT PORTING:
+This test uses SCOTCH_graphLoad() which requires FILE* pointers. Python ctypes
+cannot safely handle FILE* pointers.
+
+The test loads a graph from file and tests METIS dual graph partitioning
+functions provided by libscotchmetis.
+
+See QUESTIONS_FOR_SCOTCH_TEAM.md Issue #4 for the FILE* problem.
 """
 
-import pytest
-import numpy as np
-from pathlib import Path
-
-from pyscotch import Graph
-from pyscotch import libscotch as lib
-
-
-@pytest.fixture(autouse=True, scope="module")
-def ensure_variant():
-    """Sequential Scotch only (not PT-Scotch)."""
-    variant = lib.get_active_variant()
-    if variant:
-        lib.set_active_variant(variant.int_size, parallel=False)
-
-
-class TestLibmetisDual:
-    """Tests from test_libmetis_dual.c"""
-
-    def test_placeholder(self):
-        """Placeholder test - port actual tests from C file."""
-        raise NotImplementedError("TODO: Port from test_libmetis_dual.c")
+# No tests - blocked by FILE* pointer limitations

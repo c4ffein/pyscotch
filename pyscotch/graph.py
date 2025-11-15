@@ -67,23 +67,22 @@ class Graph:
             raise FileNotFoundError(f"Graph file not found: {filename}")
 
         # Open file and get file pointer
-        import os
         file_ptr = open(str(filename), "rb")
         try:
             # Convert Python file to C FILE pointer
             import ctypes.util
-            if hasattr(ctypes, 'pythonapi'):
-                PyFile_AsFile = ctypes.pythonapi.PyFile_AsFile
-                PyFile_AsFile.argtypes = [ctypes.py_object]
-                PyFile_AsFile.restype = ctypes.c_void_p
-                c_file = PyFile_AsFile(file_ptr)
-            else:
-                # For Python 3, we need to use fdopen
-                libc = ctypes.CDLL(ctypes.util.find_library("c"))
-                c_file = libc.fdopen(file_ptr.fileno(), b"r")
+            import os
+            # PyFile_AsFile doesn't exist in Python 3, so use fdopen
+            libc = ctypes.CDLL(ctypes.util.find_library("c"))
+            # Duplicate the file descriptor so fdopen doesn't interfere with Python's file
+            dup_fd = os.dup(file_ptr.fileno())
+            c_file = libc.fdopen(dup_fd, b"r")
 
             baseval = lib.SCOTCH_Num(0)
             ret = lib.SCOTCH_graphLoad(byref(self._graph), c_file, baseval, 0)
+
+            # Close the C file (fclose will close the dup'd fd)
+            libc.fclose(c_file)
 
             if ret != 0:
                 raise RuntimeError(f"Failed to load graph from {filename} (error code: {ret})")
@@ -104,16 +103,18 @@ class Graph:
         file_ptr = open(str(filename), "wb")
         try:
             import ctypes.util
-            if hasattr(ctypes, 'pythonapi'):
-                PyFile_AsFile = ctypes.pythonapi.PyFile_AsFile
-                PyFile_AsFile.argtypes = [ctypes.py_object]
-                PyFile_AsFile.restype = ctypes.c_void_p
-                c_file = PyFile_AsFile(file_ptr)
-            else:
-                libc = ctypes.CDLL(ctypes.util.find_library("c"))
-                c_file = libc.fdopen(file_ptr.fileno(), b"w")
+            # PyFile_AsFile doesn't exist in Python 3, so use fdopen
+            libc = ctypes.CDLL(ctypes.util.find_library("c"))
+            # Duplicate the file descriptor so fdopen doesn't interfere with Python's file
+            import os
+            dup_fd = os.dup(file_ptr.fileno())
+            c_file = libc.fdopen(dup_fd, b"w")
 
             ret = lib.SCOTCH_graphSave(byref(self._graph), c_file)
+
+            # Flush and close the C file
+            libc.fflush(c_file)
+            libc.fclose(c_file)
 
             if ret != 0:
                 raise RuntimeError(f"Failed to save graph to {filename} (error code: {ret})")
@@ -351,6 +352,126 @@ class Graph:
             )
 
         return permtab, peritab
+
+    def color(self) -> Tuple[np.ndarray, int]:
+        """
+        Compute a graph coloring (vertex coloring).
+
+        Returns a coloring where no two adjacent vertices have the same color.
+
+        Returns:
+            Tuple of (color array, number of colors used)
+            - color array: Array of color assignments for each vertex (0-based)
+            - number of colors: Total number of colors used
+
+        Raises:
+            RuntimeError: If coloring fails
+        """
+        vertnbr, _ = self.size()
+
+        # Create color array (dtype matches compiled Scotch)
+        colotab = np.zeros(vertnbr, dtype=lib.get_scotch_dtype())
+        colonbr = lib.SCOTCH_Num()
+
+        colotab_c = colotab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        ret = lib.SCOTCH_graphColor(
+            byref(self._graph),
+            colotab_c,
+            byref(colonbr),
+            lib.SCOTCH_Num(0),  # flagval = 0
+        )
+
+        if ret != 0:
+            raise RuntimeError(
+                f"Failed to color graph with {vertnbr} vertices "
+                f"(Scotch error code: {ret})"
+            )
+
+        return colotab, colonbr.value
+
+    def induce_list(self, vertex_list: np.ndarray) -> "Graph":
+        """
+        Create an induced subgraph from a list of vertices.
+
+        The induced subgraph contains only the specified vertices and the edges
+        between them from the original graph.
+
+        Args:
+            vertex_list: Array of vertex indices to include in the subgraph
+
+        Returns:
+            New Graph instance containing the induced subgraph
+
+        Raises:
+            RuntimeError: If induction fails
+        """
+        indvertnbr = len(vertex_list)
+
+        # Convert vertex list to Scotch dtype
+        scotch_dtype = lib.get_scotch_dtype()
+        vertex_list_scotch = vertex_list.astype(scotch_dtype)
+        vertex_list_c = vertex_list_scotch.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        # Create new graph for induced subgraph
+        induced_graph = Graph()
+
+        ret = lib.SCOTCH_graphInduceList(
+            byref(self._graph),
+            lib.SCOTCH_Num(indvertnbr),
+            vertex_list_c,
+            byref(induced_graph._graph),
+        )
+
+        if ret != 0:
+            raise RuntimeError(
+                f"Failed to induce subgraph from {indvertnbr} vertices "
+                f"(Scotch error code: {ret})"
+            )
+
+        return induced_graph
+
+    def induce_part(self, partition: np.ndarray, part_id: int) -> "Graph":
+        """
+        Create an induced subgraph from vertices in a specific partition.
+
+        Args:
+            partition: Array of partition assignments for each vertex
+            part_id: Partition ID to extract (vertices with this partition value)
+
+        Returns:
+            New Graph instance containing vertices from the specified partition
+
+        Raises:
+            RuntimeError: If induction fails
+        """
+        vertnbr, _ = self.size()
+
+        # Count vertices in the requested partition
+        indvertnbr = np.sum(partition == part_id)
+
+        # Convert partition array to GraphPart2 type (unsigned char/ubyte)
+        partition_ubyte = partition.astype(np.uint8)
+        partition_c = partition_ubyte.ctypes.data_as(POINTER(lib.SCOTCH_GraphPart2))
+
+        # Create new graph for induced subgraph
+        induced_graph = Graph()
+
+        ret = lib.SCOTCH_graphInducePart(
+            byref(self._graph),
+            lib.SCOTCH_Num(indvertnbr),
+            partition_c,
+            lib.SCOTCH_GraphPart2(part_id),
+            byref(induced_graph._graph),
+        )
+
+        if ret != 0:
+            raise RuntimeError(
+                f"Failed to induce subgraph from partition {part_id} "
+                f"({indvertnbr} vertices) (Scotch error code: {ret})"
+            )
+
+        return induced_graph
 
     def save_mapping(self, filename: Union[str, Path], mapping: np.ndarray) -> None:
         """

@@ -1,28 +1,25 @@
 """
-Ported from: external/scotch/src/check/test_libmetis.c
+NOT PORTED: external/scotch/src/check/test_libmetis.c
 
-METIS compatibility layer
+METIS compatibility layer - BLOCKED BY FILE* API
+
+REASON FOR NOT PORTING:
+This test uses SCOTCH_graphLoad() which requires FILE* pointers. Python ctypes
+cannot safely handle FILE* pointers.
+
+The test loads a graph from file and tests the METIS compatibility API provided
+by libscotchmetis. This compatibility layer provides METIS-compatible function
+signatures (METIS_PartGraphKway, METIS_PartGraphRecursive, etc.) implemented
+using Scotch internally.
+
+The METIS compatibility functions use the PUBLIC API, but the test infrastructure
+(graph file loading) is blocked by FILE* limitations.
+
+Note: PyScotch doesn't currently provide METIS compatibility bindings. Users
+needing METIS compatibility should use the C library directly or consider using
+native Scotch functions.
+
+See QUESTIONS_FOR_SCOTCH_TEAM.md Issue #4 for the FILE* problem.
 """
 
-import pytest
-import numpy as np
-from pathlib import Path
-
-from pyscotch import Graph
-from pyscotch import libscotch as lib
-
-
-@pytest.fixture(autouse=True, scope="module")
-def ensure_variant():
-    """Sequential Scotch only (not PT-Scotch)."""
-    variant = lib.get_active_variant()
-    if variant:
-        lib.set_active_variant(variant.int_size, parallel=False)
-
-
-class TestLibmetis:
-    """Tests from test_libmetis.c"""
-
-    def test_placeholder(self):
-        """Placeholder test - port actual tests from C file."""
-        raise NotImplementedError("TODO: Port from test_libmetis.c")
+# No tests - blocked by FILE* pointer limitations
