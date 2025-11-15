@@ -3,15 +3,82 @@ High-level Graph class for PT-Scotch.
 """
 
 import numpy as np
+import ctypes
+import ctypes.util
 from ctypes import byref, c_long, POINTER, cast, c_void_p
 from pathlib import Path
 from typing import Optional, Union, List, Tuple
+from contextlib import contextmanager
 
 try:
     from . import libscotch as lib
     _lib_available = lib._libscotch is not None
 except ImportError:
     _lib_available = False
+
+
+# ============================================================================
+# C FILE* Context Manager
+# ============================================================================
+
+@contextmanager
+def c_fopen(filename: str, mode: str = "r"):
+    """
+    Context manager for C FILE* pointers using libc's fopen/fclose.
+
+    This avoids Python's file handling entirely, allowing us to pass FILE*
+    pointers to Scotch functions without ownership/buffering conflicts.
+
+    Args:
+        filename: Path to file
+        mode: File mode ("r", "w", "rb", "wb", etc.)
+
+    Yields:
+        C FILE* pointer (as ctypes.c_void_p)
+
+    Raises:
+        IOError: If file cannot be opened
+        RuntimeError: If libc cannot be loaded
+
+    Example:
+        with c_fopen("graph.grf", "r") as file_ptr:
+            lib.SCOTCH_graphLoad(byref(graph._graph), file_ptr, -1, 0)
+
+    Note on Issue 1 (C runtime mismatch):
+        On most Linux systems, both Python and Scotch use glibc, so FILE*
+        structure layout is compatible. If you encounter segfaults, you may
+        have a C runtime mismatch. Workaround available - contact maintainer.
+    """
+    # Load libc
+    libc_name = ctypes.util.find_library("c")
+    if not libc_name:
+        raise RuntimeError("Could not find C standard library")
+
+    libc = ctypes.CDLL(libc_name)
+
+    # Configure fopen
+    libc.fopen.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    libc.fopen.restype = ctypes.c_void_p
+
+    # Configure fclose
+    libc.fclose.argtypes = [ctypes.c_void_p]
+    libc.fclose.restype = ctypes.c_int
+
+    # Open file using C's fopen (Issue 2: Error handling)
+    file_ptr = libc.fopen(str(filename).encode(), mode.encode())
+
+    if not file_ptr:
+        # Get errno for better error message
+        errno_val = ctypes.get_errno()
+        raise IOError(f"Failed to open file '{filename}' with mode '{mode}' (errno: {errno_val})")
+
+    try:
+        # Yield the FILE* pointer to the caller
+        yield file_ptr
+    finally:
+        # Issue 3: Memory management - always close the file
+        if file_ptr:
+            libc.fclose(file_ptr)
 
 
 class Graph:
@@ -55,71 +122,54 @@ class Graph:
         """
         Load a graph from a file in Scotch graph format.
 
+        Uses C's fopen() to avoid Python FILE* incompatibility issues.
+
         Args:
             filename: Path to the graph file (.grf format)
 
         Raises:
             FileNotFoundError: If the file doesn't exist
+            IOError: If file cannot be opened
             RuntimeError: If loading fails
         """
         filename = Path(filename)
         if not filename.exists():
             raise FileNotFoundError(f"Graph file not found: {filename}")
 
-        # Open file and get file pointer
-        file_ptr = open(str(filename), "rb")
-        try:
-            # Convert Python file to C FILE pointer
-            import ctypes.util
-            import os
-            # PyFile_AsFile doesn't exist in Python 3, so use fdopen
-            libc = ctypes.CDLL(ctypes.util.find_library("c"))
-            # Duplicate the file descriptor so fdopen doesn't interfere with Python's file
-            dup_fd = os.dup(file_ptr.fileno())
-            c_file = libc.fdopen(dup_fd, b"r")
-
+        # Use C fopen context manager - avoids Python file handling issues
+        with c_fopen(str(filename), "r") as file_ptr:
             baseval = lib.SCOTCH_Num(0)
-            ret = lib.SCOTCH_graphLoad(byref(self._graph), c_file, baseval, 0)
-
-            # Close the C file (fclose will close the dup'd fd)
-            libc.fclose(c_file)
+            ret = lib.SCOTCH_graphLoad(
+                byref(self._graph),
+                file_ptr,
+                baseval,
+                0
+            )
 
             if ret != 0:
                 raise RuntimeError(f"Failed to load graph from {filename} (error code: {ret})")
-        finally:
-            file_ptr.close()
 
     def save(self, filename: Union[str, Path]) -> None:
         """
         Save the graph to a file in Scotch graph format.
 
+        Uses C's fopen() to avoid Python FILE* incompatibility issues.
+
         Args:
             filename: Output file path
 
         Raises:
+            IOError: If file cannot be opened
             RuntimeError: If saving fails
         """
         filename = Path(filename)
-        file_ptr = open(str(filename), "wb")
-        try:
-            import ctypes.util
-            # PyFile_AsFile doesn't exist in Python 3, so use fdopen
-            libc = ctypes.CDLL(ctypes.util.find_library("c"))
-            # Duplicate the file descriptor so fdopen doesn't interfere with Python's file
-            import os
-            dup_fd = os.dup(file_ptr.fileno())
-            c_file = libc.fdopen(dup_fd, b"w")
 
-            ret = lib.SCOTCH_graphSave(byref(self._graph), c_file)
-
-            # Flush and close the C file
-            libc.fflush(c_file)
-            libc.fclose(c_file)
+        # Use C fopen context manager - avoids Python file handling issues
+        with c_fopen(str(filename), "w") as file_ptr:
+            ret = lib.SCOTCH_graphSave(byref(self._graph), file_ptr)
 
             if ret != 0:
                 raise RuntimeError(f"Failed to save graph to {filename} (error code: {ret})")
-        finally:
-            file_ptr.close()
 
     def build(
         self,
