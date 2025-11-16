@@ -219,6 +219,15 @@ class ScotchVariant:
             ]
             self.SCOTCH_graphPart.restype = c_int
 
+            self.SCOTCH_graphPartOvl = self._get_func("SCOTCH_graphPartOvl")
+            self.SCOTCH_graphPartOvl.argtypes = [
+                POINTER(SCOTCH_Graph),
+                self.SCOTCH_Num,  # partnbr
+                POINTER(SCOTCH_Strat),
+                POINTER(self.SCOTCH_Num),  # parttab
+            ]
+            self.SCOTCH_graphPartOvl.restype = c_int
+
             self.SCOTCH_graphOrder = self._get_func("SCOTCH_graphOrder")
             self.SCOTCH_graphOrder.argtypes = [
                 POINTER(SCOTCH_Graph),
@@ -318,13 +327,44 @@ class ScotchVariant:
             self.SCOTCH_randomReset.argtypes = []
             self.SCOTCH_randomReset.restype = None
 
-            self.SCOTCH_randomVal = self._get_func("SCOTCH_randomVal")
-            self.SCOTCH_randomVal.argtypes = [self.SCOTCH_Num]
-            self.SCOTCH_randomVal.restype = self.SCOTCH_Num
+            # Get the raw function first
+            _SCOTCH_randomVal_raw = self._get_func("SCOTCH_randomVal")
+            _SCOTCH_randomVal_raw.argtypes = [self.SCOTCH_Num]
+            _SCOTCH_randomVal_raw.restype = self.SCOTCH_Num
+
+            # Wrap with validation to prevent divide-by-zero crash
+            def _randomVal_safe(randmax):
+                """Safe wrapper for SCOTCH_randomVal that validates randmax > 0.
+
+                Args:
+                    randmax: Upper bound for random value (exclusive)
+
+                Returns:
+                    Random integer in range [0, randmax)
+
+                Raises:
+                    ValueError: If randmax <= 0
+                """
+                if randmax <= 0:
+                    raise ValueError(
+                        f"SCOTCH_randomVal requires randmax > 0, got {randmax}. "
+                        "Passing 0 causes a divide-by-zero crash in Scotch."
+                    )
+                return _SCOTCH_randomVal_raw(randmax)
+
+            self.SCOTCH_randomVal = _randomVal_safe
 
             self.SCOTCH_randomSeed = self._get_func("SCOTCH_randomSeed")
             self.SCOTCH_randomSeed.argtypes = [self.SCOTCH_Num]
             self.SCOTCH_randomSeed.restype = None
+
+            self.SCOTCH_randomSave = self._get_func("SCOTCH_randomSave")
+            self.SCOTCH_randomSave.argtypes = [c_void_p]  # FILE*
+            self.SCOTCH_randomSave.restype = c_int
+
+            self.SCOTCH_randomLoad = self._get_func("SCOTCH_randomLoad")
+            self.SCOTCH_randomLoad.argtypes = [c_void_p]  # FILE*
+            self.SCOTCH_randomLoad.restype = c_int
 
             # Strategy functions
             self.SCOTCH_stratInit = self._get_func("SCOTCH_stratInit")
@@ -356,6 +396,48 @@ class ScotchVariant:
             self.SCOTCH_archCmplt.argtypes = [POINTER(SCOTCH_Arch), self.SCOTCH_Num]
             self.SCOTCH_archCmplt.restype = c_int
 
+            self.SCOTCH_archBuild0 = self._get_func("SCOTCH_archBuild0")
+            self.SCOTCH_archBuild0.argtypes = [
+                POINTER(SCOTCH_Arch),
+                POINTER(SCOTCH_Graph),
+                self.SCOTCH_Num,  # levlnbr (number of levels, 0 = auto)
+                POINTER(self.SCOTCH_Num),  # listtab (vertex list, NULL = all vertices)
+                POINTER(SCOTCH_Strat),
+            ]
+            self.SCOTCH_archBuild0.restype = c_int
+
+            self.SCOTCH_archBuild2 = self._get_func("SCOTCH_archBuild2")
+            self.SCOTCH_archBuild2.argtypes = [
+                POINTER(SCOTCH_Arch),
+                POINTER(SCOTCH_Graph),
+                self.SCOTCH_Num,  # levlnbr (number of levels, 0 = auto)
+                POINTER(self.SCOTCH_Num),  # listtab (vertex list, NULL = all vertices)
+            ]
+            self.SCOTCH_archBuild2.restype = c_int
+
+            self.SCOTCH_archSub = self._get_func("SCOTCH_archSub")
+            self.SCOTCH_archSub.argtypes = [
+                POINTER(SCOTCH_Arch),  # destination sub-architecture
+                POINTER(SCOTCH_Arch),  # source architecture
+                self.SCOTCH_Num,  # listnbr (number of domains in list)
+                POINTER(self.SCOTCH_Num),  # listtab (list of domain indices)
+            ]
+            self.SCOTCH_archSub.restype = c_int
+
+            self.SCOTCH_archSave = self._get_func("SCOTCH_archSave")
+            self.SCOTCH_archSave.argtypes = [
+                POINTER(SCOTCH_Arch),
+                c_void_p,  # FILE*
+            ]
+            self.SCOTCH_archSave.restype = c_int
+
+            self.SCOTCH_archLoad = self._get_func("SCOTCH_archLoad")
+            self.SCOTCH_archLoad.argtypes = [
+                POINTER(SCOTCH_Arch),
+                c_void_p,  # FILE*
+            ]
+            self.SCOTCH_archLoad.restype = c_int
+
             # Mapping functions
             self.SCOTCH_graphMapInit = self._get_func("SCOTCH_graphMapInit")
             self.SCOTCH_graphMapInit.argtypes = [
@@ -373,6 +455,17 @@ class ScotchVariant:
                 POINTER(SCOTCH_Strat),
             ]
             self.SCOTCH_graphMapCompute.restype = c_int
+
+            self.SCOTCH_graphRemapCompute = self._get_func("SCOTCH_graphRemapCompute")
+            self.SCOTCH_graphRemapCompute.argtypes = [
+                POINTER(SCOTCH_Graph),
+                POINTER(SCOTCH_Mapping),  # new mapping
+                POINTER(SCOTCH_Mapping),  # old mapping
+                c_double,  # remapping cost parameter
+                POINTER(self.SCOTCH_Num),  # old-to-new vertex permutation (can be NULL)
+                POINTER(SCOTCH_Strat),
+            ]
+            self.SCOTCH_graphRemapCompute.restype = c_int
 
             self.SCOTCH_graphMapExit = self._get_func("SCOTCH_graphMapExit")
             self.SCOTCH_graphMapExit.argtypes = [
@@ -397,6 +490,37 @@ class ScotchVariant:
                 c_void_p,  # FILE*
             ]
             self.SCOTCH_graphSave.restype = c_int
+
+            # Mesh functions
+            self.SCOTCH_meshInit = self._get_func("SCOTCH_meshInit")
+            self.SCOTCH_meshInit.argtypes = [POINTER(SCOTCH_Mesh)]
+            self.SCOTCH_meshInit.restype = c_int
+
+            self.SCOTCH_meshExit = self._get_func("SCOTCH_meshExit")
+            self.SCOTCH_meshExit.argtypes = [POINTER(SCOTCH_Mesh)]
+            self.SCOTCH_meshExit.restype = None
+
+            self.SCOTCH_meshLoad = self._get_func("SCOTCH_meshLoad")
+            self.SCOTCH_meshLoad.argtypes = [
+                POINTER(SCOTCH_Mesh),
+                c_void_p,  # FILE*
+                self.SCOTCH_Num,  # baseval
+            ]
+            self.SCOTCH_meshLoad.restype = c_int
+
+            self.SCOTCH_meshSave = self._get_func("SCOTCH_meshSave")
+            self.SCOTCH_meshSave.argtypes = [
+                POINTER(SCOTCH_Mesh),
+                c_void_p,  # FILE*
+            ]
+            self.SCOTCH_meshSave.restype = c_int
+
+            self.SCOTCH_meshGraph = self._get_func("SCOTCH_meshGraph")
+            self.SCOTCH_meshGraph.argtypes = [
+                POINTER(SCOTCH_Mesh),
+                POINTER(SCOTCH_Graph),
+            ]
+            self.SCOTCH_meshGraph.restype = c_int
 
         except AttributeError as e:
             print(f"Warning: Some Scotch functions not found in variant: {e}", file=sys.stderr)

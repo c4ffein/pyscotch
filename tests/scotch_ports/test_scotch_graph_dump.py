@@ -7,7 +7,8 @@ The C test loads a graph from file and saves it back. We now support this
 using our C compatibility layer (libpyscotch_compat.so) which is compiled
 with the SAME toolchain as Scotch, avoiding FILE* pointer incompatibility issues.
 
-This test verifies the save/load roundtrip works correctly.
+This test verifies the save/load roundtrip works correctly with both 32-bit
+and 64-bit Scotch variants.
 """
 
 import pytest
@@ -19,22 +20,20 @@ import numpy as np
 from pyscotch import Graph
 from pyscotch import libscotch as lib
 
-@pytest.fixture(autouse=True, scope="module")
-def ensure_variant():
-    """Sequential Scotch only (not PT-Scotch)."""
-    variant = lib.get_active_variant()
-    if variant:
-        lib.set_active_variant(variant.int_size, parallel=False)
 
+@pytest.mark.parametrize("int_size", [32, 64])
 class TestScotchGraphDump:
     """Tests from test_scotch_graph_dump.c - now WORKING with compat layer!"""
 
-    def test_save_load_roundtrip_simple(self):
+    def test_save_load_roundtrip_simple(self, int_size):
         """Test saving and loading a simple graph (C test main functionality).
 
         Creates a graph programmatically, saves it to a file, loads it back,
         and verifies the roundtrip preserves the graph structure.
         """
+        # Set variant for this test
+        lib.set_active_variant(int_size, parallel=False)
+
         # Create a simple triangle graph
         edges = [(0, 1), (1, 2), (2, 0)]
         graph1 = Graph.from_edges(edges, num_vertices=3)
@@ -73,8 +72,11 @@ class TestScotchGraphDump:
             if os.path.exists(temp_file):
                 os.unlink(temp_file)
 
-    def test_save_load_from_scotch_data(self):
+    def test_save_load_from_scotch_data(self, int_size):
         """Test save/load with a graph built from Scotch data arrays."""
+        # Set variant for this test
+        lib.set_active_variant(int_size, parallel=False)
+
         # Build a simple chain: 0-1-2-3
         # verttab[i] = starting index in edgetab for vertex i's neighbors
         # For chain 0-1-2-3:
@@ -115,8 +117,11 @@ class TestScotchGraphDump:
             if os.path.exists(temp_file):
                 os.unlink(temp_file)
 
-    def test_save_load_larger_graph(self):
+    def test_save_load_larger_graph(self, int_size):
         """Test save/load with a larger, more complex graph."""
+        # Set variant for this test
+        lib.set_active_variant(int_size, parallel=False)
+
         # Create a 3x3 grid graph
         edges = [
             # Row 0

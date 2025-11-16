@@ -6,6 +6,7 @@ import numpy as np
 from ctypes import byref, POINTER, c_void_p
 from pathlib import Path
 from typing import Union, Optional, Tuple
+from .graph import c_fopen  # Use our FILE* compat layer
 
 try:
     from . import libscotch as lib
@@ -48,67 +49,49 @@ class Mesh:
         """
         Load a mesh from a file in Scotch mesh format.
 
+        Uses our C compatibility layer to avoid Python FILE* incompatibility issues.
+
         Args:
             filename: Path to the mesh file (.msh format)
 
         Raises:
             FileNotFoundError: If the file doesn't exist
+            IOError: If file cannot be opened
             RuntimeError: If loading fails
         """
         filename = Path(filename)
         if not filename.exists():
             raise FileNotFoundError(f"Mesh file not found: {filename}")
 
-        # Open file and get file pointer
-        import ctypes.util
-        file_ptr = open(str(filename), "rb")
-        try:
-            if hasattr(ctypes, 'pythonapi'):
-                PyFile_AsFile = ctypes.pythonapi.PyFile_AsFile
-                PyFile_AsFile.argtypes = [ctypes.py_object]
-                PyFile_AsFile.restype = ctypes.c_void_p
-                c_file = PyFile_AsFile(file_ptr)
-            else:
-                libc = ctypes.CDLL(ctypes.util.find_library("c"))
-                c_file = libc.fdopen(file_ptr.fileno(), b"r")
-
+        # Use our compat layer - guarantees ABI compatibility with Scotch
+        with c_fopen(str(filename), "r") as file_ptr:
             baseval = lib.SCOTCH_Num(0)
-            ret = lib.SCOTCH_meshLoad(byref(self._mesh), c_file, baseval)
+            ret = lib.SCOTCH_meshLoad(byref(self._mesh), file_ptr, baseval)
 
             if ret != 0:
                 raise RuntimeError(f"Failed to load mesh from {filename} (error code: {ret})")
-        finally:
-            file_ptr.close()
 
     def save(self, filename: Union[str, Path]) -> None:
         """
         Save the mesh to a file in Scotch mesh format.
 
+        Uses our C compatibility layer to avoid Python FILE* incompatibility issues.
+
         Args:
             filename: Output file path
 
         Raises:
+            IOError: If file cannot be opened
             RuntimeError: If saving fails
         """
         filename = Path(filename)
-        file_ptr = open(str(filename), "wb")
-        try:
-            import ctypes.util
-            if hasattr(ctypes, 'pythonapi'):
-                PyFile_AsFile = ctypes.pythonapi.PyFile_AsFile
-                PyFile_AsFile.argtypes = [ctypes.py_object]
-                PyFile_AsFile.restype = ctypes.c_void_p
-                c_file = PyFile_AsFile(file_ptr)
-            else:
-                libc = ctypes.CDLL(ctypes.util.find_library("c"))
-                c_file = libc.fdopen(file_ptr.fileno(), b"w")
 
-            ret = lib.SCOTCH_meshSave(byref(self._mesh), c_file)
+        # Use our compat layer - guarantees ABI compatibility with Scotch
+        with c_fopen(str(filename), "w") as file_ptr:
+            ret = lib.SCOTCH_meshSave(byref(self._mesh), file_ptr)
 
             if ret != 0:
                 raise RuntimeError(f"Failed to save mesh to {filename} (error code: {ret})")
-        finally:
-            file_ptr.close()
 
     def build(
         self,

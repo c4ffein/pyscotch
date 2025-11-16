@@ -65,12 +65,18 @@ class TestRandomEnhanced:
                 assert 0 <= val < upper_bound, \
                     f"randomVal({upper_bound}) returned {val}, expected [0, {upper_bound})"
 
-    @pytest.mark.skip(reason="randomVal(0) causes FPE - undefined behavior / divide by zero")
     def test_random_val_zero_bound(self):
-        """Test SCOTCH_randomVal(0) edge case."""
-        # randomVal(0) causes floating-point exception (divide by zero)
-        # This is undefined behavior - bound must be >= 1
-        pass
+        """Test SCOTCH_randomVal(0) raises ValueError instead of crashing.
+
+        Previously this would cause a floating-point exception (divide by zero)
+        in Scotch. We now validate on the Python side to prevent the crash.
+        """
+        with pytest.raises(ValueError, match="randmax > 0"):
+            lib.SCOTCH_randomVal(0)
+
+        # Also test negative values
+        with pytest.raises(ValueError, match="randmax > 0"):
+            lib.SCOTCH_randomVal(-1)
 
     def test_random_val_one_bound(self):
         """Test SCOTCH_randomVal(1) returns only 0."""

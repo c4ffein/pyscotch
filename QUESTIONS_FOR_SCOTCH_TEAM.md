@@ -101,33 +101,7 @@ for (vertnum = 0; vertnum < vertnbr; vertnum++)
 - PyScotch binding: `pyscotch/graph.py:355` (color method)
 - Debug evidence: See commit history for detailed test output showing invalid colorings
 
-## Graph File I/O Issues (SCOTCH_graphLoad/Save)
-
-### Issue 4: Python bindings segfault on graph file I/O
-
-**Observed during**: Porting test_scotch_graph_dump.c
-
-**Description**:
-SCOTCH_graphLoad() and SCOTCH_graphSave() cause segmentation faults when called from Python ctypes bindings. The issue is related to converting Python file objects to C FILE* pointers.
-
-**Technical Details**:
-- Python 3 removed `PyFile_AsFile()` which was used for FILE* conversion
-- Using `libc.fdopen(dup_fd, mode)` as workaround causes segfaults
-- The segfault occurs even with:
-  - Duplicated file descriptors via `os.dup()`
-  - Proper fflush()/fclose() calls
-  - Both binary ("rb"/"wb") and text modes
-
-**Questions**:
-1. Is there a recommended way to call SCOTCH_graphLoad/Save from non-C languages?
-2. Would it be possible to add SCOTCH_graphLoadPath/SavePath functions that take filename strings instead of FILE*?
-3. Are there any undocumented requirements for the FILE* pointer (buffering, positioning, etc.)?
-
-**Note**: The C test `test_scotch_graph_dump.c` is also incomplete - it references `testGraphBuild()` which is generated at build time by concatenating with `gdump` output. The test infrastructure makes it hard to verify the functionality independently.
-
-**Workaround**: PyScotch currently cannot reliably save/load graph files. Users must build graphs from arrays using `Graph.build()` or `Graph.from_edges()`.
-
 ---
 
 **Created**: 2025-11-12
-**Last updated**: 2025-11-12
+**Last updated**: 2025-11-16
