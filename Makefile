@@ -68,13 +68,17 @@ build-32: check-submodule
 	@mkdir -p $(BUILDS_DIR)/lib32 $(BUILDS_DIR)/inc32
 	@cd $(SCOTCH_SRC) && $(MAKE) realclean
 	@echo ""
-	@echo "[1/2] Building sequential scotch (32-bit + suffix)..."
+	@echo "[1/3] Building sequential scotch (32-bit + suffix)..."
 	@cd $(SCOTCH_SRC) && \
 		$(MAKE) scotch CFLAGS="$$(grep '^CFLAGS' Makefile.inc | cut -d= -f2-) -DSCOTCH_NAME_SUFFIX=_32 -DSCOTCH_RENAME_ALL" || true
 	@echo ""
-	@echo "[2/2] Building parallel ptscotch (32-bit + suffix)..."
+	@echo "[2/3] Building parallel ptscotch (32-bit + suffix)..."
 	@cd $(SCOTCH_SRC) && \
 		$(MAKE) ptscotch CFLAGS="$$(grep '^CFLAGS' Makefile.inc | cut -d= -f2-) -DSCOTCH_NAME_SUFFIX=_32 -DSCOTCH_RENAME_ALL" || true
+	@echo ""
+	@echo "[3/3] Building PyScotch file compatibility layer (32-bit)..."
+	@$(CC) $(SHARED_FLAGS) -fPIC -O2 -o $(BUILDS_DIR)/lib32/libpyscotch_compat.$(SHARED_EXT) \
+		pyscotch/native/file_compat.c
 	@echo ""
 	@echo "Copying 32-bit libraries and headers..."
 	@cp -f $(SCOTCH_DIR)/lib/lib*scotch*.$(SHARED_EXT) $(BUILDS_DIR)/lib32/ 2>/dev/null || true
@@ -90,13 +94,17 @@ build-64: check-submodule
 	@mkdir -p $(BUILDS_DIR)/lib64 $(BUILDS_DIR)/inc64
 	@cd $(SCOTCH_SRC) && $(MAKE) realclean
 	@echo ""
-	@echo "[1/2] Building sequential scotch (64-bit + suffix)..."
+	@echo "[1/3] Building sequential scotch (64-bit + suffix)..."
 	@cd $(SCOTCH_SRC) && \
 		$(MAKE) scotch CFLAGS="$$(grep '^CFLAGS' Makefile.inc | cut -d= -f2-) -DINTSIZE64 -DSCOTCH_NAME_SUFFIX=_64 -DSCOTCH_RENAME_ALL" || true
 	@echo ""
-	@echo "[2/2] Building parallel ptscotch (64-bit + suffix)..."
+	@echo "[2/3] Building parallel ptscotch (64-bit + suffix)..."
 	@cd $(SCOTCH_SRC) && \
 		$(MAKE) ptscotch CFLAGS="$$(grep '^CFLAGS' Makefile.inc | cut -d= -f2-) -DINTSIZE64 -DSCOTCH_NAME_SUFFIX=_64 -DSCOTCH_RENAME_ALL" || true
+	@echo ""
+	@echo "[3/3] Building PyScotch file compatibility layer (64-bit)..."
+	@$(CC) $(SHARED_FLAGS) -fPIC -O2 -o $(BUILDS_DIR)/lib64/libpyscotch_compat.$(SHARED_EXT) \
+		pyscotch/native/file_compat.c
 	@echo ""
 	@echo "Copying 64-bit libraries and headers..."
 	@cp -f $(SCOTCH_DIR)/lib/lib*scotch*.$(SHARED_EXT) $(BUILDS_DIR)/lib64/ 2>/dev/null || true

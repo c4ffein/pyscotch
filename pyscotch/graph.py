@@ -4,11 +4,11 @@ High-level Graph class for PT-Scotch.
 
 import numpy as np
 import ctypes
-import ctypes.util
-from ctypes import byref, c_long, POINTER, cast, c_void_p
+import os
+from contextlib import contextmanager
+from ctypes import byref, c_long, POINTER, cast, c_void_p, CDLL
 from pathlib import Path
 from typing import Optional, Union, List, Tuple
-from contextlib import contextmanager
 
 try:
     from . import libscotch as lib
@@ -17,17 +17,14 @@ except ImportError:
     _lib_available = False
 
 
-# ============================================================================
-# C FILE* Context Manager
-# ============================================================================
-
 @contextmanager
 def c_fopen(filename: str, mode: str = "r"):
     """
-    Context manager for C FILE* pointers using libc's fopen/fclose.
+    Context manager for C FILE* pointers using our compatibility layer.
 
-    This avoids Python's file handling entirely, allowing us to pass FILE*
-    pointers to Scotch functions without ownership/buffering conflicts.
+    Uses libpyscotch_compat.so which is compiled with the SAME toolchain
+    as Scotch, guaranteeing perfect ABI compatibility (no struct layout
+    mismatches, LFS issues, etc.)
 
     Args:
         filename: Path to file
@@ -38,47 +35,61 @@ def c_fopen(filename: str, mode: str = "r"):
 
     Raises:
         IOError: If file cannot be opened
-        RuntimeError: If libc cannot be loaded
+        RuntimeError: If compat library cannot be loaded
 
     Example:
         with c_fopen("graph.grf", "r") as file_ptr:
             lib.SCOTCH_graphLoad(byref(graph._graph), file_ptr, -1, 0)
-
-    Note on Issue 1 (C runtime mismatch):
-        On most Linux systems, both Python and Scotch use glibc, so FILE*
-        structure layout is compatible. If you encounter segfaults, you may
-        have a C runtime mismatch. Workaround available - contact maintainer.
     """
-    # Load libc
-    libc_name = ctypes.util.find_library("c")
-    if not libc_name:
-        raise RuntimeError("Could not find C standard library")
+    # Find the compat library in the same directory as Scotch libs
+    lib_dir = lib._lib_dir if hasattr(lib, '_lib_dir') else None
+    if lib_dir:
+        compat_path = os.path.join(lib_dir, "libpyscotch_compat.so")
+    else:
+        # Fallback: search in scotch-builds
+        variant = lib.get_active_variant()
+        if variant:
+            lib_size = "lib64" if variant.int_size == 64 else "lib32"
+            compat_path = os.path.join("scotch-builds", lib_size, "libpyscotch_compat.so")
+        else:
+            raise RuntimeError("Cannot determine Scotch variant - compat library path unknown")
 
-    libc = ctypes.CDLL(libc_name)
+    if not os.path.exists(compat_path):
+        raise RuntimeError(
+            f"Compatibility library not found: {compat_path}\n"
+            "Please rebuild with 'make build-all' to create libpyscotch_compat.so"
+        )
 
-    # Configure fopen
-    libc.fopen.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-    libc.fopen.restype = ctypes.c_void_p
+    # Load our compat library (compiled with same toolchain as Scotch)
+    compat = CDLL(compat_path)
 
-    # Configure fclose
-    libc.fclose.argtypes = [ctypes.c_void_p]
-    libc.fclose.restype = ctypes.c_int
+    # Configure pyscotch_fopen
+    compat.pyscotch_fopen.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    compat.pyscotch_fopen.restype = ctypes.c_void_p
 
-    # Open file using C's fopen (Issue 2: Error handling)
-    file_ptr = libc.fopen(str(filename).encode(), mode.encode())
+    # Configure pyscotch_fclose
+    compat.pyscotch_fclose.argtypes = [ctypes.c_void_p]
+    compat.pyscotch_fclose.restype = ctypes.c_int
+
+    # Configure pyscotch_get_errno
+    compat.pyscotch_get_errno.argtypes = []
+    compat.pyscotch_get_errno.restype = ctypes.c_int
+
+    # Open file using our compat layer
+    file_ptr = compat.pyscotch_fopen(str(filename).encode(), mode.encode())
 
     if not file_ptr:
         # Get errno for better error message
-        errno_val = ctypes.get_errno()
+        errno_val = compat.pyscotch_get_errno()
         raise IOError(f"Failed to open file '{filename}' with mode '{mode}' (errno: {errno_val})")
 
     try:
         # Yield the FILE* pointer to the caller
         yield file_ptr
     finally:
-        # Issue 3: Memory management - always close the file
+        # Always close the file
         if file_ptr:
-            libc.fclose(file_ptr)
+            compat.pyscotch_fclose(file_ptr)
 
 
 class Graph:
@@ -122,7 +133,7 @@ class Graph:
         """
         Load a graph from a file in Scotch graph format.
 
-        Uses C's fopen() to avoid Python FILE* incompatibility issues.
+        Uses our C compatibility layer to avoid Python FILE* incompatibility issues.
 
         Args:
             filename: Path to the graph file (.grf format)
@@ -136,7 +147,7 @@ class Graph:
         if not filename.exists():
             raise FileNotFoundError(f"Graph file not found: {filename}")
 
-        # Use C fopen context manager - avoids Python file handling issues
+        # Use our compat layer - guarantees ABI compatibility with Scotch
         with c_fopen(str(filename), "r") as file_ptr:
             baseval = lib.SCOTCH_Num(0)
             ret = lib.SCOTCH_graphLoad(
@@ -153,7 +164,7 @@ class Graph:
         """
         Save the graph to a file in Scotch graph format.
 
-        Uses C's fopen() to avoid Python FILE* incompatibility issues.
+        Uses our C compatibility layer to avoid Python FILE* incompatibility issues.
 
         Args:
             filename: Output file path
@@ -164,7 +175,7 @@ class Graph:
         """
         filename = Path(filename)
 
-        # Use C fopen context manager - avoids Python file handling issues
+        # Use our compat layer - guarantees ABI compatibility with Scotch
         with c_fopen(str(filename), "w") as file_ptr:
             ret = lib.SCOTCH_graphSave(byref(self._graph), file_ptr)
 
