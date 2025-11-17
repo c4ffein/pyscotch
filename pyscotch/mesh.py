@@ -10,7 +10,7 @@ from .graph import c_fopen  # Use our FILE* compat layer
 
 try:
     from . import libscotch as lib
-    _lib_available = lib._libscotch is not None
+    _lib_available = lib._lib_sequential is not None
 except ImportError:
     _lib_available = False
 

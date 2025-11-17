@@ -56,6 +56,10 @@ class SCOTCH_Geom(Structure):
     """Opaque geometry structure."""
     _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
 
+class SCOTCH_Dgraph(Structure):
+    """Opaque distributed graph structure (PT-Scotch)."""
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
+
 
 class ScotchVariant:
     """
@@ -85,8 +89,12 @@ class ScotchVariant:
         self.SCOTCH_Idx = c_long if int_size == 64 else c_int
         self.SCOTCH_GraphPart2 = ctypes.c_ubyte  # unsigned char for partition IDs
 
-        # Library handles (loaded with RTLD_LOCAL for isolation)
-        self._libscotch = None
+        # Library handles
+        # Sequential library (libscotch.so) - ALWAYS loaded, contains SCOTCH_* functions
+        self._lib_sequential = None
+        # Parallel library (libptscotch.so) - Only for parallel variants, contains DGRAPH_* functions
+        self._lib_parallel = None
+        # Error library (shared across variants)
         self._libscotcherr = None
 
         # Function pointers (will be set during loading)
@@ -130,50 +138,66 @@ class ScotchVariant:
                     except OSError as e:
                         print(f"Warning: Could not load {err_lib_path}: {e}", file=sys.stderr)
 
-            # With suffixes, all variants can coexist in the same namespace
-            # PT-Scotch depends on sequential scotch symbols, so we need RTLD_GLOBAL
+            # ALWAYS load sequential library (libscotch.so)
+            # Contains SCOTCH_* functions (graph, arch, mesh, etc.)
+            seq_lib_path = self.lib_dir / "libscotch.so"
+            if not seq_lib_path.exists():
+                raise FileNotFoundError(f"Sequential library not found: {seq_lib_path}")
 
-            # For parallel variants, first load sequential scotch globally
-            if self.parallel:
-                seq_lib_path = self.lib_dir / "libscotch.so"
-                if not seq_lib_path.exists():
-                    raise FileNotFoundError(f"Sequential library required for PT-Scotch: {seq_lib_path}")
-                # Load sequential scotch globally so PT-Scotch can access its symbols
-                ctypes.CDLL(str(seq_lib_path), mode=ctypes.RTLD_GLOBAL)
+            self._lib_sequential = ctypes.CDLL(str(seq_lib_path), mode=ctypes.RTLD_GLOBAL)
 
-            # Determine main library name
-            lib_name = "libptscotch.so" if self.parallel else "libscotch.so"
-            lib_path = self.lib_dir / lib_name
-
-            if not lib_path.exists():
-                raise FileNotFoundError(f"Library not found: {lib_path}")
-
-            # Load main library with RTLD_GLOBAL (safe with suffixes - no collisions)
-            self._libscotch = ctypes.CDLL(str(lib_path), mode=ctypes.RTLD_GLOBAL)
-
-            print(f"✓ Loaded Scotch variant: {self.int_size}-bit, "
-                  f"{'parallel' if self.parallel else 'sequential'} from {lib_path}",
+            print(f"✓ Loaded sequential Scotch: {self.int_size}-bit from {seq_lib_path}",
                   file=sys.stderr)
+
+            # For parallel variants, ALSO load parallel library (libptscotch.so)
+            # Contains DGRAPH_* functions (distributed graph operations)
+            if self.parallel:
+                par_lib_path = self.lib_dir / "libptscotch.so"
+                if not par_lib_path.exists():
+                    raise FileNotFoundError(f"Parallel library not found: {par_lib_path}")
+
+                self._lib_parallel = ctypes.CDLL(str(par_lib_path), mode=ctypes.RTLD_GLOBAL)
+
+                print(f"✓ Loaded parallel PT-Scotch: {self.int_size}-bit from {par_lib_path}",
+                      file=sys.stderr)
 
         except Exception as e:
             print(f"✗ Failed to load Scotch variant ({self.int_size}-bit, "
                   f"{'parallel' if self.parallel else 'sequential'}): {e}",
                   file=sys.stderr)
-            self._libscotch = None
+            self._lib_sequential = None
+            self._lib_parallel = None
 
     def _get_func(self, name):
-        """Get a Scotch function with the correct suffix."""
+        """Get a Scotch function with the correct suffix.
+
+        Routes to the appropriate library based on function name:
+        - SCOTCH_dgraph* functions → _lib_parallel (PT-Scotch only)
+        - SCOTCH_* functions → _lib_sequential (always available)
+        """
         suffixed_name = f"{name}_{self.int_size}"
-        return getattr(self._libscotch, suffixed_name)
+
+        # Distributed graph functions (dgraph*) are in the parallel library
+        if name.lower().startswith("scotch_dgraph"):
+            if not self._lib_parallel:
+                raise AttributeError(
+                    f"{name} requires PT-Scotch (parallel variant). "
+                    f"Current variant is {'parallel' if self.parallel else 'sequential'}."
+                )
+            return getattr(self._lib_parallel, suffixed_name)
+
+        # All other SCOTCH_* functions are in the sequential library
+        if not self._lib_sequential:
+            raise AttributeError(f"Sequential library not loaded")
+
+        return getattr(self._lib_sequential, suffixed_name)
 
     def _bind_functions(self):
         """Bind Scotch C functions to this variant."""
-        if not self._libscotch:
+        if not self._lib_sequential:
             return
 
         try:
-            lib = self._libscotch
-
             # Graph functions
             self.SCOTCH_graphInit = self._get_func("SCOTCH_graphInit")
             self.SCOTCH_graphInit.argtypes = [POINTER(SCOTCH_Graph)]
@@ -522,12 +546,81 @@ class ScotchVariant:
             ]
             self.SCOTCH_meshGraph.restype = c_int
 
+            # Distributed graph functions (PT-Scotch only)
+            if self.parallel:
+                self.SCOTCH_dgraphInit = self._get_func("SCOTCH_dgraphInit")
+                self.SCOTCH_dgraphInit.argtypes = [
+                    POINTER(SCOTCH_Dgraph),
+                    c_void_p  # MPI_Comm
+                ]
+                self.SCOTCH_dgraphInit.restype = c_int
+
+                self.SCOTCH_dgraphExit = self._get_func("SCOTCH_dgraphExit")
+                self.SCOTCH_dgraphExit.argtypes = [POINTER(SCOTCH_Dgraph)]
+                self.SCOTCH_dgraphExit.restype = None
+
+                self.SCOTCH_dgraphBuild = self._get_func("SCOTCH_dgraphBuild")
+                self.SCOTCH_dgraphBuild.argtypes = [
+                    POINTER(SCOTCH_Dgraph),
+                    self.SCOTCH_Num,  # baseval
+                    self.SCOTCH_Num,  # vertlocnbr (local vertex count)
+                    self.SCOTCH_Num,  # vertlocmax
+                    POINTER(self.SCOTCH_Num),  # vertloctab
+                    POINTER(self.SCOTCH_Num),  # vendloctab
+                    POINTER(self.SCOTCH_Num),  # veloloctab
+                    POINTER(self.SCOTCH_Num),  # vlblloctab
+                    self.SCOTCH_Num,  # edgelocnbr (local edge count)
+                    self.SCOTCH_Num,  # edgelocsiz
+                    POINTER(self.SCOTCH_Num),  # edgeloctab
+                    POINTER(self.SCOTCH_Num),  # edgegsttab
+                    POINTER(self.SCOTCH_Num),  # edloloctab
+                ]
+                self.SCOTCH_dgraphBuild.restype = c_int
+
+                self.SCOTCH_dgraphCheck = self._get_func("SCOTCH_dgraphCheck")
+                self.SCOTCH_dgraphCheck.argtypes = [POINTER(SCOTCH_Dgraph)]
+                self.SCOTCH_dgraphCheck.restype = c_int
+
+                self.SCOTCH_dgraphData = self._get_func("SCOTCH_dgraphData")
+                self.SCOTCH_dgraphData.argtypes = [
+                    POINTER(SCOTCH_Dgraph),
+                    POINTER(self.SCOTCH_Num),  # baseval
+                    POINTER(self.SCOTCH_Num),  # vertlocnbr
+                    POINTER(self.SCOTCH_Num),  # vertlocmax
+                    POINTER(POINTER(self.SCOTCH_Num)),  # vertloctab
+                    POINTER(POINTER(self.SCOTCH_Num)),  # vendloctab
+                    POINTER(POINTER(self.SCOTCH_Num)),  # veloloctab
+                    POINTER(POINTER(self.SCOTCH_Num)),  # vlblloctab
+                    POINTER(self.SCOTCH_Num),  # edgelocnbr
+                    POINTER(self.SCOTCH_Num),  # edgelocsiz
+                    POINTER(POINTER(self.SCOTCH_Num)),  # edgeloctab
+                    POINTER(POINTER(self.SCOTCH_Num)),  # edgegsttab
+                    POINTER(POINTER(self.SCOTCH_Num)),  # edloloctab
+                ]
+                self.SCOTCH_dgraphData.restype = None
+
+                self.SCOTCH_dgraphLoad = self._get_func("SCOTCH_dgraphLoad")
+                self.SCOTCH_dgraphLoad.argtypes = [
+                    POINTER(SCOTCH_Dgraph),
+                    c_void_p,  # FILE*
+                    self.SCOTCH_Num,  # baseval
+                    self.SCOTCH_Num,  # flagval
+                ]
+                self.SCOTCH_dgraphLoad.restype = c_int
+
+                self.SCOTCH_dgraphSave = self._get_func("SCOTCH_dgraphSave")
+                self.SCOTCH_dgraphSave.argtypes = [
+                    POINTER(SCOTCH_Dgraph),
+                    c_void_p,  # FILE*
+                ]
+                self.SCOTCH_dgraphSave.restype = c_int
+
         except AttributeError as e:
             print(f"Warning: Some Scotch functions not found in variant: {e}", file=sys.stderr)
 
     def is_loaded(self) -> bool:
         """Check if this variant was successfully loaded."""
-        return self._libscotch is not None
+        return self._lib_sequential is not None
 
     def get_dtype(self):
         """Get the appropriate numpy dtype for this variant."""

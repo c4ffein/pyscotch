@@ -23,6 +23,8 @@ from .strategy import Strategy
 from .arch import Architecture
 from .mapping import Mapping
 from .ordering import Ordering
+from .dgraph import Dgraph
+from . import mpi
 from .libscotch import (
     get_scotch_int_size,
     get_scotch_dtype,
@@ -40,6 +42,8 @@ __all__ = [
     "Architecture",
     "Mapping",
     "Ordering",
+    "Dgraph",
+    "mpi",
     "get_scotch_int_size",
     "get_scotch_dtype",
     "SCOTCH_COARSENNONE",

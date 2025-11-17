@@ -20,6 +20,14 @@ tests/
 │   ├── test_common_*.py
 │   └── ...                         (25 test files total)
 │
+├── scotch_ports_mpi/       # MPI orchestration tests (PT-Scotch)
+│   ├── mpi_scripts/        # Standalone MPI test programs
+│   │   ├── dgraph_init.py
+│   │   ├── dgraph_build.py
+│   │   ├── dgraph_check.py
+│   │   └── dgraph_check_real.py
+│   └── test_dgraph.py      # Pytest orchestrator
+│
 └── hypothesis/             # Property-based tests (future)
     └── README.md
 ```
@@ -83,7 +91,85 @@ Direct ports from `external/scotch/src/check/` mirroring the exact structure for
 
 **Porting Progress**: 0/24 tests ported
 
-### 3. hypothesis/ - Property-Based Tests
+### 3. scotch_ports_mpi/ - PT-Scotch MPI Tests
+
+Direct ports of PT-Scotch distributed graph tests, following Scotch's MPI testing pattern.
+
+#### Scotch's MPI Testing Approach
+
+Scotch uses a proven two-layer pattern for MPI tests:
+
+1. **Standalone MPI executables** - Each test is a complete program:
+   ```c
+   // test_scotch_dgraph_coarsen.c
+   int main(int argc, char *argv[]) {
+       MPI_Init(&argc, &argv);
+
+       SCOTCH_dgraphInit(&dgraph, MPI_COMM_WORLD);
+       // Test logic...
+
+       MPI_Finalize();
+       return 0;  // 0 = success, non-zero = failure
+   }
+   ```
+
+2. **Makefile orchestrates mpirun** - Build system spawns processes:
+   ```make
+   EXECP3 = mpirun -n 3
+
+   check_scotch_dgraph_coarsen:
+       $(EXECP3) ./test_scotch_dgraph_coarsen data/bump.grf
+   ```
+
+#### Our Python Equivalent
+
+We mirror this exact pattern:
+
+**Standalone MPI scripts** (tests/scotch_ports_mpi/mpi_scripts/):
+```python
+# dgraph_check_real.py
+from pyscotch.mpi import mpi
+from pyscotch.dgraph import Dgraph
+
+mpi.init()
+# Test logic using PT-Scotch...
+dgraph = Dgraph()
+dgraph.load(graph_file)
+is_valid = dgraph.check()
+mpi.finalize()
+```
+
+**Pytest orchestrates mpirun** (tests/scotch_ports_mpi/test_dgraph.py):
+```python
+def test_dgraph_check_real_bump():
+    """Pytest spawns mpirun subprocess."""
+    result = subprocess.run(
+        ["mpirun", "-np", "2", "python",
+         "tests/mpi_scripts/dgraph_check_real.py",
+         "external/scotch/src/check/data/bump.grf"],
+        capture_output=True
+    )
+    assert result.returncode == 0
+```
+
+#### Key Design Points
+
+- ✅ Each MPI script is standalone (not a test framework)
+- ✅ mpirun called by orchestrator (pytest), not by scripts themselves
+- ✅ Scripts return 0 for success, non-zero for failure
+- ✅ Different tests use different process counts (-np 2, 3, 4, etc.)
+- ✅ Direct correspondence with Scotch C tests
+
+#### Ported Tests
+
+- **dgraph_init.py** - Distributed graph initialization
+- **dgraph_build.py** - Manual graph construction (CSR format)
+- **dgraph_check.py** - Empty graph validation
+- **dgraph_check_real.py** - Real graph validation (bump.grf)
+
+**Status**: ✅ **4/4 MPI tests passing**
+
+### 4. hypothesis/ - Property-Based Tests
 
 Future home for property-based tests using Hypothesis framework.
 
@@ -101,6 +187,12 @@ pytest tests/pyscotch_base/ -v
 # Run only Scotch ports (will show NotImplementedError)
 pytest tests/scotch_ports/ -v
 
+# Run only MPI tests (requires mpirun)
+pytest tests/scotch_ports_mpi/ -v
+
+# Run specific MPI test with verbose output
+pytest tests/scotch_ports_mpi/test_dgraph.py::TestDgraph::test_dgraph_check_real_bump -v -s
+
 # Collect test inventory without running
 pytest tests/ --collect-only
 ```
@@ -109,9 +201,14 @@ pytest tests/ --collect-only
 
 - **pyscotch_base**: ✅ 97/97 passing (100%)
 - **scotch_ports**: 🚧 24 skeleton files created, 0 ported
+- **scotch_ports_mpi**: ✅ 4/4 MPI tests passing (100%)
 - **hypothesis**: 📋 Planned
 
+**Total**: ✅ 101 tests passing
+
 ## Contributing
+
+### Porting Sequential Tests (scotch_ports/)
 
 When porting tests from Scotch C test suite to `scotch_ports/`:
 
@@ -120,5 +217,23 @@ When porting tests from Scotch C test suite to `scotch_ports/`:
 3. Maintain test structure and intent from original C code
 4. Add explicit variant fixture (sequential vs PT-Scotch parallel)
 5. Remove `raise NotImplementedError` once ported
+
+### Porting MPI Tests (scotch_ports_mpi/)
+
+When porting PT-Scotch MPI tests:
+
+1. **Create standalone MPI script** in `mpi_scripts/`:
+   - Use `mpi.init()` / `mpi.finalize()`
+   - Return exit code 0 for success, non-zero for failure
+   - Include docstring with reference to original C test
+
+2. **Create pytest orchestrator** in `test_dgraph.py`:
+   - Use `subprocess.run()` with `mpirun -np N`
+   - Assert on return code and output
+   - Match process count from original Makefile
+
+3. **Use same test data** as Scotch:
+   - Reference graphs from `external/scotch/src/check/data/`
+   - Keep same baseval and flags
 
 This structure makes it easy to track which Scotch tests have been ported!

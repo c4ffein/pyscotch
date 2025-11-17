@@ -14,20 +14,21 @@ from pyscotch import libscotch as lib
 
 
 @pytest.mark.parametrize("int_size", [32, 64])
+@pytest.mark.parametrize("parallel", [False, True])
 class TestArchitecture:
     """Tests based on test_scotch_arch.c"""
 
-    def test_arch_cmplt_creation(self, int_size):
+    def test_arch_cmplt_creation(self, int_size, parallel):
         """Test creating a complete graph architecture."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         arch = Architecture()
         arch.complete(8)
         # Architecture should be created successfully
         assert arch is not None
 
-    def test_arch_cmplt_sizes(self, int_size):
+    def test_arch_cmplt_sizes(self, int_size, parallel):
         """Test different complete architecture sizes."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         for size in [1, 2, 4, 8, 16, 32]:
             arch = Architecture()
             arch.complete(size)
@@ -35,26 +36,27 @@ class TestArchitecture:
 
 
 @pytest.mark.parametrize("int_size", [32, 64])
+@pytest.mark.parametrize("parallel", [False, True])
 class TestGraphBasic:
     """Basic graph tests based on Scotch C tests."""
 
-    def test_graph_init_exit(self, int_size):
+    def test_graph_init_exit(self, int_size, parallel):
         """Test graph initialization and cleanup."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         graph = Graph()
         assert graph is not None
         # Cleanup happens automatically via __del__
 
-    def test_graph_size_empty(self, int_size):
+    def test_graph_size_empty(self, int_size, parallel):
         """Test getting size of an uninitialized graph."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         # Empty graph should have 0 vertices and 0 edges
         graph = Graph()
         vertnbr, edgenbr = graph.size()
         assert vertnbr == 0
         assert edgenbr == 0
 
-    def test_simple_triangle_csr(self, int_size):
+    def test_simple_triangle_csr(self, int_size, parallel):
         """Test building a simple triangle graph using CSR format.
 
         Graph structure:
@@ -62,7 +64,7 @@ class TestGraphBasic:
           |    |
           2 ---+
         """
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         # CSR format for undirected triangle
         # Vertex 0: neighbors [1, 2]
         # Vertex 1: neighbors [0, 2]
@@ -77,12 +79,12 @@ class TestGraphBasic:
         assert vertnbr == 3
         assert edgenbr == 6
 
-    def test_simple_path_csr(self, int_size):
+    def test_simple_path_csr(self, int_size, parallel):
         """Test building a simple path graph using CSR format.
 
         Graph structure: 0 - 1 - 2 - 3
         """
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         # Vertex 0: neighbors [1]
         # Vertex 1: neighbors [0, 2]
         # Vertex 2: neighbors [1, 3]
@@ -97,7 +99,7 @@ class TestGraphBasic:
         assert vertnbr == 4
         assert edgenbr == 6
 
-    def test_simple_star_csr(self, int_size):
+    def test_simple_star_csr(self, int_size, parallel):
         """Test building a star graph using CSR format.
 
         Graph structure:
@@ -107,7 +109,7 @@ class TestGraphBasic:
             |
             4
         """
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         # Vertex 0: neighbors [1, 2, 3, 4] (center)
         # Vertex 1: neighbors [0]
         # Vertex 2: neighbors [0]
@@ -124,7 +126,7 @@ class TestGraphBasic:
         assert edgenbr == 8
 
 
-    def test_simple_grid_2x2_csr(self, int_size):
+    def test_simple_grid_2x2_csr(self, int_size, parallel):
         """Test building a 2x2 grid graph using CSR format.
 
         Graph structure:
@@ -132,7 +134,7 @@ class TestGraphBasic:
         |    |
         2 -- 3
         """
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         # Vertex 0: neighbors [1, 2]
         # Vertex 1: neighbors [0, 3]
         # Vertex 2: neighbors [0, 3]
@@ -147,9 +149,9 @@ class TestGraphBasic:
         assert vertnbr == 4
         assert edgenbr == 8
 
-    def test_graph_check_triangle(self, int_size):
+    def test_graph_check_triangle(self, int_size, parallel):
         """Test graph consistency check on triangle graph."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         verttab = np.array([0, 2, 4, 6], dtype=lib.get_dtype())
         edgetab = np.array([1, 2, 0, 2, 0, 1], dtype=lib.get_dtype())
 
@@ -159,9 +161,9 @@ class TestGraphBasic:
         # Check should pass for valid graph
         assert graph.check() is True
 
-    def test_graph_check_path(self, int_size):
+    def test_graph_check_path(self, int_size, parallel):
         """Test graph consistency check on path graph."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         verttab = np.array([0, 1, 3, 5, 6], dtype=lib.get_dtype())
         edgetab = np.array([1, 0, 2, 1, 3, 2], dtype=lib.get_dtype())
 
@@ -172,12 +174,13 @@ class TestGraphBasic:
 
 
 @pytest.mark.parametrize("int_size", [32, 64])
+@pytest.mark.parametrize("parallel", [False, True])
 class TestGraphPartitioning:
     """Graph partitioning tests based on Scotch C tests."""
 
-    def test_partition_triangle_2parts(self, int_size):
+    def test_partition_triangle_2parts(self, int_size, parallel):
         """Test partitioning triangle graph into 2 parts."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         verttab = np.array([0, 2, 4, 6], dtype=lib.get_dtype())
         edgetab = np.array([1, 2, 0, 2, 0, 1], dtype=lib.get_dtype())
 
@@ -190,9 +193,9 @@ class TestGraphPartitioning:
         assert partitions.min() >= 0
         assert partitions.max() <= 1
 
-    def test_partition_path_2parts(self, int_size):
+    def test_partition_path_2parts(self, int_size, parallel):
         """Test partitioning path graph into 2 parts."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         verttab = np.array([0, 1, 3, 5, 6], dtype=lib.get_dtype())
         edgetab = np.array([1, 0, 2, 1, 3, 2], dtype=lib.get_dtype())
 
@@ -205,9 +208,9 @@ class TestGraphPartitioning:
         assert partitions.min() >= 0
         assert partitions.max() <= 1
 
-    def test_partition_grid_2x2_2parts(self, int_size):
+    def test_partition_grid_2x2_2parts(self, int_size, parallel):
         """Test partitioning 2x2 grid into 2 parts."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         verttab = np.array([0, 2, 4, 6, 8], dtype=lib.get_dtype())
         edgetab = np.array([1, 2, 0, 3, 0, 3, 1, 2], dtype=lib.get_dtype())
 
@@ -222,9 +225,9 @@ class TestGraphPartitioning:
         # Both partitions should be used
         assert len(np.unique(partitions)) == 2
 
-    def test_partition_grid_2x2_4parts(self, int_size):
+    def test_partition_grid_2x2_4parts(self, int_size, parallel):
         """Test partitioning 2x2 grid into 4 parts."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         verttab = np.array([0, 2, 4, 6, 8], dtype=lib.get_dtype())
         edgetab = np.array([1, 2, 0, 3, 0, 3, 1, 2], dtype=lib.get_dtype())
 
@@ -237,9 +240,9 @@ class TestGraphPartitioning:
         assert partitions.min() >= 0
         assert partitions.max() <= 3
 
-    def test_partition_larger_path(self, int_size):
+    def test_partition_larger_path(self, int_size, parallel):
         """Test partitioning larger path graph."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         # Create path: 0 - 1 - 2 - 3 - 4 - 5 - 6 - 7
         n = 8
         verttab = np.zeros(n + 1, dtype=lib.get_dtype())
@@ -266,12 +269,13 @@ class TestGraphPartitioning:
 
 
 @pytest.mark.parametrize("int_size", [32, 64])
+@pytest.mark.parametrize("parallel", [False, True])
 class TestGraphOrdering:
     """Graph ordering tests based on Scotch C tests."""
 
-    def test_order_triangle(self, int_size):
+    def test_order_triangle(self, int_size, parallel):
         """Test ordering triangle graph."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         verttab = np.array([0, 2, 4, 6], dtype=lib.get_dtype())
         edgetab = np.array([1, 2, 0, 2, 0, 1], dtype=lib.get_dtype())
 
@@ -287,9 +291,9 @@ class TestGraphOrdering:
         for i in range(3):
             assert inverse[permutation[i]] == i
 
-    def test_order_path(self, int_size):
+    def test_order_path(self, int_size, parallel):
         """Test ordering path graph."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         verttab = np.array([0, 1, 3, 5, 6], dtype=lib.get_dtype())
         edgetab = np.array([1, 0, 2, 1, 3, 2], dtype=lib.get_dtype())
 
@@ -305,9 +309,9 @@ class TestGraphOrdering:
         for i in range(4):
             assert inverse[permutation[i]] == i
 
-    def test_order_grid_2x2(self, int_size):
+    def test_order_grid_2x2(self, int_size, parallel):
         """Test ordering 2x2 grid graph."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         verttab = np.array([0, 2, 4, 6, 8], dtype=lib.get_dtype())
         edgetab = np.array([1, 2, 0, 3, 0, 3, 1, 2], dtype=lib.get_dtype())
 
@@ -325,39 +329,40 @@ class TestGraphOrdering:
 
 
 @pytest.mark.parametrize("int_size", [32, 64])
+@pytest.mark.parametrize("parallel", [False, True])
 class TestStrategy:
     """Strategy tests based on Scotch C tests."""
 
-    def test_strategy_init_exit(self, int_size):
+    def test_strategy_init_exit(self, int_size, parallel):
         """Test strategy initialization and cleanup."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         strategy = Strategy()
         assert strategy is not None
 
-    def test_strategy_mapping_default(self, int_size):
+    def test_strategy_mapping_default(self, int_size, parallel):
         """Test setting default mapping strategy."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         strategy = Strategy()
         strategy.set_mapping_default()
         assert strategy.strategy_string == ""
 
-    def test_strategy_ordering_default(self, int_size):
+    def test_strategy_ordering_default(self, int_size, parallel):
         """Test setting default ordering strategy."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         strategy = Strategy()
         strategy.set_ordering_default()
         assert strategy.strategy_string == ""
 
-    def test_strategy_recursive_bisection(self, int_size):
+    def test_strategy_recursive_bisection(self, int_size, parallel):
         """Test setting recursive bisection strategy."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         strategy = Strategy()
         strategy.set_recursive_bisection()
         assert strategy.strategy_string == "r"
 
-    def test_strategy_multilevel(self, int_size):
+    def test_strategy_multilevel(self, int_size, parallel):
         """Test setting multilevel strategy."""
-        lib.set_active_variant(int_size, parallel=False)
+        lib.set_active_variant(int_size, parallel=parallel)
         strategy = Strategy()
         strategy.set_multilevel()
         assert strategy.strategy_string == "m"
