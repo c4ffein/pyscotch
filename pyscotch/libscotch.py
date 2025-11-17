@@ -583,19 +583,23 @@ class ScotchVariant:
 
                 self.SCOTCH_dgraphData = self._get_func("SCOTCH_dgraphData")
                 self.SCOTCH_dgraphData.argtypes = [
-                    POINTER(SCOTCH_Dgraph),
-                    POINTER(self.SCOTCH_Num),  # baseval
-                    POINTER(self.SCOTCH_Num),  # vertlocnbr
-                    POINTER(self.SCOTCH_Num),  # vertlocmax
-                    POINTER(POINTER(self.SCOTCH_Num)),  # vertloctab
-                    POINTER(POINTER(self.SCOTCH_Num)),  # vendloctab
-                    POINTER(POINTER(self.SCOTCH_Num)),  # veloloctab
-                    POINTER(POINTER(self.SCOTCH_Num)),  # vlblloctab
-                    POINTER(self.SCOTCH_Num),  # edgelocnbr
-                    POINTER(self.SCOTCH_Num),  # edgelocsiz
-                    POINTER(POINTER(self.SCOTCH_Num)),  # edgeloctab
-                    POINTER(POINTER(self.SCOTCH_Num)),  # edgegsttab
-                    POINTER(POINTER(self.SCOTCH_Num)),  # edloloctab
+                    POINTER(SCOTCH_Dgraph),              # libgrafptr
+                    POINTER(self.SCOTCH_Num),            # baseptr - baseval
+                    POINTER(self.SCOTCH_Num),            # vertglbptr - vertglbnbr (global)
+                    POINTER(self.SCOTCH_Num),            # vertlocptr - vertlocnbr (local)
+                    POINTER(self.SCOTCH_Num),            # vertlocptz - vertlocmax
+                    POINTER(self.SCOTCH_Num),            # vertgstptr - vertgstnbr (ghost)
+                    POINTER(POINTER(self.SCOTCH_Num)),   # vertloctab
+                    POINTER(POINTER(self.SCOTCH_Num)),   # vendloctab
+                    POINTER(POINTER(self.SCOTCH_Num)),   # veloloctab
+                    POINTER(POINTER(self.SCOTCH_Num)),   # vlblloctab
+                    POINTER(self.SCOTCH_Num),            # edgeglbptr - edgeglbnbr (global)
+                    POINTER(self.SCOTCH_Num),            # edgelocptr - edgelocnbr (local)
+                    POINTER(self.SCOTCH_Num),            # edgelocptz - edgelocsiz
+                    POINTER(POINTER(self.SCOTCH_Num)),   # edgeloctab
+                    POINTER(POINTER(self.SCOTCH_Num)),   # edgegsttab
+                    POINTER(POINTER(self.SCOTCH_Num)),   # edloloctab
+                    c_void_p,                            # commptr - MPI_Comm
                 ]
                 self.SCOTCH_dgraphData.restype = None
 
@@ -614,6 +618,24 @@ class ScotchVariant:
                     c_void_p,  # FILE*
                 ]
                 self.SCOTCH_dgraphSave.restype = c_int
+
+                self.SCOTCH_dgraphCoarsenVertLocMax = self._get_func("SCOTCH_dgraphCoarsenVertLocMax")
+                self.SCOTCH_dgraphCoarsenVertLocMax.argtypes = [
+                    POINTER(SCOTCH_Dgraph),
+                    self.SCOTCH_Num,  # foldval
+                ]
+                self.SCOTCH_dgraphCoarsenVertLocMax.restype = self.SCOTCH_Num
+
+                self.SCOTCH_dgraphCoarsen = self._get_func("SCOTCH_dgraphCoarsen")
+                self.SCOTCH_dgraphCoarsen.argtypes = [
+                    POINTER(SCOTCH_Dgraph),  # finegrafdat
+                    self.SCOTCH_Num,         # flags
+                    c_double,                # coarrat
+                    self.SCOTCH_Num,         # foldval
+                    POINTER(SCOTCH_Dgraph),  # coargrafdat
+                    POINTER(self.SCOTCH_Num),  # multloctab
+                ]
+                self.SCOTCH_dgraphCoarsen.restype = c_int
 
         except AttributeError as e:
             print(f"Warning: Some Scotch functions not found in variant: {e}", file=sys.stderr)

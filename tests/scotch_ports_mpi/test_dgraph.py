@@ -117,3 +117,80 @@ class TestDgraphCheck:
         # Check that the script succeeded
         assert result.returncode == 0, f"MPI script failed with return code {result.returncode}"
         assert "PASS" in result.stdout, "Expected PASS message in output"
+
+
+class TestDgraphCoarsen:
+    """Tests for distributed graph coarsening."""
+
+    def test_dgraph_coarsen_bump(self):
+        """Test coarsening with bump.grf - port of test_scotch_dgraph_coarsen.c"""
+        script_path = SCRIPT_DIR / "dgraph_coarsen.py"
+        graph_path = Path("external/scotch/src/check/data/bump.grf")
+
+        # Use 3 processes as in the original Scotch test
+        cmd = ["mpirun", "-np", "3", sys.executable, str(script_path), str(graph_path)]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        # Print output for debugging
+        if result.stdout:
+            print("STDOUT:", result.stdout)
+        if result.stderr:
+            print("STDERR:", result.stderr)
+
+        # Check that the script succeeded
+        assert result.returncode == 0, f"MPI script failed with return code {result.returncode}"
+        assert "PASS" in result.stdout, "Expected PASS message in output"
+
+    def test_dgraph_coarsen_bump_b100000(self):
+        """Test coarsening with bump_b100000.grf (different baseval)"""
+        script_path = SCRIPT_DIR / "dgraph_coarsen.py"
+        graph_path = Path("external/scotch/src/check/data/bump_b100000.grf")
+
+        cmd = ["mpirun", "-np", "3", sys.executable, str(script_path), str(graph_path)]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        # Print output for debugging
+        if result.stdout:
+            print("STDOUT:", result.stdout)
+        if result.stderr:
+            print("STDERR:", result.stderr)
+
+        # Check that the script succeeded
+        assert result.returncode == 0, f"MPI script failed with return code {result.returncode}"
+        assert "PASS" in result.stdout, "Expected PASS message in output"
+
+    def test_dgraph_coarsen_m4x4_b1(self):
+        """Test coarsening with m4x4_b1.grf (small mesh)"""
+        script_path = SCRIPT_DIR / "dgraph_coarsen.py"
+        graph_path = Path("external/scotch/src/check/data/m4x4_b1.grf")
+
+        cmd = ["mpirun", "-np", "3", sys.executable, str(script_path), str(graph_path)]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        # Print output for debugging
+        if result.stdout:
+            print("STDOUT:", result.stdout)
+        if result.stderr:
+            print("STDERR:", result.stderr)
+
+        # Check that the script succeeded
+        assert result.returncode == 0, f"MPI script failed with return code {result.returncode}"
+        assert "PASS" in result.stdout, "Expected PASS message in output"
