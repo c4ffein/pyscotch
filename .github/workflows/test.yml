@@ -56,12 +56,17 @@ jobs:
         echo "64-bit libraries:"
         ls -lh scotch-builds/lib64/
         echo ""
-        echo "Checking for all 4 variants:"
+        echo "Checking for all 4 Scotch variants:"
         test -f scotch-builds/lib32/libscotch.so
         test -f scotch-builds/lib32/libptscotch.so
         test -f scotch-builds/lib64/libscotch.so
         test -f scotch-builds/lib64/libptscotch.so
-        echo "✓ All 4 variants present!"
+        echo "✓ All 4 Scotch variants present!"
+        echo ""
+        echo "Checking for PyScotch compatibility libraries:"
+        test -f scotch-builds/lib32/libpyscotch_compat.so
+        test -f scotch-builds/lib64/libpyscotch_compat.so
+        echo "✓ Both libpyscotch_compat.so variants present (32 & 64-bit)!"
 
     - name: Install Python dependencies
       run: |
