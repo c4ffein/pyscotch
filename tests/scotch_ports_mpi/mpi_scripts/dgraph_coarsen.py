@@ -39,37 +39,26 @@ def main():
 
         graph_file = Path(sys.argv[1])
 
-        if rank == 0:
-            print(f"Loading graph: {graph_file}")
-            if not graph_file.exists():
+        if not graph_file.exists():
+            if rank == 0:
                 print(f"ERROR: Graph file not found: {graph_file}")
-                mpi.finalize()
-                return 1
+            mpi.finalize()
+            return 1
 
         # Set active variant (64-bit parallel)
         lib.set_active_variant(64, parallel=True)
 
-        if rank == 0:
-            print("Creating Dgraph...")
-
         # Load distributed graph
         finegrafdat = Dgraph()
-
-        if rank == 0:
-            print("Loading graph...")
-
         finegrafdat.load(graph_file, baseval=-1, flagval=0)
 
-        if rank == 0:
-            print("Graph loaded successfully")
+        # Barrier: Synchronize after load (for debug)
+        mpi.barrier()
 
         # Get fine graph stats (only request vertex counts)
         fine_data = finegrafdat.data(want_vertglbnbr=True, want_vertlocnbr=True)
         finevertglbnbr = fine_data['vertglbnbr']
         finevertlocnbr = fine_data['vertlocnbr']
-
-        if rank == 0:
-            print(f"Graph stats: vertglbnbr={finevertglbnbr}, vertlocnbr={finevertlocnbr}")
 
         # Coarsening ratio (0.8 = lazy coarsening)
         coarrat = 0.8
@@ -85,14 +74,10 @@ def main():
 
         for foldval, foldstr in test_cases:
             if rank == 0:
-                print(f"\n{foldstr}")
-
-            print(f"[Rank {rank}] About to call coarsen_vert_loc_max with foldval={foldval}")
+                print(f"{foldstr}")
 
             # Get maximum multinode array size
             coarvertlocmax = finegrafdat.coarsen_vert_loc_max(foldval)
-
-            print(f"[Rank {rank}] coarvertlocmax = {coarvertlocmax}")
 
             # Perform coarsening
             coargrafdat, multloctab = finegrafdat.coarsen(
@@ -118,18 +103,24 @@ def main():
                 else:
                     coarstr = "coarse graph created"
 
-                # Check multinode array size (exit immediately on error like Scotch)
-                if coarvertlocnbr > coarvertlocmax:
-                    print(f"ERROR on rank {rank}: Invalid local multinode array size")
-                    finegrafdat.exit()
-                    coargrafdat.exit()
-                    mpi.finalize()
-                    import os
-                    os._exit(1)
+                # Print stats for each rank in sequence (matching Scotch's output loop)
+                for procnum in range(size):
+                    # Check multinode array size (exit immediately on error like Scotch)
+                    if coarvertlocnbr > coarvertlocmax:
+                        print(f"ERROR on rank {rank}: Invalid local multinode array size")
+                        finegrafdat.exit()
+                        coargrafdat.exit()
+                        mpi.finalize()
+                        import os
+                        os._exit(1)
 
-                # Print stats for each rank
-                ratio = float(coarvertglbnbr) / float(finevertglbnbr) if finevertglbnbr > 0 else 0.0
-                print(f"{rank}: {coarstr} ({finevertlocnbr} / {coarvertlocmax} / {coarvertlocnbr} / {ratio:.6f})")
+                    # Print when it's this rank's turn
+                    if procnum == rank:
+                        ratio = float(coarvertglbnbr) / float(finevertglbnbr) if finevertglbnbr > 0 else 0.0
+                        print(f"{rank}: {coarstr} ({finevertlocnbr} / {coarvertlocmax} / {coarvertlocnbr} / {ratio:.6f})")
+
+                    # Barrier: Ensures sequential output
+                    mpi.barrier()
 
             else:
                 # Graph could not be coarsened (not an error)

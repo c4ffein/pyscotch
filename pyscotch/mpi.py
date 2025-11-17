@@ -57,6 +57,9 @@ class MPI:
         ]
         self._libmpi.MPI_Comm_rank.restype = ctypes.c_int
 
+        self._libmpi.MPI_Barrier.argtypes = [ctypes.c_void_p]  # MPI_Comm
+        self._libmpi.MPI_Barrier.restype = ctypes.c_int
+
         # MPI_COMM_WORLD - try different methods to get it
         self._comm_world = self._get_comm_world()
 
@@ -183,6 +186,28 @@ class MPI:
         if ret != 0:
             raise RuntimeError(f"MPI_Comm_rank failed with error {ret}")
         return rank.value
+
+    def barrier(self, comm=None) -> int:
+        """Synchronize all processes in communicator.
+
+        Blocks until all processes in the communicator have reached this call.
+        Useful for:
+        - Ensuring all processes finish a stage before continuing
+        - Synchronizing output for cleaner debug messages
+        - Debugging race conditions
+
+        Args:
+            comm: MPI communicator (default: MPI_COMM_WORLD)
+
+        Returns:
+            0 on success, error code otherwise
+        """
+        if comm is None:
+            comm = self.get_comm_world()
+        ret = self._libmpi.MPI_Barrier(comm)
+        if ret != 0:
+            raise RuntimeError(f"MPI_Barrier failed with error {ret}")
+        return ret
 
 
 # Global MPI instance
