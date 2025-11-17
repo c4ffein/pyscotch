@@ -368,5 +368,42 @@ class TestStrategy:
         assert strategy.strategy_string == "m"
 
 
+@pytest.mark.parametrize("int_size", [32, 64])
+class TestCompatLibrary:
+    """Test that libpyscotch_compat.so is built and loadable for all variants."""
+
+    def test_compat_library_exists(self, int_size):
+        """Verify compat library file exists for this variant."""
+        import os
+        lib_size = "lib64" if int_size == 64 else "lib32"
+        compat_path = os.path.join("scotch-builds", lib_size, "libpyscotch_compat.so")
+        assert os.path.exists(compat_path), (
+            f"Compatibility library not found: {compat_path}\n"
+            "Please rebuild with 'make build-all'"
+        )
+
+    def test_compat_library_loads(self, int_size):
+        """Verify compat library can be loaded via c_fopen."""
+        from pyscotch.graph import c_fopen
+        import tempfile
+        import os
+
+        # Set variant
+        lib.set_active_variant(int_size, parallel=False)
+
+        # Create a test file and try to open it with c_fopen
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            f.write('test')
+            test_file = f.name
+
+        try:
+            with c_fopen(test_file, 'r') as fp:
+                assert fp is not None, "c_fopen returned NULL"
+                # FILE* pointer should be a valid memory address
+                assert isinstance(fp, int) and fp > 0, f"Invalid FILE* pointer: {fp}"
+        finally:
+            os.unlink(test_file)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
