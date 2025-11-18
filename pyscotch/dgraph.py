@@ -506,3 +506,235 @@ class Dgraph:
         else:
             # Error
             raise RuntimeError(f"Failed to coarsen graph (error code {ret})")
+
+    def ghst(self) -> int:
+        """
+        Compute ghost edge array for distributed graph.
+
+        Ghost edges are edges that connect local vertices to remote vertices.
+        This operation builds internal data structures needed for operations
+        like grow() that need to know about neighboring processes.
+
+        Returns:
+            0 on success
+
+        Raises:
+            RuntimeError: If ghost edge computation fails
+
+        Note:
+            - This is required before calling grow()
+            - Modifies the graph in-place by adding ghost edge information
+
+        Example:
+            >>> dgraph.ghst()
+            >>> # Now dgraph has ghost edge information for grow()
+        """
+        ret = lib.SCOTCH_dgraphGhst(byref(self._dgraph))
+        if ret != 0:
+            raise RuntimeError(f"Failed to compute ghost edge array (error code {ret})")
+        return ret
+
+    def grow(
+        self,
+        seedlocnbr: int,
+        seedloctab: np.ndarray,
+        distmax: int,
+        partgsttab: np.ndarray
+    ) -> int:
+        """
+        Grow subgraphs from seed vertices to create partitions.
+
+        Starting from seed vertices, grows regions by including neighboring
+        vertices up to a maximum distance. Used for adaptive mesh refinement
+        and region growing.
+
+        Args:
+            seedlocnbr: Number of seed vertices on this process
+            seedloctab: Array of seed vertex indices (local numbering)
+            distmax: Maximum distance to grow from seeds
+            partgsttab: Partition array (includes ghost vertices!)
+                       Modified in-place. Must be initialized with seed
+                       partition IDs before calling.
+                       Size: vertgstnbr (NOT vertlocnbr!)
+
+        Returns:
+            0 on success
+
+        Raises:
+            RuntimeError: If grow operation fails
+
+        Note:
+            - Must call ghst() before calling this method
+            - partgsttab must be sized for ghost vertices (vertgstnbr)
+            - Seeds must be marked in partgsttab before calling
+
+        Example:
+            >>> dgraph.ghst()
+            >>> seedloctab = np.array([baseval, baseval+1], dtype=np.int64)
+            >>> partgsttab = np.full(vertgstnbr, -1, dtype=np.int64)
+            >>> partgsttab[0] = 0  # Mark first seed as partition 0
+            >>> partgsttab[1] = 1  # Mark second seed as partition 1
+            >>> dgraph.grow(2, seedloctab, 4, partgsttab)
+        """
+        ret = lib.SCOTCH_dgraphGrow(
+            byref(self._dgraph),
+            lib.SCOTCH_Num(seedlocnbr),
+            seedloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            lib.SCOTCH_Num(distmax),
+            partgsttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+        )
+        if ret != 0:
+            raise RuntimeError(f"Failed to grow graph (error code {ret})")
+        return ret
+
+    def band(
+        self,
+        fronlocnbr: int,
+        fronloctab: np.ndarray,
+        distmax: int,
+        bandgrafdat: 'Dgraph'
+    ) -> int:
+        """
+        Extract a band graph containing vertices within distance from frontier.
+
+        Creates a subgraph containing all vertices within a maximum distance
+        from a set of frontier vertices. Used for sparse matrix reordering
+        and domain decomposition.
+
+        Args:
+            fronlocnbr: Number of frontier vertices on this process
+            fronloctab: Array of frontier vertex indices (local numbering)
+            distmax: Maximum distance from frontier to include
+            bandgrafdat: Output band graph (must be initialized)
+
+        Returns:
+            0 on success
+
+        Raises:
+            RuntimeError: If band extraction fails
+
+        Note:
+            - Band graph will have vertex labels (vlblloctab)
+            - Vertices in band graph reference original graph indices
+
+        Example:
+            >>> fronloctab = np.array([baseval], dtype=np.int64)
+            >>> fronlocnbr = 1 if rank == 1 else 0  # Only rank 1 has frontier
+            >>> bandgrafdat = Dgraph()
+            >>> dgraph.band(fronlocnbr, fronloctab, 4, bandgrafdat)
+            >>> # bandgrafdat now contains vertices within distance 4 of frontier
+        """
+        ret = lib.SCOTCH_dgraphBand(
+            byref(self._dgraph),
+            lib.SCOTCH_Num(fronlocnbr),
+            fronloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            lib.SCOTCH_Num(distmax),
+            byref(bandgrafdat._dgraph)
+        )
+        if ret != 0:
+            raise RuntimeError(f"Failed to compute band graph (error code {ret})")
+        return ret
+
+    def redist(
+        self,
+        partloctab: np.ndarray,
+        vsiztab: Optional[np.ndarray] = None,
+        procSrcTab: int = -1,
+        procDstTab: int = -1,
+        dstgrafdat: 'Dgraph' = None
+    ) -> int:
+        """
+        Redistribute graph across processes according to partition.
+
+        Moves vertices between processes based on a partition assignment.
+        Used for dynamic load balancing and repartitioning.
+
+        Args:
+            partloctab: Target partition for each local vertex
+            vsiztab: Optional vertex sizes (None = uniform)
+            procSrcTab: Source process ID (-1 = use current process)
+            procDstTab: Destination process ID (-1 = use partition from partloctab)
+            dstgrafdat: Output redistributed graph (must be initialized)
+
+        Returns:
+            0 on success
+
+        Raises:
+            RuntimeError: If redistribution fails
+
+        Note:
+            - Vertices move between processes based on partloctab values
+            - Use procDstTab=-1 to use partition values as target processes
+
+        Example:
+            >>> # Create partition: packs of 3 vertices, round-robin across processes
+            >>> partloctab = np.zeros(vertlocnbr, dtype=np.int64)
+            >>> for i in range(vertlocnbr):
+            ...     partloctab[i] = (i // 3) % size
+            >>> dstgrafdat = Dgraph()
+            >>> srcgrafdat.redist(partloctab, None, -1, -1, dstgrafdat)
+        """
+        # Handle None vsiztab by passing NULL pointer
+        vsiztab_ptr = None if vsiztab is None else vsiztab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        ret = lib.SCOTCH_dgraphRedist(
+            byref(self._dgraph),
+            partloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            vsiztab_ptr,
+            lib.SCOTCH_Num(procSrcTab),
+            lib.SCOTCH_Num(procDstTab),
+            byref(dstgrafdat._dgraph)
+        )
+        if ret != 0:
+            raise RuntimeError(f"Failed to redistribute graph (error code {ret})")
+        return ret
+
+    def induce_part(
+        self,
+        orgpartloctab: np.ndarray,
+        partval: int,
+        indvertlocnbr: int,
+        indgrafdat: 'Dgraph'
+    ) -> int:
+        """
+        Extract induced subgraph for vertices in a specific partition.
+
+        Creates a subgraph containing only vertices that belong to a specific
+        partition value. Used for hierarchical partitioning and recursive
+        bisection.
+
+        Args:
+            orgpartloctab: Partition array (which partition each vertex belongs to)
+            partval: Which partition to extract (e.g., 1)
+            indvertlocnbr: Number of vertices in this partition on local process
+            indgrafdat: Output induced subgraph (must be initialized)
+
+        Returns:
+            0 on success
+
+        Raises:
+            RuntimeError: If induced subgraph extraction fails
+
+        Note:
+            - Induced graph has different vertex numbering than original
+            - Only vertices with orgpartloctab[i] == partval are included
+
+        Example:
+            >>> # Create partition: half vertices in part 1, half in part 0
+            >>> orgpartloctab = np.zeros(orgvertlocnbr, dtype=np.int64)
+            >>> indvertlocnbr = (orgvertlocnbr + 1) // 2
+            >>> for i in range(indvertlocnbr):
+            ...     orgpartloctab[shuffled_indices[i]] = 1
+            >>> indgrafdat = Dgraph()
+            >>> orggrafdat.induce_part(orgpartloctab, 1, indvertlocnbr, indgrafdat)
+        """
+        ret = lib.SCOTCH_dgraphInducePart(
+            byref(self._dgraph),
+            orgpartloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            lib.SCOTCH_Num(partval),
+            lib.SCOTCH_Num(indvertlocnbr),
+            byref(indgrafdat._dgraph)
+        )
+        if ret != 0:
+            raise RuntimeError(f"Failed to induce subgraph (error code {ret})")
+        return ret

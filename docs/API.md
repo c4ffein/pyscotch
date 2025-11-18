@@ -166,7 +166,10 @@ ordering = Ordering.load("ordering.ord")
 
 ## Command-Line Interface
 
-PyScotch provides a CLI for common operations:
+> ⚠️ **NOT YET IMPLEMENTED** - The CLI described below is planned but not yet available in v0.1.0.
+> For now, use the Python API directly. CLI implementation is tracked in the project roadmap.
+
+PyScotch will provide a CLI for common operations:
 
 ### Partition a Graph
 

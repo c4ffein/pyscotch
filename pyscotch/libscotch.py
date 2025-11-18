@@ -637,6 +637,53 @@ class ScotchVariant:
                 ]
                 self.SCOTCH_dgraphCoarsen.restype = c_int
 
+                self.SCOTCH_dgraphGhst = self._get_func("SCOTCH_dgraphGhst")
+                self.SCOTCH_dgraphGhst.argtypes = [
+                    POINTER(SCOTCH_Dgraph),  # grafdat
+                ]
+                self.SCOTCH_dgraphGhst.restype = c_int
+
+                self.SCOTCH_dgraphGrow = self._get_func("SCOTCH_dgraphGrow")
+                self.SCOTCH_dgraphGrow.argtypes = [
+                    POINTER(SCOTCH_Dgraph),      # grafdat
+                    self.SCOTCH_Num,             # seedlocnbr
+                    POINTER(self.SCOTCH_Num),    # seedloctab
+                    self.SCOTCH_Num,             # distmax
+                    POINTER(self.SCOTCH_Num),    # partgsttab
+                ]
+                self.SCOTCH_dgraphGrow.restype = c_int
+
+                self.SCOTCH_dgraphBand = self._get_func("SCOTCH_dgraphBand")
+                self.SCOTCH_dgraphBand.argtypes = [
+                    POINTER(SCOTCH_Dgraph),      # grafdat
+                    self.SCOTCH_Num,             # fronlocnbr
+                    POINTER(self.SCOTCH_Num),    # fronloctab
+                    self.SCOTCH_Num,             # distmax
+                    POINTER(SCOTCH_Dgraph),      # bandgrafdat
+                ]
+                self.SCOTCH_dgraphBand.restype = c_int
+
+                self.SCOTCH_dgraphRedist = self._get_func("SCOTCH_dgraphRedist")
+                self.SCOTCH_dgraphRedist.argtypes = [
+                    POINTER(SCOTCH_Dgraph),      # srcgrafdat
+                    POINTER(self.SCOTCH_Num),    # partloctab
+                    POINTER(self.SCOTCH_Num),    # vsiztab (can be NULL)
+                    self.SCOTCH_Num,             # procSrcTab (-1 for current)
+                    self.SCOTCH_Num,             # procDstTab (-1 for partition)
+                    POINTER(SCOTCH_Dgraph),      # dstgrafdat
+                ]
+                self.SCOTCH_dgraphRedist.restype = c_int
+
+                self.SCOTCH_dgraphInducePart = self._get_func("SCOTCH_dgraphInducePart")
+                self.SCOTCH_dgraphInducePart.argtypes = [
+                    POINTER(SCOTCH_Dgraph),      # orggrafdat
+                    POINTER(self.SCOTCH_Num),    # orgpartloctab
+                    self.SCOTCH_Num,             # partval
+                    self.SCOTCH_Num,             # indvertlocnbr
+                    POINTER(SCOTCH_Dgraph),      # indgrafdat
+                ]
+                self.SCOTCH_dgraphInducePart.restype = c_int
+
         except AttributeError as e:
             print(f"Warning: Some Scotch functions not found in variant: {e}", file=sys.stderr)
 
