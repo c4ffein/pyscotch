@@ -263,35 +263,32 @@ def main():
 
         large_mesh = Path("external/scotch/src/check/data/ship001.msh")
 
-        if not large_mesh.exists():
-            print("  Large mesh file not found, skipping")
-        else:
-            mesh = Mesh()
-            mesh.load(large_mesh)
+        mesh = Mesh()
+        mesh.load(large_mesh)
 
-            # Partition into more parts
-            num_parts = 8
-            mapping = mesh.partition(num_parts)
-            parttab = mapping.get_partition_array()
+        # Partition into more parts
+        num_parts = 8
+        mapping = mesh.partition(num_parts)
+        parttab = mapping.get_partition_array()
 
-            part_sizes = np.bincount(parttab, minlength=num_parts)
+        part_sizes = np.bincount(parttab, minlength=num_parts)
 
-            if not np.all(part_sizes > 0):
-                print("ERROR: Not all partitions used for large mesh")
-                return 1
+        if not np.all(part_sizes > 0):
+            print("ERROR: Not all partitions used for large mesh")
+            return 1
 
-            # Convert and validate
-            graph = Graph()
-            mesh.to_graph(graph)
+        # Convert and validate
+        graph = Graph()
+        mesh.to_graph(graph)
 
-            if not graph.check():
-                print("ERROR: Graph from large mesh invalid")
-                return 1
+        if not graph.check():
+            print("ERROR: Graph from large mesh invalid")
+            return 1
 
-            v, e = graph.size()
-            print(f"  Large mesh: {len(parttab)} elements")
-            print(f"  Converted graph: {v} vertices, {e} edges")
-            print("  ✓ Large mesh PASSED")
+        v, e = graph.size()
+        print(f"  Large mesh: {len(parttab)} elements")
+        print(f"  Converted graph: {v} vertices, {e} edges")
+        print("  ✓ Large mesh PASSED")
 
 
         print("\n=== All Mesh Partitioning Workflow Tests PASSED ===\n")

@@ -34,8 +34,6 @@ class TestCommonRandom:
     The C test performs two passes:
     1. First pass: generate values, reset, verify determinism, save state
     2. Second pass: load values, verify time-based seeding differs, load state
-
-    We port the core functionality, skipping FILE* save/load operations.
     """
 
     def test_random_reset_determinism(self, int_size):
@@ -71,11 +69,7 @@ class TestCommonRandom:
     # The test also depends on compile-time flags (COMMON_DEBUG, COMMON_RANDOM_FIXED_SEED).
 
     def test_random_save_load_state(self, int_size):
-        """Test random state save/load.
-
-        Tests SCOTCH_randomSave() and SCOTCH_randomLoad() using our FILE*
-        compatibility layer. Previously skipped due to FILE* issues, now working!
-        """
+        """Test random state save/load."""
         # Set variant for this test
         lib.set_active_variant(int_size, parallel=False)
         import tempfile

@@ -22,15 +22,9 @@ import pytest
 
 def pytest_configure(config):
     """Register custom markers."""
-    config.addinivalue_line(
-        "markers", "int32: mark test to run only with 32-bit Scotch"
-    )
-    config.addinivalue_line(
-        "markers", "int64: mark test to run only with 64-bit Scotch"
-    )
-    config.addinivalue_line(
-        "markers", "multivariant: mark test to run with all available Scotch variants"
-    )
+    # Note: Removed int32/int64/multivariant markers - we don't skip tests based on variants
+    # All tests must work with all available variants or fail explicitly
+    pass
 
 
 # Check if environment variable is set (legacy mode)
@@ -122,25 +116,5 @@ def scotch_variant(request):
     # No cleanup needed - variants stay loaded
 
 
-def pytest_collection_modifyitems(config, items):
-    """
-    Skip tests marked for specific int sizes if they don't match current config.
-    """
-    if USE_MULTIVARIANT:
-        # Multi-variant mode: skip tests marked for specific variants
-        # (these tests should use the environment variable approach)
-        import pyscotch.libscotch as lib
-        active_int_size = lib.get_scotch_int_size()
-
-        for item in items:
-            if item.get_closest_marker("int32") and active_int_size != 32:
-                item.add_marker(pytest.mark.skip(reason=f"Test requires 32-bit Scotch (current: {active_int_size}-bit)"))
-            elif item.get_closest_marker("int64") and active_int_size != 64:
-                item.add_marker(pytest.mark.skip(reason=f"Test requires 64-bit Scotch (current: {active_int_size}-bit)"))
-    else:
-        # Legacy mode: skip tests that don't match environment variable
-        for item in items:
-            if item.get_closest_marker("int32") and SCOTCH_INT_SIZE != 32:
-                item.add_marker(pytest.mark.skip(reason=f"Test requires 32-bit Scotch (current: {SCOTCH_INT_SIZE}-bit)"))
-            elif item.get_closest_marker("int64") and SCOTCH_INT_SIZE != 64:
-                item.add_marker(pytest.mark.skip(reason=f"Test requires 64-bit Scotch (current: {SCOTCH_INT_SIZE}-bit)"))
+# Removed pytest_collection_modifyitems - we don't skip tests based on variants
+# Following "no-skip" philosophy: tests must pass or fail explicitly, never skip
