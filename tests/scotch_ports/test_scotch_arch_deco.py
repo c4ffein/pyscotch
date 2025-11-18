@@ -25,8 +25,10 @@ class TestScotchArchDeco:
         # Set variant for this test
         lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/m16x16_b1.grf")
-        if not test_data.exists():
-            pytest.skip(f"Test data file not found: {test_data}")
+        assert test_data.exists(), (
+            f"Required test data missing: {test_data}. "
+            f"Run 'git submodule update --init --recursive' to fetch Scotch test data."
+        )
 
         # Load graph
         graph = Graph()
@@ -69,8 +71,10 @@ class TestScotchArchDeco:
         # Set variant for this test
         lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/m16x16_b1.grf")
-        if not test_data.exists():
-            pytest.skip(f"Test data file not found: {test_data}")
+        assert test_data.exists(), (
+            f"Required test data missing: {test_data}. "
+            f"Run 'git submodule update --init --recursive' to fetch Scotch test data."
+        )
 
         # Load graph
         graph = Graph()
@@ -94,8 +98,10 @@ class TestScotchArchDeco:
         # Set variant for this test
         lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/m16x16_b1.grf")
-        if not test_data.exists():
-            pytest.skip(f"Test data file not found: {test_data}")
+        assert test_data.exists(), (
+            f"Required test data missing: {test_data}. "
+            f"Run 'git submodule update --init --recursive' to fetch Scotch test data."
+        )
 
         # Load graph and build architecture
         graph = Graph()
@@ -130,8 +136,10 @@ class TestScotchArchDeco:
         # Set variant for this test
         lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/m16x16_b1.grf")
-        if not test_data.exists():
-            pytest.skip(f"Test data file not found: {test_data}")
+        assert test_data.exists(), (
+            f"Required test data missing: {test_data}. "
+            f"Run 'git submodule update --init --recursive' to fetch Scotch test data."
+        )
 
         # Build an architecture
         graph = Graph()

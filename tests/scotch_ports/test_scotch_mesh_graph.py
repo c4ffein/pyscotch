@@ -21,8 +21,10 @@ class TestScotchMeshGraph:
         # Set variant for this test
         lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/small2.msh")
-        if not test_data.exists():
-            pytest.skip(f"Test data file not found: {test_data}")
+        assert test_data.exists(), (
+            f"Required test data missing: {test_data}. "
+            f"Run 'git submodule update --init --recursive' to fetch Scotch test data."
+        )
 
         # Initialize and load mesh
         mesh = Mesh()

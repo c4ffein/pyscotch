@@ -27,12 +27,16 @@ class TestMultilib:
         """
         test_data = Path("external/scotch/src/check/data/m4x4_b1.grf")
 
-        if not test_data.exists():
-            pytest.skip(f"Test data file not found: {test_data}")
+        assert test_data.exists(), (
+            f"Required test data missing: {test_data}. "
+            f"Run 'git submodule update --init --recursive' to fetch Scotch test data."
+        )
 
-        # Try to set 32-bit variant
-        if not lib.set_active_variant(32, parallel=False):
-            pytest.skip("32-bit Scotch variant not available")
+        # Set 32-bit variant (must succeed)
+        assert lib.set_active_variant(32, parallel=False), (
+            "32-bit Scotch variant not available. "
+            "Build with: make build-scotch (or check scotch-builds/lib32/)"
+        )
 
         # Load with 32-bit variant
         graph_32 = Graph()
@@ -47,9 +51,11 @@ class TestMultilib:
         # (must destroy with same variant that created it)
         del graph_32
 
-        # Try to set 64-bit variant
-        if not lib.set_active_variant(64, parallel=False):
-            pytest.skip("64-bit Scotch variant not available")
+        # Set 64-bit variant (must succeed)
+        assert lib.set_active_variant(64, parallel=False), (
+            "64-bit Scotch variant not available. "
+            "Build with: make build-scotch (or check scotch-builds/lib64/)"
+        )
 
         # Load with 64-bit variant
         graph_64 = Graph()
