@@ -7,6 +7,7 @@ from ctypes import byref, POINTER, c_void_p
 from pathlib import Path
 from typing import Union, Optional, Tuple
 from .graph import c_fopen  # Use our FILE* compat layer
+from .api_decorators import scotch_binding, highlevel_api, internal_api
 
 try:
     from . import libscotch as lib
@@ -45,6 +46,7 @@ class Mesh:
         if hasattr(self, "_initialized") and self._initialized:
             lib.SCOTCH_meshExit(byref(self._mesh))
 
+    @scotch_binding("SCOTCH_meshLoad", "int SCOTCH_meshLoad(SCOTCH_Mesh *, FILE *, SCOTCH_Num)")
     def load(self, filename: Union[str, Path]) -> None:
         """
         Load a mesh from a file in Scotch mesh format.
@@ -71,6 +73,7 @@ class Mesh:
             if ret != 0:
                 raise RuntimeError(f"Failed to load mesh from {filename} (error code: {ret})")
 
+    @scotch_binding("SCOTCH_meshSave", "int SCOTCH_meshSave(const SCOTCH_Mesh *, FILE *)")
     def save(self, filename: Union[str, Path]) -> None:
         """
         Save the mesh to a file in Scotch mesh format.
@@ -93,6 +96,7 @@ class Mesh:
             if ret != 0:
                 raise RuntimeError(f"Failed to save mesh to {filename} (error code: {ret})")
 
+    @scotch_binding("SCOTCH_meshBuild", "int SCOTCH_meshBuild(SCOTCH_Mesh *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num *)")
     def build(
         self,
         velmnbr: int,
@@ -147,6 +151,7 @@ class Mesh:
         if ret != 0:
             raise RuntimeError(f"Failed to build mesh (error code: {ret})")
 
+    @scotch_binding("SCOTCH_meshCheck", "int SCOTCH_meshCheck(const SCOTCH_Mesh *)")
     def check(self) -> bool:
         """
         Check the consistency of the mesh structure.
@@ -157,6 +162,7 @@ class Mesh:
         ret = lib.SCOTCH_meshCheck(byref(self._mesh))
         return ret == 0
 
+    @scotch_binding("SCOTCH_meshGraph", "int SCOTCH_meshGraph(const SCOTCH_Mesh *, SCOTCH_Graph *)")
     def to_graph(self):
         """
         Convert the mesh to a graph representation.
@@ -177,6 +183,7 @@ class Mesh:
 
         return graph
 
+    @highlevel_api(scotch_functions=["SCOTCH_meshGraph", "SCOTCH_graphMapInit", "SCOTCH_graphMapCompute", "SCOTCH_graphMapExit"])
     def partition(
         self,
         nparts: int,
@@ -201,6 +208,7 @@ class Mesh:
         graph = self.to_graph()
         return graph.partition(nparts, strategy)
 
+    @internal_api
     def save_mapping(self, filename: Union[str, Path], mapping: np.ndarray) -> None:
         """
         Save a mapping/partition to a file.

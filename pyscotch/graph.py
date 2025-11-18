@@ -10,6 +10,8 @@ from ctypes import byref, c_long, POINTER, cast, c_void_p, CDLL
 from pathlib import Path
 from typing import Optional, Union, List, Tuple
 
+from .api_decorators import scotch_binding, highlevel_api, internal_api
+
 try:
     from . import libscotch as lib
     _lib_available = lib._lib_sequential is not None
@@ -129,6 +131,7 @@ class Graph:
         if hasattr(self, "_initialized") and self._initialized:
             lib.SCOTCH_graphExit(byref(self._graph))
 
+    @scotch_binding("SCOTCH_graphLoad", "int SCOTCH_graphLoad(SCOTCH_Graph *, FILE *, SCOTCH_Num, SCOTCH_Num)")
     def load(self, filename: Union[str, Path]) -> None:
         """
         Load a graph from a file in Scotch graph format.
@@ -160,6 +163,7 @@ class Graph:
             if ret != 0:
                 raise RuntimeError(f"Failed to load graph from {filename} (error code: {ret})")
 
+    @scotch_binding("SCOTCH_graphSave", "int SCOTCH_graphSave(const SCOTCH_Graph *, FILE *)")
     def save(self, filename: Union[str, Path]) -> None:
         """
         Save the graph to a file in Scotch graph format.
@@ -182,6 +186,7 @@ class Graph:
             if ret != 0:
                 raise RuntimeError(f"Failed to save graph to {filename} (error code: {ret})")
 
+    @scotch_binding("SCOTCH_graphBuild", "int SCOTCH_graphBuild(SCOTCH_Graph *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *)")
     def build(
         self,
         verttab: np.ndarray,
@@ -261,6 +266,7 @@ class Graph:
                 f"(Scotch error code: {ret})"
             )
 
+    @scotch_binding("SCOTCH_graphCheck", "int SCOTCH_graphCheck(const SCOTCH_Graph *)")
     def check(self) -> bool:
         """
         Check the consistency of the graph structure.
@@ -271,6 +277,7 @@ class Graph:
         ret = lib.SCOTCH_graphCheck(byref(self._graph))
         return ret == 0
 
+    @scotch_binding("SCOTCH_graphSize", "void SCOTCH_graphSize(const SCOTCH_Graph *, SCOTCH_Num *, SCOTCH_Num *)")
     def size(self) -> Tuple[int, int]:
         """
         Get the size of the graph.
@@ -283,6 +290,7 @@ class Graph:
         lib.SCOTCH_graphSize(byref(self._graph), byref(vertnbr), byref(edgenbr))
         return (vertnbr.value, edgenbr.value)
 
+    @highlevel_api(scotch_functions=["SCOTCH_graphMapInit", "SCOTCH_graphMapCompute", "SCOTCH_graphMapExit"])
     def partition(
         self,
         nparts: int,
@@ -363,6 +371,7 @@ class Graph:
 
         return parttab
 
+    @scotch_binding("SCOTCH_graphOrder", "int SCOTCH_graphOrder(const SCOTCH_Graph *, const SCOTCH_Strat *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *)")
     def order(
         self,
         strategy=None,

@@ -194,3 +194,4 @@ class TestDgraphCoarsen:
         # Check that the script succeeded
         assert result.returncode == 0, f"MPI script failed with return code {result.returncode}"
         assert "PASS" in result.stdout, "Expected PASS message in output"
+

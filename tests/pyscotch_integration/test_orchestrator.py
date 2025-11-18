@@ -1,0 +1,102 @@
+"""
+Integration Test Orchestrator
+
+Runs all integration workflow scripts in isolated subprocesses to prevent
+segfaults or other crashes from affecting the test suite.
+"""
+import subprocess
+import sys
+from pathlib import Path
+import pytest
+
+
+def run_workflow_script(script_name: str, num_processes: int = 1, timeout: int = 30) -> tuple[int, str, str]:
+    """
+    Run an integration workflow script.
+
+    Args:
+        script_name: Name of the script file (e.g., "sequential_partitioning_workflow.py")
+        num_processes: Number of MPI processes (1 for non-MPI scripts)
+        timeout: Timeout in seconds
+
+    Returns:
+        Tuple of (return_code, stdout, stderr)
+    """
+    script_path = Path(__file__).parent / script_name
+
+    if not script_path.exists():
+        raise FileNotFoundError(f"Workflow script not found: {script_path}")
+
+    if num_processes > 1:
+        # MPI test
+        cmd = ["mpirun", "-np", str(num_processes), sys.executable, str(script_path)]
+    else:
+        # Regular test
+        cmd = [sys.executable, str(script_path)]
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        cwd=Path(__file__).parent.parent.parent  # Run from repo root
+    )
+
+    return result.returncode, result.stdout, result.stderr
+
+
+class TestSequentialPartitioningWorkflow:
+    """Sequential graph partitioning integration tests."""
+
+    def test_sequential_partitioning_workflow(self):
+        """Test complete sequential partitioning workflow."""
+        returncode, stdout, stderr = run_workflow_script("orchestrated_sequential_partitioning.py")
+
+        # Print output for debugging
+        if stdout:
+            print("STDOUT:", stdout)
+        if stderr:
+            print("STDERR:", stderr)
+
+        # Check that the script succeeded
+        assert returncode == 0, f"Sequential partitioning workflow failed with exit code {returncode}"
+        assert "PASS" in stdout or "passed" in stdout.lower(), \
+            "Expected success indicator in output"
+
+
+class TestMeshPartitioningWorkflow:
+    """Mesh partitioning integration tests."""
+
+    def test_mesh_partitioning_workflow(self):
+        """Test complete mesh partitioning workflow."""
+        returncode, stdout, stderr = run_workflow_script("orchestrated_mesh_partitioning.py")
+
+        # Print output for debugging
+        if stdout:
+            print("STDOUT:", stdout)
+        if stderr:
+            print("STDERR:", stderr)
+
+        # Check that the script succeeded
+        assert returncode == 0, f"Mesh partitioning workflow failed with exit code {returncode}"
+        assert "PASS" in stdout or "passed" in stdout.lower(), \
+            "Expected success indicator in output"
+
+
+class TestDistributedCoarseningWorkflow:
+    """Distributed coarsening integration tests (MPI)."""
+
+    def test_distributed_coarsening_workflow(self):
+        """Test complete distributed coarsening workflow with MPI."""
+        # This test uses the existing distributed_coarsening_workflow.py
+        returncode, stdout, stderr = run_workflow_script("distributed_coarsening_workflow.py", num_processes=3)
+
+        # Print output for debugging
+        if stdout:
+            print("STDOUT:", stdout)
+        if stderr:
+            print("STDERR:", stderr)
+
+        # Check that the script succeeded
+        assert returncode == 0, f"Distributed coarsening workflow failed with exit code {returncode}"
+        assert "PASS" in stdout, "Expected PASS message in output"
