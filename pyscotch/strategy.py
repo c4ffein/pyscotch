@@ -120,47 +120,106 @@ class Strategy:
 
 # Pre-defined strategy configurations
 class Strategies:
-    """Collection of common strategy configurations."""
+    """
+    Collection of common strategy configurations.
+
+    This class provides convenient presets for partitioning and ordering strategies.
+    Most users should use `partition_quality()` or `order_quality()` which delegate
+    to Scotch's intelligent built-in defaults.
+
+    Strategy String Syntax:
+        - None: Use Scotch's adaptive defaults (recommended for quality)
+        - "": Empty string also uses defaults
+        - "r": Recursive bisection
+        - "m": Multilevel partitioning
+        - "n": Nested dissection (for ordering)
+        - Complex strings: See Scotch documentation for advanced syntax
+
+    Custom Strategy Examples:
+        To use custom strategies with advanced parameters, create a Strategy
+        object and set it manually:
+
+        >>> strategy = Strategy()
+        >>> # Use Scotch's built-in defaults (recommended)
+        >>> partitions = graph.partition(4, strategy)
+
+        >>> # Or specify a custom strategy string
+        >>> strategy = Strategy()
+        >>> strategy.set_mapping("m{vert=120,low=h{pass=10}f{bal=0.05,move=120}}")
+        >>> partitions = graph.partition(4, strategy)
+
+    Note:
+        Complex strategy strings follow Scotch's internal syntax. See:
+        - external/scotch/src/libscotch/library_graph_map.c (SCOTCH_stratGraphMapBuild)
+        - external/scotch/doc/scotch_user*.pdf for strategy documentation
+        - Scotch source code for tested examples
+    """
 
     # Partitioning strategies
     DEFAULT_PARTITION = ""
     RECURSIVE_BISECTION = "r"
     MULTILEVEL = "m"
-    QUALITY_PARTITION = "m{vert=100,low=h{pass=10},asc=b{bnd=f{bal=0.05},org=f{bal=0.05}}}"
-    FAST_PARTITION = "m{vert=1000,low=h{pass=5}}"
+    # None = use Scotch's built-in adaptive defaults (recommended)
+    QUALITY_PARTITION = None
+    FAST_PARTITION = None
 
     # Ordering strategies
     DEFAULT_ORDER = ""
     NESTED_DISSECTION = "n"
     SIMPLE_ORDER = "s"
     MINIMUM_FILL = "c"
-    QUALITY_ORDER = "n{sep=/((vert>1000)?m{vert=100,low=h{pass=10}}:)})"
-    FAST_ORDER = "s"
+    # None = use Scotch's built-in adaptive defaults (recommended)
+    QUALITY_ORDER = None
+    FAST_ORDER = None
 
     @staticmethod
     def partition_quality() -> Strategy:
-        """Get a high-quality partitioning strategy."""
+        """
+        Get a high-quality partitioning strategy.
+
+        Returns a strategy that uses Scotch's built-in adaptive defaults,
+        which are optimized for quality over speed.
+        """
         strat = Strategy()
-        strat.set_mapping(Strategies.QUALITY_PARTITION)
+        if Strategies.QUALITY_PARTITION is not None:
+            strat.set_mapping(Strategies.QUALITY_PARTITION)
         return strat
 
     @staticmethod
     def partition_fast() -> Strategy:
-        """Get a fast partitioning strategy."""
+        """
+        Get a fast partitioning strategy.
+
+        Returns a strategy that uses Scotch's built-in adaptive defaults,
+        which balance quality and speed.
+        """
         strat = Strategy()
-        strat.set_mapping(Strategies.FAST_PARTITION)
+        if Strategies.FAST_PARTITION is not None:
+            strat.set_mapping(Strategies.FAST_PARTITION)
         return strat
 
     @staticmethod
     def order_quality() -> Strategy:
-        """Get a high-quality ordering strategy."""
+        """
+        Get a high-quality ordering strategy.
+
+        Returns a strategy that uses Scotch's built-in adaptive defaults,
+        which are optimized for quality over speed.
+        """
         strat = Strategy()
-        strat.set_ordering(Strategies.QUALITY_ORDER)
+        if Strategies.QUALITY_ORDER is not None:
+            strat.set_ordering(Strategies.QUALITY_ORDER)
         return strat
 
     @staticmethod
     def order_fast() -> Strategy:
-        """Get a fast ordering strategy."""
+        """
+        Get a fast ordering strategy.
+
+        Returns a strategy that uses Scotch's built-in adaptive defaults,
+        which balance quality and speed.
+        """
         strat = Strategy()
-        strat.set_ordering(Strategies.FAST_ORDER)
+        if Strategies.FAST_ORDER is not None:
+            strat.set_ordering(Strategies.FAST_ORDER)
         return strat

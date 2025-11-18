@@ -19,7 +19,7 @@ Example:
 
 from .graph import Graph
 from .mesh import Mesh
-from .strategy import Strategy
+from .strategy import Strategy, Strategies
 from .arch import Architecture
 from .mapping import Mapping
 from .ordering import Ordering
@@ -39,6 +39,7 @@ __all__ = [
     "Graph",
     "Mesh",
     "Strategy",
+    "Strategies",
     "Architecture",
     "Mapping",
     "Ordering",
