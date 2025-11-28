@@ -16,7 +16,7 @@ import pytest
 MPI_OVERSUBSCRIBE = os.environ.get("PYSCOTCH_MPI_OVERSUBSCRIBE", "0") == "1"
 
 
-def run_workflow_script(script_name: str, num_processes: int = 1, timeout: int = 30) -> tuple[int, str, str]:
+def run_workflow_script(script_name: str, num_processes: int = 1, timeout: int = 10) -> tuple[int, str, str]:
     """
     Run an integration workflow script.
 
