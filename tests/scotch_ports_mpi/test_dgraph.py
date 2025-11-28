@@ -4,6 +4,7 @@ Orchestration tests for PT-Scotch distributed graph operations.
 These tests spawn MPI processes using mpirun to execute standalone scripts.
 Following the pattern used in the Scotch test suite.
 """
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -11,6 +12,19 @@ import pytest
 
 # Directory containing MPI scripts
 SCRIPT_DIR = Path(__file__).parent / "mpi_scripts"
+
+# CI environments may have fewer CPU slots than requested MPI processes.
+# Set PYSCOTCH_MPI_OVERSUBSCRIBE=1 to add --oversubscribe flag.
+MPI_OVERSUBSCRIBE = os.environ.get("PYSCOTCH_MPI_OVERSUBSCRIBE", "0") == "1"
+
+
+def _mpirun_cmd(num_processes: int) -> list[str]:
+    """Build mpirun command prefix with optional --oversubscribe."""
+    cmd = ["mpirun"]
+    if MPI_OVERSUBSCRIBE:
+        cmd.append("--oversubscribe")
+    cmd.extend(["-np", str(num_processes)])
+    return cmd
 
 
 def run_mpi_script(script_name: str, num_processes: int = 2) -> tuple[int, str, str]:
@@ -28,7 +42,7 @@ def run_mpi_script(script_name: str, num_processes: int = 2) -> tuple[int, str, 
     if not script_path.exists():
         raise FileNotFoundError(f"MPI script not found: {script_path}")
 
-    cmd = ["mpirun", "-np", str(num_processes), sys.executable, str(script_path)]
+    cmd = _mpirun_cmd(num_processes) + [sys.executable, str(script_path)]
 
     result = subprocess.run(
         cmd,
@@ -99,7 +113,7 @@ class TestDgraphCheck:
         script_path = SCRIPT_DIR / "dgraph_check_real.py"
         graph_path = Path("external/scotch/src/check/data/bump.grf")
 
-        cmd = ["mpirun", "-np", "2", sys.executable, str(script_path), str(graph_path)]
+        cmd = _mpirun_cmd(2) + [sys.executable, str(script_path), str(graph_path)]
 
         result = subprocess.run(
             cmd,
@@ -128,7 +142,7 @@ class TestDgraphCoarsen:
         graph_path = Path("external/scotch/src/check/data/bump.grf")
 
         # Use 3 processes as in the original Scotch test
-        cmd = ["mpirun", "-np", "3", sys.executable, str(script_path), str(graph_path)]
+        cmd = _mpirun_cmd(3) + [sys.executable, str(script_path), str(graph_path)]
 
         result = subprocess.run(
             cmd,
@@ -152,7 +166,7 @@ class TestDgraphCoarsen:
         script_path = SCRIPT_DIR / "dgraph_coarsen.py"
         graph_path = Path("external/scotch/src/check/data/bump_b100000.grf")
 
-        cmd = ["mpirun", "-np", "3", sys.executable, str(script_path), str(graph_path)]
+        cmd = _mpirun_cmd(3) + [sys.executable, str(script_path), str(graph_path)]
 
         result = subprocess.run(
             cmd,
@@ -176,7 +190,7 @@ class TestDgraphCoarsen:
         script_path = SCRIPT_DIR / "dgraph_coarsen.py"
         graph_path = Path("external/scotch/src/check/data/m4x4_b1.grf")
 
-        cmd = ["mpirun", "-np", "3", sys.executable, str(script_path), str(graph_path)]
+        cmd = _mpirun_cmd(3) + [sys.executable, str(script_path), str(graph_path)]
 
         result = subprocess.run(
             cmd,
