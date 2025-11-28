@@ -83,6 +83,8 @@ jobs:
         python -c "from pyscotch import libscotch; print(f'Available variants: {libscotch.list_available_variants()}')"
 
     - name: Run test suite
+      env:
+        PYSCOTCH_MPI_OVERSUBSCRIBE: "1"
       run: |
         pytest tests/ -v --tb=short --cov=pyscotch --cov-report=term-missing
 

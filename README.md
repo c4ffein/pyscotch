@@ -190,6 +190,10 @@ pytest tests/integration/ -v
 mpirun -np 3 pytest tests/scotch_ports_mpi/ -v
 ```
 
+### Pipeline Limitations
+
+CI runners use `PYSCOTCH_MPI_OVERSUBSCRIBE=1` to allow MPI tests with more processes than available CPU slots. This uses `mpirun --oversubscribe` which doesn't reflect true multi-node behavior - all processes share memory and CPU time on a single machine.
+
 ## Documentation
 
 Comprehensive documentation available:

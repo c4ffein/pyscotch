@@ -4,10 +4,16 @@ Integration Test Orchestrator
 Runs all integration workflow scripts in isolated subprocesses to prevent
 segfaults or other crashes from affecting the test suite.
 """
+import os
 import subprocess
 import sys
 from pathlib import Path
 import pytest
+
+# CI environments may have fewer CPU slots than requested MPI processes.
+# Set PYSCOTCH_MPI_OVERSUBSCRIBE=1 to add --oversubscribe flag.
+# WARNING: This doesn't reflect real multi-node MPI behavior.
+MPI_OVERSUBSCRIBE = os.environ.get("PYSCOTCH_MPI_OVERSUBSCRIBE", "0") == "1"
 
 
 def run_workflow_script(script_name: str, num_processes: int = 1, timeout: int = 30) -> tuple[int, str, str]:
@@ -29,7 +35,10 @@ def run_workflow_script(script_name: str, num_processes: int = 1, timeout: int =
 
     if num_processes > 1:
         # MPI test
-        cmd = ["mpirun", "-np", str(num_processes), sys.executable, str(script_path)]
+        cmd = ["mpirun"]
+        if MPI_OVERSUBSCRIBE:
+            cmd.append("--oversubscribe")
+        cmd.extend(["-np", str(num_processes), sys.executable, str(script_path)])
     else:
         # Regular test
         cmd = [sys.executable, str(script_path)]
