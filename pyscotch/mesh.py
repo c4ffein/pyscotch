@@ -67,7 +67,7 @@ class Mesh:
 
         # Use our compat layer - guarantees ABI compatibility with Scotch
         with c_fopen(str(filename), "r") as file_ptr:
-            baseval = lib.SCOTCH_Num(0)
+            baseval = lib.SCOTCH_Num(-1)  # -1 means use baseval from file
             ret = lib.SCOTCH_meshLoad(byref(self._mesh), file_ptr, baseval)
 
             if ret != 0:
