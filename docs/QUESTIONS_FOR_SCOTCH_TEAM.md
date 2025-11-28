@@ -226,6 +226,66 @@ After the fix, all 256 tests pass including:
 
 ---
 
+## SCOTCH_dgraphCoarsen Return Value Semantics
+
+### Question: What is the state of `coargrafptr` when coarsening fails?
+
+**Context**:
+When `SCOTCH_dgraphCoarsen()` returns `1` (graph could not be coarsened), what is the expected state of the `coargrafptr` structure?
+
+**From the Scotch source** (`library_dgraph_coarsen.c`):
+```c
+int SCOTCH_dgraphCoarsen (
+  SCOTCH_Dgraph * const       finegrafptr,
+  // ...
+  SCOTCH_Dgraph * const       coargrafptr,
+  // ...
+)
+{
+  // Returns:
+  // 0 = success (coarse graph populated)
+  // 1 = could not coarsen (graph too small or already optimal)
+  // 2+ = error
+}
+```
+
+**Our dilemma**:
+When `ret == 1`, should Python bindings:
+
+**Option A** - Return the initialized-but-empty structure:
+```python
+return (coarse_graph, None)  # Caller gets a Dgraph object
+```
+
+**Option B** - Clean up and return None:
+```python
+lib.SCOTCH_dgraphExit(coarse_graph)
+return (None, None)  # Caller gets None
+```
+
+**Questions**:
+
+1. **When `SCOTCH_dgraphCoarsen` returns 1, is `coargrafptr` in a valid state?**
+   - Was `SCOTCH_dgraphInit` called on it internally?
+   - Does it need `SCOTCH_dgraphExit` to be called?
+   - Or is it untouched/uninitialized?
+
+2. **What does the Scotch test suite do?**
+   - Looking at `test_scotch_dgraph_coarsen.c`, it doesn't seem to test the "cannot coarsen" case explicitly.
+
+3. **What is the recommended pattern for bindings?**
+   - Should we always call `SCOTCH_dgraphExit` on `coargrafptr` regardless of return value?
+   - Or only when `ret == 0`?
+
+**Why this matters**:
+- If we don't clean up when needed → memory leak
+- If we clean up when not needed → potential double-free or invalid state
+- Changing return semantics (`Dgraph` vs `None`) affects user code
+
+**Note**: We initially changed the return to `(None, None)` and added defensive null checks throughout the test workflows. We've reverted these changes pending clarification, as they weren't the root cause of our issues (the buffer overflow was).
+
+---
+
 ## References
 
 - Original C test: `external/scotch/src/check/test_scotch_graph_color.c`
