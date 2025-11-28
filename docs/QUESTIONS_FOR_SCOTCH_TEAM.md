@@ -94,6 +94,138 @@ for (vertnum = 0; vertnum < vertnbr; vertnum++)
 2. **Document algorithm behavior**: Clarify determinism, optimality guarantees, and state management
 3. **Add determinism controls**: Consider `SCOTCH_randomSeed()` or `SCOTCH_randomReset()` to make coloring deterministic when needed
 
+---
+
+## SCOTCH_Dgraph Structure Size Issue (PT-Scotch)
+
+### Issue: Buffer Overflow When Using Fixed-Size Opaque Structures
+
+**Discovered**: 2025-11-28
+
+**Description**:
+We discovered that PyScotch was experiencing memory corruption, segfaults during garbage collection, and crashes after `MPI_Finalize()` when using distributed graphs (PT-Scotch). The root cause was a **buffer overflow** due to incorrect structure sizing.
+
+### Technical Details
+
+PyScotch originally used a fixed 256-byte buffer for all opaque Scotch structures:
+
+```python
+# pyscotch/libscotch.py (BEFORE fix)
+_OPAQUE_STRUCTURE_SIZE = 256
+
+class SCOTCH_Dgraph(Structure):
+    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
+```
+
+However, examining the generated headers in `libscotch/ptscotch.h` reveals:
+
+```c
+typedef struct {
+  double                    dummy[37];
+} SCOTCH_Dgraph_64;
+
+typedef struct {
+  double                    dummy[15];
+} SCOTCH_Graph_64;
+```
+
+**Actual sizes**:
+| Structure | Doubles | Actual Size | PyScotch Allocated | Overflow |
+|-----------|---------|-------------|-------------------|----------|
+| `SCOTCH_Dgraph_64` | 37 | **296 bytes** | 256 bytes | **40 bytes!** |
+| `SCOTCH_Graph_64` | 15 | 120 bytes | 256 bytes | None |
+
+### Symptoms
+
+The 40-byte buffer overflow caused:
+1. **Segfaults during Python garbage collection** after MPI operations
+2. **Memory corruption** in multi-level coarsening workflows
+3. **Crashes after `MPI_Finalize()`** when Python tried to clean up Dgraph objects
+4. **Non-deterministic failures** - sometimes tests passed, sometimes crashed
+
+### How ScotchPy (Official Bindings) Handles This
+
+We discovered that ScotchPy queries the structure size dynamically at runtime:
+
+```python
+# scotchpy/dgraph.py:88-91
+class _DGraphStruct(ctypes.Structure):
+    _fields_ = [
+        ("dummy", ctypes.c_char * _common.libptscotch.SCOTCH_dgraphSizeof())
+    ]
+```
+
+This is the correct approach - it calls `SCOTCH_dgraphSizeof()` to get the actual size.
+
+### Our Fix
+
+We increased the fixed buffer size to 512 bytes for safety:
+
+```python
+# pyscotch/libscotch.py (AFTER fix)
+# CRITICAL: SCOTCH_Dgraph_64 requires 37 doubles = 296 bytes!
+# We use 512 bytes for safety margin and future Scotch versions.
+_OPAQUE_STRUCTURE_SIZE = 512
+```
+
+### Questions for Scotch Team
+
+1. **Is 37 doubles (296 bytes) the maximum size for `SCOTCH_Dgraph`?** Could this grow in future versions?
+
+2. **What are the actual sizes for all opaque structures?** We found:
+   - `SCOTCH_Dgraph_64`: 37 doubles = 296 bytes
+   - `SCOTCH_Graph_64`: 15 doubles = 120 bytes
+   - `SCOTCH_DgraphHaloReq_64`: 3 doubles = 24 bytes
+
+   Are there others we should be aware of?
+
+3. **Is there a recommended approach for Python bindings?**
+   - Dynamic sizing via `SCOTCH_*Sizeof()` functions (like ScotchPy does)
+   - Fixed buffer with generous padding (like we do now)
+   - Something else?
+
+4. **Why are the sizes specified in doubles rather than bytes?** Is this for alignment purposes?
+
+5. **Are the 32-bit versions smaller?** We only tested 64-bit. Should we expect:
+   - `SCOTCH_Dgraph` (32-bit) to be smaller than `SCOTCH_Dgraph_64`?
+   - Different dummy array sizes?
+
+### Verification
+
+After the fix, all 256 tests pass including:
+- Multi-level distributed coarsening
+- MPI cleanup without segfaults
+- Proper garbage collection
+
+```
+=== Distributed Coarsening Workflow Integration Test ===
+
+[Test 1] Single-level coarsening workflow
+  Original: 9800 vertices (global), 57978 edges
+  Coarsened: 5269 vertices (ratio: 0.5377)
+  ✓ Single-level coarsening PASSED
+
+[Test 2] Multi-level coarsening workflow
+  Level 0: 9800 vertices
+  Level 1: 5274 vertices
+  Level 2: 2860 vertices
+  ✓ Multi-level coarsening PASSED
+
+[Test 3] Connectivity preservation
+  ✓ Connectivity preservation PASSED
+
+=== All Distributed Coarsening Workflow Tests PASSED ===
+```
+
+### References
+
+- PyScotch fix: `pyscotch/libscotch.py:21-25`
+- ScotchPy dynamic sizing: `scotchpy/scotchpy/dgraph.py:88-91`
+- Scotch header with sizes: `libscotch/ptscotch.h`
+- `SCOTCH_dgraphSizeof()` implementation: `external/scotch/src/libscotch/library_dgraph.c:82`
+
+---
+
 ## References
 
 - Original C test: `external/scotch/src/check/test_scotch_graph_color.c`
@@ -104,4 +236,4 @@ for (vertnum = 0; vertnum < vertnbr; vertnum++)
 ---
 
 **Created**: 2025-11-12
-**Last updated**: 2025-11-16
+**Last updated**: 2025-11-28

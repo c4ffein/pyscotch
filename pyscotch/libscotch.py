@@ -18,7 +18,11 @@ from pathlib import Path
 from typing import Optional, Tuple, Dict
 
 # Constants
-_OPAQUE_STRUCTURE_SIZE = 256
+# CRITICAL: SCOTCH_Dgraph_64 requires 37 doubles = 296 bytes!
+# SCOTCH_Graph_64 requires 15 doubles = 120 bytes
+# We use 512 bytes for safety margin and future Scotch versions.
+# See: external/scotch/src/libscotch/library_pt.h for actual sizes.
+_OPAQUE_STRUCTURE_SIZE = 512
 
 # Graph coarsening flags (from scotch.h)
 SCOTCH_COARSENNONE = 0x0000
@@ -545,6 +549,27 @@ class ScotchVariant:
                 POINTER(SCOTCH_Graph),
             ]
             self.SCOTCH_meshGraph.restype = c_int
+
+            self.SCOTCH_meshCheck = self._get_func("SCOTCH_meshCheck")
+            self.SCOTCH_meshCheck.argtypes = [POINTER(SCOTCH_Mesh)]
+            self.SCOTCH_meshCheck.restype = c_int
+
+            self.SCOTCH_meshBuild = self._get_func("SCOTCH_meshBuild")
+            self.SCOTCH_meshBuild.argtypes = [
+                POINTER(SCOTCH_Mesh),
+                self.SCOTCH_Num,  # velmbas
+                self.SCOTCH_Num,  # vnodbas
+                self.SCOTCH_Num,  # velmnbr
+                self.SCOTCH_Num,  # vnodnbr
+                POINTER(self.SCOTCH_Num),  # verttab
+                POINTER(self.SCOTCH_Num),  # vendtab
+                POINTER(self.SCOTCH_Num),  # velotab
+                POINTER(self.SCOTCH_Num),  # vnlotab
+                POINTER(self.SCOTCH_Num),  # vlbltab
+                self.SCOTCH_Num,  # edgenbr
+                POINTER(self.SCOTCH_Num),  # edgetab
+            ]
+            self.SCOTCH_meshBuild.restype = c_int
 
             # Distributed graph functions (PT-Scotch only)
             if self.parallel:
