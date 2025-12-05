@@ -78,6 +78,9 @@ dmypy.json
 # pyenv
 .python-version
 
+# hypothesis
+.hypothesis
+
 # Environment
 .env
 .venv
