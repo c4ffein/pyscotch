@@ -38,9 +38,6 @@ def main():
             mpi.finalize()
             return 1
 
-        # Set active variant (64-bit parallel)
-        lib.set_active_variant(64, parallel=True)
-
         if rank == 0:
             print("=== Distributed Coarsening Workflow Integration Test ===\n")
 

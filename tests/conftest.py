@@ -1,52 +1,36 @@
 """
 Pytest configuration for PyScotch tests.
 
-Testing PyScotch with different Scotch variants:
-- 32-bit vs 64-bit integer sizes
-- Sequential vs parallel (PT-Scotch) versions
+Single-Variant Design:
+Tests run with ONE Scotch variant, configured via environment variables:
+- PYSCOTCH_INT_SIZE: 32 or 64 (default: 32)
+- PYSCOTCH_PARALLEL: 0 or 1 (default: 0)
 
-The multi-variant system allows testing all available variants in a single pytest run!
+To test all variants, run the test suite multiple times with different configurations:
+    PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=0 pytest tests/
+    PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=1 pytest tests/
+    PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0 pytest tests/
+    PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/
 
-Usage:
-
-    # Test with all available variants (recommended)
-    pytest tests/
-
-    # Test specific variant only (legacy mode)
-    PYSCOTCH_INT_SIZE=64 pytest tests/
+Or use the Makefile targets:
+    make test          # Run with default (32-bit sequential)
+    make test-all      # Run with all 4 combinations
 """
 
 import os
 import pytest
 
 
+# Read configuration from environment
+SCOTCH_INT_SIZE = int(os.environ.get("PYSCOTCH_INT_SIZE", "32"))
+SCOTCH_PARALLEL = os.environ.get("PYSCOTCH_PARALLEL", "0") == "1"
+
+
 def pytest_configure(config):
-    """Register custom markers."""
-    # Note: Removed int32/int64/multivariant markers - we don't skip tests based on variants
-    # All tests must work with all available variants or fail explicitly
-    pass
-
-
-# Check if environment variable is set (legacy mode)
-ENV_INT_SIZE = os.environ.get("PYSCOTCH_INT_SIZE")
-if ENV_INT_SIZE:
-    # Legacy mode: use environment variable
-    SCOTCH_INT_SIZE = int(ENV_INT_SIZE)
-    USE_MULTIVARIANT = False
-else:
-    # Multi-variant mode: test all available variants
-    USE_MULTIVARIANT = True
-    SCOTCH_INT_SIZE = None  # Will be set per-test
-
-
-def get_available_variants():
-    """Get all available Scotch variants."""
-    if USE_MULTIVARIANT:
-        import pyscotch.libscotch as lib
-        return lib.list_available_variants()
-    else:
-        # Legacy mode: only one variant (from environment)
-        return [(SCOTCH_INT_SIZE, False)]
+    """Configure pytest with custom markers."""
+    config.addinivalue_line(
+        "markers", "parallel: mark test as requiring parallel (PT-Scotch) variant"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -54,67 +38,27 @@ def scotch_int_size():
     """
     Fixture that provides the current Scotch integer size.
 
-    In multi-variant mode, this returns the active variant's int size.
-    In legacy mode, this returns the environment variable value.
-
     Returns:
         int: 32 or 64
     """
-    if USE_MULTIVARIANT:
-        import pyscotch.libscotch as lib
-        return lib.get_scotch_int_size()
-    else:
-        return SCOTCH_INT_SIZE
+    return SCOTCH_INT_SIZE
 
 
-def pytest_generate_tests(metafunc):
+@pytest.fixture(scope="session")
+def scotch_parallel():
     """
-    Automatically parameterize tests that use the 'scotch_variant' fixture.
+    Fixture that provides whether parallel variant is loaded.
 
-    This enables tests to run with all available Scotch variants automatically.
+    Returns:
+        bool: True if PT-Scotch (parallel) variant
     """
-    if "scotch_variant" in metafunc.fixturenames:
-        variants = get_available_variants()
-
-        # Create readable test IDs like "32bit-seq" or "64bit-par"
-        ids = [
-            f"{int_size}bit-{'par' if parallel else 'seq'}"
-            for int_size, parallel in variants
-        ]
-
-        metafunc.parametrize("scotch_variant", variants, ids=ids, indirect=True)
+    return SCOTCH_PARALLEL
 
 
-@pytest.fixture
-def scotch_variant(request):
-    """
-    Fixture that switches to a specific Scotch variant for the test.
-
-    Tests using this fixture will automatically run with ALL available variants.
-
-    Args:
-        request: Pytest request object with variant parameter (int_size, parallel)
-
-    Yields:
-        tuple: (int_size, parallel) for the active variant
-    """
-    int_size, parallel = request.param
-
-    if USE_MULTIVARIANT:
-        import pyscotch.libscotch as lib
-
-        # Switch to this variant
-        lib.set_active_variant(int_size, parallel)
-
-        # Verify the switch worked
-        assert lib.get_scotch_int_size() == int_size, \
-            f"Failed to switch to {int_size}-bit variant"
-
-    # Yield the variant info to the test
-    yield (int_size, parallel)
-
-    # No cleanup needed - variants stay loaded
-
-
-# Removed pytest_collection_modifyitems - we don't skip tests based on variants
-# Following "no-skip" philosophy: tests must pass or fail explicitly, never skip
+def pytest_collection_modifyitems(config, items):
+    """Skip tests that require parallel variant if not loaded."""
+    if not SCOTCH_PARALLEL:
+        skip_parallel = pytest.mark.skip(reason="requires PYSCOTCH_PARALLEL=1")
+        for item in items:
+            if "parallel" in item.keywords:
+                item.add_marker(skip_parallel)

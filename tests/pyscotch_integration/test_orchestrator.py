@@ -16,6 +16,14 @@ import pytest
 MPI_OVERSUBSCRIBE = os.environ.get("PYSCOTCH_MPI_OVERSUBSCRIBE", "0") == "1"
 
 
+def _get_ptscotch_env() -> dict:
+    """Get environment variables for PT-Scotch (64-bit, parallel)."""
+    env = os.environ.copy()
+    env["PYSCOTCH_INT_SIZE"] = "64"
+    env["PYSCOTCH_PARALLEL"] = "1"
+    return env
+
+
 def run_workflow_script(script_name: str, num_processes: int = 1, timeout: int = 10) -> tuple[int, str, str]:
     """
     Run an integration workflow script.
@@ -34,21 +42,24 @@ def run_workflow_script(script_name: str, num_processes: int = 1, timeout: int =
         raise FileNotFoundError(f"Workflow script not found: {script_path}")
 
     if num_processes > 1:
-        # MPI test
+        # MPI test - use PT-Scotch environment
         cmd = ["mpirun"]
         if MPI_OVERSUBSCRIBE:
             cmd.append("--oversubscribe")
         cmd.extend(["-np", str(num_processes), sys.executable, str(script_path)])
+        env = _get_ptscotch_env()
     else:
-        # Regular test
+        # Regular test - use default environment
         cmd = [sys.executable, str(script_path)]
+        env = None
 
     result = subprocess.run(
         cmd,
         capture_output=True,
         text=True,
         timeout=timeout,
-        cwd=Path(__file__).parent.parent.parent  # Run from repo root
+        cwd=Path(__file__).parent.parent.parent,  # Run from repo root
+        env=env
     )
 
     return result.returncode, result.stdout, result.stderr
