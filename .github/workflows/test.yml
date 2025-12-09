@@ -79,14 +79,16 @@ jobs:
 
     - name: Verify PyScotch imports
       run: |
-        python -c "from pyscotch import Graph, Strategy, Architecture; print('✓ PyScotch imports work')"
-        python -c "from pyscotch import libscotch; print(f'Available variants: {libscotch.list_available_variants()}')"
+        echo "Testing 32-bit sequential variant..."
+        PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=0 python -c "from pyscotch import Graph, Strategy, Architecture; print('✓ 32-bit sequential imports work')"
+        echo "Testing 64-bit parallel variant..."
+        PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 python -c "from pyscotch import Graph, Dgraph; print('✓ 64-bit parallel imports work')"
 
-    - name: Run test suite
+    - name: Run test suite (all 4 variants)
       env:
         PYSCOTCH_MPI_OVERSUBSCRIBE: "1"
       run: |
-        pytest tests/ -v --tb=short --cov=pyscotch --cov-report=term-missing
+        make test-quadrant
 
     - name: Test summary
       if: always()
