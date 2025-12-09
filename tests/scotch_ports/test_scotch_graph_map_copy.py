@@ -14,14 +14,12 @@ from pyscotch import Graph, Architecture, Strategy
 from pyscotch import libscotch as lib
 
 
-@pytest.mark.parametrize("int_size", [32, 64])
 class TestScotchGraphMapCopy:
     """Tests from test_scotch_graph_map_copy.c - mapping and remapping"""
 
-    def test_graph_mapping(self, int_size):
+    def test_graph_mapping(self):
         """Test basic graph mapping computation."""
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/m4x4_b1.grf")
         assert test_data.exists(), (
             f"Required test data missing: {test_data}. "
@@ -72,10 +70,9 @@ class TestScotchGraphMapCopy:
         # Cleanup
         lib.SCOTCH_graphMapExit(byref(graph._graph), byref(mapping))
 
-    def test_graph_remapping(self, int_size):
+    def test_graph_remapping(self):
         """Test graph remapping from an old partition to a new one."""
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/m4x4_b1.grf")
         assert test_data.exists(), (
             f"Required test data missing: {test_data}. "
@@ -159,10 +156,9 @@ class TestScotchGraphMapCopy:
         lib.SCOTCH_graphMapExit(byref(graph._graph), byref(mapping_old))
         lib.SCOTCH_graphMapExit(byref(graph._graph), byref(mapping_new))
 
-    def test_graph_from_edges_for_mapping(self, int_size):
+    def test_graph_from_edges_for_mapping(self):
         """Test mapping on a programmatically created graph."""
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         # Create a simple graph
         edges = [(0, 1), (1, 2), (2, 3), (3, 0), (0, 2)]
         graph = Graph.from_edges(edges, num_vertices=4)

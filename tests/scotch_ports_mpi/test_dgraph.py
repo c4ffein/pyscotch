@@ -27,6 +27,14 @@ def _mpirun_cmd(num_processes: int) -> list[str]:
     return cmd
 
 
+def _get_ptscotch_env() -> dict:
+    """Get environment variables for PT-Scotch (64-bit, parallel)."""
+    env = os.environ.copy()
+    env["PYSCOTCH_INT_SIZE"] = "64"
+    env["PYSCOTCH_PARALLEL"] = "1"
+    return env
+
+
 def run_mpi_script(script_name: str, num_processes: int = 2) -> tuple[int, str, str]:
     """
     Run a standalone MPI script using mpirun.
@@ -48,7 +56,8 @@ def run_mpi_script(script_name: str, num_processes: int = 2) -> tuple[int, str, 
         cmd,
         capture_output=True,
         text=True,
-        timeout=30  # 30 second timeout
+        timeout=30,  # 30 second timeout
+        env=_get_ptscotch_env()
     )
 
     return result.returncode, result.stdout, result.stderr
@@ -119,7 +128,8 @@ class TestDgraphCheck:
             cmd,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            env=_get_ptscotch_env()
         )
 
         # Print output for debugging
@@ -148,7 +158,8 @@ class TestDgraphCoarsen:
             cmd,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            env=_get_ptscotch_env()
         )
 
         # Print output for debugging
@@ -172,7 +183,8 @@ class TestDgraphCoarsen:
             cmd,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            env=_get_ptscotch_env()
         )
 
         # Print output for debugging
@@ -196,7 +208,8 @@ class TestDgraphCoarsen:
             cmd,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            env=_get_ptscotch_env()
         )
 
         # Print output for debugging

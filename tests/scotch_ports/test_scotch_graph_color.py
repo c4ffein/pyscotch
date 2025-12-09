@@ -13,14 +13,6 @@ from pyscotch import Graph
 from pyscotch import libscotch as lib
 
 
-@pytest.fixture(autouse=True, scope="module")
-def ensure_sequential():
-    """Sequential Scotch only (not PT-Scotch)."""
-    variant = lib.get_active_variant()
-    if variant and variant.parallel:
-        lib.set_active_variant(variant.int_size, parallel=False)
-
-
 class TestGraphColor:
     """Graph coloring tests from test_scotch_graph_color.c"""
 

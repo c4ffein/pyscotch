@@ -16,14 +16,12 @@ from pyscotch import libscotch as lib
 from pyscotch.graph import c_fopen
 
 
-@pytest.mark.parametrize("int_size", [32, 64])
 class TestScotchArchDeco:
     """Tests from test_scotch_arch_deco.c - decomposition architectures"""
 
-    def test_arch_build_and_save(self, int_size):
+    def test_arch_build_and_save(self):
         """Test building a decomposition-described architecture and saving it."""
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/m16x16_b1.grf")
         assert test_data.exists(), (
             f"Required test data missing: {test_data}. "
@@ -66,10 +64,9 @@ class TestScotchArchDeco:
         finally:
             Path(tmpfile_path).unlink(missing_ok=True)
 
-    def test_arch_build2_without_strategy(self, int_size):
+    def test_arch_build2_without_strategy(self):
         """Test archBuild2 which doesn't require a strategy."""
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/m16x16_b1.grf")
         assert test_data.exists(), (
             f"Required test data missing: {test_data}. "
@@ -93,10 +90,9 @@ class TestScotchArchDeco:
         )
         assert ret == 0, "SCOTCH_archBuild2 failed"
 
-    def test_arch_sub(self, int_size):
+    def test_arch_sub(self):
         """Test creating a sub-architecture from an existing architecture."""
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/m16x16_b1.grf")
         assert test_data.exists(), (
             f"Required test data missing: {test_data}. "
@@ -131,10 +127,9 @@ class TestScotchArchDeco:
         )
         assert ret == 0, "SCOTCH_archSub failed"
 
-    def test_arch_load(self, int_size):
+    def test_arch_load(self):
         """Test saving and loading an architecture."""
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/m16x16_b1.grf")
         assert test_data.exists(), (
             f"Required test data missing: {test_data}. "
@@ -174,9 +169,8 @@ class TestScotchArchDeco:
         finally:
             Path(tmpfile_path).unlink(missing_ok=True)
 
-    def test_basic_architecture_creation(self, int_size):
+    def test_basic_architecture_creation(self):
         """Test basic architecture creation (complete graph architecture)."""
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         arch = Architecture.complete_graph(5)
         # Architecture created successfully

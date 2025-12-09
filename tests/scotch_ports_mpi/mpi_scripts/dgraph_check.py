@@ -31,8 +31,8 @@ def main():
         if rank == 0:
             print(f"Running dgraph_check with {size} MPI processes")
 
-        # Set PT-Scotch variant (64-bit, parallel)
-        lib.set_active_variant(64, parallel=True)
+        # Note: PT-Scotch variant is set via environment variables:
+        # PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1
         dtype = lib.get_dtype()
 
         # Create a simple distributed graph with NO edges

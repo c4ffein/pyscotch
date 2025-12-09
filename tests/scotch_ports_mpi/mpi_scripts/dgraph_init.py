@@ -25,8 +25,8 @@ def main():
         if rank == 0:
             print(f"Running with {size} MPI processes")
 
-        # Set PT-Scotch variant (64-bit, parallel)
-        lib.set_active_variant(64, parallel=True)
+        # Note: PT-Scotch variant is set via environment variables:
+        # PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1
 
         # Test 1: Initialize dgraph using low-level API
         dgraph = SCOTCH_Dgraph()

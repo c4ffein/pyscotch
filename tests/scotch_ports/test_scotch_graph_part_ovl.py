@@ -14,14 +14,12 @@ from pyscotch import Graph, Strategy
 from pyscotch import libscotch as lib
 
 
-@pytest.mark.parametrize("int_size", [32, 64])
 class TestScotchGraphPartOvl:
     """Tests from test_scotch_graph_part_ovl.c - overlapping partitioning"""
 
-    def test_graph_partition_with_overlap(self, int_size):
+    def test_graph_partition_with_overlap(self):
         """Test overlapping graph partitioning on a file-based graph."""
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         test_data = Path("external/scotch/src/check/data/m16x16_b1.grf")
         assert test_data.exists(), (
             f"Required test data missing: {test_data}. "
@@ -69,10 +67,9 @@ class TestScotchGraphPartOvl:
         unique_parts = np.unique(non_separator)
         assert len(unique_parts) > 0, "No partitions created"
 
-    def test_simple_graph_for_overlap(self, int_size):
+    def test_simple_graph_for_overlap(self):
         """Test overlapping partitioning on a simple programmatic graph."""
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         # Create a simple graph
         edges = [(0, 1), (1, 2), (2, 3), (3, 0), (0, 2)]
         graph = Graph.from_edges(edges, num_vertices=4)

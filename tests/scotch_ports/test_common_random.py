@@ -27,7 +27,6 @@ from pyscotch import libscotch as lib
 
 
 
-@pytest.mark.parametrize("int_size", [32, 64])
 class TestCommonRandom:
     """Tests from test_common_random.c
 
@@ -36,7 +35,7 @@ class TestCommonRandom:
     2. Second pass: load values, verify time-based seeding differs, load state
     """
 
-    def test_random_reset_determinism(self, int_size):
+    def test_random_reset_determinism(self):
         """Test that SCOTCH_randomReset() makes sequences deterministic.
 
         Matches C test lines 95-115, but uses public API:
@@ -46,7 +45,6 @@ class TestCommonRandom:
         The behavior is equivalent - both test deterministic sequence generation.
         """
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         RANDNBR = 100
         INTVALMAX = 10000
 
@@ -68,10 +66,9 @@ class TestCommonRandom:
     # This is difficult to test in pytest without subprocess spawning.
     # The test also depends on compile-time flags (COMMON_DEBUG, COMMON_RANDOM_FIXED_SEED).
 
-    def test_random_save_load_state(self, int_size):
+    def test_random_save_load_state(self):
         """Test random state save/load."""
         # Set variant for this test
-        lib.set_active_variant(int_size, parallel=False)
         import tempfile
         from pathlib import Path
         from pyscotch.graph import c_fopen
