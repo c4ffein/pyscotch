@@ -22,7 +22,7 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 # Targets
-.PHONY: all build-all build-32 build-64 clean clean-scotch install test help
+.PHONY: all build-all build-32 build-64 clean clean-scotch install test test-full test-quadrant help
 
 help:
 	@echo "PyScotch Build System"
@@ -45,7 +45,9 @@ help:
 	@echo ""
 	@echo "Other targets:"
 	@echo "  make install         - Install Python package"
-	@echo "  make test            - Run tests"
+	@echo "  make test            - Run tests (64-bit parallel, skips hypothesis)"
+	@echo "  make test-full       - Run full test suite including hypothesis"
+	@echo "  make test-quadrant   - Run all 4 variants (32/64 × seq/parallel) with hypothesis"
 	@echo "  make clean           - Clean Python build artifacts"
 	@echo "  make clean-scotch    - Clean all Scotch builds"
 	@echo "  make check-submodule - Gets Scotch as a submodule (and auto-applies the temporary fix)"
@@ -137,9 +139,37 @@ check-submodule:
 install:
 	pip install -e .
 
-# Run tests
+# Run tests (64-bit parallel by default, skip slow hypothesis tests)
 test:
-	pytest tests/ -v
+	PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/ -v --ignore=tests/hypothesis/
+
+# Run full test suite including hypothesis property tests
+test-full:
+	PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/ -v
+
+# Run all 4 variants (32/64-bit × sequential/parallel) with hypothesis
+test-quadrant:
+	@echo "========================================"
+	@echo "[1/4] Testing 32-bit sequential"
+	@echo "========================================"
+	PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=0 pytest tests/ -v
+	@echo ""
+	@echo "========================================"
+	@echo "[2/4] Testing 32-bit parallel"
+	@echo "========================================"
+	PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=1 pytest tests/ -v
+	@echo ""
+	@echo "========================================"
+	@echo "[3/4] Testing 64-bit sequential"
+	@echo "========================================"
+	PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0 pytest tests/ -v
+	@echo ""
+	@echo "========================================"
+	@echo "[4/4] Testing 64-bit parallel"
+	@echo "========================================"
+	PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/ -v
+	@echo ""
+	@echo "✓ All 4 variants tested successfully!"
 
 # Clean Python build artifacts
 clean:
