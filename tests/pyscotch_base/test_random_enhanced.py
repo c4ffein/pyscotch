@@ -3,18 +3,15 @@ Enhanced random number generation tests for PyScotch.
 
 These are additional tests beyond what's in the Scotch C test suite,
 providing more comprehensive coverage of the RNG functionality.
+
+Single-Variant Design:
+Tests run with ONE Scotch variant, configured via environment variables:
+- PYSCOTCH_INT_SIZE: 32 or 64 (default: 32)
+- PYSCOTCH_PARALLEL: 0 or 1 (default: 0)
 """
 
 import pytest
 from pyscotch import libscotch as lib
-
-
-@pytest.fixture(autouse=True, scope="module")
-def ensure_variant():
-    """Sequential Scotch only (not PT-Scotch)."""
-    variant = lib.get_active_variant()
-    if variant:
-        lib.set_active_variant(variant.int_size, parallel=False)
 
 
 class TestRandomEnhanced:
