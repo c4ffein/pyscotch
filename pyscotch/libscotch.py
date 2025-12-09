@@ -1,9 +1,12 @@
 """
 Low-level ctypes bindings to the PT-Scotch C library.
 
-Multi-Variant Support:
-This module can load multiple Scotch variants simultaneously (32-bit/64-bit × sequential/parallel)
-and switch between them at runtime without reloading.
+Single-Variant Design:
+This module loads ONE Scotch variant based on environment variables:
+- PYSCOTCH_INT_SIZE: 32 or 64 (default: 32)
+- PYSCOTCH_PARALLEL: 0 or 1 (default: 0)
+
+To test all variants, run the test suite 4 times with different configurations.
 """
 
 import ctypes
@@ -15,14 +18,22 @@ from ctypes import (
     POINTER, Structure, byref
 )
 from pathlib import Path
-from typing import Optional, Tuple, Dict
+from typing import Optional
 
+# =============================================================================
+# Configuration from Environment
+# =============================================================================
+
+# Read configuration from environment (or use defaults)
+_INT_SIZE = int(os.environ.get("PYSCOTCH_INT_SIZE", "32"))
+_PARALLEL = os.environ.get("PYSCOTCH_PARALLEL", "0") == "1"
+
+if _INT_SIZE not in (32, 64):
+    raise ValueError(f"PYSCOTCH_INT_SIZE must be 32 or 64, got {_INT_SIZE}")
+
+# =============================================================================
 # Constants
-# CRITICAL: SCOTCH_Dgraph_64 requires 37 doubles = 296 bytes!
-# SCOTCH_Graph_64 requires 15 doubles = 120 bytes
-# We use 512 bytes for safety margin and future Scotch versions.
-# See: external/scotch/src/libscotch/library_pt.h for actual sizes.
-_OPAQUE_STRUCTURE_SIZE = 512
+# =============================================================================
 
 # Graph coarsening flags (from scotch.h)
 SCOTCH_COARSENNONE = 0x0000
@@ -30,838 +41,416 @@ SCOTCH_COARSENFOLD = 0x0100
 SCOTCH_COARSENFOLDDUP = 0x0300
 SCOTCH_COARSENNOMERGE = 0x4000
 
+# =============================================================================
+# Type Definitions
+# =============================================================================
 
-# Opaque structure types (shared across all variants)
-class SCOTCH_Graph(Structure):
-    """Opaque graph structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
+SCOTCH_Num = c_long if _INT_SIZE == 64 else c_int
+SCOTCH_Idx = c_long if _INT_SIZE == 64 else c_int
+SCOTCH_GraphPart2 = ctypes.c_ubyte
 
-class SCOTCH_Mesh(Structure):
-    """Opaque mesh structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
+# =============================================================================
+# Library Loading
+# =============================================================================
 
-class SCOTCH_Strat(Structure):
-    """Opaque strategy structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
-
-class SCOTCH_Arch(Structure):
-    """Opaque architecture structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
-
-class SCOTCH_Mapping(Structure):
-    """Opaque mapping structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
-
-class SCOTCH_Ordering(Structure):
-    """Opaque ordering structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
-
-class SCOTCH_Geom(Structure):
-    """Opaque geometry structure."""
-    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
-
-class SCOTCH_Dgraph(Structure):
-    """Opaque distributed graph structure (PT-Scotch)."""
-    _fields_ = [("_opaque", ctypes.c_byte * _OPAQUE_STRUCTURE_SIZE)]
+def _get_lib_dir() -> Path:
+    """Get the library directory for the current configuration."""
+    builds_dir = Path(__file__).parent.parent / "scotch-builds"
+    return builds_dir / f"lib{_INT_SIZE}"
 
 
-class ScotchVariant:
-    """
-    Encapsulates a single Scotch library variant.
+def _preload_dependencies():
+    """Preload shared dependencies (zlib, mpi) globally."""
+    # Preload zlib
+    try:
+        zlib_path = ctypes.util.find_library('z')
+        if zlib_path:
+            ctypes.CDLL(zlib_path, mode=ctypes.RTLD_GLOBAL)
+    except (OSError, AttributeError, TypeError):
+        pass
 
-    Each variant has its own isolated library handles and can coexist
-    with other variants in the same process.
-    """
-
-    def __init__(self, int_size: int, parallel: bool, lib_dir: Path, header_dir: Path):
-        """
-        Initialize a Scotch variant.
-
-        Args:
-            int_size: 32 or 64
-            parallel: True for PT-Scotch, False for sequential
-            lib_dir: Directory containing the libraries
-            header_dir: Directory containing headers
-        """
-        self.int_size = int_size
-        self.parallel = parallel
-        self.lib_dir = Path(lib_dir)
-        self.header_dir = Path(header_dir)
-
-        # Type definitions for this variant
-        self.SCOTCH_Num = c_long if int_size == 64 else c_int
-        self.SCOTCH_Idx = c_long if int_size == 64 else c_int
-        self.SCOTCH_GraphPart2 = ctypes.c_ubyte  # unsigned char for partition IDs
-
-        # Library handles
-        # Sequential library (libscotch.so) - ALWAYS loaded, contains SCOTCH_* functions
-        self._lib_sequential = None
-        # Parallel library (libptscotch.so) - Only for parallel variants, contains DGRAPH_* functions
-        self._lib_parallel = None
-        # Error library (shared across variants)
-        self._libscotcherr = None
-
-        # Function pointers (will be set during loading)
-        self.functions = {}
-
-        self._load_libraries()
-        self._bind_functions()
-
-    def _load_libraries(self):
-        """Load the library files with RTLD_LOCAL for isolation."""
+    # Preload MPI if parallel
+    if _PARALLEL:
         try:
-            # Preload zlib globally (shared dependency)
+            mpi_path = ctypes.util.find_library('mpi')
+            if mpi_path:
+                ctypes.CDLL(mpi_path, mode=ctypes.RTLD_GLOBAL)
+        except (OSError, AttributeError, TypeError):
+            pass
+
+
+def _load_libraries():
+    """Load the Scotch libraries."""
+    lib_dir = _get_lib_dir()
+
+    if not lib_dir.exists():
+        raise FileNotFoundError(
+            f"Scotch library directory not found: {lib_dir}\n"
+            f"Run 'make build-all' to build Scotch variants."
+        )
+
+    # Load error library
+    err_lib_path = lib_dir / "libscotcherr.so"
+    if err_lib_path.exists():
+        try:
+            ctypes.CDLL(str(err_lib_path), mode=ctypes.RTLD_GLOBAL)
+        except OSError as e:
+            print(f"Warning: Could not load {err_lib_path}: {e}", file=sys.stderr)
+
+    # Load sequential library (always needed)
+    seq_lib_path = lib_dir / "libscotch.so"
+    if not seq_lib_path.exists():
+        raise FileNotFoundError(f"Sequential library not found: {seq_lib_path}")
+
+    _lib_sequential = ctypes.CDLL(str(seq_lib_path), mode=ctypes.RTLD_GLOBAL)
+    print(f"✓ Loaded Scotch: {_INT_SIZE}-bit from {seq_lib_path}", file=sys.stderr)
+
+    # Load parallel library if needed
+    _lib_parallel = None
+    if _PARALLEL:
+        par_lib_path = lib_dir / "libptscotch.so"
+        if not par_lib_path.exists():
+            raise FileNotFoundError(f"Parallel library not found: {par_lib_path}")
+
+        _lib_parallel = ctypes.CDLL(str(par_lib_path), mode=ctypes.RTLD_GLOBAL)
+        print(f"✓ Loaded PT-Scotch: {_INT_SIZE}-bit from {par_lib_path}", file=sys.stderr)
+
+    return _lib_sequential, _lib_parallel
+
+
+# Preload dependencies and load libraries
+_preload_dependencies()
+_lib_sequential, _lib_parallel = _load_libraries()
+
+# =============================================================================
+# Opaque Structure Definitions
+# =============================================================================
+
+def _make_opaque_struct(name: str, size: int):
+    """Create an opaque ctypes Structure class with given size."""
+    class OpaqueStruct(Structure):
+        _fields_ = [("_opaque", ctypes.c_byte * size)]
+    OpaqueStruct.__name__ = name
+    OpaqueStruct.__qualname__ = name
+    return OpaqueStruct
+
+
+def _get_func(name: str):
+    """Get a Scotch function with the correct suffix."""
+    suffixed_name = f"{name}_{_INT_SIZE}"
+
+    # Distributed graph functions are in the parallel library
+    if name.lower().startswith("scotch_dgraph"):
+        if not _lib_parallel:
+            raise AttributeError(
+                f"{name} requires PT-Scotch (parallel variant). "
+                f"Set PYSCOTCH_PARALLEL=1 to enable."
+            )
+        return getattr(_lib_parallel, suffixed_name)
+
+    # All other SCOTCH_* functions are in the sequential library
+    return getattr(_lib_sequential, suffixed_name)
+
+
+def _compute_structure_sizes():
+    """Compute structure sizes using SCOTCH_*Sizeof() functions."""
+    sizes = {}
+
+    # Sequential structures (always available)
+    sizes['graph'] = _get_func("SCOTCH_graphSizeof")()
+    sizes['mesh'] = _get_func("SCOTCH_meshSizeof")()
+    sizes['strat'] = _get_func("SCOTCH_stratSizeof")()
+    sizes['arch'] = _get_func("SCOTCH_archSizeof")()
+    sizes['mapping'] = _get_func("SCOTCH_mapSizeof")()
+    sizes['ordering'] = _get_func("SCOTCH_orderSizeof")()
+    sizes['geom'] = _get_func("SCOTCH_geomSizeof")()
+
+    # Parallel structures (only if parallel variant)
+    if _lib_parallel:
+        sizes['dgraph'] = _get_func("SCOTCH_dgraphSizeof")()
+    else:
+        sizes['dgraph'] = None
+
+    return sizes
+
+
+# Compute sizes and define structures
+_SIZES = _compute_structure_sizes()
+
+SCOTCH_Graph = _make_opaque_struct("SCOTCH_Graph", _SIZES['graph'])
+SCOTCH_Mesh = _make_opaque_struct("SCOTCH_Mesh", _SIZES['mesh'])
+SCOTCH_Strat = _make_opaque_struct("SCOTCH_Strat", _SIZES['strat'])
+SCOTCH_Arch = _make_opaque_struct("SCOTCH_Arch", _SIZES['arch'])
+SCOTCH_Mapping = _make_opaque_struct("SCOTCH_Mapping", _SIZES['mapping'])
+SCOTCH_Ordering = _make_opaque_struct("SCOTCH_Ordering", _SIZES['ordering'])
+SCOTCH_Geom = _make_opaque_struct("SCOTCH_Geom", _SIZES['geom'])
+
+if _SIZES['dgraph']:
+    SCOTCH_Dgraph = _make_opaque_struct("SCOTCH_Dgraph", _SIZES['dgraph'])
+else:
+    SCOTCH_Dgraph = None
+
+print(f"✓ Structure sizes: graph={_SIZES['graph']}, strat={_SIZES['strat']}, "
+      f"arch={_SIZES['arch']}, dgraph={_SIZES['dgraph']}", file=sys.stderr)
+
+# =============================================================================
+# Function Bindings
+# =============================================================================
+
+def _bind_functions():
+    """Bind all Scotch functions with proper type signatures."""
+    # Get structure pointer types
+    GraphPtr = POINTER(SCOTCH_Graph)
+    MeshPtr = POINTER(SCOTCH_Mesh)
+    StratPtr = POINTER(SCOTCH_Strat)
+    ArchPtr = POINTER(SCOTCH_Arch)
+    MappingPtr = POINTER(SCOTCH_Mapping)
+    OrderingPtr = POINTER(SCOTCH_Ordering)
+    GeomPtr = POINTER(SCOTCH_Geom)
+    NumPtr = POINTER(SCOTCH_Num)
+    IdxPtr = POINTER(SCOTCH_Idx)
+
+    bindings = {}
+
+    # --- Graph functions ---
+    bindings['SCOTCH_graphInit'] = (c_int, [GraphPtr])
+    bindings['SCOTCH_graphExit'] = (None, [GraphPtr])
+    bindings['SCOTCH_graphBuild'] = (c_int, [
+        GraphPtr, SCOTCH_Num, SCOTCH_Num,
+        NumPtr, NumPtr, NumPtr, NumPtr,
+        SCOTCH_Num, NumPtr, NumPtr
+    ])
+    bindings['SCOTCH_graphCheck'] = (c_int, [GraphPtr])
+    bindings['SCOTCH_graphSize'] = (None, [GraphPtr, NumPtr, NumPtr])
+    bindings['SCOTCH_graphData'] = (None, [
+        GraphPtr, NumPtr, NumPtr, POINTER(NumPtr), POINTER(NumPtr),
+        POINTER(NumPtr), POINTER(NumPtr), NumPtr, POINTER(NumPtr), POINTER(NumPtr)
+    ])
+    bindings['SCOTCH_graphLoad'] = (c_int, [GraphPtr, c_void_p, SCOTCH_Num, SCOTCH_Num])
+    bindings['SCOTCH_graphSave'] = (c_int, [GraphPtr, c_void_p])
+    bindings['SCOTCH_graphBase'] = (c_int, [GraphPtr, SCOTCH_Num])
+    bindings['SCOTCH_graphPart'] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
+    bindings['SCOTCH_graphPartOvl'] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
+    bindings['SCOTCH_graphPartFixed'] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
+    bindings['SCOTCH_graphOrder'] = (c_int, [
+        GraphPtr, StratPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr
+    ])
+    bindings['SCOTCH_graphCoarsen'] = (c_int, [
+        GraphPtr, SCOTCH_Num, c_double, SCOTCH_Num, GraphPtr, NumPtr
+    ])
+    bindings['SCOTCH_graphCoarsenMatch'] = (c_int, [
+        GraphPtr, NumPtr, c_double, SCOTCH_Num, NumPtr
+    ])
+    bindings['SCOTCH_graphCoarsenBuild'] = (c_int, [
+        GraphPtr, SCOTCH_Num, NumPtr, GraphPtr, NumPtr
+    ])
+    bindings['SCOTCH_graphInduceList'] = (c_int, [GraphPtr, SCOTCH_Num, NumPtr, GraphPtr])
+    bindings['SCOTCH_graphInducePart'] = (c_int, [GraphPtr, SCOTCH_Num, POINTER(SCOTCH_GraphPart2), SCOTCH_GraphPart2, GraphPtr])
+    bindings['SCOTCH_graphDiamPV'] = (SCOTCH_Num, [GraphPtr])
+    bindings['SCOTCH_graphColor'] = (c_int, [GraphPtr, NumPtr, NumPtr, SCOTCH_Num])
+    bindings['SCOTCH_graphStat'] = (None, [
+        GraphPtr, NumPtr, NumPtr, NumPtr, POINTER(c_double), POINTER(c_double),
+        NumPtr, NumPtr, POINTER(c_double), POINTER(c_double),
+        NumPtr, NumPtr, NumPtr, POINTER(c_double), POINTER(c_double)
+    ])
+    bindings['SCOTCH_graphMap'] = (c_int, [GraphPtr, ArchPtr, StratPtr, NumPtr])
+    bindings['SCOTCH_graphMapInit'] = (c_int, [GraphPtr, MappingPtr, ArchPtr, NumPtr])
+    bindings['SCOTCH_graphMapExit'] = (None, [GraphPtr, MappingPtr])
+    bindings['SCOTCH_graphMapCompute'] = (c_int, [GraphPtr, MappingPtr, StratPtr])
+    bindings['SCOTCH_graphRemapCompute'] = (c_int, [
+        GraphPtr, MappingPtr, MappingPtr, c_double, NumPtr, StratPtr
+    ])
+
+    # --- Strategy functions ---
+    bindings['SCOTCH_stratInit'] = (c_int, [StratPtr])
+    bindings['SCOTCH_stratExit'] = (None, [StratPtr])
+    bindings['SCOTCH_stratGraphMap'] = (c_int, [StratPtr, c_char_p])
+    bindings['SCOTCH_stratGraphMapBuild'] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double])
+    bindings['SCOTCH_stratGraphOrder'] = (c_int, [StratPtr, c_char_p])
+    bindings['SCOTCH_stratGraphOrderBuild'] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double])
+    bindings['SCOTCH_stratGraphPartOvl'] = (c_int, [StratPtr, c_char_p])
+    bindings['SCOTCH_stratGraphPartOvlBuild'] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double])
+
+    # --- Architecture functions ---
+    bindings['SCOTCH_archInit'] = (c_int, [ArchPtr])
+    bindings['SCOTCH_archExit'] = (None, [ArchPtr])
+    bindings['SCOTCH_archCmplt'] = (c_int, [ArchPtr, SCOTCH_Num])
+    bindings['SCOTCH_archCmpltw'] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr])
+    bindings['SCOTCH_archBuild0'] = (c_int, [ArchPtr, GraphPtr, SCOTCH_Num, NumPtr, StratPtr])
+    bindings['SCOTCH_archBuild2'] = (c_int, [ArchPtr, GraphPtr, SCOTCH_Num, NumPtr])
+    bindings['SCOTCH_archSub'] = (c_int, [ArchPtr, ArchPtr, SCOTCH_Num, NumPtr])
+    bindings['SCOTCH_archLoad'] = (c_int, [ArchPtr, c_void_p])
+    bindings['SCOTCH_archSave'] = (c_int, [ArchPtr, c_void_p])
+    bindings['SCOTCH_archSize'] = (SCOTCH_Num, [ArchPtr])
+    bindings['SCOTCH_archName'] = (c_char_p, [ArchPtr])
+
+    # --- Mesh functions ---
+    bindings['SCOTCH_meshInit'] = (c_int, [MeshPtr])
+    bindings['SCOTCH_meshExit'] = (None, [MeshPtr])
+    bindings['SCOTCH_meshLoad'] = (c_int, [MeshPtr, c_void_p, SCOTCH_Num])
+    bindings['SCOTCH_meshSave'] = (c_int, [MeshPtr, c_void_p])
+    bindings['SCOTCH_meshCheck'] = (c_int, [MeshPtr])
+    bindings['SCOTCH_meshBuild'] = (c_int, [
+        MeshPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num,
+        NumPtr, NumPtr, NumPtr, NumPtr, NumPtr,
+        SCOTCH_Num, NumPtr
+    ])
+    bindings['SCOTCH_meshGraph'] = (c_int, [MeshPtr, GraphPtr])
+    bindings['SCOTCH_meshSize'] = (None, [MeshPtr, NumPtr, NumPtr, NumPtr])
+    bindings['SCOTCH_meshData'] = (None, [
+        MeshPtr, NumPtr, NumPtr, NumPtr, POINTER(NumPtr),
+        POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), NumPtr, POINTER(NumPtr)
+    ])
+
+    # --- Geometry functions ---
+    bindings['SCOTCH_geomInit'] = (c_int, [GeomPtr])
+    bindings['SCOTCH_geomExit'] = (None, [GeomPtr])
+
+    # --- Random functions ---
+    bindings['SCOTCH_randomReset'] = (None, [])
+    bindings['SCOTCH_randomSeed'] = (None, [SCOTCH_Num])
+    bindings['SCOTCH_randomVal'] = (SCOTCH_Num, [SCOTCH_Num])
+    bindings['SCOTCH_randomSave'] = (c_int, [c_void_p])  # FILE* as void*
+    bindings['SCOTCH_randomLoad'] = (c_int, [c_void_p])  # FILE* as void*
+
+    # --- Memory functions ---
+    bindings['SCOTCH_memCur'] = (c_long, [])
+    bindings['SCOTCH_memMax'] = (c_long, [])
+    bindings['SCOTCH_memFree'] = (None, [c_void_p])
+
+    # --- Version function ---
+    bindings['SCOTCH_version'] = (None, [NumPtr, NumPtr, NumPtr])
+
+    # Apply bindings
+    for name, (restype, argtypes) in bindings.items():
+        try:
+            func = _get_func(name)
+            func.restype = restype
+            func.argtypes = argtypes
+        except AttributeError:
+            pass  # Function may not exist in all versions
+
+    # --- Dgraph functions (parallel only) ---
+    if _lib_parallel:
+        DgraphPtr = POINTER(SCOTCH_Dgraph)
+
+        dgraph_bindings = {
+            'SCOTCH_dgraphInit': (c_int, [DgraphPtr, c_void_p]),  # MPI_Comm as void*
+            'SCOTCH_dgraphExit': (None, [DgraphPtr]),
+            'SCOTCH_dgraphBuild': (c_int, [
+                DgraphPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num,
+                NumPtr, NumPtr, NumPtr, NumPtr,  # vertloctab, vendloctab, veloloctab, vlblloctab
+                SCOTCH_Num, SCOTCH_Num, NumPtr, NumPtr, NumPtr  # edgelocnbr, edgelocsiz, edgeloctab, edgegsttab, edloloctab
+            ]),
+            'SCOTCH_dgraphCheck': (c_int, [DgraphPtr]),
+            'SCOTCH_dgraphData': (None, [
+                DgraphPtr, NumPtr, NumPtr, NumPtr, NumPtr,
+                POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr),
+                NumPtr, NumPtr, POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr),
+                c_void_p  # MPI_Comm*
+            ]),
+            'SCOTCH_dgraphLoad': (c_int, [DgraphPtr, c_void_p, SCOTCH_Num, SCOTCH_Num]),
+            'SCOTCH_dgraphSave': (c_int, [DgraphPtr, c_void_p]),
+            'SCOTCH_dgraphCoarsen': (c_int, [
+                DgraphPtr, SCOTCH_Num, c_double, SCOTCH_Num, DgraphPtr, NumPtr
+            ]),
+            'SCOTCH_dgraphGhst': (c_int, [DgraphPtr]),
+            'SCOTCH_dgraphGrow': (c_int, [DgraphPtr, SCOTCH_Num, NumPtr, SCOTCH_Num, NumPtr]),
+            'SCOTCH_dgraphBand': (c_int, [DgraphPtr, SCOTCH_Num, NumPtr, SCOTCH_Num, DgraphPtr]),
+            'SCOTCH_dgraphRedist': (c_int, [DgraphPtr, NumPtr, NumPtr, SCOTCH_Num, NumPtr, DgraphPtr]),
+            'SCOTCH_dgraphInducePart': (c_int, [DgraphPtr, NumPtr, SCOTCH_Num, SCOTCH_Num, DgraphPtr]),
+        }
+
+        for name, (restype, argtypes) in dgraph_bindings.items():
             try:
-                zlib_path = ctypes.util.find_library('z')
-                if zlib_path and not hasattr(self.__class__, '_zlib_loaded'):
-                    ctypes.CDLL(zlib_path, mode=ctypes.RTLD_GLOBAL)
-                    self.__class__._zlib_loaded = True
-            except (OSError, AttributeError, TypeError):
+                func = _get_func(name)
+                func.restype = restype
+                func.argtypes = argtypes
+            except AttributeError:
                 pass
 
-            # Preload MPI globally if building PT-Scotch (parallel variant)
-            if self.parallel and not hasattr(self.__class__, '_mpi_loaded'):
-                try:
-                    # Try to load the MPI library globally
-                    mpi_path = ctypes.util.find_library('mpi')
-                    if mpi_path:
-                        ctypes.CDLL(mpi_path, mode=ctypes.RTLD_GLOBAL)
-                        self.__class__._mpi_loaded = True
-                except (OSError, AttributeError, TypeError):
-                    pass
 
-            # Load error library globally (shared across all variants - it's identical)
-            # We only need to load it once, all variants can use the same instance
-            if not hasattr(self.__class__, '_scotcherr_loaded'):
-                err_lib_path = self.lib_dir / "libscotcherr.so"
-                if err_lib_path.exists():
-                    try:
-                        # RTLD_GLOBAL = shared namespace (safe because libscotcherr is identical for all variants)
-                        self._libscotcherr = ctypes.CDLL(str(err_lib_path), mode=ctypes.RTLD_GLOBAL)
-                        self.__class__._scotcherr_loaded = True
-                    except OSError as e:
-                        print(f"Warning: Could not load {err_lib_path}: {e}", file=sys.stderr)
+# Bind all functions
+_bind_functions()
 
-            # ALWAYS load sequential library (libscotch.so)
-            # Contains SCOTCH_* functions (graph, arch, mesh, etc.)
-            seq_lib_path = self.lib_dir / "libscotch.so"
-            if not seq_lib_path.exists():
-                raise FileNotFoundError(f"Sequential library not found: {seq_lib_path}")
-
-            self._lib_sequential = ctypes.CDLL(str(seq_lib_path), mode=ctypes.RTLD_GLOBAL)
-
-            print(f"✓ Loaded sequential Scotch: {self.int_size}-bit from {seq_lib_path}",
-                  file=sys.stderr)
-
-            # For parallel variants, ALSO load parallel library (libptscotch.so)
-            # Contains DGRAPH_* functions (distributed graph operations)
-            if self.parallel:
-                par_lib_path = self.lib_dir / "libptscotch.so"
-                if not par_lib_path.exists():
-                    raise FileNotFoundError(f"Parallel library not found: {par_lib_path}")
-
-                self._lib_parallel = ctypes.CDLL(str(par_lib_path), mode=ctypes.RTLD_GLOBAL)
-
-                print(f"✓ Loaded parallel PT-Scotch: {self.int_size}-bit from {par_lib_path}",
-                      file=sys.stderr)
-
-        except Exception as e:
-            print(f"✗ Failed to load Scotch variant ({self.int_size}-bit, "
-                  f"{'parallel' if self.parallel else 'sequential'}): {e}",
-                  file=sys.stderr)
-            self._lib_sequential = None
-            self._lib_parallel = None
-
-    def _get_func(self, name):
-        """Get a Scotch function with the correct suffix.
-
-        Routes to the appropriate library based on function name:
-        - SCOTCH_dgraph* functions → _lib_parallel (PT-Scotch only)
-        - SCOTCH_* functions → _lib_sequential (always available)
-        """
-        suffixed_name = f"{name}_{self.int_size}"
-
-        # Distributed graph functions (dgraph*) are in the parallel library
-        if name.lower().startswith("scotch_dgraph"):
-            if not self._lib_parallel:
-                raise AttributeError(
-                    f"{name} requires PT-Scotch (parallel variant). "
-                    f"Current variant is {'parallel' if self.parallel else 'sequential'}."
-                )
-            return getattr(self._lib_parallel, suffixed_name)
-
-        # All other SCOTCH_* functions are in the sequential library
-        if not self._lib_sequential:
-            raise AttributeError(f"Sequential library not loaded")
-
-        return getattr(self._lib_sequential, suffixed_name)
-
-    def _bind_functions(self):
-        """Bind Scotch C functions to this variant."""
-        if not self._lib_sequential:
-            return
-
-        try:
-            # Graph functions
-            self.SCOTCH_graphInit = self._get_func("SCOTCH_graphInit")
-            self.SCOTCH_graphInit.argtypes = [POINTER(SCOTCH_Graph)]
-            self.SCOTCH_graphInit.restype = c_int
-
-            self.SCOTCH_graphExit = self._get_func("SCOTCH_graphExit")
-            self.SCOTCH_graphExit.argtypes = [POINTER(SCOTCH_Graph)]
-            self.SCOTCH_graphExit.restype = None
-
-            self.SCOTCH_graphBuild = self._get_func("SCOTCH_graphBuild")
-            self.SCOTCH_graphBuild.argtypes = [
-                POINTER(SCOTCH_Graph),
-                self.SCOTCH_Num,  # baseval
-                self.SCOTCH_Num,  # vertnbr
-                POINTER(self.SCOTCH_Num),  # verttab
-                POINTER(self.SCOTCH_Num),  # vendtab
-                POINTER(self.SCOTCH_Num),  # velotab
-                POINTER(self.SCOTCH_Num),  # vlbltab
-                self.SCOTCH_Num,  # edgenbr
-                POINTER(self.SCOTCH_Num),  # edgetab
-                POINTER(self.SCOTCH_Num),  # edlotab
-            ]
-            self.SCOTCH_graphBuild.restype = c_int
-
-            self.SCOTCH_graphCheck = self._get_func("SCOTCH_graphCheck")
-            self.SCOTCH_graphCheck.argtypes = [POINTER(SCOTCH_Graph)]
-            self.SCOTCH_graphCheck.restype = c_int
-
-            self.SCOTCH_graphSize = self._get_func("SCOTCH_graphSize")
-            self.SCOTCH_graphSize.argtypes = [
-                POINTER(SCOTCH_Graph),
-                POINTER(self.SCOTCH_Num),
-                POINTER(self.SCOTCH_Num),
-            ]
-            self.SCOTCH_graphSize.restype = None
-
-            self.SCOTCH_graphPart = self._get_func("SCOTCH_graphPart")
-            self.SCOTCH_graphPart.argtypes = [
-                POINTER(SCOTCH_Graph),
-                self.SCOTCH_Num,
-                POINTER(SCOTCH_Strat),
-                POINTER(self.SCOTCH_Num),
-            ]
-            self.SCOTCH_graphPart.restype = c_int
-
-            self.SCOTCH_graphPartOvl = self._get_func("SCOTCH_graphPartOvl")
-            self.SCOTCH_graphPartOvl.argtypes = [
-                POINTER(SCOTCH_Graph),
-                self.SCOTCH_Num,  # partnbr
-                POINTER(SCOTCH_Strat),
-                POINTER(self.SCOTCH_Num),  # parttab
-            ]
-            self.SCOTCH_graphPartOvl.restype = c_int
-
-            self.SCOTCH_graphOrder = self._get_func("SCOTCH_graphOrder")
-            self.SCOTCH_graphOrder.argtypes = [
-                POINTER(SCOTCH_Graph),
-                POINTER(SCOTCH_Strat),
-                POINTER(self.SCOTCH_Num),
-                POINTER(self.SCOTCH_Num),
-                POINTER(self.SCOTCH_Num),
-                POINTER(self.SCOTCH_Num),
-                POINTER(self.SCOTCH_Num),
-            ]
-            self.SCOTCH_graphOrder.restype = c_int
-
-            self.SCOTCH_graphColor = self._get_func("SCOTCH_graphColor")
-            self.SCOTCH_graphColor.argtypes = [
-                POINTER(SCOTCH_Graph),
-                POINTER(self.SCOTCH_Num),
-                POINTER(self.SCOTCH_Num),
-                self.SCOTCH_Num,
-            ]
-            self.SCOTCH_graphColor.restype = c_int
-
-            self.SCOTCH_graphData = self._get_func("SCOTCH_graphData")
-            self.SCOTCH_graphData.argtypes = [
-                POINTER(SCOTCH_Graph),
-                POINTER(self.SCOTCH_Num),  # baseval
-                POINTER(self.SCOTCH_Num),  # vertnbr
-                POINTER(POINTER(self.SCOTCH_Num)),  # verttab
-                POINTER(POINTER(self.SCOTCH_Num)),  # vendtab
-                POINTER(POINTER(self.SCOTCH_Num)),  # velotab
-                POINTER(POINTER(self.SCOTCH_Num)),  # vlbltab
-                POINTER(self.SCOTCH_Num),  # edgenbr
-                POINTER(POINTER(self.SCOTCH_Num)),  # edgetab
-                POINTER(POINTER(self.SCOTCH_Num)),  # edlotab
-            ]
-            self.SCOTCH_graphData.restype = None
-
-            self.SCOTCH_graphInduceList = self._get_func("SCOTCH_graphInduceList")
-            self.SCOTCH_graphInduceList.argtypes = [
-                POINTER(SCOTCH_Graph),  # source graph
-                self.SCOTCH_Num,  # number of vertices to keep
-                POINTER(self.SCOTCH_Num),  # list of vertices
-                POINTER(SCOTCH_Graph),  # induced graph
-            ]
-            self.SCOTCH_graphInduceList.restype = c_int
-
-            self.SCOTCH_graphInducePart = self._get_func("SCOTCH_graphInducePart")
-            self.SCOTCH_graphInducePart.argtypes = [
-                POINTER(SCOTCH_Graph),  # source graph
-                self.SCOTCH_Num,  # number of vertices in partition
-                POINTER(self.SCOTCH_GraphPart2),  # partition array
-                self.SCOTCH_GraphPart2,  # partition to extract
-                POINTER(SCOTCH_Graph),  # induced graph
-            ]
-            self.SCOTCH_graphInducePart.restype = c_int
-
-            # Graph coarsening functions
-            self.SCOTCH_graphCoarsen = self._get_func("SCOTCH_graphCoarsen")
-            self.SCOTCH_graphCoarsen.argtypes = [
-                POINTER(SCOTCH_Graph),  # fine graph
-                self.SCOTCH_Num,  # coarvertnbr minimum
-                c_double,  # coarrat ratio
-                self.SCOTCH_Num,  # flagval flags
-                POINTER(SCOTCH_Graph),  # coarse graph
-                POINTER(self.SCOTCH_Num),  # multinode array
-            ]
-            self.SCOTCH_graphCoarsen.restype = c_int
-
-            self.SCOTCH_graphCoarsenMatch = self._get_func("SCOTCH_graphCoarsenMatch")
-            self.SCOTCH_graphCoarsenMatch.argtypes = [
-                POINTER(SCOTCH_Graph),  # fine graph
-                POINTER(self.SCOTCH_Num),  # coarvertnbr (in/out)
-                c_double,  # coarrat ratio
-                self.SCOTCH_Num,  # flagval flags
-                POINTER(self.SCOTCH_Num),  # mate array
-            ]
-            self.SCOTCH_graphCoarsenMatch.restype = c_int
-
-            self.SCOTCH_graphCoarsenBuild = self._get_func("SCOTCH_graphCoarsenBuild")
-            self.SCOTCH_graphCoarsenBuild.argtypes = [
-                POINTER(SCOTCH_Graph),  # fine graph
-                self.SCOTCH_Num,  # coarvertnbr
-                POINTER(self.SCOTCH_Num),  # mate array
-                POINTER(SCOTCH_Graph),  # coarse graph
-                POINTER(self.SCOTCH_Num),  # multinode array
-            ]
-            self.SCOTCH_graphCoarsenBuild.restype = c_int
-
-            # Graph diameter function
-            self.SCOTCH_graphDiamPV = self._get_func("SCOTCH_graphDiamPV")
-            self.SCOTCH_graphDiamPV.argtypes = [
-                POINTER(SCOTCH_Graph),  # graph
-            ]
-            self.SCOTCH_graphDiamPV.restype = self.SCOTCH_Num  # Returns diameter
-
-            # Random number functions
-            self.SCOTCH_randomReset = self._get_func("SCOTCH_randomReset")
-            self.SCOTCH_randomReset.argtypes = []
-            self.SCOTCH_randomReset.restype = None
-
-            # Get the raw function first
-            _SCOTCH_randomVal_raw = self._get_func("SCOTCH_randomVal")
-            _SCOTCH_randomVal_raw.argtypes = [self.SCOTCH_Num]
-            _SCOTCH_randomVal_raw.restype = self.SCOTCH_Num
-
-            # Wrap with validation to prevent divide-by-zero crash
-            def _randomVal_safe(randmax):
-                """Safe wrapper for SCOTCH_randomVal that validates randmax > 0.
-
-                Args:
-                    randmax: Upper bound for random value (exclusive)
-
-                Returns:
-                    Random integer in range [0, randmax)
-
-                Raises:
-                    ValueError: If randmax <= 0
-                """
-                if randmax <= 0:
-                    raise ValueError(
-                        f"SCOTCH_randomVal requires randmax > 0, got {randmax}. "
-                        "Passing 0 causes a divide-by-zero crash in Scotch."
-                    )
-                return _SCOTCH_randomVal_raw(randmax)
-
-            self.SCOTCH_randomVal = _randomVal_safe
-
-            self.SCOTCH_randomSeed = self._get_func("SCOTCH_randomSeed")
-            self.SCOTCH_randomSeed.argtypes = [self.SCOTCH_Num]
-            self.SCOTCH_randomSeed.restype = None
-
-            self.SCOTCH_randomSave = self._get_func("SCOTCH_randomSave")
-            self.SCOTCH_randomSave.argtypes = [c_void_p]  # FILE*
-            self.SCOTCH_randomSave.restype = c_int
-
-            self.SCOTCH_randomLoad = self._get_func("SCOTCH_randomLoad")
-            self.SCOTCH_randomLoad.argtypes = [c_void_p]  # FILE*
-            self.SCOTCH_randomLoad.restype = c_int
-
-            # Strategy functions
-            self.SCOTCH_stratInit = self._get_func("SCOTCH_stratInit")
-            self.SCOTCH_stratInit.argtypes = [POINTER(SCOTCH_Strat)]
-            self.SCOTCH_stratInit.restype = c_int
-
-            self.SCOTCH_stratExit = self._get_func("SCOTCH_stratExit")
-            self.SCOTCH_stratExit.argtypes = [POINTER(SCOTCH_Strat)]
-            self.SCOTCH_stratExit.restype = None
-
-            self.SCOTCH_stratGraphMap = self._get_func("SCOTCH_stratGraphMap")
-            self.SCOTCH_stratGraphMap.argtypes = [POINTER(SCOTCH_Strat), c_char_p]
-            self.SCOTCH_stratGraphMap.restype = c_int
-
-            self.SCOTCH_stratGraphOrder = self._get_func("SCOTCH_stratGraphOrder")
-            self.SCOTCH_stratGraphOrder.argtypes = [POINTER(SCOTCH_Strat), c_char_p]
-            self.SCOTCH_stratGraphOrder.restype = c_int
-
-            # Architecture functions
-            self.SCOTCH_archInit = self._get_func("SCOTCH_archInit")
-            self.SCOTCH_archInit.argtypes = [POINTER(SCOTCH_Arch)]
-            self.SCOTCH_archInit.restype = c_int
-
-            self.SCOTCH_archExit = self._get_func("SCOTCH_archExit")
-            self.SCOTCH_archExit.argtypes = [POINTER(SCOTCH_Arch)]
-            self.SCOTCH_archExit.restype = None
-
-            self.SCOTCH_archCmplt = self._get_func("SCOTCH_archCmplt")
-            self.SCOTCH_archCmplt.argtypes = [POINTER(SCOTCH_Arch), self.SCOTCH_Num]
-            self.SCOTCH_archCmplt.restype = c_int
-
-            self.SCOTCH_archBuild0 = self._get_func("SCOTCH_archBuild0")
-            self.SCOTCH_archBuild0.argtypes = [
-                POINTER(SCOTCH_Arch),
-                POINTER(SCOTCH_Graph),
-                self.SCOTCH_Num,  # levlnbr (number of levels, 0 = auto)
-                POINTER(self.SCOTCH_Num),  # listtab (vertex list, NULL = all vertices)
-                POINTER(SCOTCH_Strat),
-            ]
-            self.SCOTCH_archBuild0.restype = c_int
-
-            self.SCOTCH_archBuild2 = self._get_func("SCOTCH_archBuild2")
-            self.SCOTCH_archBuild2.argtypes = [
-                POINTER(SCOTCH_Arch),
-                POINTER(SCOTCH_Graph),
-                self.SCOTCH_Num,  # levlnbr (number of levels, 0 = auto)
-                POINTER(self.SCOTCH_Num),  # listtab (vertex list, NULL = all vertices)
-            ]
-            self.SCOTCH_archBuild2.restype = c_int
-
-            self.SCOTCH_archSub = self._get_func("SCOTCH_archSub")
-            self.SCOTCH_archSub.argtypes = [
-                POINTER(SCOTCH_Arch),  # destination sub-architecture
-                POINTER(SCOTCH_Arch),  # source architecture
-                self.SCOTCH_Num,  # listnbr (number of domains in list)
-                POINTER(self.SCOTCH_Num),  # listtab (list of domain indices)
-            ]
-            self.SCOTCH_archSub.restype = c_int
-
-            self.SCOTCH_archSave = self._get_func("SCOTCH_archSave")
-            self.SCOTCH_archSave.argtypes = [
-                POINTER(SCOTCH_Arch),
-                c_void_p,  # FILE*
-            ]
-            self.SCOTCH_archSave.restype = c_int
-
-            self.SCOTCH_archLoad = self._get_func("SCOTCH_archLoad")
-            self.SCOTCH_archLoad.argtypes = [
-                POINTER(SCOTCH_Arch),
-                c_void_p,  # FILE*
-            ]
-            self.SCOTCH_archLoad.restype = c_int
-
-            # Mapping functions
-            self.SCOTCH_graphMapInit = self._get_func("SCOTCH_graphMapInit")
-            self.SCOTCH_graphMapInit.argtypes = [
-                POINTER(SCOTCH_Graph),
-                POINTER(SCOTCH_Mapping),
-                POINTER(SCOTCH_Arch),
-                POINTER(self.SCOTCH_Num),
-            ]
-            self.SCOTCH_graphMapInit.restype = c_int
-
-            self.SCOTCH_graphMapCompute = self._get_func("SCOTCH_graphMapCompute")
-            self.SCOTCH_graphMapCompute.argtypes = [
-                POINTER(SCOTCH_Graph),
-                POINTER(SCOTCH_Mapping),
-                POINTER(SCOTCH_Strat),
-            ]
-            self.SCOTCH_graphMapCompute.restype = c_int
-
-            self.SCOTCH_graphRemapCompute = self._get_func("SCOTCH_graphRemapCompute")
-            self.SCOTCH_graphRemapCompute.argtypes = [
-                POINTER(SCOTCH_Graph),
-                POINTER(SCOTCH_Mapping),  # new mapping
-                POINTER(SCOTCH_Mapping),  # old mapping
-                c_double,  # remapping cost parameter
-                POINTER(self.SCOTCH_Num),  # old-to-new vertex permutation (can be NULL)
-                POINTER(SCOTCH_Strat),
-            ]
-            self.SCOTCH_graphRemapCompute.restype = c_int
-
-            self.SCOTCH_graphMapExit = self._get_func("SCOTCH_graphMapExit")
-            self.SCOTCH_graphMapExit.argtypes = [
-                POINTER(SCOTCH_Graph),
-                POINTER(SCOTCH_Mapping),
-            ]
-            self.SCOTCH_graphMapExit.restype = None
-
-            # File I/O functions
-            self.SCOTCH_graphLoad = self._get_func("SCOTCH_graphLoad")
-            self.SCOTCH_graphLoad.argtypes = [
-                POINTER(SCOTCH_Graph),
-                c_void_p,  # FILE*
-                self.SCOTCH_Num,  # baseval
-                self.SCOTCH_Num,  # flag
-            ]
-            self.SCOTCH_graphLoad.restype = c_int
-
-            self.SCOTCH_graphSave = self._get_func("SCOTCH_graphSave")
-            self.SCOTCH_graphSave.argtypes = [
-                POINTER(SCOTCH_Graph),
-                c_void_p,  # FILE*
-            ]
-            self.SCOTCH_graphSave.restype = c_int
-
-            # Mesh functions
-            self.SCOTCH_meshInit = self._get_func("SCOTCH_meshInit")
-            self.SCOTCH_meshInit.argtypes = [POINTER(SCOTCH_Mesh)]
-            self.SCOTCH_meshInit.restype = c_int
-
-            self.SCOTCH_meshExit = self._get_func("SCOTCH_meshExit")
-            self.SCOTCH_meshExit.argtypes = [POINTER(SCOTCH_Mesh)]
-            self.SCOTCH_meshExit.restype = None
-
-            self.SCOTCH_meshLoad = self._get_func("SCOTCH_meshLoad")
-            self.SCOTCH_meshLoad.argtypes = [
-                POINTER(SCOTCH_Mesh),
-                c_void_p,  # FILE*
-                self.SCOTCH_Num,  # baseval
-            ]
-            self.SCOTCH_meshLoad.restype = c_int
-
-            self.SCOTCH_meshSave = self._get_func("SCOTCH_meshSave")
-            self.SCOTCH_meshSave.argtypes = [
-                POINTER(SCOTCH_Mesh),
-                c_void_p,  # FILE*
-            ]
-            self.SCOTCH_meshSave.restype = c_int
-
-            self.SCOTCH_meshGraph = self._get_func("SCOTCH_meshGraph")
-            self.SCOTCH_meshGraph.argtypes = [
-                POINTER(SCOTCH_Mesh),
-                POINTER(SCOTCH_Graph),
-            ]
-            self.SCOTCH_meshGraph.restype = c_int
-
-            self.SCOTCH_meshCheck = self._get_func("SCOTCH_meshCheck")
-            self.SCOTCH_meshCheck.argtypes = [POINTER(SCOTCH_Mesh)]
-            self.SCOTCH_meshCheck.restype = c_int
-
-            self.SCOTCH_meshBuild = self._get_func("SCOTCH_meshBuild")
-            self.SCOTCH_meshBuild.argtypes = [
-                POINTER(SCOTCH_Mesh),
-                self.SCOTCH_Num,  # velmbas
-                self.SCOTCH_Num,  # vnodbas
-                self.SCOTCH_Num,  # velmnbr
-                self.SCOTCH_Num,  # vnodnbr
-                POINTER(self.SCOTCH_Num),  # verttab
-                POINTER(self.SCOTCH_Num),  # vendtab
-                POINTER(self.SCOTCH_Num),  # velotab
-                POINTER(self.SCOTCH_Num),  # vnlotab
-                POINTER(self.SCOTCH_Num),  # vlbltab
-                self.SCOTCH_Num,  # edgenbr
-                POINTER(self.SCOTCH_Num),  # edgetab
-            ]
-            self.SCOTCH_meshBuild.restype = c_int
-
-            # Distributed graph functions (PT-Scotch only)
-            if self.parallel:
-                self.SCOTCH_dgraphInit = self._get_func("SCOTCH_dgraphInit")
-                self.SCOTCH_dgraphInit.argtypes = [
-                    POINTER(SCOTCH_Dgraph),
-                    c_void_p  # MPI_Comm
-                ]
-                self.SCOTCH_dgraphInit.restype = c_int
-
-                self.SCOTCH_dgraphExit = self._get_func("SCOTCH_dgraphExit")
-                self.SCOTCH_dgraphExit.argtypes = [POINTER(SCOTCH_Dgraph)]
-                self.SCOTCH_dgraphExit.restype = None
-
-                self.SCOTCH_dgraphBuild = self._get_func("SCOTCH_dgraphBuild")
-                self.SCOTCH_dgraphBuild.argtypes = [
-                    POINTER(SCOTCH_Dgraph),
-                    self.SCOTCH_Num,  # baseval
-                    self.SCOTCH_Num,  # vertlocnbr (local vertex count)
-                    self.SCOTCH_Num,  # vertlocmax
-                    POINTER(self.SCOTCH_Num),  # vertloctab
-                    POINTER(self.SCOTCH_Num),  # vendloctab
-                    POINTER(self.SCOTCH_Num),  # veloloctab
-                    POINTER(self.SCOTCH_Num),  # vlblloctab
-                    self.SCOTCH_Num,  # edgelocnbr (local edge count)
-                    self.SCOTCH_Num,  # edgelocsiz
-                    POINTER(self.SCOTCH_Num),  # edgeloctab
-                    POINTER(self.SCOTCH_Num),  # edgegsttab
-                    POINTER(self.SCOTCH_Num),  # edloloctab
-                ]
-                self.SCOTCH_dgraphBuild.restype = c_int
-
-                self.SCOTCH_dgraphCheck = self._get_func("SCOTCH_dgraphCheck")
-                self.SCOTCH_dgraphCheck.argtypes = [POINTER(SCOTCH_Dgraph)]
-                self.SCOTCH_dgraphCheck.restype = c_int
-
-                self.SCOTCH_dgraphData = self._get_func("SCOTCH_dgraphData")
-                self.SCOTCH_dgraphData.argtypes = [
-                    POINTER(SCOTCH_Dgraph),              # libgrafptr
-                    POINTER(self.SCOTCH_Num),            # baseptr - baseval
-                    POINTER(self.SCOTCH_Num),            # vertglbptr - vertglbnbr (global)
-                    POINTER(self.SCOTCH_Num),            # vertlocptr - vertlocnbr (local)
-                    POINTER(self.SCOTCH_Num),            # vertlocptz - vertlocmax
-                    POINTER(self.SCOTCH_Num),            # vertgstptr - vertgstnbr (ghost)
-                    POINTER(POINTER(self.SCOTCH_Num)),   # vertloctab
-                    POINTER(POINTER(self.SCOTCH_Num)),   # vendloctab
-                    POINTER(POINTER(self.SCOTCH_Num)),   # veloloctab
-                    POINTER(POINTER(self.SCOTCH_Num)),   # vlblloctab
-                    POINTER(self.SCOTCH_Num),            # edgeglbptr - edgeglbnbr (global)
-                    POINTER(self.SCOTCH_Num),            # edgelocptr - edgelocnbr (local)
-                    POINTER(self.SCOTCH_Num),            # edgelocptz - edgelocsiz
-                    POINTER(POINTER(self.SCOTCH_Num)),   # edgeloctab
-                    POINTER(POINTER(self.SCOTCH_Num)),   # edgegsttab
-                    POINTER(POINTER(self.SCOTCH_Num)),   # edloloctab
-                    c_void_p,                            # commptr - MPI_Comm
-                ]
-                self.SCOTCH_dgraphData.restype = None
-
-                self.SCOTCH_dgraphLoad = self._get_func("SCOTCH_dgraphLoad")
-                self.SCOTCH_dgraphLoad.argtypes = [
-                    POINTER(SCOTCH_Dgraph),
-                    c_void_p,  # FILE*
-                    self.SCOTCH_Num,  # baseval
-                    self.SCOTCH_Num,  # flagval
-                ]
-                self.SCOTCH_dgraphLoad.restype = c_int
-
-                self.SCOTCH_dgraphSave = self._get_func("SCOTCH_dgraphSave")
-                self.SCOTCH_dgraphSave.argtypes = [
-                    POINTER(SCOTCH_Dgraph),
-                    c_void_p,  # FILE*
-                ]
-                self.SCOTCH_dgraphSave.restype = c_int
-
-                self.SCOTCH_dgraphCoarsenVertLocMax = self._get_func("SCOTCH_dgraphCoarsenVertLocMax")
-                self.SCOTCH_dgraphCoarsenVertLocMax.argtypes = [
-                    POINTER(SCOTCH_Dgraph),
-                    self.SCOTCH_Num,  # foldval
-                ]
-                self.SCOTCH_dgraphCoarsenVertLocMax.restype = self.SCOTCH_Num
-
-                self.SCOTCH_dgraphCoarsen = self._get_func("SCOTCH_dgraphCoarsen")
-                self.SCOTCH_dgraphCoarsen.argtypes = [
-                    POINTER(SCOTCH_Dgraph),  # finegrafdat
-                    self.SCOTCH_Num,         # flags
-                    c_double,                # coarrat
-                    self.SCOTCH_Num,         # foldval
-                    POINTER(SCOTCH_Dgraph),  # coargrafdat
-                    POINTER(self.SCOTCH_Num),  # multloctab
-                ]
-                self.SCOTCH_dgraphCoarsen.restype = c_int
-
-                self.SCOTCH_dgraphGhst = self._get_func("SCOTCH_dgraphGhst")
-                self.SCOTCH_dgraphGhst.argtypes = [
-                    POINTER(SCOTCH_Dgraph),  # grafdat
-                ]
-                self.SCOTCH_dgraphGhst.restype = c_int
-
-                self.SCOTCH_dgraphGrow = self._get_func("SCOTCH_dgraphGrow")
-                self.SCOTCH_dgraphGrow.argtypes = [
-                    POINTER(SCOTCH_Dgraph),      # grafdat
-                    self.SCOTCH_Num,             # seedlocnbr
-                    POINTER(self.SCOTCH_Num),    # seedloctab
-                    self.SCOTCH_Num,             # distmax
-                    POINTER(self.SCOTCH_Num),    # partgsttab
-                ]
-                self.SCOTCH_dgraphGrow.restype = c_int
-
-                self.SCOTCH_dgraphBand = self._get_func("SCOTCH_dgraphBand")
-                self.SCOTCH_dgraphBand.argtypes = [
-                    POINTER(SCOTCH_Dgraph),      # grafdat
-                    self.SCOTCH_Num,             # fronlocnbr
-                    POINTER(self.SCOTCH_Num),    # fronloctab
-                    self.SCOTCH_Num,             # distmax
-                    POINTER(SCOTCH_Dgraph),      # bandgrafdat
-                ]
-                self.SCOTCH_dgraphBand.restype = c_int
-
-                self.SCOTCH_dgraphRedist = self._get_func("SCOTCH_dgraphRedist")
-                self.SCOTCH_dgraphRedist.argtypes = [
-                    POINTER(SCOTCH_Dgraph),      # srcgrafdat
-                    POINTER(self.SCOTCH_Num),    # partloctab
-                    POINTER(self.SCOTCH_Num),    # vsiztab (can be NULL)
-                    self.SCOTCH_Num,             # procSrcTab (-1 for current)
-                    self.SCOTCH_Num,             # procDstTab (-1 for partition)
-                    POINTER(SCOTCH_Dgraph),      # dstgrafdat
-                ]
-                self.SCOTCH_dgraphRedist.restype = c_int
-
-                self.SCOTCH_dgraphInducePart = self._get_func("SCOTCH_dgraphInducePart")
-                self.SCOTCH_dgraphInducePart.argtypes = [
-                    POINTER(SCOTCH_Dgraph),      # orggrafdat
-                    POINTER(self.SCOTCH_Num),    # orgpartloctab
-                    self.SCOTCH_Num,             # partval
-                    self.SCOTCH_Num,             # indvertlocnbr
-                    POINTER(SCOTCH_Dgraph),      # indgrafdat
-                ]
-                self.SCOTCH_dgraphInducePart.restype = c_int
-
-        except AttributeError as e:
-            print(f"Warning: Some Scotch functions not found in variant: {e}", file=sys.stderr)
-
-    def is_loaded(self) -> bool:
-        """Check if this variant was successfully loaded."""
-        return self._lib_sequential is not None
-
-    def get_dtype(self):
-        """Get the appropriate numpy dtype for this variant."""
-        import numpy as np
-        return np.int64 if self.int_size == 64 else np.int32
-
-    def __repr__(self):
-        return f"ScotchVariant({self.int_size}-bit, {'parallel' if self.parallel else 'sequential'})"
-
-
-class ScotchVariantManager:
-    """
-    Manages multiple Scotch variants and provides switching capability.
-    """
-
-    def __init__(self):
-        self.variants: Dict[Tuple[int, bool], ScotchVariant] = {}
-        self._active: Optional[ScotchVariant] = None
-        self._discover_and_load_variants()
-
-    def _discover_and_load_variants(self):
-        """Discover and load all available Scotch variants."""
-        builds_dir = Path(__file__).parent.parent / "scotch-builds"
-
-        if not builds_dir.exists():
-            print(f"Warning: scotch-builds directory not found at {builds_dir}", file=sys.stderr)
-            print("Run 'make build-all' to build Scotch variants", file=sys.stderr)
-            return
-
-        # Try to load all 4 possible variants
-        for int_size in [32, 64]:
-            for parallel in [False, True]:
-                lib_dir = builds_dir / f"lib{int_size}"
-                header_dir = builds_dir / f"inc{int_size}"
-
-                if lib_dir.exists() and header_dir.exists():
-                    try:
-                        variant = ScotchVariant(int_size, parallel, lib_dir, header_dir)
-                        if variant.is_loaded():
-                            self.variants[(int_size, parallel)] = variant
-                    except Exception as e:
-                        print(f"Could not load variant ({int_size}-bit, "
-                              f"{'parallel' if parallel else 'sequential'}): {e}",
-                              file=sys.stderr)
-
-        # Set default active variant (prefer environment, then 32-bit sequential)
-        default_int_size = int(os.environ.get("PYSCOTCH_INT_SIZE", "32"))
-        default_parallel = bool(int(os.environ.get("PYSCOTCH_PARALLEL", "0")))
-
-        self.set_active(default_int_size, default_parallel)
-
-    def set_active(self, int_size: int, parallel: bool = False) -> bool:
-        """
-        Set the active Scotch variant.
-
-        Args:
-            int_size: 32 or 64
-            parallel: True for PT-Scotch, False for sequential
-
-        Returns:
-            True if variant was found and activated, False otherwise
-        """
-        key = (int_size, parallel)
-        if key in self.variants:
-            self._active = self.variants[key]
-            print(f"→ Active variant: {self._active}", file=sys.stderr)
-            return True
-        else:
-            print(f"Warning: Variant ({int_size}-bit, {'parallel' if parallel else 'sequential'}) not available",
-                  file=sys.stderr)
-            # Fall back to any available variant
-            if self.variants and not self._active:
-                self._active = next(iter(self.variants.values()))
-                print(f"→ Using fallback variant: {self._active}", file=sys.stderr)
-            return False
-
-    def get_active(self) -> Optional[ScotchVariant]:
-        """Get the currently active variant."""
-        return self._active
-
-    def list_available(self) -> list:
-        """List all available variants."""
-        return list(self.variants.keys())
-
-    def has_variant(self, int_size: int, parallel: bool = False) -> bool:
-        """Check if a specific variant is available."""
-        return (int_size, parallel) in self.variants
-
-
-# Global variant manager
-_variant_manager = ScotchVariantManager()
-
-
-def set_active_variant(int_size: int, parallel: bool = False) -> bool:
-    """
-    Switch to a different Scotch variant.
-
-    Args:
-        int_size: 32 or 64
-        parallel: True for PT-Scotch, False for sequential
-
-    Returns:
-        True if successful, False if variant not available
-    """
-    return _variant_manager.set_active(int_size, parallel)
-
-
-def get_active_variant() -> Optional[ScotchVariant]:
-    """Get the currently active Scotch variant."""
-    return _variant_manager.get_active()
-
-
-def list_available_variants() -> list:
-    """List all available Scotch variants as (int_size, parallel) tuples."""
-    return _variant_manager.list_available()
-
+# =============================================================================
+# Public API
+# =============================================================================
 
 def get_scotch_int_size() -> int:
-    """Get the integer size of the active variant."""
-    variant = get_active_variant()
-    return variant.int_size if variant else 32
+    """Return the SCOTCH_Num size in bits (32 or 64)."""
+    return _INT_SIZE
 
 
 def get_scotch_dtype():
-    """Get the numpy dtype for the active variant."""
-    variant = get_active_variant()
-    if variant:
-        return variant.get_dtype()
+    """Return the numpy dtype corresponding to SCOTCH_Num."""
     import numpy as np
-    return np.int32
+    return np.int32 if _INT_SIZE == 32 else np.int64
 
 
-# Compatibility layer: expose active variant's attributes at module level
-def __getattr__(name):
+def get_dtype():
+    """Alias for get_scotch_dtype()."""
+    return get_scotch_dtype()
+
+
+def is_parallel() -> bool:
+    """Return True if PT-Scotch (parallel) variant is loaded."""
+    return _PARALLEL
+
+
+# =============================================================================
+# Wrapped functions with validation
+# =============================================================================
+
+def _wrapped_randomVal(randmax):
+    """Wrapper for SCOTCH_randomVal with input validation.
+
+    Validates that randmax > 0 to prevent floating-point exception
+    in the underlying C function (divide by zero).
     """
-    Provide backward compatibility by exposing active variant's attributes.
-
-    This allows code like `libscotch.SCOTCH_graphInit(...)` to work.
-    """
-    variant = get_active_variant()
-    if variant and hasattr(variant, name):
-        return getattr(variant, name)
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+    if randmax <= 0:
+        raise ValueError(f"SCOTCH_randomVal requires randmax > 0, got {randmax}")
+    return _get_func("SCOTCH_randomVal")(randmax)
 
 
-# Export commonly used items
+# Registry of wrapped functions
+_WRAPPED_FUNCTIONS = {
+    "SCOTCH_randomVal": _wrapped_randomVal,
+}
+
+
+# =============================================================================
+# Module-level function access
+# =============================================================================
+
+def __getattr__(name: str):
+    """Provide attribute access for Scotch functions."""
+    # Check for wrapped functions first
+    if name in _WRAPPED_FUNCTIONS:
+        return _WRAPPED_FUNCTIONS[name]
+
+    if name.startswith("SCOTCH_"):
+        try:
+            return _get_func(name)
+        except AttributeError:
+            raise AttributeError(f"module 'libscotch' has no attribute '{name}'")
+    raise AttributeError(f"module 'libscotch' has no attribute '{name}'")
+
+
+# =============================================================================
+# Exports
+# =============================================================================
+
 __all__ = [
+    # Configuration
+    "get_scotch_int_size",
+    "get_scotch_dtype",
+    "get_dtype",
+    "is_parallel",
+    # Types
+    "SCOTCH_Num",
+    "SCOTCH_Idx",
+    "SCOTCH_GraphPart2",
     # Structures
     "SCOTCH_Graph",
     "SCOTCH_Mesh",
@@ -870,12 +459,10 @@ __all__ = [
     "SCOTCH_Mapping",
     "SCOTCH_Ordering",
     "SCOTCH_Geom",
-    # Variant management
-    "ScotchVariant",
-    "ScotchVariantManager",
-    "set_active_variant",
-    "get_active_variant",
-    "list_available_variants",
-    "get_scotch_int_size",
-    "get_scotch_dtype",
+    "SCOTCH_Dgraph",
+    # Constants
+    "SCOTCH_COARSENNONE",
+    "SCOTCH_COARSENFOLD",
+    "SCOTCH_COARSENFOLDDUP",
+    "SCOTCH_COARSENNOMERGE",
 ]

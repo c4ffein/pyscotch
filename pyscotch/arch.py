@@ -4,11 +4,7 @@ Architecture class for PT-Scotch target architectures.
 
 from ctypes import byref
 
-try:
-    from . import libscotch as lib
-    _lib_available = lib._lib_sequential is not None
-except ImportError:
-    _lib_available = False
+from . import libscotch as lib
 
 
 class Architecture:
@@ -21,11 +17,6 @@ class Architecture:
 
     def __init__(self):
         """Initialize an architecture."""
-        if not _lib_available:
-            raise RuntimeError(
-                "Scotch library not available. Build it with 'make build-scotch'"
-            )
-
         self._arch = lib.SCOTCH_Arch()
         ret = lib.SCOTCH_archInit(byref(self._arch))
         if ret != 0:

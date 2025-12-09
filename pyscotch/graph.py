@@ -11,12 +11,7 @@ from pathlib import Path
 from typing import Optional, Union, List, Tuple
 
 from .api_decorators import scotch_binding, highlevel_api, internal_api
-
-try:
-    from . import libscotch as lib
-    _lib_available = lib._lib_sequential is not None
-except ImportError:
-    _lib_available = False
+from . import libscotch as lib
 
 
 @contextmanager
@@ -48,13 +43,10 @@ def c_fopen(filename: str, mode: str = "r"):
     if lib_dir:
         compat_path = os.path.join(lib_dir, "libpyscotch_compat.so")
     else:
-        # Fallback: search in scotch-builds
-        variant = lib.get_active_variant()
-        if variant:
-            lib_size = "lib64" if variant.int_size == 64 else "lib32"
-            compat_path = os.path.join("scotch-builds", lib_size, "libpyscotch_compat.so")
-        else:
-            raise RuntimeError("Cannot determine Scotch variant - compat library path unknown")
+        # Fallback: search in scotch-builds based on int size
+        int_size = lib.get_scotch_int_size()
+        lib_size = "lib64" if int_size == 64 else "lib32"
+        compat_path = os.path.join("scotch-builds", lib_size, "libpyscotch_compat.so")
 
     if not os.path.exists(compat_path):
         raise RuntimeError(
@@ -108,11 +100,6 @@ class Graph:
 
     def __init__(self):
         """Initialize an empty graph."""
-        if not _lib_available:
-            raise RuntimeError(
-                "Scotch library not available. Build it with 'make build-scotch'"
-            )
-
         self._graph = lib.SCOTCH_Graph()
         ret = lib.SCOTCH_graphInit(byref(self._graph))
         if ret != 0:
@@ -423,11 +410,17 @@ class Graph:
 
         return permtab, peritab
 
-    def color(self) -> Tuple[np.ndarray, int]:
+    def color(self, reset_random: bool = True) -> Tuple[np.ndarray, int]:
         """
         Compute a graph coloring (vertex coloring).
 
         Returns a coloring where no two adjacent vertices have the same color.
+
+        Args:
+            reset_random: If True (default), reset Scotch's PRNG state before
+                coloring for deterministic results. Set to False to allow
+                variation between calls or to use a custom seed via
+                SCOTCH_randomSeed().
 
         Returns:
             Tuple of (color array, number of colors used)
@@ -444,6 +437,9 @@ class Graph:
         colonbr = lib.SCOTCH_Num()
 
         colotab_c = colotab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        if reset_random:
+            lib.SCOTCH_randomReset()
 
         ret = lib.SCOTCH_graphColor(
             byref(self._graph),

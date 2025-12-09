@@ -10,7 +10,6 @@ from ctypes import byref, POINTER, c_int
 from typing import Optional
 
 from pyscotch.libscotch import (
-    SCOTCH_Dgraph,
     SCOTCH_COARSENNONE as COARSEN_NONE,
     SCOTCH_COARSENFOLD as COARSEN_FOLD,
     SCOTCH_COARSENFOLDDUP as COARSEN_FOLDDUP,
@@ -34,14 +33,14 @@ class Dgraph:
     - Running in an MPI environment (e.g., via mpirun/mpiexec)
 
     Example:
+        >>> # Set environment variables before importing pyscotch:
+        >>> # export PYSCOTCH_INT_SIZE=64
+        >>> # export PYSCOTCH_PARALLEL=1
+        >>>
         >>> from pyscotch import mpi, Dgraph
-        >>> from pyscotch import libscotch as lib
         >>>
         >>> # Initialize MPI
         >>> mpi.init()
-        >>>
-        >>> # Set parallel variant
-        >>> lib.set_active_variant(64, parallel=True)
         >>>
         >>> # Create distributed graph
         >>> dgraph = Dgraph()
@@ -69,11 +68,10 @@ class Dgraph:
             RuntimeError: If MPI is not available
         """
         # Check that parallel variant is loaded
-        variant = lib.get_active_variant()
-        if not variant or not variant.parallel:
+        if not lib.is_parallel():
             raise RuntimeError(
                 "Dgraph requires PT-Scotch (parallel variant).\n"
-                "Use lib.set_active_variant(int_size, parallel=True) first."
+                "Set PYSCOTCH_PARALLEL=1 environment variable before importing pyscotch."
             )
 
         # Get MPI communicator
@@ -89,7 +87,7 @@ class Dgraph:
         self._comm = comm
 
         # Initialize distributed graph
-        self._dgraph = SCOTCH_Dgraph()
+        self._dgraph = lib.SCOTCH_Dgraph()
         self._exit_called = False
         ret = lib.SCOTCH_dgraphInit(byref(self._dgraph), comm)
         if ret != 0:

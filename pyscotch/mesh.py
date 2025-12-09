@@ -8,12 +8,7 @@ from pathlib import Path
 from typing import Union, Optional, Tuple
 from .graph import c_fopen  # Use our FILE* compat layer
 from .api_decorators import scotch_binding, highlevel_api, internal_api
-
-try:
-    from . import libscotch as lib
-    _lib_available = lib._lib_sequential is not None
-except ImportError:
-    _lib_available = False
+from . import libscotch as lib
 
 
 class Mesh:
@@ -29,11 +24,6 @@ class Mesh:
 
     def __init__(self):
         """Initialize an empty mesh."""
-        if not _lib_available:
-            raise RuntimeError(
-                "Scotch library not available. Build it with 'make build-scotch'"
-            )
-
         self._mesh = lib.SCOTCH_Mesh()
         ret = lib.SCOTCH_meshInit(byref(self._mesh))
         if ret != 0:

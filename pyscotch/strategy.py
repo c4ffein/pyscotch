@@ -5,11 +5,7 @@ Strategy class for PT-Scotch operations.
 from ctypes import byref, c_char_p
 from typing import Optional
 
-try:
-    from . import libscotch as lib
-    _lib_available = lib._lib_sequential is not None
-except ImportError:
-    _lib_available = False
+from . import libscotch as lib
 
 
 class Strategy:
@@ -27,11 +23,6 @@ class Strategy:
         Args:
             strategy_string: Optional strategy string in Scotch format
         """
-        if not _lib_available:
-            raise RuntimeError(
-                "Scotch library not available. Build it with 'make build-scotch'"
-            )
-
         self._strat = lib.SCOTCH_Strat()
         ret = lib.SCOTCH_stratInit(byref(self._strat))
         if ret != 0:
