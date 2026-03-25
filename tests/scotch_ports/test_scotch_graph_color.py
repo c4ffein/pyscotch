@@ -106,3 +106,33 @@ class TestGraphColor:
         print(f"\nRing graph ({n} vertices): {colonbr} colors")
         for color_idx, count in enumerate(color_counts):
             print(f"  Color {color_idx}: {count} vertices")
+
+    def test_color_validity_no_adjacent_same_color(self):
+        """Verify that coloring is valid: no two adjacent vertices share a color.
+
+        This validates the core property of graph coloring. Scotch's greedy
+        coloring heuristic should always produce a valid coloring (even if
+        not optimal). Upstream Scotch commit e0a90c7 fixed a bug where
+        neighbors colored in the same pass could receive the same color.
+        """
+        test_cases = [
+            ("Triangle", [(0, 1), (1, 2), (2, 0)], 3),
+            ("Path-5", [(0, 1), (1, 2), (2, 3), (3, 4)], 5),
+            ("Ring-6", [(i, (i + 1) % 6) for i in range(6)], 6),
+            ("K4", [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)], 4),
+            ("Star-5", [(0, 1), (0, 2), (0, 3), (0, 4)], 5),
+            ("Grid-3x3", [
+                (0, 1), (1, 2), (3, 4), (4, 5), (6, 7), (7, 8),  # rows
+                (0, 3), (3, 6), (1, 4), (4, 7), (2, 5), (5, 8),  # cols
+            ], 9),
+        ]
+
+        for name, edges, num_vertices in test_cases:
+            graph = Graph.from_edges(edges, num_vertices=num_vertices)
+            colotab, colonbr = graph.color()
+
+            # Check every edge: endpoints must have different colors
+            for u, v in edges:
+                assert colotab[u] != colotab[v], (
+                    f"{name}: vertices {u} and {v} have same color {colotab[u]}"
+                )

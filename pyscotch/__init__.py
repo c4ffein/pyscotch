@@ -33,6 +33,23 @@ from .libscotch import (
     SCOTCH_COARSENFOLDDUP,
     SCOTCH_COARSENNOMERGE,
 )
+from ctypes import byref
+
+
+def scotch_version() -> tuple:
+    """
+    Get the Scotch library version.
+
+    Returns:
+        Tuple of (major, minor, patch) version numbers
+    """
+    from . import libscotch as lib
+    major = lib.SCOTCH_Num()
+    minor = lib.SCOTCH_Num()
+    patch = lib.SCOTCH_Num()
+    lib.SCOTCH_version(byref(major), byref(minor), byref(patch))
+    return (major.value, minor.value, patch.value)
+
 
 __version__ = "0.1.0"
 __all__ = [
@@ -45,6 +62,7 @@ __all__ = [
     "Ordering",
     "Dgraph",
     "mpi",
+    "scotch_version",
     "get_scotch_int_size",
     "get_scotch_dtype",
     "SCOTCH_COARSENNONE",

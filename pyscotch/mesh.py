@@ -116,12 +116,18 @@ class Mesh:
         """
         edgenbr = len(edgetab)
 
-        # Convert to ctypes arrays
-        verttab_c = verttab.astype(np.int64).ctypes.data_as(POINTER(lib.SCOTCH_Num))
-        edgetab_c = edgetab.astype(np.int64).ctypes.data_as(POINTER(lib.SCOTCH_Num))
+        # Convert to ctypes arrays using the correct dtype for the loaded Scotch variant
+        scotch_dtype = lib.get_scotch_dtype()
+        self._verttab = verttab.astype(scotch_dtype)
+        self._edgetab = edgetab.astype(scotch_dtype)
+        self._velotab = velotab.astype(scotch_dtype) if velotab is not None else None
+        self._vnlotab = vnlotab.astype(scotch_dtype) if vnlotab is not None else None
 
-        velotab_c = velotab.astype(np.int64).ctypes.data_as(POINTER(lib.SCOTCH_Num)) if velotab is not None else None
-        vnlotab_c = vnlotab.astype(np.int64).ctypes.data_as(POINTER(lib.SCOTCH_Num)) if vnlotab is not None else None
+        verttab_c = self._verttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+        edgetab_c = self._edgetab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        velotab_c = self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._velotab is not None else None
+        vnlotab_c = self._vnlotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._vnlotab is not None else None
 
         ret = lib.SCOTCH_meshBuild(
             byref(self._mesh),

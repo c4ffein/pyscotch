@@ -91,7 +91,7 @@ class Dgraph:
         self._exit_called = False
         ret = lib.SCOTCH_dgraphInit(byref(self._dgraph), comm)
         if ret != 0:
-            raise RuntimeError(f"SCOTCH_dgraphExit failed with error {ret}")
+            raise RuntimeError(f"SCOTCH_dgraphInit failed with error {ret}")
 
     def __del__(self):
         """Cleanup the distributed graph."""
@@ -500,9 +500,14 @@ class Dgraph:
         elif ret == 1:
             # Graph could not be coarsened (not an error)
             # This can happen if graph is too small or already optimal
+            # IMPORTANT: The coarse graph is in an INVALID state when ret == 1.
+            # We must NOT call SCOTCH_dgraphExit on it (per Scotch semantics),
+            # so mark it as already exited to prevent __del__ from cleaning up.
+            coarse_graph._exit_called = True
             return (coarse_graph, None)
         else:
-            # Error
+            # Error — coarse graph is also invalid
+            coarse_graph._exit_called = True
             raise RuntimeError(f"Failed to coarsen graph (error code {ret})")
 
     def ghst(self) -> int:
@@ -636,9 +641,9 @@ class Dgraph:
     def redist(
         self,
         partloctab: np.ndarray,
-        vsiztab: Optional[np.ndarray] = None,
-        procSrcTab: int = -1,
-        procDstTab: int = -1,
+        permgsttab: Optional[np.ndarray] = None,
+        vertlocdlt: int = -1,
+        edgelocdlt: int = -1,
         dstgrafdat: 'Dgraph' = None
     ) -> int:
         """
@@ -649,9 +654,9 @@ class Dgraph:
 
         Args:
             partloctab: Target partition for each local vertex
-            vsiztab: Optional vertex sizes (None = uniform)
-            procSrcTab: Source process ID (-1 = use current process)
-            procDstTab: Destination process ID (-1 = use partition from partloctab)
+            permgsttab: Optional redistribution permutation array (None = auto)
+            vertlocdlt: Extra size for local vertex array (-1 = no extra, clamped to 0)
+            edgelocdlt: Extra size for local edge array (-1 = no extra, clamped to 0)
             dstgrafdat: Output redistributed graph (must be initialized)
 
         Returns:
@@ -662,7 +667,7 @@ class Dgraph:
 
         Note:
             - Vertices move between processes based on partloctab values
-            - Use procDstTab=-1 to use partition values as target processes
+            - Negative vertlocdlt/edgelocdlt values are clamped to 0 by Scotch
 
         Example:
             >>> # Create partition: packs of 3 vertices, round-robin across processes
@@ -670,17 +675,17 @@ class Dgraph:
             >>> for i in range(vertlocnbr):
             ...     partloctab[i] = (i // 3) % size
             >>> dstgrafdat = Dgraph()
-            >>> srcgrafdat.redist(partloctab, None, -1, -1, dstgrafdat)
+            >>> srcgrafdat.redist(partloctab, dstgrafdat=dstgrafdat)
         """
-        # Handle None vsiztab by passing NULL pointer
-        vsiztab_ptr = None if vsiztab is None else vsiztab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+        # Handle None permgsttab by passing NULL pointer
+        permgsttab_ptr = None if permgsttab is None else permgsttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
         ret = lib.SCOTCH_dgraphRedist(
             byref(self._dgraph),
             partloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
-            vsiztab_ptr,
-            lib.SCOTCH_Num(procSrcTab),
-            lib.SCOTCH_Num(procDstTab),
+            permgsttab_ptr,
+            lib.SCOTCH_Num(vertlocdlt),
+            lib.SCOTCH_Num(edgelocdlt),
             byref(dstgrafdat._dgraph)
         )
         if ret != 0:

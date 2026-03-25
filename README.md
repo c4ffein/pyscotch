@@ -1,214 +1,207 @@
-# PyScotch - Python Wrapper for PT-Scotch
+# PyScotch
 
-A comprehensive Python wrapper for the PT-Scotch library, providing easy access to graph partitioning, mesh partitioning, and sparse matrix ordering capabilities with **100% distributed graph operation coverage**! 🎯
+---
+**WARNING: this is a vibe-engineering experiment - you probably shouldn't use this!**
+---
 
-## ✨ What's New in v0.2.0
+Python ctypes wrapper for the [PT-Scotch](https://www.labri.fr/perso/pelegrin/scotch/) graph partitioning library.
 
-🎉 **Phase 1 Complete!** All Scotch distributed graph operations now implemented:
-- ✅ **`Dgraph.ghst()`** - Ghost edge computation
-- ✅ **`Dgraph.grow()`** - Region growing (adaptive mesh refinement)
-- ✅ **`Dgraph.band()`** - Band graph extraction (sparse matrix reordering)
-- ✅ **`Dgraph.redist()`** - Graph redistribution (dynamic load balancing)
-- ✅ **`Dgraph.induce_part()`** - Induced subgraph extraction
-
-**Coverage:** 6/6 Scotch operations = 100%! | **Tests:** 192 passing | **Completion:** 80%
+PyScotch provides a Pythonic interface to Scotch's graph/mesh partitioning, sparse matrix ordering, and distributed graph operations — without requiring mpi4py or Cython.
 
 ## Features
 
-### Core Capabilities
-- ✅ **Full Python API** for PT-Scotch library functions
-- ✅ **Multi-variant architecture** - Load 4 Scotch variants simultaneously (32/64-bit × seq/parallel)
-- ✅ **Complete distributed operations** - All 6 Scotch dgraph operations implemented
-- ✅ **Type hints** - Full typing support for better IDE experience
-- ✅ **RAII resource management** - Automatic cleanup with context managers
-
-### Operations
-- ✅ **Graph partitioning** - Sequential and distributed
-- ✅ **Mesh partitioning** - With graph conversion
-- ✅ **Sparse matrix ordering** - For reduced fill-in
-- ✅ **Graph coarsening** - Multi-level with folding support
-- ✅ **Region growing** - From seed vertices
-- ✅ **Graph redistribution** - Dynamic load balancing
-- ✅ **Band extraction** - For sparse matrices
-- ✅ **Induced subgraphs** - Hierarchical partitioning
-
-### Quality Assurance
-- ✅ **192 passing tests** - Including 11 MPI tests
-- ✅ **Integration tests** - End-to-end workflows
-- ✅ **Benchmarks** - Performance validation
-- ✅ **Examples** - Ready-to-run code
+- **Graph partitioning** — sequential and distributed (MPI)
+- **Mesh partitioning** — with mesh-to-graph conversion
+- **Sparse matrix ordering** — nested dissection for reduced fill-in
+- **Graph coloring** — greedy heuristic coloring
+- **Distributed graph operations** — coarsening, growing, band extraction, redistribution, induced subgraphs
+- **Multi-variant builds** — 32/64-bit integer support with `_32`/`_64` symbol suffixes
+- **No mpi4py dependency** — custom lightweight MPI ctypes wrapper
+- **Property-based testing** — Hypothesis tests for stronger validation than Scotch's own C tests
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.7+
-- GCC/Clang compiler
-- MPI implementation (OpenMPI or MPICH) for PT-Scotch
-- Make
-- Git
+- GCC or Clang
+- An MPI implementation (OpenMPI or MPICH) for distributed operations
+- Make, CMake, Git
 
 ### Setup
 
-1. Clone this repository:
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/c4ffein/pyscotch.git
 cd pyscotch
-```
-
-2. Add the Scotch submodule (requires access to GitLab):
-```bash
-git submodule add https://gitlab.inria.fr/scotch/scotch.git external/scotch
 git submodule update --init --recursive
+make build-all
+uv pip install -e ".[dev]"
 ```
 
-Note: If you encounter access issues with the GitLab repository, you may need to configure authentication or use an SSH key.
+> The submodule requires access to `gitlab.inria.fr`. If it fails, check your authentication.
 
-3. Build the Scotch library:
-```bash
-make build-scotch
-```
+### What `build-all` does
 
-4. Install the Python package:
-```bash
-pip install -e .
-```
+Builds 4 Scotch library variants into `scotch-builds/`:
+
+| Directory | Contents |
+|-----------|----------|
+| `lib32/` | Sequential + parallel libraries, 32-bit `SCOTCH_Num` |
+| `lib64/` | Sequential + parallel libraries, 64-bit `SCOTCH_Num` |
+| `inc32/` | Headers for 32-bit variant |
+| `inc64/` | Headers for 64-bit variant |
+
+Plus a `libpyscotch_compat` shared library that handles FILE\* ABI compatibility between Python's C runtime and Scotch's.
 
 ## Quick Start
 
-### Sequential Graph Partitioning
+### Graph Partitioning
 
 ```python
 from pyscotch import Graph, Strategies
 
-# Create and load graph
 graph = Graph.from_edges([(0,1), (1,2), (2,3), (3,0)], num_vertices=4)
-
-# Partition with quality strategy
 strategy = Strategies.partition_quality()
 mapping = graph.partition(4, strategy)
-
-# Analyze results
-parttab = mapping.get_partition_array()
-print(f"Partition sizes: {mapping.get_partition_sizes()}")
+print(mapping.get_partition_array())  # e.g. [0, 1, 2, 3]
 ```
 
-### Distributed Graph Operations (MPI)
+### Graph Coloring
 
 ```python
-from pyscotch import Dgraph, libscotch as lib
+from pyscotch import Graph
+
+graph = Graph.from_edges([(0,1), (1,2), (2,0)], num_vertices=3)
+colors, num_colors = graph.color()
+print(f"{num_colors} colors: {colors}")  # 3 colors: [0, 1, 2]
+```
+
+### Sparse Matrix Ordering
+
+```python
+from pyscotch import Graph, Strategies
+
+graph = Graph()
+graph.load("matrix.grf")
+strategy = Strategies.ordering_quality()
+ordering = graph.order(strategy)
+print(ordering.get_permutation())
+```
+
+### Distributed Graph (MPI)
+
+```python
+from pyscotch import Dgraph
 from pyscotch.mpi import mpi
 
-# Initialize MPI
 mpi.init()
-lib.set_active_variant(64, parallel=True)
 
-# Load distributed graph
 dgraph = Dgraph()
 dgraph.load("graph.grf")
 
-# Coarsen (multi-level)
 coarse, mult = dgraph.coarsen(coarrat=0.8)
 if mult is not None:
-    print(f"Coarsened successfully!")
+    print("Coarsened successfully")
     coarse.exit()
 
 dgraph.exit()
 mpi.finalize()
 ```
 
-### Region Growing (NEW!)
+## Configuration
 
-```python
-from pyscotch import Dgraph
-from pyscotch.mpi import mpi
-import numpy as np
+PyScotch selects which Scotch variant to load via environment variables:
 
-mpi.init()
-dgraph = Dgraph()
-dgraph.load("graph.grf")
-
-# Compute ghost edges
-dgraph.ghst()
-
-# Grow from seeds
-seedloctab = np.array([0, 10, 20], dtype=np.int64)
-partgsttab = np.full(vertgstnbr, -1, dtype=np.int64)
-dgraph.grow(3, seedloctab, 4, partgsttab)
-
-dgraph.exit()
-mpi.finalize()
-```
-
-## Examples
-
-See `examples/` directory for complete working examples:
-- **`simple_partition.py`** - Basic graph partitioning
-- **`graph_ordering.py`** - Sparse matrix ordering
-- **`distributed_coarsening.py`** - MPI coarsening workflow
-- **`mesh_partitioning.py`** - Mesh partitioning and conversion
-
-Run examples:
-```bash
-# Sequential
-python examples/simple_partition.py
-
-# MPI
-mpirun -np 4 python examples/distributed_coarsening.py external/scotch/src/check/data/bump.grf
-```
-
-## Benchmarks
-
-Performance benchmarks available in `benchmarks/`:
+| Variable | Values | Default | Description |
+|----------|--------|---------|-------------|
+| `PYSCOTCH_INT_SIZE` | `32`, `64` | `64` | Size of `SCOTCH_Num` integers |
+| `PYSCOTCH_PARALLEL` | `0`, `1` | `1` | Load PT-Scotch (parallel) or Scotch (sequential) |
 
 ```bash
-# Sequential partitioning
-python benchmarks/benchmark_sequential_partitioning.py graph.grf 4
-
-# Distributed operations
-mpirun -np 4 python benchmarks/benchmark_distributed_operations.py graph.grf
+# Run with 32-bit sequential Scotch
+PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=0 python my_script.py
 ```
-
-See `benchmarks/README.md` for details.
 
 ## Testing
 
-Run the full test suite:
 ```bash
-make test  # Runs pytest -vvvv
+# Default: 64-bit parallel, no hypothesis
+make test
+
+# Full suite including hypothesis
+make test-full
+
+# All 4 variants with hypothesis (32/64 x seq/parallel)
+make test-quadrant
 ```
 
-Or run specific tests:
-```bash
-# Sequential tests
-pytest tests/pyscotch_base/ -v
+Test categories:
 
-# Integration tests
-pytest tests/integration/ -v
+| Directory | What |
+|-----------|------|
+| `tests/scotch_ports/` | Direct ports of Scotch's C tests |
+| `tests/scotch_ports_mpi/` | MPI test ports (run via mpirun) |
+| `tests/pyscotch_base/` | PyScotch-specific tests (API completeness, int sizes, symbol prefixes) |
+| `tests/hypothesis/` | Property-based tests — stronger than Scotch's own C tests |
+| `tests/pyscotch_integration/` | End-to-end orchestrated workflows |
 
-# MPI tests
-mpirun -np 3 pytest tests/scotch_ports_mpi/ -v
+## API Overview
+
+### Sequential
+
+| Class | Key Methods |
+|-------|-------------|
+| `Graph` | `build()`, `load()`, `save()`, `partition()`, `order()`, `color()`, `induce_list()`, `induce_part()`, `stat()`, `base()`, `from_edges()` |
+| `Mesh` | `build()`, `load()`, `save()`, `check()`, `to_graph()`, `partition()` |
+| `Architecture` | `complete()`, `complete_weighted()`, `complete_graph()`, `name()`, `size()` |
+| `Strategy` | `set()`, `set_default()`, `set_nested_dissection()` |
+| `Strategies` | `partition_quality()`, `partition_speed()`, `ordering_quality()`, `ordering_speed()` |
+| `scotch_version()` | Returns `(major, minor, patch)` |
+
+### Distributed (MPI)
+
+| Class | Key Methods |
+|-------|-------------|
+| `Dgraph` | `build()`, `load()`, `save()`, `check()`, `coarsen()`, `ghst()`, `grow()`, `band()`, `redist()`, `induce_part()` |
+
+## Project Structure
+
+```
+pyscotch/
+  __init__.py          # Public API exports
+  libscotch.py         # ctypes bindings, library loading, type definitions
+  graph.py             # Sequential graph operations
+  dgraph.py            # Distributed graph operations (MPI)
+  mesh.py              # Mesh operations
+  strategy.py          # Strategy/preset management
+  arch.py              # Target architecture definitions
+  mapping.py           # Mapping result container
+  ordering.py          # Ordering result container
+  mpi.py               # Minimal MPI wrapper (OpenMPI, MPICH, Intel MPI)
+  api_decorators.py    # @scotch_binding / @highlevel_api tracking
+  cli.py               # Command-line interface
+  native/
+    file_compat.c      # FILE* ABI compatibility layer
+external/
+  scotch/              # Scotch submodule (gitlab.inria.fr)
+scotchpy/              # Official Scotch Python bindings (reference only, not a dependency)
 ```
 
-### Pipeline Limitations
+## How It Works
 
-CI runners use `PYSCOTCH_MPI_OVERSUBSCRIBE=1` to allow MPI tests with more processes than available CPU slots. This uses `mpirun --oversubscribe` which doesn't reflect true multi-node behavior - all processes share memory and CPU time on a single machine.
+PyScotch uses ctypes to call Scotch's C functions directly. Key design decisions:
 
-## Documentation
-
-Comprehensive documentation available:
-- **`docs/API.md`** - Full API reference
-- **`ROADMAP.md`** - Project status and plans
-- **`MPI_TEST_COVERAGE.md`** - Distributed operation coverage
-- **`examples/README.md`** - Example documentation
-- **`benchmarks/README.md`** - Benchmark documentation
+- **Dynamic struct sizing** via `SCOTCH_*Sizeof()` — never hardcodes structure sizes
+- **Symbol suffixes** (`_32`/`_64`) via `SCOTCH_NAME_SUFFIX` — allows loading multiple variants
+- **FILE\* compatibility layer** — a small C shim (`libpyscotch_compat`) that opens files with the same C runtime Scotch was compiled against, avoiding ABI mismatches
+- **`@scotch_binding` decorators** — track which C functions each Python method wraps, enabling automated API completeness checks
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License. See [LICENSE](LICENSE).
 
-The PT-Scotch library itself is distributed under the CeCILL-C license.
+PT-Scotch itself is distributed under the [CeCILL-C](https://cecill.info/licences/Licence_CeCILL-C_V1-en.html) license.
 
 ## Acknowledgments
 
-This wrapper is built on top of the PT-Scotch library developed by François Pellegrini and the Scotch team at INRIA.
+Built on [PT-Scotch](https://www.labri.fr/perso/pelegrin/scotch/) by Francois Pellegrini and the Scotch team at INRIA Bordeaux.

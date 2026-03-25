@@ -138,6 +138,9 @@ class Graph:
             raise FileNotFoundError(f"Graph file not found: {filename}")
 
         # Use our compat layer - guarantees ABI compatibility with Scotch
+        # Note: baseval=0 forces 0-based indexing regardless of file content.
+        # This is intentional — the Python API consistently uses 0-based indices.
+        # Use -1 to preserve the file's original base value if needed.
         with c_fopen(str(filename), "r") as file_ptr:
             baseval = lib.SCOTCH_Num(0)
             ret = lib.SCOTCH_graphLoad(
@@ -276,6 +279,72 @@ class Graph:
         edgenbr = lib.SCOTCH_Num()
         lib.SCOTCH_graphSize(byref(self._graph), byref(vertnbr), byref(edgenbr))
         return (vertnbr.value, edgenbr.value)
+
+    @scotch_binding("SCOTCH_graphBase", "SCOTCH_Num SCOTCH_graphBase(SCOTCH_Graph *, SCOTCH_Num)")
+    def base(self, baseval: int) -> int:
+        """
+        Set the base value for vertex numbering.
+
+        Args:
+            baseval: New base value (0 or 1)
+
+        Returns:
+            The old base value
+
+        Raises:
+            ValueError: If baseval is invalid
+        """
+        if baseval not in (0, 1):
+            raise ValueError(f"baseval must be 0 or 1, got {baseval}")
+        old_baseval = lib.SCOTCH_graphBase(byref(self._graph), lib.SCOTCH_Num(baseval))
+        return old_baseval
+
+    @scotch_binding("SCOTCH_graphStat", "void SCOTCH_graphStat(const SCOTCH_Graph *, ...)")
+    def stat(self) -> dict:
+        """
+        Get statistics about the graph.
+
+        Returns:
+            Dictionary with keys:
+            - velomin, velomax, velosum: vertex load min/max/sum
+            - degrmin, degrmax: vertex degree min/max
+            - edlomin, edlomax, edlosum: edge load min/max/sum
+        """
+        velomin = lib.SCOTCH_Num()
+        velomax = lib.SCOTCH_Num()
+        velosum = lib.SCOTCH_Num()
+        veloavg = ctypes.c_double()
+        velodlt = ctypes.c_double()
+        degrmin = lib.SCOTCH_Num()
+        degrmax = lib.SCOTCH_Num()
+        degravg = ctypes.c_double()
+        degrdlt = ctypes.c_double()
+        edlomin = lib.SCOTCH_Num()
+        edlomax = lib.SCOTCH_Num()
+        edlosum = lib.SCOTCH_Num()
+        edloavg = ctypes.c_double()
+        edlodlt = ctypes.c_double()
+
+        lib.SCOTCH_graphStat(
+            byref(self._graph),
+            byref(velomin), byref(velomax), byref(velosum),
+            byref(veloavg), byref(velodlt),
+            byref(degrmin), byref(degrmax),
+            byref(degravg), byref(degrdlt),
+            byref(edlomin), byref(edlomax), byref(edlosum),
+            byref(edloavg), byref(edlodlt),
+        )
+
+        return {
+            'velomin': velomin.value,
+            'velomax': velomax.value,
+            'velosum': velosum.value,
+            'degrmin': degrmin.value,
+            'degrmax': degrmax.value,
+            'edlomin': edlomin.value,
+            'edlomax': edlomax.value,
+            'edlosum': edlosum.value,
+        }
 
     @highlevel_api(scotch_functions=["SCOTCH_graphMapInit", "SCOTCH_graphMapCompute", "SCOTCH_graphMapExit"])
     def partition(
@@ -602,15 +671,16 @@ class Graph:
             if u != v:  # Avoid duplicate for self-loops
                 adj[v].append(u)
 
-        # Create verttab and edgetab
-        verttab = np.zeros(num_vertices + 1, dtype=np.int64)
+        # Create verttab and edgetab using the correct dtype for the loaded Scotch variant
+        scotch_dtype = lib.get_scotch_dtype()
+        verttab = np.zeros(num_vertices + 1, dtype=scotch_dtype)
         edge_count = 0
         for i, neighbors in enumerate(adj):
             verttab[i] = edge_count
             edge_count += len(neighbors)
         verttab[num_vertices] = edge_count
 
-        edgetab = np.zeros(edge_count, dtype=np.int64)
+        edgetab = np.zeros(edge_count, dtype=scotch_dtype)
         idx = 0
         for neighbors in adj:
             for n in neighbors:
@@ -620,8 +690,8 @@ class Graph:
         # Create graph
         graph = Graph()
 
-        velotab_np = np.array(vertex_weights, dtype=np.int64) if vertex_weights else None
-        edlotab_np = np.array(edge_weights, dtype=np.int64) if edge_weights else None
+        velotab_np = np.array(vertex_weights, dtype=scotch_dtype) if vertex_weights else None
+        edlotab_np = np.array(edge_weights, dtype=scotch_dtype) if edge_weights else None
 
         graph.build(verttab, edgetab, velotab_np, edlotab_np, baseval=0)
 

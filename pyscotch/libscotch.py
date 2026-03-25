@@ -228,7 +228,7 @@ def _bind_functions():
     ])
     bindings['SCOTCH_graphLoad'] = (c_int, [GraphPtr, c_void_p, SCOTCH_Num, SCOTCH_Num])
     bindings['SCOTCH_graphSave'] = (c_int, [GraphPtr, c_void_p])
-    bindings['SCOTCH_graphBase'] = (c_int, [GraphPtr, SCOTCH_Num])
+    bindings['SCOTCH_graphBase'] = (SCOTCH_Num, [GraphPtr, SCOTCH_Num])
     bindings['SCOTCH_graphPart'] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
     bindings['SCOTCH_graphPartOvl'] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
     bindings['SCOTCH_graphPartFixed'] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
@@ -354,10 +354,11 @@ def _bind_functions():
             'SCOTCH_dgraphCoarsen': (c_int, [
                 DgraphPtr, SCOTCH_Num, c_double, SCOTCH_Num, DgraphPtr, NumPtr
             ]),
+            'SCOTCH_dgraphCoarsenVertLocMax': (SCOTCH_Num, [DgraphPtr, SCOTCH_Num]),
             'SCOTCH_dgraphGhst': (c_int, [DgraphPtr]),
             'SCOTCH_dgraphGrow': (c_int, [DgraphPtr, SCOTCH_Num, NumPtr, SCOTCH_Num, NumPtr]),
             'SCOTCH_dgraphBand': (c_int, [DgraphPtr, SCOTCH_Num, NumPtr, SCOTCH_Num, DgraphPtr]),
-            'SCOTCH_dgraphRedist': (c_int, [DgraphPtr, NumPtr, NumPtr, SCOTCH_Num, NumPtr, DgraphPtr]),
+            'SCOTCH_dgraphRedist': (c_int, [DgraphPtr, NumPtr, NumPtr, SCOTCH_Num, SCOTCH_Num, DgraphPtr]),
             'SCOTCH_dgraphInducePart': (c_int, [DgraphPtr, NumPtr, SCOTCH_Num, SCOTCH_Num, DgraphPtr]),
         }
 
