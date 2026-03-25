@@ -39,10 +39,6 @@ help:
 	@echo "  scotch-builds/inc32/  - Headers (32-bit: SCOTCH_Num = int)"
 	@echo "  scotch-builds/inc64/  - Headers (64-bit: SCOTCH_Num = int64_t)"
 	@echo ""
-	@echo "Patches:"
-	@echo "  Temporary patches in patches/ are auto-applied during build"
-	@echo "  See patches/README.md for details"
-	@echo ""
 	@echo "Other targets:"
 	@echo "  make install         - Install Python package"
 	@echo "  make test            - Run tests (64-bit parallel, skips hypothesis)"
@@ -50,7 +46,7 @@ help:
 	@echo "  make test-quadrant   - Run all 4 variants (32/64 × seq/parallel) with hypothesis"
 	@echo "  make clean           - Clean Python build artifacts"
 	@echo "  make clean-scotch    - Clean all Scotch builds"
-	@echo "  make check-submodule - Gets Scotch as a submodule (and auto-applies the temporary fix)"
+	@echo "  make check-submodule - Gets Scotch as a submodule"
 	@echo ""
 
 # Build all variants
@@ -126,14 +122,7 @@ check-submodule:
 		cp patches/Makefile.inc.default $(SCOTCH_SRC)/Makefile.inc; \
 		echo "✓ Makefile.inc created"; \
 	fi
-	@echo "Checking for required patches..."
-	@if ! grep -q "SCOTCH_NUM_MPI.*SCOTCH_NAME_PUBLIC" $(SCOTCH_DIR)/src/libscotch/module.h; then \
-		echo "Applying scotch-suffix-fixes.patch..."; \
-		cd $(SCOTCH_DIR) && git apply ../../patches/scotch-suffix-fixes.patch && \
-		echo "✓ Patch applied successfully"; \
-	else \
-		echo "✓ Patches already applied"; \
-	fi
+	@echo "✓ Submodule ready"
 
 # Install Python package
 install:
