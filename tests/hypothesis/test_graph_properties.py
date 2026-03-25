@@ -222,7 +222,6 @@ class TestPartitionProperties:
 class TestColoringProperties:
     """Property tests for Graph.color() - coloring validity invariants."""
 
-    @pytest.mark.xfail(reason="Upstream Scotch bug with sparse graphs - see docs/QUESTIONS_FOR_SCOTCH_TEAM_2.md")
     @given(graph_data=simple_graph(min_vertices=2, max_vertices=20))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_coloring_no_adjacent_same_color(self, graph_data):
@@ -231,9 +230,8 @@ class TestColoringProperties:
 
         This is the fundamental invariant of graph coloring.
 
-        NOTE: This test is xfail due to an upstream Scotch bug where
-        SCOTCH_graphColor returns invalid colorings for sparse graphs
-        when vertex 0 is isolated and an edge connects to the last vertex.
+        This test caught an upstream Scotch bug (see docs/QUESTIONS_FOR_SCOTCH_TEAM_2.md),
+        fixed in Scotch v7.0.11 (commit e0a90c7).
         """
         num_vertices, edges = graph_data
         graph = Graph.from_edges(edges, num_vertices=num_vertices)

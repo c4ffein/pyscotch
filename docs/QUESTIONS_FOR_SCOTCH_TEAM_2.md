@@ -4,7 +4,7 @@ New issues discovered via Hypothesis property-based testing.
 
 ---
 
-## SCOTCH_graphColor Bug with Sparse Graphs
+## SCOTCH_graphColor Bug with Sparse Graphs — RESOLVED in v7.0.11 (see [COLORING_BUG_RESOLUTION.md](COLORING_BUG_RESOLUTION.md))
 
 ### Issue: Invalid coloring when vertex 0 is isolated and edge connects to last vertex
 
@@ -133,6 +133,8 @@ def test_coloring_no_adjacent_same_color(self, graph_data):
 ```
 
 When this is fixed upstream, the test will become `XPASS` and we'll know to remove the marker.
+
+**Update 2026-03-25**: Fixed upstream — see [COLORING_BUG_RESOLUTION.md](COLORING_BUG_RESOLUTION.md) for the full timeline.
 
 ---
 
