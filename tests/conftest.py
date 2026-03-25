@@ -13,8 +13,8 @@ To test all variants, run the test suite multiple times with different configura
     PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/
 
 Or use the Makefile targets:
-    make test          # Run with default (32-bit sequential)
-    make test-all      # Run with all 4 combinations
+    make test          # Run with default (64-bit parallel)
+    make test-quadrant # Run with all 4 combinations
 """
 
 import os

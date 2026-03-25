@@ -86,6 +86,34 @@ def c_fopen(filename: str, mode: str = "r"):
             compat.pyscotch_fclose(file_ptr)
 
 
+@contextmanager
+def _scotch_mapping(graph_ptr, arch_ptr, parttab_c):
+    """Context manager for SCOTCH_graphMapInit / SCOTCH_graphMapExit."""
+    mappdat = lib.SCOTCH_Mapping()
+    ret = lib.SCOTCH_graphMapInit(byref(graph_ptr), byref(mappdat), byref(arch_ptr), parttab_c)
+    if ret != 0:
+        raise RuntimeError(f"SCOTCH_graphMapInit failed (error code: {ret})")
+    try:
+        yield mappdat
+    finally:
+        lib.SCOTCH_graphMapExit(byref(graph_ptr), byref(mappdat))
+
+
+@contextmanager
+def _scotch_ordering(graph_ptr, permtab_c, peritab_c):
+    """Context manager for SCOTCH_graphOrderInit / SCOTCH_graphOrderExit."""
+    cblkptr = lib.SCOTCH_Num()
+    orddat = lib.SCOTCH_Ordering()
+    ret = lib.SCOTCH_graphOrderInit(
+        byref(graph_ptr), byref(orddat), permtab_c, peritab_c, byref(cblkptr), None, None)
+    if ret != 0:
+        raise RuntimeError(f"SCOTCH_graphOrderInit failed (error code: {ret})")
+    try:
+        yield orddat
+    finally:
+        lib.SCOTCH_graphOrderExit(byref(graph_ptr), byref(orddat))
+
+
 class Graph:
     """
     Represents a graph structure for partitioning and ordering.
@@ -607,6 +635,351 @@ class Graph:
             )
 
         return induced_graph
+
+    @scotch_binding("SCOTCH_graphCoarsen", "int SCOTCH_graphCoarsen(...)")
+    def coarsen(
+        self,
+        min_vertices: int = 1,
+        coarrat: float = 0.8,
+        flags: int = 0,
+    ) -> Tuple[Optional["Graph"], Optional[np.ndarray]]:
+        """
+        Create a coarsened version of the graph.
+
+        Args:
+            min_vertices: Minimum number of coarse vertices
+            coarrat: Coarsening ratio (0.0-1.0)
+            flags: Coarsening flags (e.g., SCOTCH_COARSENNONE)
+
+        Returns:
+            Tuple of (coarse_graph, multinode_array) or (None, None) if
+            the graph could not be coarsened.
+        """
+        vertnbr, _ = self.size()
+
+        multinode = np.zeros(vertnbr * 2, dtype=lib.get_scotch_dtype())
+        multinode_c = multinode.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        coarse = Graph()
+        ret = lib.SCOTCH_graphCoarsen(
+            byref(self._graph),
+            lib.SCOTCH_Num(min_vertices),
+            float(coarrat),
+            lib.SCOTCH_Num(flags),
+            byref(coarse._graph),
+            multinode_c,
+        )
+
+        if ret == 0:
+            return (coarse, multinode)
+        elif ret == 1:
+            return (None, None)
+        else:
+            raise RuntimeError(f"Failed to coarsen graph (error code: {ret})")
+
+    @scotch_binding("SCOTCH_graphCoarsenMatch", "int SCOTCH_graphCoarsenMatch(...)")
+    def coarsen_match(
+        self,
+        coarrat: float = 0.8,
+        flags: int = 0,
+    ) -> Tuple[int, np.ndarray]:
+        """
+        Compute a matching for coarsening without building the coarse graph.
+
+        Args:
+            coarrat: Coarsening ratio
+            flags: Coarsening flags
+
+        Returns:
+            Tuple of (coarse_vertex_count, mate_array)
+        """
+        vertnbr, _ = self.size()
+
+        mate = np.zeros(vertnbr, dtype=lib.get_scotch_dtype())
+        mate_c = mate.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+        coar_vertnbr = lib.SCOTCH_Num(0)
+
+        ret = lib.SCOTCH_graphCoarsenMatch(
+            byref(self._graph),
+            byref(coar_vertnbr),
+            float(coarrat),
+            lib.SCOTCH_Num(flags),
+            mate_c,
+        )
+
+        if ret != 0:
+            raise RuntimeError(f"Failed to compute coarsening match (error code: {ret})")
+
+        return (coar_vertnbr.value, mate)
+
+    @scotch_binding("SCOTCH_graphCoarsenBuild", "int SCOTCH_graphCoarsenBuild(...)")
+    def coarsen_build(
+        self,
+        coar_vertnbr: int,
+        mate: np.ndarray,
+    ) -> Tuple["Graph", np.ndarray]:
+        """
+        Build a coarse graph from a precomputed matching.
+
+        Args:
+            coar_vertnbr: Number of coarse vertices (from coarsen_match)
+            mate: Mate array (from coarsen_match)
+
+        Returns:
+            Tuple of (coarse_graph, multinode_array)
+        """
+        mate_arr, mate_c = lib.to_scotch_array(mate)
+
+        multinode = np.zeros(coar_vertnbr * 2, dtype=lib.get_scotch_dtype())
+        multinode_c = multinode.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        coarse = Graph()
+        ret = lib.SCOTCH_graphCoarsenBuild(
+            byref(self._graph),
+            lib.SCOTCH_Num(coar_vertnbr),
+            mate_c,
+            byref(coarse._graph),
+            multinode_c,
+        )
+
+        if ret != 0:
+            raise RuntimeError(f"Failed to build coarse graph (error code: {ret})")
+
+        return (coarse, multinode)
+
+    @scotch_binding("SCOTCH_graphPartFixed", "int SCOTCH_graphPartFixed(...)")
+    def partition_fixed(
+        self,
+        nparts: int,
+        parttab: np.ndarray,
+        strategy=None,
+    ) -> np.ndarray:
+        """
+        Partition the graph with some vertices fixed to specific parts.
+
+        Args:
+            nparts: Number of partitions
+            parttab: Partition array. Pre-set entries (>= 0) are fixed.
+                     Set to -1 for vertices that should be freely assigned.
+            strategy: Partitioning strategy (optional)
+
+        Returns:
+            Updated partition array
+        """
+        from .strategy import Strategy
+
+        if strategy is None:
+            strategy = Strategy()
+
+        parttab, parttab_c = lib.to_scotch_array(parttab, copy=True)
+
+        ret = lib.SCOTCH_graphPartFixed(
+            byref(self._graph),
+            lib.SCOTCH_Num(nparts),
+            byref(strategy._strat),
+            parttab_c,
+        )
+
+        if ret != 0:
+            raise RuntimeError(f"Failed to compute fixed partition (error code: {ret})")
+
+        return parttab
+
+    @scotch_binding("SCOTCH_graphPartOvl", "int SCOTCH_graphPartOvl(...)")
+    def partition_overlap(
+        self,
+        nparts: int,
+        strategy=None,
+    ) -> np.ndarray:
+        """
+        Partition the graph with overlap (vertices can belong to multiple parts).
+
+        Args:
+            nparts: Number of partitions
+            strategy: Overlap partitioning strategy (optional)
+
+        Returns:
+            Partition array (values 0..nparts for parts, nparts for overlap)
+        """
+        from .strategy import Strategy
+
+        vertnbr, _ = self.size()
+
+        parttab = np.zeros(vertnbr, dtype=lib.get_scotch_dtype())
+        parttab_c = parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        if strategy is None:
+            strategy = Strategy()
+
+        ret = lib.SCOTCH_graphPartOvl(
+            byref(self._graph),
+            lib.SCOTCH_Num(nparts),
+            byref(strategy._strat),
+            parttab_c,
+        )
+
+        if ret != 0:
+            raise RuntimeError(f"Failed to compute overlap partition (error code: {ret})")
+
+        return parttab
+
+    @scotch_binding("SCOTCH_graphRepart", "int SCOTCH_graphRepart(...)")
+    def repart(
+        self,
+        nparts: int,
+        old_partition: np.ndarray,
+        emrat: float = 1.0,
+        vmlotab: Optional[np.ndarray] = None,
+        strategy=None,
+    ) -> np.ndarray:
+        """
+        Repartition the graph starting from an existing partition.
+
+        Args:
+            nparts: Number of partitions
+            old_partition: Previous partition to improve upon
+            emrat: Edge migration ratio (higher = more migration allowed)
+            vmlotab: Vertex migration cost array (optional)
+            strategy: Repartitioning strategy (optional)
+
+        Returns:
+            New partition array
+        """
+        from .strategy import Strategy
+
+        vertnbr, _ = self.size()
+
+        if strategy is None:
+            strategy = Strategy()
+
+        old_part, old_part_c = lib.to_scotch_array(old_partition, copy=True)
+
+        parttab = np.zeros(vertnbr, dtype=lib.get_scotch_dtype())
+        parttab_c = parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        vmlotab_arr, vmlotab_c = lib.to_scotch_array_optional(vmlotab)
+
+        ret = lib.SCOTCH_graphRepart(
+            byref(self._graph),
+            lib.SCOTCH_Num(nparts),
+            old_part_c,
+            float(emrat),
+            vmlotab_c,
+            byref(strategy._strat),
+            parttab_c,
+        )
+
+        if ret != 0:
+            raise RuntimeError(f"Failed to repartition graph (error code: {ret})")
+
+        return parttab
+
+    @scotch_binding("SCOTCH_graphMapSave", "int SCOTCH_graphMapSave(...)")
+    def map_save(self, filename: Union[str, Path], parttab: np.ndarray, arch) -> None:
+        """
+        Save a mapping to a file in Scotch mapping format.
+
+        Args:
+            filename: Output file path
+            parttab: Partition/mapping array
+            arch: Architecture the mapping targets
+        """
+        parttab_arr, parttab_c = lib.to_scotch_array(parttab)
+        with _scotch_mapping(self._graph, arch._arch, parttab_c) as mappdat:
+            with c_fopen(str(filename), "w") as fp:
+                ret = lib.SCOTCH_graphMapSave(byref(self._graph), byref(mappdat), fp)
+                if ret != 0:
+                    raise RuntimeError(f"Failed to save mapping (error code: {ret})")
+
+    @scotch_binding("SCOTCH_graphMapView", "int SCOTCH_graphMapView(...)")
+    def map_view(self, filename: Union[str, Path], parttab: np.ndarray, arch) -> None:
+        """
+        Save mapping statistics to a file.
+
+        Args:
+            filename: Output file path
+            parttab: Partition/mapping array
+            arch: Architecture the mapping targets
+        """
+        parttab_arr, parttab_c = lib.to_scotch_array(parttab)
+        with _scotch_mapping(self._graph, arch._arch, parttab_c) as mappdat:
+            with c_fopen(str(filename), "w") as fp:
+                ret = lib.SCOTCH_graphMapView(byref(self._graph), byref(mappdat), fp)
+                if ret != 0:
+                    raise RuntimeError(f"Failed to write mapping view (error code: {ret})")
+
+    @scotch_binding("SCOTCH_graphOrderCheck", "int SCOTCH_graphOrderCheck(...)")
+    def order_check(self, permtab: np.ndarray, peritab: np.ndarray) -> bool:
+        """
+        Check the validity of an ordering.
+
+        Args:
+            permtab: Forward permutation array
+            peritab: Inverse permutation array
+
+        Returns:
+            True if ordering is valid
+        """
+        permtab_arr, permtab_c = lib.to_scotch_array(permtab)
+        peritab_arr, peritab_c = lib.to_scotch_array(peritab)
+        with _scotch_ordering(self._graph, permtab_c, peritab_c) as orddat:
+            ret = lib.SCOTCH_graphOrderCheck(byref(self._graph), byref(orddat))
+            return ret == 0
+
+    @scotch_binding("SCOTCH_graphOrderSave", "int SCOTCH_graphOrderSave(...)")
+    def order_save(self, filename: Union[str, Path], permtab: np.ndarray, peritab: np.ndarray) -> None:
+        """
+        Save an ordering to a file in Scotch ordering format.
+
+        Args:
+            filename: Output file path
+            permtab: Forward permutation array
+            peritab: Inverse permutation array
+        """
+        permtab_arr, permtab_c = lib.to_scotch_array(permtab)
+        peritab_arr, peritab_c = lib.to_scotch_array(peritab)
+        with _scotch_ordering(self._graph, permtab_c, peritab_c) as orddat:
+            with c_fopen(str(filename), "w") as fp:
+                ret = lib.SCOTCH_graphOrderSave(byref(self._graph), byref(orddat), fp)
+                if ret != 0:
+                    raise RuntimeError(f"Failed to save ordering (error code: {ret})")
+
+    @scotch_binding("SCOTCH_graphTabSave", "int SCOTCH_graphTabSave(...)")
+    def tab_save(self, filename: Union[str, Path], tab: np.ndarray) -> None:
+        """
+        Save a partition/mapping table to a file.
+
+        Args:
+            filename: Output file path
+            tab: Array to save (one value per vertex)
+        """
+        tab_arr, tab_c = lib.to_scotch_array(tab)
+        with c_fopen(str(filename), "w") as fp:
+            ret = lib.SCOTCH_graphTabSave(byref(self._graph), tab_c, fp)
+            if ret != 0:
+                raise RuntimeError(f"Failed to save tab (error code: {ret})")
+
+    @scotch_binding("SCOTCH_graphTabLoad", "int SCOTCH_graphTabLoad(...)")
+    def tab_load(self, filename: Union[str, Path]) -> np.ndarray:
+        """
+        Load a partition/mapping table from a file.
+
+        Args:
+            filename: Input file path
+
+        Returns:
+            Array of values (one per vertex)
+        """
+        vertnbr, _ = self.size()
+        tab = np.zeros(vertnbr, dtype=lib.get_scotch_dtype())
+        tab_c = tab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        with c_fopen(str(filename), "r") as fp:
+            ret = lib.SCOTCH_graphTabLoad(byref(self._graph), tab_c, fp)
+            if ret != 0:
+                raise RuntimeError(f"Failed to load tab (error code: {ret})")
+
+        return tab
 
     def save_mapping(self, filename: Union[str, Path], mapping: np.ndarray) -> None:
         """

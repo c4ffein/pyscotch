@@ -88,10 +88,7 @@ class Mapping:
             Array of partition sizes
         """
         num_parts = int(np.max(self.mapping)) + 1
-        sizes = np.zeros(num_parts, dtype=np.int64)
-        for domain in self.mapping:
-            sizes[domain] += 1
-        return sizes
+        return np.bincount(self.mapping.astype(np.intp), minlength=num_parts).astype(np.int64)
 
     def get_partition(self, domain: int) -> np.ndarray:
         """

@@ -24,6 +24,8 @@ from .arch import Architecture
 from .mapping import Mapping
 from .ordering import Ordering
 from .dgraph import Dgraph
+from .context import Context
+from .geom import Geometry
 from . import mpi
 from .libscotch import (
     get_scotch_int_size,
@@ -51,6 +53,30 @@ def scotch_version() -> tuple:
     return (major.value, minor.value, patch.value)
 
 
+def random_reset() -> None:
+    """Reset Scotch's pseudorandom number generator to its initial state."""
+    from . import libscotch as lib
+    lib.SCOTCH_randomReset()
+
+
+def random_seed(seed: int) -> None:
+    """Set the seed of Scotch's pseudorandom number generator."""
+    from . import libscotch as lib
+    lib.SCOTCH_randomSeed(lib.SCOTCH_Num(seed))
+
+
+def mem_cur() -> int:
+    """Get current Scotch memory usage in bytes (requires SCOTCH_DEBUG_MEM)."""
+    from . import libscotch as lib
+    return lib.SCOTCH_memCur()
+
+
+def mem_max() -> int:
+    """Get peak Scotch memory usage in bytes (requires SCOTCH_DEBUG_MEM)."""
+    from . import libscotch as lib
+    return lib.SCOTCH_memMax()
+
+
 __version__ = "0.1.0"
 __all__ = [
     "Graph",
@@ -61,8 +87,14 @@ __all__ = [
     "Mapping",
     "Ordering",
     "Dgraph",
+    "Context",
+    "Geometry",
     "mpi",
     "scotch_version",
+    "random_reset",
+    "random_seed",
+    "mem_cur",
+    "mem_max",
     "get_scotch_int_size",
     "get_scotch_dtype",
     "SCOTCH_COARSENNONE",

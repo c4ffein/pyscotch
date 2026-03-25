@@ -179,6 +179,71 @@ class Mesh:
 
         return graph
 
+    @scotch_binding("SCOTCH_meshGraphDual", "int SCOTCH_meshGraphDual(const SCOTCH_Mesh *, SCOTCH_Graph *, SCOTCH_Num)")
+    def to_dual_graph(self, ncomm: int = 1):
+        """
+        Convert the mesh to a dual graph.
+
+        In the dual graph, elements become vertices and two elements are
+        connected if they share at least ncomm nodes.
+
+        Args:
+            ncomm: Minimum number of shared nodes for adjacency (default: 1)
+
+        Returns:
+            Graph object representing the dual graph
+        """
+        from .graph import Graph
+
+        graph = Graph()
+        ret = lib.SCOTCH_meshGraphDual(byref(self._mesh), byref(graph._graph), lib.SCOTCH_Num(ncomm))
+
+        if ret != 0:
+            raise RuntimeError(f"Failed to convert mesh to dual graph (error code: {ret})")
+
+        return graph
+
+    @scotch_binding("SCOTCH_meshOrder", "int SCOTCH_meshOrder(...)")
+    def order(self, strategy=None):
+        """
+        Compute an ordering of the mesh nodes.
+
+        Args:
+            strategy: Ordering strategy (optional)
+
+        Returns:
+            Tuple of (permutation array, inverse permutation array)
+        """
+        from .strategy import Strategy
+
+        size = lib.SCOTCH_Num()
+        velmnbr = lib.SCOTCH_Num()
+        vnodnbr = lib.SCOTCH_Num()
+        lib.SCOTCH_meshSize(byref(self._mesh), byref(velmnbr), byref(vnodnbr), byref(size))
+        vertnbr = vnodnbr.value
+
+        scotch_dtype = lib.get_scotch_dtype()
+        permtab = np.zeros(vertnbr, dtype=scotch_dtype)
+        peritab = np.zeros(vertnbr, dtype=scotch_dtype)
+        cblkptr = lib.SCOTCH_Num()
+
+        if strategy is None:
+            strategy = Strategy()
+
+        ret = lib.SCOTCH_meshOrder(
+            byref(self._mesh),
+            byref(strategy._strat),
+            permtab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            peritab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            byref(cblkptr),
+            None, None,
+        )
+
+        if ret != 0:
+            raise RuntimeError(f"Failed to order mesh (error code: {ret})")
+
+        return permtab, peritab
+
     @highlevel_api(scotch_functions=["SCOTCH_meshGraph", "SCOTCH_graphMapInit", "SCOTCH_graphMapCompute", "SCOTCH_graphMapExit"])
     def partition(
         self,

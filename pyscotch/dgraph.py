@@ -148,9 +148,8 @@ class Dgraph:
             may reference vertices on other processes.
         """
         # Ensure correct dtype
-        dtype = lib.get_dtype()
-        vertloctab = np.asarray(vertloctab, dtype=dtype)
-        edgeloctab = np.asarray(edgeloctab, dtype=dtype)
+        vertloctab, vertloctab_c = lib.to_scotch_array(vertloctab)
+        edgeloctab, edgeloctab_c = lib.to_scotch_array(edgeloctab)
 
         # Calculate sizes
         vertlocnbr = len(vertloctab) - 1  # Number of local vertices
@@ -159,35 +158,11 @@ class Dgraph:
         edgelocsiz = edgelocnbr  # Size of edge array
 
         # Handle optional arrays
-        if vendloctab is None:
-            vendloctab_ptr = None
-        else:
-            vendloctab = np.asarray(vendloctab, dtype=dtype)
-            vendloctab_ptr = vendloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-
-        if veloloctab is None:
-            veloloctab_ptr = None
-        else:
-            veloloctab = np.asarray(veloloctab, dtype=dtype)
-            veloloctab_ptr = veloloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-
-        if vlblloctab is None:
-            vlblloctab_ptr = None
-        else:
-            vlblloctab = np.asarray(vlblloctab, dtype=dtype)
-            vlblloctab_ptr = vlblloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-
-        if edgegsttab is None:
-            edgegsttab_ptr = None
-        else:
-            edgegsttab = np.asarray(edgegsttab, dtype=dtype)
-            edgegsttab_ptr = edgegsttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-
-        if edloloctab is None:
-            edloloctab_ptr = None
-        else:
-            edloloctab = np.asarray(edloloctab, dtype=dtype)
-            edloloctab_ptr = edloloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+        vendloctab, vendloctab_ptr = lib.to_scotch_array_optional(vendloctab)
+        veloloctab, veloloctab_ptr = lib.to_scotch_array_optional(veloloctab)
+        vlblloctab, vlblloctab_ptr = lib.to_scotch_array_optional(vlblloctab)
+        edgegsttab, edgegsttab_ptr = lib.to_scotch_array_optional(edgegsttab)
+        edloloctab, edloloctab_ptr = lib.to_scotch_array_optional(edloloctab)
 
         # Build the distributed graph
         ret = lib.SCOTCH_dgraphBuild(
@@ -195,13 +170,13 @@ class Dgraph:
             lib.SCOTCH_Num(baseval),
             lib.SCOTCH_Num(vertlocnbr),
             lib.SCOTCH_Num(vertlocmax),
-            vertloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            vertloctab_c,
             vendloctab_ptr,
             veloloctab_ptr,
             vlblloctab_ptr,
             lib.SCOTCH_Num(edgelocnbr),
             lib.SCOTCH_Num(edgelocsiz),
-            edgeloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            edgeloctab_c,
             edgegsttab_ptr,
             edloloctab_ptr,
         )

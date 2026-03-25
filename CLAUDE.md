@@ -44,7 +44,9 @@
 - Only call `SCOTCH_*Exit` on structures where the operation succeeded
 
 ### Reference Implementation
-- **ScotchPy** (official bindings) is in `scotchpy/` directory - check it for correct patterns when unsure
+- **ScotchPy** (official bindings) is in `scotchpy/` directory
+  - check it for correct patterns when unsure
+  - if it is not present, ask the user to get it for you
 - Example: `scotchpy/scotchpy/dgraph.py` shows proper dynamic sizing with `SCOTCH_dgraphSizeof()`
 
 ### C Test Limitations

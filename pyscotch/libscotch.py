@@ -13,6 +13,8 @@ import ctypes
 import ctypes.util
 import os
 import sys
+
+import numpy as np
 from ctypes import (
     c_int, c_long, c_double, c_char_p, c_void_p,
     POINTER, Structure, byref
@@ -164,6 +166,7 @@ def _compute_structure_sizes():
     sizes['mapping'] = _get_func("SCOTCH_mapSizeof")()
     sizes['ordering'] = _get_func("SCOTCH_orderSizeof")()
     sizes['geom'] = _get_func("SCOTCH_geomSizeof")()
+    sizes['context'] = _get_func("SCOTCH_contextSizeof")()
 
     # Parallel structures (only if parallel variant)
     if _lib_parallel:
@@ -184,6 +187,7 @@ SCOTCH_Arch = _make_opaque_struct("SCOTCH_Arch", _SIZES['arch'])
 SCOTCH_Mapping = _make_opaque_struct("SCOTCH_Mapping", _SIZES['mapping'])
 SCOTCH_Ordering = _make_opaque_struct("SCOTCH_Ordering", _SIZES['ordering'])
 SCOTCH_Geom = _make_opaque_struct("SCOTCH_Geom", _SIZES['geom'])
+SCOTCH_Context = _make_opaque_struct("SCOTCH_Context", _SIZES['context'])
 
 if _SIZES['dgraph']:
     SCOTCH_Dgraph = _make_opaque_struct("SCOTCH_Dgraph", _SIZES['dgraph'])
@@ -205,6 +209,7 @@ def _bind_functions():
     StratPtr = POINTER(SCOTCH_Strat)
     ArchPtr = POINTER(SCOTCH_Arch)
     MappingPtr = POINTER(SCOTCH_Mapping)
+    ContextPtr = POINTER(SCOTCH_Context)
     OrderingPtr = POINTER(SCOTCH_Ordering)
     GeomPtr = POINTER(SCOTCH_Geom)
     NumPtr = POINTER(SCOTCH_Num)
@@ -260,6 +265,58 @@ def _bind_functions():
     bindings['SCOTCH_graphRemapCompute'] = (c_int, [
         GraphPtr, MappingPtr, MappingPtr, c_double, NumPtr, StratPtr
     ])
+    bindings['SCOTCH_graphMapFixed'] = (c_int, [GraphPtr, ArchPtr, StratPtr, NumPtr])
+    bindings['SCOTCH_graphMapFixedCompute'] = (c_int, [GraphPtr, MappingPtr, StratPtr])
+    bindings['SCOTCH_graphMapLoad'] = (c_int, [GraphPtr, MappingPtr, c_void_p])
+    bindings['SCOTCH_graphMapSave'] = (c_int, [GraphPtr, MappingPtr, c_void_p])
+    bindings['SCOTCH_graphMapView'] = (c_int, [GraphPtr, MappingPtr, c_void_p])
+    bindings['SCOTCH_graphRemap'] = (c_int, [
+        GraphPtr, ArchPtr, NumPtr, c_double, NumPtr, StratPtr, NumPtr
+    ])
+    bindings['SCOTCH_graphRemapFixed'] = (c_int, [
+        GraphPtr, ArchPtr, NumPtr, c_double, NumPtr, StratPtr, NumPtr
+    ])
+    bindings['SCOTCH_graphRemapFixedCompute'] = (c_int, [
+        GraphPtr, MappingPtr, MappingPtr, c_double, NumPtr, StratPtr
+    ])
+    bindings['SCOTCH_graphRepart'] = (c_int, [
+        GraphPtr, SCOTCH_Num, NumPtr, c_double, NumPtr, StratPtr, NumPtr
+    ])
+    bindings['SCOTCH_graphRepartFixed'] = (c_int, [
+        GraphPtr, SCOTCH_Num, NumPtr, c_double, NumPtr, StratPtr, NumPtr
+    ])
+    bindings['SCOTCH_graphPartOvlView'] = (c_int, [GraphPtr, SCOTCH_Num, NumPtr, c_void_p])
+    bindings['SCOTCH_graphFree'] = (None, [GraphPtr])
+    bindings['SCOTCH_graphDump'] = (c_int, [GraphPtr, c_char_p, c_char_p, c_void_p])
+    bindings['SCOTCH_graphTabLoad'] = (c_int, [GraphPtr, NumPtr, c_void_p])
+    bindings['SCOTCH_graphTabSave'] = (c_int, [GraphPtr, NumPtr, c_void_p])
+
+    # --- Graph ordering (low-level) ---
+    bindings['SCOTCH_graphOrderInit'] = (c_int, [
+        GraphPtr, OrderingPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr
+    ])
+    bindings['SCOTCH_graphOrderExit'] = (None, [GraphPtr, OrderingPtr])
+    bindings['SCOTCH_graphOrderLoad'] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
+    bindings['SCOTCH_graphOrderSave'] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
+    bindings['SCOTCH_graphOrderSaveMap'] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
+    bindings['SCOTCH_graphOrderSaveTree'] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
+    bindings['SCOTCH_graphOrderCompute'] = (c_int, [GraphPtr, OrderingPtr, StratPtr])
+    bindings['SCOTCH_graphOrderComputeList'] = (c_int, [
+        GraphPtr, OrderingPtr, SCOTCH_Num, NumPtr, StratPtr
+    ])
+    bindings['SCOTCH_graphOrderCheck'] = (c_int, [GraphPtr, OrderingPtr])
+    bindings['SCOTCH_graphOrderList'] = (c_int, [
+        GraphPtr, SCOTCH_Num, NumPtr, StratPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr
+    ])
+
+    # --- Graph geometry I/O ---
+    bindings['SCOTCH_graphGeomLoadScot'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
+    bindings['SCOTCH_graphGeomLoadChac'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
+    bindings['SCOTCH_graphGeomLoadHabo'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
+    bindings['SCOTCH_graphGeomLoadMmkt'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
+    bindings['SCOTCH_graphGeomSaveScot'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
+    bindings['SCOTCH_graphGeomSaveChac'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
+    bindings['SCOTCH_graphGeomSaveMmkt'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
 
     # --- Strategy functions ---
     bindings['SCOTCH_stratInit'] = (c_int, [StratPtr])
@@ -270,6 +327,11 @@ def _bind_functions():
     bindings['SCOTCH_stratGraphOrderBuild'] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double])
     bindings['SCOTCH_stratGraphPartOvl'] = (c_int, [StratPtr, c_char_p])
     bindings['SCOTCH_stratGraphPartOvlBuild'] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double])
+    bindings['SCOTCH_stratGraphBipart'] = (c_int, [StratPtr, c_char_p])
+    bindings['SCOTCH_stratGraphClusterBuild'] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double, c_double])
+    bindings['SCOTCH_stratMeshOrder'] = (c_int, [StratPtr, c_char_p])
+    bindings['SCOTCH_stratMeshOrderBuild'] = (c_int, [StratPtr, SCOTCH_Num, c_double])
+    bindings['SCOTCH_stratSave'] = (c_int, [StratPtr, c_void_p])
 
     # --- Architecture functions ---
     bindings['SCOTCH_archInit'] = (c_int, [ArchPtr])
@@ -283,6 +345,18 @@ def _bind_functions():
     bindings['SCOTCH_archSave'] = (c_int, [ArchPtr, c_void_p])
     bindings['SCOTCH_archSize'] = (SCOTCH_Num, [ArchPtr])
     bindings['SCOTCH_archName'] = (c_char_p, [ArchPtr])
+    bindings['SCOTCH_archVar'] = (c_int, [ArchPtr])
+    bindings['SCOTCH_archBuild'] = (c_int, [ArchPtr, GraphPtr, SCOTCH_Num, NumPtr, StratPtr])
+    bindings['SCOTCH_archHcub'] = (c_int, [ArchPtr, SCOTCH_Num])
+    bindings['SCOTCH_archMesh2'] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num])
+    bindings['SCOTCH_archMesh3'] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num])
+    bindings['SCOTCH_archMeshX'] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr])
+    bindings['SCOTCH_archTleaf'] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr, NumPtr])
+    bindings['SCOTCH_archTorus2'] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num])
+    bindings['SCOTCH_archTorus3'] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num])
+    bindings['SCOTCH_archTorusX'] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr])
+    bindings['SCOTCH_archVcmplt'] = (c_int, [ArchPtr])
+    bindings['SCOTCH_archVhcub'] = (c_int, [ArchPtr])
 
     # --- Mesh functions ---
     bindings['SCOTCH_meshInit'] = (c_int, [MeshPtr])
@@ -301,22 +375,54 @@ def _bind_functions():
         MeshPtr, NumPtr, NumPtr, NumPtr, POINTER(NumPtr),
         POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), NumPtr, POINTER(NumPtr)
     ])
+    bindings['SCOTCH_meshGraph'] = (c_int, [MeshPtr, GraphPtr])
+    bindings['SCOTCH_meshGraphDual'] = (c_int, [MeshPtr, GraphPtr, SCOTCH_Num])
+    bindings['SCOTCH_meshStat'] = (None, [
+        MeshPtr, NumPtr, NumPtr, NumPtr, POINTER(c_double), POINTER(c_double),
+        NumPtr, NumPtr, POINTER(c_double), POINTER(c_double),
+        NumPtr, NumPtr, POINTER(c_double), POINTER(c_double)
+    ])
+    bindings['SCOTCH_meshOrder'] = (c_int, [
+        MeshPtr, StratPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr
+    ])
+    bindings['SCOTCH_meshOrderInit'] = (c_int, [
+        MeshPtr, OrderingPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr
+    ])
+    bindings['SCOTCH_meshOrderExit'] = (None, [MeshPtr, OrderingPtr])
+    bindings['SCOTCH_meshOrderSave'] = (c_int, [MeshPtr, OrderingPtr, c_void_p])
+    bindings['SCOTCH_meshOrderSaveMap'] = (c_int, [MeshPtr, OrderingPtr, c_void_p])
+    bindings['SCOTCH_meshOrderSaveTree'] = (c_int, [MeshPtr, OrderingPtr, c_void_p])
+    bindings['SCOTCH_meshOrderCompute'] = (c_int, [MeshPtr, OrderingPtr, StratPtr])
+    bindings['SCOTCH_meshOrderCheck'] = (c_int, [MeshPtr, OrderingPtr])
 
     # --- Geometry functions ---
     bindings['SCOTCH_geomInit'] = (c_int, [GeomPtr])
     bindings['SCOTCH_geomExit'] = (None, [GeomPtr])
+    bindings['SCOTCH_geomData'] = (None, [GeomPtr, NumPtr, POINTER(POINTER(c_double))])
 
     # --- Random functions ---
     bindings['SCOTCH_randomReset'] = (None, [])
     bindings['SCOTCH_randomSeed'] = (None, [SCOTCH_Num])
     bindings['SCOTCH_randomVal'] = (SCOTCH_Num, [SCOTCH_Num])
-    bindings['SCOTCH_randomSave'] = (c_int, [c_void_p])  # FILE* as void*
-    bindings['SCOTCH_randomLoad'] = (c_int, [c_void_p])  # FILE* as void*
+    bindings['SCOTCH_randomProc'] = (None, [c_int])
+    bindings['SCOTCH_randomSave'] = (c_int, [c_void_p])
+    bindings['SCOTCH_randomLoad'] = (c_int, [c_void_p])
 
     # --- Memory functions ---
     bindings['SCOTCH_memCur'] = (c_long, [])
     bindings['SCOTCH_memMax'] = (c_long, [])
     bindings['SCOTCH_memFree'] = (None, [c_void_p])
+
+    # --- Context functions ---
+    bindings['SCOTCH_contextInit'] = (c_int, [ContextPtr])
+    bindings['SCOTCH_contextExit'] = (None, [ContextPtr])
+    bindings['SCOTCH_contextOptionGetNum'] = (c_int, [ContextPtr, c_int, NumPtr])
+    bindings['SCOTCH_contextOptionSetNum'] = (c_int, [ContextPtr, c_int, SCOTCH_Num])
+    bindings['SCOTCH_contextRandomClone'] = (c_int, [ContextPtr])
+    bindings['SCOTCH_contextRandomReset'] = (None, [ContextPtr])
+    bindings['SCOTCH_contextRandomSeed'] = (None, [ContextPtr, SCOTCH_Num])
+    bindings['SCOTCH_contextBindGraph'] = (c_int, [ContextPtr, GraphPtr, GraphPtr])
+    bindings['SCOTCH_contextBindMesh'] = (c_int, [ContextPtr, MeshPtr, MeshPtr])
 
     # --- Version function ---
     bindings['SCOTCH_version'] = (None, [NumPtr, NumPtr, NumPtr])
@@ -389,6 +495,24 @@ def get_scotch_dtype():
     return np.int32 if _INT_SIZE == 32 else np.int64
 
 
+def to_scotch_array(array, copy=False):
+    """Convert a numpy array to the correct Scotch dtype and return (array, ctypes_ptr).
+
+    The returned array must be kept alive for the pointer to remain valid.
+    """
+    arr = np.asarray(array, dtype=get_scotch_dtype())
+    if copy:
+        arr = arr.copy()
+    return arr, arr.ctypes.data_as(POINTER(SCOTCH_Num))
+
+
+def to_scotch_array_optional(array):
+    """Like to_scotch_array but accepts None, returning (None, None)."""
+    if array is None:
+        return None, None
+    return to_scotch_array(array)
+
+
 def get_dtype():
     """Alias for get_scotch_dtype()."""
     return get_scotch_dtype()
@@ -448,6 +572,8 @@ __all__ = [
     "get_scotch_dtype",
     "get_dtype",
     "is_parallel",
+    "to_scotch_array",
+    "to_scotch_array_optional",
     # Types
     "SCOTCH_Num",
     "SCOTCH_Idx",
@@ -460,6 +586,7 @@ __all__ = [
     "SCOTCH_Mapping",
     "SCOTCH_Ordering",
     "SCOTCH_Geom",
+    "SCOTCH_Context",
     "SCOTCH_Dgraph",
     # Constants
     "SCOTCH_COARSENNONE",
