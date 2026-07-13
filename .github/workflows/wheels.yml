@@ -1,0 +1,123 @@
+name: Build wheels
+
+# Binary wheels bundle the SEQUENTIAL Scotch libraries only (both 32- and
+# 64-bit integer variants). MPI/PT-Scotch is out of wheel scope: an MPI
+# implementation cannot be bundled, so PYSCOTCH_PARALLEL=1 requires a source
+# build (see README).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build_wheels:
+    name: Build wheel (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitlab.inria.fr is public https, anonymous clone works in CI
+          submodules: recursive
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.23.3
+        env:
+          # The wheel is tagged py3-none-<platform> (ctypes-only, no CPython
+          # C-API), so building under a single CPython version is enough.
+          CIBW_BUILD: "cp312-manylinux_${{ matrix.arch }}"
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+          # Builds sequential-only Scotch (32+64-bit, suffixed symbols) and
+          # stages the .so files into pyscotch/_libs/. Installs zlib-devel,
+          # flex and bison in the manylinux container as needed.
+          CIBW_BEFORE_ALL: bash {project}/scripts/build_wheel_libs.sh
+          # Default repair command is kept on purpose: auditwheel bundles the
+          # external shared libraries (libz) and rewrites RPATHs.
+          CIBW_TEST_COMMAND: >-
+            PYSCOTCH_PARALLEL=0 PYSCOTCH_INT_SIZE=32 python {project}/scripts/wheel_smoke_test.py &&
+            PYSCOTCH_PARALLEL=0 PYSCOTCH_INT_SIZE=64 python {project}/scripts/wheel_smoke_test.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.arch }}
+          path: wheelhouse/*.whl
+
+  test_wheels:
+    name: Test wheel (${{ matrix.arch }})
+    needs: build_wheels
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      # Checkout only provides the smoke-test script; the wheel is installed
+      # and run from $RUNNER_TEMP, outside the repo checkout, so imports can
+      # only resolve to the installed wheel.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels-${{ matrix.arch }}
+          path: ${{ runner.temp }}/wheelhouse
+
+      - name: Install wheel into a clean venv outside the checkout
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install "$RUNNER_TEMP"/wheelhouse/pyscotch-*.whl
+          cp scripts/wheel_smoke_test.py "$RUNNER_TEMP/"
+
+      - name: Smoke test (sequential, 32- and 64-bit ints)
+        working-directory: ${{ runner.temp }}
+        run: |
+          PYSCOTCH_PARALLEL=0 PYSCOTCH_INT_SIZE=32 "$RUNNER_TEMP/venv/bin/python" wheel_smoke_test.py
+          PYSCOTCH_PARALLEL=0 PYSCOTCH_INT_SIZE=64 "$RUNNER_TEMP/venv/bin/python" wheel_smoke_test.py
+
+  build_sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    steps:
+      # No submodules: the sdist must be buildable without them (users clone
+      # the scotch submodule themselves per the README).
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist
+        run: |
+          python -m pip install build
+          python -m build --sdist
+
+      - name: Check sdist has no binaries, no submodule, no build trees
+        run: |
+          tar -tzf dist/*.tar.gz > /tmp/sdist-files.txt
+          if grep -E '(external/|scotch-builds/|_libs/|\.so$|\.a$)' /tmp/sdist-files.txt; then
+            echo "ERROR: sdist contains forbidden files (see above)" >&2
+            exit 1
+          fi
+          echo "sdist contents OK ($(wc -l < /tmp/sdist-files.txt) files)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
