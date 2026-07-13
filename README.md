@@ -115,12 +115,21 @@ PyScotch selects which Scotch variant to load via environment variables:
 | Variable | Values | Default | Description |
 |----------|--------|---------|-------------|
 | `PYSCOTCH_INT_SIZE` | `32`, `64` | `64` | Size of `SCOTCH_Num` integers |
-| `PYSCOTCH_PARALLEL` | `0`, `1` | `1` | Load PT-Scotch (parallel) or Scotch (sequential) |
+| `PYSCOTCH_PARALLEL` | `0`, `1` | `0` | Load PT-Scotch (parallel) or Scotch (sequential) |
+| `PYSCOTCH_LIB_DIR` | path | unset | Explicit directory containing the Scotch libraries |
+| `PYSCOTCH_SYSTEM` | `0`, `1` | `0` | Force the system-installed Scotch (distro/conda packages) |
 
 ```bash
 # Run with 32-bit sequential Scotch
 PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=0 python my_script.py
 ```
+
+Library discovery order: `PYSCOTCH_LIB_DIR` → libraries bundled in the
+installed wheel → `scotch-builds/` (development layout) → system-installed
+Scotch. System packages (e.g. `apt install libscotch-dev`,
+`conda install scotch`) ship unsuffixed symbols and a single integer width;
+PyScotch detects this, verifies the width via `SCOTCH_numSizeof()`, and
+refuses to load under a mismatched `PYSCOTCH_INT_SIZE`.
 
 ## Testing
 
@@ -151,7 +160,7 @@ Test categories:
 
 | Class | Key Methods |
 |-------|-------------|
-| `Graph` | `build()`, `load()`, `save()`, `partition()`, `order()`, `color()`, `induce_list()`, `induce_part()`, `stat()`, `base()`, `from_edges()` |
+| `Graph` | `build()`, `load()`, `save()`, `partition()`, `order()`, `color()`, `induce_list()`, `induce_part()`, `stat()`, `base()`, `from_edges()`, `from_scipy_sparse()`, `to_scipy_sparse()`, `from_networkx()`, `to_networkx()` |
 | `Mesh` | `build()`, `load()`, `save()`, `check()`, `to_graph()`, `partition()` |
 | `Architecture` | `complete()`, `complete_weighted()`, `complete_graph()`, `name()`, `size()` |
 | `Strategy` | `set()`, `set_default()`, `set_nested_dissection()` |
@@ -195,6 +204,14 @@ PyScotch uses ctypes to call Scotch's C functions directly. Key design decisions
 - **Symbol suffixes** (`_32`/`_64`) via `SCOTCH_NAME_SUFFIX` — allows loading multiple variants
 - **FILE\* compatibility layer** — a small C shim (`libpyscotch_compat`) that opens files with the same C runtime Scotch was compiled against, avoiding ABI mismatches
 - **`@scotch_binding` decorators** — track which C functions each Python method wraps, enabling automated API completeness checks
+
+## Versioning
+
+PyScotch versions are `X.Y.z`, where **`X.Y` mirrors the Scotch series it is
+built and tested against** (e.g. PyScotch `7.0.*` supports Scotch 7.0.x) and
+**`z` counts PyScotch's own releases** within that series. Pin accordingly,
+e.g. `pyscotch~=7.0.0`. Use `pyscotch.scotch_version()` to check the Scotch
+actually loaded at runtime.
 
 ## License
 
