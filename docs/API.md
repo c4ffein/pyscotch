@@ -31,6 +31,16 @@ verttab = np.array([0, 2, 4, 6])  # Vertex starts
 edgetab = np.array([1, 2, 0, 2, 0, 1])  # Edge targets
 graph = Graph()
 graph.build(verttab, edgetab)
+
+# From a scipy sparse adjacency matrix (requires scipy; must be square,
+# symmetric in structure and values, zero diagonal)
+graph = Graph.from_scipy_sparse(A)      # values != 1 become edge loads
+A = graph.to_scipy_sparse()             # back to CSR (exact round-trip)
+
+# From a networkx undirected simple graph (requires networkx)
+graph, nodes = Graph.from_networkx(G)   # nodes[i] = label of Scotch vertex i
+parts = graph.partition(4)              # parts[i] is the part of nodes[i]
+H = graph.to_networkx(nodes=nodes)      # back to nx.Graph with original labels
 ```
 
 #### Graph Operations
@@ -166,10 +176,8 @@ ordering = Ordering.load("ordering.ord")
 
 ## Command-Line Interface
 
-> ⚠️ **NOT YET IMPLEMENTED** - The CLI described below is planned but not yet available in v0.1.0.
-> For now, use the Python API directly. CLI implementation is tracked in the project roadmap.
-
-PyScotch will provide a CLI for common operations:
+PyScotch provides a CLI for common operations. It is installed as the `pyscotch` command
+(see `pyscotch/cli.py` for implementation details):
 
 ### Partition a Graph
 
