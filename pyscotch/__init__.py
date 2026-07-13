@@ -45,10 +45,11 @@ def scotch_version() -> tuple:
     Returns:
         Tuple of (major, minor, patch) version numbers
     """
+    from ctypes import c_int
     from . import libscotch as lib
-    major = lib.SCOTCH_Num()
-    minor = lib.SCOTCH_Num()
-    patch = lib.SCOTCH_Num()
+    major = c_int()
+    minor = c_int()
+    patch = c_int()
     lib.SCOTCH_version(byref(major), byref(minor), byref(patch))
     return (major.value, minor.value, patch.value)
 
@@ -77,7 +78,7 @@ def mem_max() -> int:
     return lib.SCOTCH_memMax()
 
 
-__version__ = "0.1.0"
+__version__ = "7.0.0"
 __all__ = [
     "Graph",
     "Mesh",

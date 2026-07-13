@@ -26,10 +26,18 @@ class Architecture:
 
         self._initialized = True
 
-    def __del__(self):
-        """Clean up architecture resources."""
-        if hasattr(self, "_initialized") and self._initialized:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+    def close(self):
+        """Release architecture resources. Called automatically when used as a context manager."""
+        if getattr(self, "_initialized", False):
             lib.SCOTCH_archExit(byref(self._arch))
+            self._initialized = False
 
     @scotch_binding("SCOTCH_archName", "char * SCOTCH_archName(const SCOTCH_Arch *)")
     def name(self) -> str:

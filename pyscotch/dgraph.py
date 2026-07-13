@@ -6,6 +6,7 @@ operations, which use MPI for parallel processing.
 """
 import numpy as np
 from pathlib import Path
+import ctypes
 from ctypes import byref, POINTER, c_int
 from typing import Optional
 
@@ -93,22 +94,18 @@ class Dgraph:
         if ret != 0:
             raise RuntimeError(f"SCOTCH_dgraphInit failed with error {ret}")
 
-    def __del__(self):
-        """Cleanup the distributed graph."""
-        if hasattr(self, '_dgraph') and not getattr(self, '_exit_called', False):
-            try:
-                # Only cleanup if MPI is still initialized
-                # If MPI is finalized, PT-Scotch cleanup will fail
-                if mpi.is_initialized():
-                    lib.SCOTCH_dgraphExit(byref(self._dgraph))
-                    self._exit_called = True
-            except:
-                pass
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.exit()
+        return False
 
     def exit(self):
-        """Explicitly cleanup the distributed graph.
+        """Release distributed graph resources.
 
         Call this before MPI finalize to ensure proper cleanup.
+        Also called automatically when used as a context manager.
         """
         if hasattr(self, '_dgraph') and not self._exit_called:
             lib.SCOTCH_dgraphExit(byref(self._dgraph))
@@ -328,7 +325,9 @@ class Dgraph:
         edgeloctab = POINTER(lib.SCOTCH_Num)() if want_edgeloctab else None
         edgegsttab = POINTER(lib.SCOTCH_Num)() if want_edgegsttab else None
         edloloctab = POINTER(lib.SCOTCH_Num)() if want_edloloctab else None
-        commptr = c_int() if want_commptr else None
+        # MPI_Comm is written here by value: 8-byte pointer under OpenMPI,
+        # 4-byte int under MPICH — c_void_p is large enough for both
+        commptr = ctypes.c_void_p() if want_commptr else None
 
         # Call SCOTCH_dgraphData with NULL for unwanted fields
         lib.SCOTCH_dgraphData(

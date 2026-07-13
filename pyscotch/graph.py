@@ -38,43 +38,42 @@ def c_fopen(filename: str, mode: str = "r"):
         with c_fopen("graph.grf", "r") as file_ptr:
             lib.SCOTCH_graphLoad(byref(graph._graph), file_ptr, -1, 0)
     """
-    # Find the compat library in the same directory as Scotch libs
-    lib_dir = lib._lib_dir if hasattr(lib, '_lib_dir') else None
-    if lib_dir:
+    # Find the compat library in the same directory as Scotch libs.
+    # lib._lib_dir is None when the system-installed Scotch is loaded: system
+    # Scotch and CPython link the same platform libc, so plain fopen/fclose
+    # are ABI-safe and no compat shim is needed.
+    lib_dir = getattr(lib, '_lib_dir', None)
+    if lib_dir is not None:
         compat_path = os.path.join(lib_dir, "libpyscotch_compat.so")
+        if not os.path.exists(compat_path):
+            raise RuntimeError(
+                f"Compatibility library not found: {compat_path}\n"
+                "Please rebuild with 'make build-all' to create libpyscotch_compat.so"
+            )
+
+        # Load our compat library (compiled with same toolchain as Scotch)
+        compat = CDLL(compat_path)
+        c_fopen_func = compat.pyscotch_fopen
+        c_fclose_func = compat.pyscotch_fclose
+        get_errno = compat.pyscotch_get_errno
+        get_errno.argtypes = []
+        get_errno.restype = ctypes.c_int
     else:
-        # Fallback: search in scotch-builds based on int size
-        int_size = lib.get_scotch_int_size()
-        lib_size = "lib64" if int_size == 64 else "lib32"
-        compat_path = os.path.join("scotch-builds", lib_size, "libpyscotch_compat.so")
+        libc = CDLL(None, use_errno=True)
+        c_fopen_func = libc.fopen
+        c_fclose_func = libc.fclose
+        get_errno = ctypes.get_errno
 
-    if not os.path.exists(compat_path):
-        raise RuntimeError(
-            f"Compatibility library not found: {compat_path}\n"
-            "Please rebuild with 'make build-all' to create libpyscotch_compat.so"
-        )
+    c_fopen_func.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    c_fopen_func.restype = ctypes.c_void_p
+    c_fclose_func.argtypes = [ctypes.c_void_p]
+    c_fclose_func.restype = ctypes.c_int
 
-    # Load our compat library (compiled with same toolchain as Scotch)
-    compat = CDLL(compat_path)
-
-    # Configure pyscotch_fopen
-    compat.pyscotch_fopen.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-    compat.pyscotch_fopen.restype = ctypes.c_void_p
-
-    # Configure pyscotch_fclose
-    compat.pyscotch_fclose.argtypes = [ctypes.c_void_p]
-    compat.pyscotch_fclose.restype = ctypes.c_int
-
-    # Configure pyscotch_get_errno
-    compat.pyscotch_get_errno.argtypes = []
-    compat.pyscotch_get_errno.restype = ctypes.c_int
-
-    # Open file using our compat layer
-    file_ptr = compat.pyscotch_fopen(str(filename).encode(), mode.encode())
+    # Open the file
+    file_ptr = c_fopen_func(str(filename).encode(), mode.encode())
 
     if not file_ptr:
-        # Get errno for better error message
-        errno_val = compat.pyscotch_get_errno()
+        errno_val = get_errno()
         raise IOError(f"Failed to open file '{filename}' with mode '{mode}' (errno: {errno_val})")
 
     try:
@@ -83,7 +82,61 @@ def c_fopen(filename: str, mode: str = "r"):
     finally:
         # Always close the file
         if file_ptr:
-            compat.pyscotch_fclose(file_ptr)
+            c_fclose_func(file_ptr)
+
+
+def _coerce_edge_weights(values, what: str = "edge weights") -> Optional[np.ndarray]:
+    """
+    Validate edge weight values and convert them to a Scotch edge load array.
+
+    Scotch edge loads (edlotab) must be strictly positive integers. Floating
+    point values are accepted only when they are integral (e.g. 2.0).
+
+    Args:
+        values: Sequence or numpy array of edge weight values
+        what: Description of the values, used in error messages
+
+    Returns:
+        numpy array with the Scotch integer dtype, or None when all weights
+        equal 1 (in which case the graph should be built unweighted).
+
+    Raises:
+        ValueError: If any weight is non-numeric, non-integral, not strictly
+            positive, or does not fit in the Scotch integer type.
+    """
+    arr = np.asarray(values)
+    if arr.size == 0:
+        return None
+    if arr.dtype == np.bool_:
+        arr = arr.astype(np.int8)
+    if arr.dtype.kind == "O":
+        try:
+            arr = arr.astype(np.float64)
+        except (TypeError, ValueError):
+            raise ValueError(f"{what} must be numeric (strictly positive integers)")
+    if arr.dtype.kind == "f":
+        if not np.all(np.isfinite(arr)):
+            raise ValueError(f"{what} must be finite (no NaN or infinity)")
+        if np.any(arr != np.floor(arr)):
+            raise ValueError(
+                f"{what} must be integers (integral floats such as 2.0 are accepted); "
+                "Scotch edge loads are integral, so scale your weights to integers first "
+                "(e.g. numpy.rint(weights * scale))"
+            )
+    elif arr.dtype.kind not in "iu":
+        raise ValueError(f"{what} must be numeric (strictly positive integers), got dtype {arr.dtype}")
+    if np.any(arr <= 0):
+        raise ValueError(
+            f"{what} must be strictly positive integers, found minimum value {arr.min()}. "
+            "Note that explicitly stored zeros count as edges; if zero means 'no edge', "
+            "remove those entries first (e.g. matrix.eliminate_zeros())"
+        )
+    out = arr.astype(lib.get_scotch_dtype())
+    if not np.array_equal(out, arr):
+        raise ValueError(f"{what} do not fit in the Scotch integer type ({lib.get_scotch_dtype().__name__})")
+    if np.all(out == 1):
+        return None
+    return out
 
 
 @contextmanager
@@ -141,10 +194,18 @@ class Graph:
         self._velotab = None
         self._edlotab = None
 
-    def __del__(self):
-        """Clean up graph resources."""
-        if hasattr(self, "_initialized") and self._initialized:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+    def close(self):
+        """Release graph resources. Called automatically when used as a context manager."""
+        if getattr(self, "_initialized", False):
             lib.SCOTCH_graphExit(byref(self._graph))
+            self._initialized = False
 
     @scotch_binding("SCOTCH_graphLoad", "int SCOTCH_graphLoad(SCOTCH_Graph *, FILE *, SCOTCH_Num, SCOTCH_Num)")
     def load(self, filename: Union[str, Path]) -> None:
@@ -1069,3 +1130,367 @@ class Graph:
         graph.build(verttab, edgetab, velotab_np, edlotab_np, baseval=0)
 
         return graph
+
+    @internal_api
+    def _csr_arrays(self) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
+        """
+        Extract the graph adjacency as normalized (0-based, compact) CSR arrays.
+
+        Uses SCOTCH_graphData to access Scotch's internal arrays and copies
+        them into fresh numpy arrays, re-basing indices to 0 and compacting
+        the edge array if the internal representation is not compact.
+
+        Returns:
+            Tuple of (indptr, indices, edlotab) where edlotab is None when
+            the graph carries no edge loads. indptr has vertnbr + 1 entries;
+            indices and edlotab have one entry per arc (each undirected edge
+            appears twice, once per direction).
+        """
+        scotch_dtype = lib.get_scotch_dtype()
+
+        baseval = lib.SCOTCH_Num()
+        vertnbr = lib.SCOTCH_Num()
+        edgenbr = lib.SCOTCH_Num()
+        verttab_p = POINTER(lib.SCOTCH_Num)()
+        vendtab_p = POINTER(lib.SCOTCH_Num)()
+        velotab_p = POINTER(lib.SCOTCH_Num)()
+        vlbltab_p = POINTER(lib.SCOTCH_Num)()
+        edgetab_p = POINTER(lib.SCOTCH_Num)()
+        edlotab_p = POINTER(lib.SCOTCH_Num)()
+
+        lib.SCOTCH_graphData(
+            byref(self._graph),
+            byref(baseval), byref(vertnbr),
+            byref(verttab_p), byref(vendtab_p), byref(velotab_p), byref(vlbltab_p),
+            byref(edgenbr), byref(edgetab_p), byref(edlotab_p),
+        )
+
+        base = baseval.value
+        n = vertnbr.value
+        if n <= 0:
+            return (np.zeros(1, dtype=scotch_dtype), np.zeros(0, dtype=scotch_dtype), None)
+
+        # verttab/vendtab point at the first vertex; copy them out of Scotch memory
+        verttab = np.ctypeslib.as_array(verttab_p, shape=(n,)).astype(scotch_dtype)
+        vendtab = np.ctypeslib.as_array(vendtab_p, shape=(n,)).astype(scotch_dtype)
+
+        indptr = np.zeros(n + 1, dtype=scotch_dtype)
+        np.cumsum(vendtab - verttab, out=indptr[1:])
+        arcnbr = int(indptr[-1])
+
+        if arcnbr == 0:
+            return (indptr, np.zeros(0, dtype=scotch_dtype), None)
+
+        # Arcs of vertex i live at edgetab[verttab[i]-base : vendtab[i]-base]
+        buflen = int(vendtab.max()) - base
+        edgebuf = np.ctypeslib.as_array(edgetab_p, shape=(buflen,))
+        edlobuf = np.ctypeslib.as_array(edlotab_p, shape=(buflen,)) if bool(edlotab_p) else None
+
+        compact = verttab[0] == base and (n == 1 or np.array_equal(verttab[1:], vendtab[:-1]))
+        if compact:
+            sel = slice(0, arcnbr)
+        else:
+            sel = np.concatenate([
+                np.arange(int(verttab[i]) - base, int(vendtab[i]) - base) for i in range(n)
+            ])
+        indices = edgebuf[sel].astype(scotch_dtype) - base
+        edlotab = edlobuf[sel].astype(scotch_dtype) if edlobuf is not None else None
+
+        return (indptr, indices, edlotab)
+
+    @classmethod
+    @highlevel_api(scotch_functions=["SCOTCH_graphInit", "SCOTCH_graphBuild"])
+    def from_scipy_sparse(
+        cls,
+        matrix,
+        *,
+        use_edge_weights: bool = True,
+        drop_self_loops: bool = False,
+    ) -> "Graph":
+        """
+        Create a graph from a scipy sparse adjacency matrix.
+
+        Accepts any scipy sparse matrix or array (CSR, CSC, COO, LIL, ...);
+        the input is converted to canonical CSR form (duplicate entries are
+        summed). Scotch graphs are undirected, so the matrix must be square
+        and symmetric in both structure and values.
+
+        Requires scipy (install with the ``interop`` extra:
+        ``uv pip install pyscotch[interop]``).
+
+        Args:
+            matrix: scipy sparse adjacency matrix/array. Entry (i, j) means an
+                edge between vertices i and j; it must equal entry (j, i).
+            use_edge_weights: If True (default) and the stored values are not
+                all 1, they are used as Scotch edge loads and must be strictly
+                positive integers (integral floats such as 2.0 are accepted).
+                If False, values are ignored: explicitly stored zeros are
+                dropped and every remaining entry becomes an unweighted edge.
+            drop_self_loops: If True, stored diagonal entries (self-loops) are
+                silently removed. If False (default), a ValueError is raised
+                when the diagonal has stored entries.
+
+        Returns:
+            New Graph instance (vertex i of the graph corresponds to row i)
+
+        Raises:
+            TypeError: If matrix is not a scipy sparse matrix/array
+            ValueError: If the matrix is not square, not symmetric (fix with
+                ``A = A + A.T`` or ``A = A.maximum(A.T)``), has self-loops
+                (unless drop_self_loops=True), or has invalid edge weights
+
+        Example:
+            >>> import numpy as np
+            >>> import scipy.sparse as sp
+            >>> A = sp.csr_array(np.array([[0, 2, 0], [2, 0, 3], [0, 3, 0]]))
+            >>> graph = Graph.from_scipy_sparse(A)
+            >>> graph.size()
+            (3, 4)
+            >>> parts = graph.partition(2)  # parts[i] is the part of row i
+        """
+        from scipy import sparse  # Lazy import: scipy is an optional dependency
+
+        if not sparse.issparse(matrix):
+            raise TypeError(
+                f"from_scipy_sparse expects a scipy sparse matrix/array, got {type(matrix).__name__}. "
+                "For dense arrays, wrap them first, e.g. scipy.sparse.csr_array(dense)"
+            )
+        nrow, ncol = matrix.shape
+        if nrow != ncol:
+            raise ValueError(f"adjacency matrix must be square, got shape {matrix.shape}")
+        if nrow == 0:
+            raise ValueError("cannot build a Scotch graph from an empty (0x0) matrix")
+
+        # Canonical CSR copy (never mutate the caller's matrix)
+        A = matrix.tocsr(copy=True)
+        A.sum_duplicates()
+        A.sort_indices()
+        if A.dtype == np.bool_:
+            A = A.astype(np.int8)
+
+        if not use_edge_weights:
+            # Values are ignored: apply scipy semantics (stored zero = no edge)
+            # and binarize so the symmetry check below is structure-only.
+            A.eliminate_zeros()
+            A.data[...] = 1
+
+        # Self-loops: any stored diagonal entry
+        row_of_entry = np.repeat(np.arange(nrow), np.diff(A.indptr))
+        loop_mask = A.indices == row_of_entry
+        if loop_mask.any():
+            if not drop_self_loops:
+                raise ValueError(
+                    f"adjacency matrix has {int(loop_mask.sum())} stored diagonal entries "
+                    "(self-loops); Scotch graphs cannot contain self-loops. "
+                    "Pass drop_self_loops=True to remove them"
+                )
+            keep = ~loop_mask
+            counts = np.bincount(row_of_entry[keep], minlength=nrow)
+            indptr = np.zeros(nrow + 1, dtype=A.indptr.dtype)
+            np.cumsum(counts, out=indptr[1:])
+            A = sparse.csr_matrix((A.data[keep], A.indices[keep], indptr), shape=A.shape)
+
+        # Scotch graphs are undirected: structure AND values must be symmetric
+        if (A != A.T).nnz != 0:
+            raise ValueError(
+                "adjacency matrix must be symmetric in both structure and values "
+                "(Scotch graphs are undirected). Symmetrize it first, e.g. with "
+                "A = A + A.T, or A = A.maximum(A.T) to keep existing weights unchanged"
+            )
+
+        edlotab = _coerce_edge_weights(A.data, what="edge weights (matrix values)") if use_edge_weights else None
+
+        scotch_dtype = lib.get_scotch_dtype()
+        graph = cls()
+        graph.build(
+            A.indptr.astype(scotch_dtype),
+            A.indices.astype(scotch_dtype),
+            edlotab=edlotab,
+            baseval=0,
+        )
+        return graph
+
+    @highlevel_api(scotch_functions=["SCOTCH_graphData"])
+    def to_scipy_sparse(self):
+        """
+        Export the graph adjacency as a scipy sparse CSR matrix.
+
+        The result is a square CSR matrix whose entry (i, j) is the load of
+        the edge between vertices i and j (1 for unweighted graphs, 0 when
+        there is no edge). Since Scotch graphs are undirected, the result is
+        always symmetric. Round-trip is exact:
+        ``Graph.from_scipy_sparse(A).to_scipy_sparse()`` has the same
+        structure and values as A.
+
+        Requires scipy (install with the ``interop`` extra).
+
+        Returns:
+            scipy.sparse.csr_array (csr_matrix on very old scipy) with integer
+            index arrays and integer data (edge loads, or 1s if unweighted)
+
+        Example:
+            >>> graph = Graph.from_edges([(0, 1), (1, 2), (2, 0)], num_vertices=3)
+            >>> A = graph.to_scipy_sparse()
+            >>> A.shape, A.nnz
+            ((3, 3), 6)
+        """
+        from scipy import sparse  # Lazy import: scipy is an optional dependency
+
+        indptr, indices, edlotab = self._csr_arrays()
+        n = len(indptr) - 1
+        data = edlotab if edlotab is not None else np.ones(len(indices), dtype=indices.dtype)
+        csr_type = sparse.csr_array if hasattr(sparse, "csr_array") else sparse.csr_matrix
+        return csr_type((data, indices, indptr), shape=(n, n))
+
+    @classmethod
+    @highlevel_api(scotch_functions=["SCOTCH_graphInit", "SCOTCH_graphBuild"])
+    def from_networkx(cls, G, *, weight: str = "weight") -> Tuple["Graph", list]:
+        """
+        Create a graph from a networkx undirected simple graph.
+
+        Node labels may be arbitrary hashable objects; Scotch vertices are
+        numbered 0..n-1 following ``list(G.nodes())``. The returned ``nodes``
+        list maps Scotch vertex indices back to networkx labels: ``nodes[i]``
+        is the label of Scotch vertex i. Keep it to interpret result arrays,
+        e.g. ``parts = graph.partition(4)`` assigns node ``nodes[i]`` to part
+        ``parts[i]``.
+
+        Requires networkx (install with the ``interop`` extra:
+        ``uv pip install pyscotch[interop]``).
+
+        Args:
+            G: networkx undirected simple graph (nx.Graph). Directed graphs
+                and multigraphs are rejected; convert them first.
+            weight: Name of the edge attribute holding edge weights (default
+                "weight"). If at least one edge carries the attribute, weights
+                are used as Scotch edge loads and must be strictly positive
+                integers (integral floats accepted); edges missing the
+                attribute default to 1. If no edge has the attribute, or if
+                all weights equal 1, the graph is built unweighted.
+                Pass weight=None to ignore edge weights entirely.
+
+        Returns:
+            Tuple of (graph, nodes) where nodes[i] is the networkx label of
+            Scotch vertex i
+
+        Raises:
+            TypeError: If G is directed (convert with ``G.to_undirected()``),
+                a multigraph (convert with ``nx.Graph(G)``), or not a
+                networkx graph at all
+            ValueError: If G is empty, has self-loops (remove with
+                ``G.remove_edges_from(nx.selfloop_edges(G))``), or has
+                invalid edge weights
+
+        Example:
+            >>> import networkx as nx
+            >>> G = nx.Graph([("a", "b"), ("b", "c")])
+            >>> graph, nodes = Graph.from_networkx(G)
+            >>> parts = graph.partition(2)
+            >>> {nodes[i]: int(parts[i]) for i in range(len(nodes))}  # doctest: +SKIP
+            {'a': 0, 'b': 0, 'c': 1}
+        """
+        import networkx as nx  # Lazy import: networkx is an optional dependency
+
+        if not (hasattr(G, "is_directed") and hasattr(G, "is_multigraph") and hasattr(G, "adj")):
+            raise TypeError(f"from_networkx expects a networkx graph, got {type(G).__name__}")
+        if G.is_directed():
+            raise TypeError(
+                "from_networkx only accepts undirected simple graphs (nx.Graph), got a directed "
+                "graph; Scotch graphs are undirected. Convert it first, e.g. "
+                "Graph.from_networkx(G.to_undirected())"
+            )
+        if G.is_multigraph():
+            raise TypeError(
+                "from_networkx only accepts undirected simple graphs (nx.Graph), got a multigraph. "
+                "Collapse parallel edges first, e.g. Graph.from_networkx(nx.Graph(G))"
+            )
+        if G.number_of_nodes() == 0:
+            raise ValueError("cannot build a Scotch graph from an empty networkx graph")
+        loopnbr = nx.number_of_selfloops(G)
+        if loopnbr != 0:
+            raise ValueError(
+                f"graph has {loopnbr} self-loop(s); Scotch graphs cannot contain self-loops. "
+                "Remove them first: G.remove_edges_from(nx.selfloop_edges(G))"
+            )
+
+        nodes = list(G.nodes())
+        index = {node: i for i, node in enumerate(nodes)}
+
+        use_weights = weight is not None and any(weight in d for _, _, d in G.edges(data=True))
+
+        indptr = [0]
+        indices = []
+        loads = [] if use_weights else None
+        for u in nodes:
+            for v, attrs in G.adj[u].items():
+                indices.append(index[v])
+                if use_weights:
+                    loads.append(attrs.get(weight, 1))
+            indptr.append(len(indices))
+
+        edlotab = None
+        if use_weights:
+            edlotab = _coerce_edge_weights(loads, what=f"edge weights (attribute {weight!r})")
+
+        scotch_dtype = lib.get_scotch_dtype()
+        graph = cls()
+        graph.build(
+            np.asarray(indptr, dtype=scotch_dtype),
+            np.asarray(indices, dtype=scotch_dtype),
+            edlotab=edlotab,
+            baseval=0,
+        )
+        return graph, nodes
+
+    @highlevel_api(scotch_functions=["SCOTCH_graphData"])
+    def to_networkx(self, *, nodes: Optional[list] = None):
+        """
+        Export the graph as a networkx undirected graph.
+
+        Requires networkx (install with the ``interop`` extra).
+
+        Args:
+            nodes: Optional list of node labels, one per vertex, where
+                nodes[i] is the label of Scotch vertex i (typically the list
+                returned by from_networkx). Defaults to integer labels 0..n-1.
+
+        Returns:
+            nx.Graph with one node per vertex and one edge per undirected
+            edge. If the graph carries edge loads, each edge gets a "weight"
+            attribute (int); unweighted graphs produce edges without a
+            "weight" attribute.
+
+        Raises:
+            ValueError: If nodes is given and its length does not match the
+                number of vertices
+
+        Example:
+            >>> graph = Graph.from_edges([(0, 1), (1, 2)], num_vertices=3)
+            >>> H = graph.to_networkx(nodes=["a", "b", "c"])
+            >>> sorted(H.edges())
+            [('a', 'b'), ('b', 'c')]
+        """
+        import networkx as nx  # Lazy import: networkx is an optional dependency
+
+        indptr, indices, edlotab = self._csr_arrays()
+        n = len(indptr) - 1
+
+        if nodes is not None:
+            nodes = list(nodes)
+            if len(nodes) != n:
+                raise ValueError(f"nodes has {len(nodes)} labels but the graph has {n} vertices")
+        else:
+            nodes = list(range(n))
+
+        G = nx.Graph()
+        G.add_nodes_from(nodes)
+        for i in range(n):
+            for k in range(int(indptr[i]), int(indptr[i + 1])):
+                j = int(indices[k])
+                if i > j:
+                    continue  # Each undirected edge appears as two arcs; add it once
+                if edlotab is not None:
+                    G.add_edge(nodes[i], nodes[j], weight=int(edlotab[k]))
+                else:
+                    G.add_edge(nodes[i], nodes[j])
+        return G

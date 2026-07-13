@@ -31,10 +31,18 @@ class Strategy:
         self._initialized = True
         self._strategy_string = strategy_string
 
-    def __del__(self):
-        """Clean up strategy resources."""
-        if hasattr(self, "_initialized") and self._initialized:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+    def close(self):
+        """Release strategy resources. Called automatically when used as a context manager."""
+        if getattr(self, "_initialized", False):
             lib.SCOTCH_stratExit(byref(self._strat))
+            self._initialized = False
 
     def set_mapping(self, strategy_string: str) -> None:
         """

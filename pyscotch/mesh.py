@@ -31,10 +31,18 @@ class Mesh:
 
         self._initialized = True
 
-    def __del__(self):
-        """Clean up mesh resources."""
-        if hasattr(self, "_initialized") and self._initialized:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+    def close(self):
+        """Release mesh resources. Called automatically when used as a context manager."""
+        if getattr(self, "_initialized", False):
             lib.SCOTCH_meshExit(byref(self._mesh))
+            self._initialized = False
 
     @scotch_binding("SCOTCH_meshLoad", "int SCOTCH_meshLoad(SCOTCH_Mesh *, FILE *, SCOTCH_Num)")
     def load(self, filename: Union[str, Path]) -> None:

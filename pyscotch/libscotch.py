@@ -3,7 +3,7 @@ Low-level ctypes bindings to the PT-Scotch C library.
 
 Single-Variant Design:
 This module loads ONE Scotch variant based on environment variables:
-- PYSCOTCH_INT_SIZE: 32 or 64 (default: 32)
+- PYSCOTCH_INT_SIZE: 32 or 64 (default: 64)
 - PYSCOTCH_PARALLEL: 0 or 1 (default: 0)
 
 To test all variants, run the test suite 4 times with different configurations.
@@ -27,7 +27,7 @@ from typing import Optional
 # =============================================================================
 
 # Read configuration from environment (or use defaults)
-_INT_SIZE = int(os.environ.get("PYSCOTCH_INT_SIZE", "32"))
+_INT_SIZE = int(os.environ.get("PYSCOTCH_INT_SIZE", "64"))
 _PARALLEL = os.environ.get("PYSCOTCH_PARALLEL", "0") == "1"
 
 if _INT_SIZE not in (32, 64):
@@ -55,10 +55,44 @@ SCOTCH_GraphPart2 = ctypes.c_ubyte
 # Library Loading
 # =============================================================================
 
-def _get_lib_dir() -> Path:
-    """Get the library directory for the current configuration."""
-    builds_dir = Path(__file__).parent.parent / "scotch-builds"
-    return builds_dir / f"lib{_INT_SIZE}"
+def _get_lib_dir() -> Optional[Path]:
+    """Get the library directory for the current configuration.
+
+    Search order:
+    1. PYSCOTCH_SYSTEM=1 forces system-installed Scotch (returns None)
+    2. PYSCOTCH_LIB_DIR environment variable (explicit override)
+    3. pyscotch/_libs/lib{32,64}/ (libraries bundled inside an installed wheel)
+    4. scotch-builds/lib{32,64}/ next to the repo (development layout)
+    5. None: fall back to the system-installed Scotch (dlopen by soname)
+    """
+    if os.environ.get("PYSCOTCH_SYSTEM") == "1":
+        return None
+    env_dir = os.environ.get("PYSCOTCH_LIB_DIR")
+    if env_dir:
+        return Path(env_dir)
+    packaged_dir = Path(__file__).parent / "_libs" / f"lib{_INT_SIZE}"
+    if packaged_dir.exists():
+        return packaged_dir
+    builds_dir = Path(__file__).parent.parent / "scotch-builds" / f"lib{_INT_SIZE}"
+    if builds_dir.exists():
+        return builds_dir
+    return None
+
+
+def _dlopen_system(short_name, sonames):
+    """Load a library from the system linker paths, or return None.
+
+    Tries ctypes.util.find_library first (ldconfig cache), then dlopen on a
+    list of candidate sonames (which also honors LD_LIBRARY_PATH).
+    """
+    found = ctypes.util.find_library(short_name)
+    candidates = ([found] if found else []) + list(sonames)
+    for name in candidates:
+        try:
+            return ctypes.CDLL(name, mode=ctypes.RTLD_GLOBAL)
+        except OSError:
+            continue
+    return None
 
 
 def _preload_dependencies():
@@ -81,15 +115,45 @@ def _preload_dependencies():
             pass
 
 
+def _load_system_libraries():
+    """Load Scotch from the system linker paths (distro/conda packages).
+
+    System packages ship unsuffixed symbols and a single integer width;
+    _detect_suffix() verifies the width matches PYSCOTCH_INT_SIZE.
+    """
+    _dlopen_system("scotcherr", ["libscotcherr.so", "libscotcherr.so.7", "libscotcherr-7.0.so"])
+
+    seq = _dlopen_system("scotch", ["libscotch.so", "libscotch.so.7", "libscotch-7.0.so"])
+    if seq is None:
+        raise FileNotFoundError(
+            "No Scotch library found. Either:\n"
+            "  - run 'make build-all' in a PyScotch checkout,\n"
+            "  - set PYSCOTCH_LIB_DIR to a directory containing libscotch.so,\n"
+            "  - or install a system Scotch (e.g. 'apt install libscotch-dev', "
+            "'conda install scotch')."
+        )
+    print(f"✓ Loaded system Scotch ({_INT_SIZE}-bit requested)", file=sys.stderr)
+
+    par = None
+    if _PARALLEL:
+        par = _dlopen_system("ptscotch", ["libptscotch.so", "libptscotch.so.7", "libptscotch-7.0.so"])
+        if par is None:
+            raise FileNotFoundError(
+                "No system PT-Scotch library found (PYSCOTCH_PARALLEL=1). "
+                "Install it (e.g. 'apt install libptscotch-dev') or set "
+                "PYSCOTCH_PARALLEL=0."
+            )
+        print("✓ Loaded system PT-Scotch", file=sys.stderr)
+
+    return seq, par
+
+
 def _load_libraries():
     """Load the Scotch libraries."""
     lib_dir = _get_lib_dir()
 
-    if not lib_dir.exists():
-        raise FileNotFoundError(
-            f"Scotch library directory not found: {lib_dir}\n"
-            f"Run 'make build-all' to build Scotch variants."
-        )
+    if lib_dir is None:
+        return _load_system_libraries()
 
     # Load error library
     err_lib_path = lib_dir / "libscotcherr.so"
@@ -124,6 +188,12 @@ def _load_libraries():
 _preload_dependencies()
 _lib_sequential, _lib_parallel = _load_libraries()
 
+# Directory the libraries were loaded from (also used by graph.c_fopen to
+# locate libpyscotch_compat.so built with the same toolchain).
+# None means system-installed Scotch (c_fopen then uses the platform libc).
+_loaded_lib_dir = _get_lib_dir()
+_lib_dir = str(_loaded_lib_dir) if _loaded_lib_dir is not None else None
+
 # =============================================================================
 # Opaque Structure Definitions
 # =============================================================================
@@ -137,10 +207,49 @@ def _make_opaque_struct(name: str, size: int):
     return OpaqueStruct
 
 
+# Functions the library exports WITHOUT the _32/_64 suffix even though the
+# suffixed headers declare them with one (upstream inconsistency in Scotch's
+# SCOTCH_RENAME_ALL handling; they are int-size independent so this is safe).
+_UNSUFFIXED_FUNCTIONS = {"SCOTCH_memFree"}
+
+
+def _detect_suffix() -> str:
+    """Detect whether the loaded library uses _32/_64 symbol suffixes.
+
+    PyScotch's own builds compile Scotch with SCOTCH_NAME_SUFFIX, but system
+    and conda-forge packages ship plain SCOTCH_* symbols. In the unsuffixed
+    case, SCOTCH_numSizeof() must confirm the library's integer width matches
+    PYSCOTCH_INT_SIZE — an unsuffixed library has exactly one width and
+    loading it under the wrong one would corrupt every array we pass.
+    """
+    if hasattr(_lib_sequential, f"SCOTCH_graphInit_{_INT_SIZE}"):
+        return f"_{_INT_SIZE}"
+    if hasattr(_lib_sequential, "SCOTCH_graphInit"):
+        try:
+            sizeof_func = _lib_sequential.SCOTCH_numSizeof
+        except AttributeError:
+            raise RuntimeError(
+                "Unsuffixed Scotch library lacks SCOTCH_numSizeof(); cannot "
+                "verify its integer width. Scotch >= 7.0 is required."
+            )
+        sizeof_func.restype = c_int
+        sizeof_func.argtypes = []
+        lib_bits = sizeof_func() * 8
+        if lib_bits != _INT_SIZE:
+            raise RuntimeError(
+                f"Loaded an unsuffixed Scotch library with {lib_bits}-bit "
+                f"SCOTCH_Num, but PYSCOTCH_INT_SIZE={_INT_SIZE}. "
+                f"Set PYSCOTCH_INT_SIZE={lib_bits} to use this library."
+            )
+        return ""
+    raise RuntimeError(
+        f"Loaded library exports neither SCOTCH_graphInit_{_INT_SIZE} nor "
+        f"SCOTCH_graphInit — not a usable Scotch library."
+    )
+
+
 def _get_func(name: str):
     """Get a Scotch function with the correct suffix."""
-    suffixed_name = f"{name}_{_INT_SIZE}"
-
     # Distributed graph functions are in the parallel library
     if name.lower().startswith("scotch_dgraph"):
         if not _lib_parallel:
@@ -148,10 +257,22 @@ def _get_func(name: str):
                 f"{name} requires PT-Scotch (parallel variant). "
                 f"Set PYSCOTCH_PARALLEL=1 to enable."
             )
-        return getattr(_lib_parallel, suffixed_name)
+        handle = _lib_parallel
+    else:
+        # All other SCOTCH_* functions are in the sequential library
+        handle = _lib_sequential
 
-    # All other SCOTCH_* functions are in the sequential library
-    return getattr(_lib_sequential, suffixed_name)
+    try:
+        return getattr(handle, f"{name}{_SUFFIX}")
+    except AttributeError:
+        if name in _UNSUFFIXED_FUNCTIONS:
+            return getattr(handle, name)
+        raise
+
+
+# Symbol suffix: "_32"/"_64" for PyScotch's own builds, "" for system or
+# conda-forge Scotch packages (which are built without SCOTCH_NAME_SUFFIX)
+_SUFFIX = _detect_suffix()
 
 
 def _compute_structure_sizes():
@@ -365,15 +486,16 @@ def _bind_functions():
     bindings['SCOTCH_meshSave'] = (c_int, [MeshPtr, c_void_p])
     bindings['SCOTCH_meshCheck'] = (c_int, [MeshPtr])
     bindings['SCOTCH_meshBuild'] = (c_int, [
-        MeshPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num,
+        MeshPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num,
         NumPtr, NumPtr, NumPtr, NumPtr, NumPtr,
         SCOTCH_Num, NumPtr
     ])
     bindings['SCOTCH_meshGraph'] = (c_int, [MeshPtr, GraphPtr])
     bindings['SCOTCH_meshSize'] = (None, [MeshPtr, NumPtr, NumPtr, NumPtr])
     bindings['SCOTCH_meshData'] = (None, [
-        MeshPtr, NumPtr, NumPtr, NumPtr, POINTER(NumPtr),
-        POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), NumPtr, POINTER(NumPtr)
+        MeshPtr, NumPtr, NumPtr, NumPtr, NumPtr,
+        POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr),
+        NumPtr, POINTER(NumPtr), NumPtr
     ])
     bindings['SCOTCH_meshGraph'] = (c_int, [MeshPtr, GraphPtr])
     bindings['SCOTCH_meshGraphDual'] = (c_int, [MeshPtr, GraphPtr, SCOTCH_Num])
@@ -409,8 +531,8 @@ def _bind_functions():
     bindings['SCOTCH_randomLoad'] = (c_int, [c_void_p])
 
     # --- Memory functions ---
-    bindings['SCOTCH_memCur'] = (c_long, [])
-    bindings['SCOTCH_memMax'] = (c_long, [])
+    bindings['SCOTCH_memCur'] = (SCOTCH_Idx, [])
+    bindings['SCOTCH_memMax'] = (SCOTCH_Idx, [])
     bindings['SCOTCH_memFree'] = (None, [c_void_p])
 
     # --- Context functions ---
@@ -425,16 +547,18 @@ def _bind_functions():
     bindings['SCOTCH_contextBindMesh'] = (c_int, [ContextPtr, MeshPtr, MeshPtr])
 
     # --- Version function ---
-    bindings['SCOTCH_version'] = (None, [NumPtr, NumPtr, NumPtr])
+    # Takes plain int*, not SCOTCH_Num*
+    bindings['SCOTCH_version'] = (None, [POINTER(c_int), POINTER(c_int), POINTER(c_int)])
 
     # Apply bindings
+    missing = []
     for name, (restype, argtypes) in bindings.items():
         try:
             func = _get_func(name)
             func.restype = restype
             func.argtypes = argtypes
         except AttributeError:
-            pass  # Function may not exist in all versions
+            missing.append(name)  # Function may not exist in all versions
 
     # --- Dgraph functions (parallel only) ---
     if _lib_parallel:
@@ -450,9 +574,11 @@ def _bind_functions():
             ]),
             'SCOTCH_dgraphCheck': (c_int, [DgraphPtr]),
             'SCOTCH_dgraphData': (None, [
-                DgraphPtr, NumPtr, NumPtr, NumPtr, NumPtr,
-                POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr),
-                NumPtr, NumPtr, POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr),
+                DgraphPtr,
+                NumPtr, NumPtr, NumPtr, NumPtr, NumPtr,  # baseval, vertglbnbr, vertlocnbr, vertlocmax, vertgstnbr
+                POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr),  # vertloctab, vendloctab, veloloctab, vlblloctab
+                NumPtr, NumPtr, NumPtr,  # edgeglbnbr, edgelocnbr, edgelocsiz
+                POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr),  # edgeloctab, edgegsttab, edloloctab
                 c_void_p  # MPI_Comm*
             ]),
             'SCOTCH_dgraphLoad': (c_int, [DgraphPtr, c_void_p, SCOTCH_Num, SCOTCH_Num]),
@@ -474,11 +600,18 @@ def _bind_functions():
                 func.restype = restype
                 func.argtypes = argtypes
             except AttributeError:
-                pass
+                missing.append(name)
+
+        bindings.update(dgraph_bindings)
+
+    return bindings, missing
 
 
-# Bind all functions
-_bind_functions()
+# Bind all functions.
+# _DECLARED_BINDINGS maps C function name -> (restype, argtypes) as declared
+# above; _MISSING_BINDINGS lists declared functions absent from the loaded
+# libraries. Both are introspected by the signature-verification tests.
+_DECLARED_BINDINGS, _MISSING_BINDINGS = _bind_functions()
 
 # =============================================================================
 # Public API
