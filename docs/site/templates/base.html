@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#fcfcfc">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+    <title>{{ title }} &mdash; PyScotch</title>
+    <link rel="stylesheet" href="static/style.css">
+    <style>{{ pygments_css }}</style>
+</head>
+<body>
+    <input type="checkbox" id="menu-toggle" class="menu-toggle" aria-hidden="true">
+
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="logo-link">
+                <img src="static/logo.svg" alt="PyScotch" class="logo">
+            </a>
+        </div>
+        <ul class="nav-list">
+            {% for item in nav %}
+            <li class="{% if item.stem == current %}active{% endif %}">
+                <a href="{{ item.url }}">{{ item.title }}</a>
+            </li>
+            {% endfor %}
+        </ul>
+        <div class="sidebar-footer">
+            <a href="https://gitlab.inria.fr/scotch/scotch">Scotch &nearr;</a>
+            <a href="https://github.com/c4ffein/pyscotch">Source &nearr;</a>
+        </div>
+    </nav>
+
+    <label for="menu-toggle" class="burger" aria-label="Toggle menu">
+        <span></span>
+        <span></span>
+        <span></span>
+    </label>
+
+    <main class="content">
+        <a href="index.html" class="article-logo">
+            <img src="static/logo.svg" alt="PyScotch">
+        </a>
+        <article>
+            {{ content }}
+        </article>
+
+        <nav class="page-nav">
+            {% if prev_page %}
+            <a href="{{ prev_page.url }}" class="prev">&larr; {{ prev_page.title }}</a>
+            {% else %}
+            <span></span>
+            {% endif %}
+            {% if next_page %}
+            <a href="{{ next_page.url }}" class="next">{{ next_page.title }} &rarr;</a>
+            {% endif %}
+        </nav>
+    </main>
+</body>
+</html>

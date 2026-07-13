@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 0 212 48" width="212" height="48">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&amp;display=swap');
+      .logo-text {
+        font-family: 'Playfair Display', 'Georgia', 'Times New Roman', serif;
+        font-weight: 700;
+        font-style: italic;
+        font-size: 34px;
+      }
+    </style>
+  </defs>
+
+  <!-- Graph partition motif -->
+  <g opacity="0.9">
+    <line x1="24.0" y1="14.0" x2="50.4" y2="14.0" stroke="#c83232" stroke-width="1.2" opacity="0.35" />
+    <line x1="24.0" y1="14.0" x2="21.8" y2="25.0" stroke="#c83232" stroke-width="1.2" opacity="0.35" />
+    <line x1="50.4" y1="14.0" x2="21.8" y2="25.0" stroke="#c83232" stroke-width="1.2" opacity="0.35" />
+    <line x1="48.2" y1="25.0" x2="46.0" y2="36.0" stroke="#1a1a1a" stroke-width="1.2" opacity="0.35" />
+    <line x1="19.6" y1="36.0" x2="46.0" y2="36.0" stroke="#1a1a1a" stroke-width="1.2" opacity="0.35" />
+    <line x1="48.2" y1="25.0" x2="19.6" y2="36.0" stroke="#1a1a1a" stroke-width="1.2" opacity="0.35" />
+    <line x1="21.8" y1="25.0" x2="48.2" y2="25.0" stroke="#e8d0d0" stroke-width="1.2" stroke-dasharray="2.5,2" />
+    <circle cx="24.0" cy="14.0" r="3.3" fill="#c83232" />
+    <circle cx="50.4" cy="14.0" r="3.3" fill="#c83232" />
+    <circle cx="21.8" cy="25.0" r="3.3" fill="#c83232" />
+    <circle cx="48.2" cy="25.0" r="3.3" fill="#1a1a1a" />
+    <circle cx="19.6" cy="36.0" r="3.3" fill="#1a1a1a" />
+    <circle cx="46.0" cy="36.0" r="3.3" fill="#1a1a1a" />
+  </g>
+
+  <!-- Text -->
+  <text x="53" y="37" class="logo-text">
+    <tspan fill="#c83232">Py</tspan><tspan fill="#1a1a1a">Scotch</tspan>
+  </text>
+</svg>
