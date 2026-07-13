@@ -39,6 +39,9 @@ test_results.txt
 
 # Scotch build artifacts
 scotch-builds/
+
+# Wheel-staging area for bundled Scotch libraries (scripts/build_wheel_libs.sh)
+pyscotch/_libs/
 # Note: scotch submodule is at external/scotch/ - don't ignore it!
 # Only ignore build artifacts within the submodule - even though we're not supposed to build here
 external/scotch/build/
@@ -60,6 +63,7 @@ demo_both_versions.py
 Thumbs.db
 
 # Documentation
+docs/out/
 docs/_build/
 docs/_static/
 docs/_templates/
