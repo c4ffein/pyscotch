@@ -1,0 +1,27 @@
+# sdist contents. sdist users build Scotch from source (see README), so the
+# sdist ships the build tooling (Makefile, patches, compat C source) but NEVER
+# any prebuilt binaries, the scotch submodule, or local build trees.
+include README.md
+include LICENSE
+include CHANGELOG.md
+include CONTRIBUTING.md
+include Makefile
+include pyproject.toml
+include pyscotch/py.typed
+recursive-include pyscotch/native *.c
+recursive-include patches *
+recursive-include scripts *.sh
+recursive-include tests *.py *.md
+recursive-include examples *.py
+
+# Never ship binaries or build trees in the sdist. Note: this does not affect
+# binary wheels — the pyscotch/_libs/*.so files are included in wheels via the
+# explicit package_data globs in setup.py.
+prune pyscotch/_libs
+prune scotch-builds
+prune external
+prune docs
+prune benchmarks
+prune scotchpy
+global-exclude *.so *.a *.o *.py[cod]
+global-exclude __pycache__
