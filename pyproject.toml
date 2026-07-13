@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyscotch"
-version = "0.1.0"
+version = "7.0.0"
 description = "Python wrapper for PT-Scotch graph partitioning library"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -38,6 +38,10 @@ dev = [
 docs = [
     "sphinx",
     "sphinx-rtd-theme",
+]
+interop = [
+    "scipy>=1.8",
+    "networkx>=2.6",
 ]
 
 [project.urls]
