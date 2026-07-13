@@ -22,7 +22,7 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 # Targets
-.PHONY: all build-all build-32 build-64 clean clean-scotch install test test-full test-quadrant help
+.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 clean clean-scotch install test test-full test-quadrant help
 
 help:
 	@echo "PyScotch Build System"
@@ -32,6 +32,7 @@ help:
 	@echo "  make build-all    - Build all 4 variants (scotch+ptscotch × 32+64-bit)"
 	@echo "  make build-32     - Build both scotch and ptscotch with 32-bit integers"
 	@echo "  make build-64     - Build both scotch and ptscotch with 64-bit integers"
+	@echo "  make build-seq-only - Build sequential-only libscotch (32+64-bit, no MPI needed)"
 	@echo ""
 	@echo "Output structure:"
 	@echo "  scotch-builds/lib32/  - Sequential & parallel libraries (32-bit)"
@@ -109,6 +110,41 @@ build-64: check-submodule
 	@cp -f $(SCOTCH_DIR)/lib/lib*scotch*.a $(BUILDS_DIR)/lib64/ 2>/dev/null || true
 	@cp -f $(SCOTCH_DIR)/include/*.h $(BUILDS_DIR)/inc64/ 2>/dev/null || true
 	@echo "✓ 64-bit build complete: scotch-builds/{lib64,inc64}/"
+
+# Sequential-only builds (no MPI toolchain required).
+# Used for binary wheels: builds only libscotch/libscotcherr (suffixed) plus the
+# PyScotch compat layer. Unlike build-32/build-64, failures are NOT swallowed.
+build-seq-only: build-seq-32 build-seq-64
+	@echo ""
+	@echo "✓ Sequential-only Scotch variants built successfully!"
+
+build-seq-32: check-submodule
+	@echo "=========================================="
+	@echo "Building sequential-only 32-bit Scotch ('_32' suffix)"
+	@echo "=========================================="
+	@mkdir -p $(BUILDS_DIR)/lib32 $(BUILDS_DIR)/inc32
+	@cd $(SCOTCH_SRC) && $(MAKE) realclean
+	@cd $(SCOTCH_SRC) && \
+		$(MAKE) libscotch CFLAGS="$$(grep '^CFLAGS' Makefile.inc | cut -d= -f2-) -DSCOTCH_NAME_SUFFIX=_32 -DSCOTCH_RENAME_ALL"
+	@$(CC) $(SHARED_FLAGS) -fPIC -O2 -o $(BUILDS_DIR)/lib32/libpyscotch_compat.$(SHARED_EXT) \
+		pyscotch/native/file_compat.c
+	@cp -f $(SCOTCH_DIR)/lib/libscotch.$(SHARED_EXT) $(SCOTCH_DIR)/lib/libscotcherr*.$(SHARED_EXT) $(BUILDS_DIR)/lib32/
+	@cp -f $(SCOTCH_DIR)/include/*.h $(BUILDS_DIR)/inc32/
+	@echo "✓ Sequential 32-bit build complete: scotch-builds/{lib32,inc32}/"
+
+build-seq-64: check-submodule
+	@echo "=========================================="
+	@echo "Building sequential-only 64-bit Scotch ('_64' suffix)"
+	@echo "=========================================="
+	@mkdir -p $(BUILDS_DIR)/lib64 $(BUILDS_DIR)/inc64
+	@cd $(SCOTCH_SRC) && $(MAKE) realclean
+	@cd $(SCOTCH_SRC) && \
+		$(MAKE) libscotch CFLAGS="$$(grep '^CFLAGS' Makefile.inc | cut -d= -f2-) -DINTSIZE64 -DSCOTCH_NAME_SUFFIX=_64 -DSCOTCH_RENAME_ALL"
+	@$(CC) $(SHARED_FLAGS) -fPIC -O2 -o $(BUILDS_DIR)/lib64/libpyscotch_compat.$(SHARED_EXT) \
+		pyscotch/native/file_compat.c
+	@cp -f $(SCOTCH_DIR)/lib/libscotch.$(SHARED_EXT) $(SCOTCH_DIR)/lib/libscotcherr*.$(SHARED_EXT) $(BUILDS_DIR)/lib64/
+	@cp -f $(SCOTCH_DIR)/include/*.h $(BUILDS_DIR)/inc64/
+	@echo "✓ Sequential 64-bit build complete: scotch-builds/{lib64,inc64}/"
 
 # Check if scotch submodule exists and apply patches
 check-submodule:
