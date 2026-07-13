@@ -1,0 +1,101 @@
+# =============================================================================
+# conda-forge recipe SKELETON for pyscotch — NOT ready for submission as-is.
+#
+# How to submit to conda-forge (when ready):
+#   1. Publish a pyscotch release to PyPI (the sdist is used as `source` below).
+#   2. Fork https://github.com/conda-forge/staged-recipes
+#   3. Copy this file to recipes/pyscotch/meta.yaml in the fork, fill in the
+#      sha256 of the released sdist, and strip this comment block down to
+#      recipe-relevant notes.
+#   4. Open a PR against staged-recipes; once merged, a dedicated
+#      pyscotch-feedstock repo is created and future updates go there.
+#
+# IMPORTANT — KNOWN BLOCKER, do not submit before it is resolved:
+#   conda-forge already ships `scotch` and `ptscotch` packages, and this recipe
+#   depends on them instead of bundling our own build. However, conda-forge's
+#   scotch is built WITHOUT symbol suffixes: it exports SCOTCH_graphInit, not
+#   SCOTCH_graphInit_32 / SCOTCH_graphInit_64 like the wheels' bundled builds.
+#   pyscotch/libscotch.py handles this: _detect_suffix() falls back to
+#   unsuffixed symbols and verifies the library's integer width via
+#   SCOTCH_numSizeof(), refusing to load under a mismatched PYSCOTCH_INT_SIZE.
+#   Remaining caveat: an unsuffixed library ships ONE integer width, so only
+#   the matching PYSCOTCH_INT_SIZE works (conda-forge scotch is 32-bit by
+#   default).
+#
+# Other integration notes:
+#   - pyscotch falls back to the system-installed Scotch (dlopen by soname)
+#     when no bundled/dev libraries are found, and PYSCOTCH_SYSTEM=1 forces
+#     that mode. In a conda env, dlopen("libscotch.so") resolves to
+#     $PREFIX/lib via the interpreter's RPATH, so no activation script is
+#     usually needed; PYSCOTCH_LIB_DIR=$PREFIX/lib remains the explicit
+#     escape hatch.
+#   - conda-forge's scotch is built for ONE integer size per package; the
+#     32/64-bit selection via PYSCOTCH_INT_SIZE maps differently than for
+#     wheels (which bundle both variants).
+#   - libpyscotch_compat.so (pyscotch/native/file_compat.c) is not part of
+#     conda's scotch; the recipe must compile it in the build script (add a
+#     small build.sh compiling it into $PREFIX/lib, plus a c compiler in
+#     build requirements).
+#   - MPI/PT-Scotch: unlike wheels, conda CAN express MPI dependencies via
+#     conda-forge's mpi variant system (`ptscotch` builds exist for openmpi
+#     and mpich), so PYSCOTCH_PARALLEL=1 is feasible here eventually.
+# =============================================================================
+
+{% set name = "pyscotch" %}
+{% set version = "7.0.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
+  sha256: 0000000000000000000000000000000000000000000000000000000000000000  # FIXME: fill in after PyPI release
+
+build:
+  number: 0
+  # Not noarch: depends on unix-only scotch libraries and ships a compiled
+  # compat helper (see build.sh note in the header).
+  skip: true  # [win]
+  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+  entry_points:
+    - pyscotch = pyscotch.cli:main
+
+requirements:
+  build:
+    - {{ compiler('c') }}          # for pyscotch/native/file_compat.c
+  host:
+    - python
+    - pip
+    - setuptools
+    - wheel
+  run:
+    - python
+    - numpy >=1.19.0
+    # Reuse conda-forge's existing Scotch packages instead of bundling:
+    - scotch
+    # Optional / future (parallel support, see header notes):
+    # - ptscotch
+    # - {{ mpi }}
+
+test:
+  # Requires PYSCOTCH_INT_SIZE to match the conda scotch build (32 by default)
+  # and PYSCOTCH_LIB_DIR=$PREFIX/lib — see header notes.
+  imports:
+    - pyscotch
+  commands:
+    - pyscotch --help
+  requires:
+    - pip
+
+about:
+  home: https://github.com/c4ffein/pyscotch
+  summary: Python wrapper for the Scotch/PT-Scotch graph partitioning library
+  license: MIT
+  license_file: LICENSE
+  doc_url: https://github.com/c4ffein/pyscotch
+  dev_url: https://github.com/c4ffein/pyscotch
+
+extra:
+  recipe-maintainers:
+    - c4ffein
