@@ -48,11 +48,27 @@ class TestGraphStat:
         assert s['degrmin'] == 2
         assert s['degrmax'] == 2
 
+    def test_full_stats_hexagon(self, hexagon_graph):
+        # Unweighted hexagon: unit vertex/edge loads, 6 vertices, 6 edges
+        s = hexagon_graph.stat()
+        assert s['velomin'] == 1
+        assert s['velomax'] == 1
+        assert s['velosum'] == 6
+        assert s['edlomin'] == 1
+        assert s['edlomax'] == 1
+        assert s['edlosum'] == 6
+
     def test_degree_star(self):
         g = Graph.from_edges([(0, 1), (0, 2), (0, 3), (0, 4)], num_vertices=5)
         s = g.stat()
         assert s['degrmin'] == 1
         assert s['degrmax'] == 4
+
+    def test_full_stats_star(self):
+        g = Graph.from_edges([(0, 1), (0, 2), (0, 3), (0, 4)], num_vertices=5)
+        s = g.stat()
+        assert s['velosum'] == 5
+        assert s['edlosum'] == 4
 
 
 class TestGraphBase:
@@ -75,7 +91,15 @@ class TestOrderingIO:
             path = f.name
         try:
             hexagon_graph.order_save(path, perm, inv)
-            assert os.path.getsize(path) > 0
+            # Scotch ordering file: first line is the vertex count, then one
+            # "vertex_label permutation_index" pair per line
+            with open(path) as f:
+                lines = f.read().split()
+            assert int(lines[0]) == 6
+            values = [int(v) for v in lines[1:]]
+            assert len(values) == 12
+            saved = {values[2 * i]: values[2 * i + 1] for i in range(6)}
+            assert saved == {i: int(perm[i]) for i in range(6)}
         finally:
             os.unlink(path)
 
@@ -103,7 +127,15 @@ class TestMappingIO:
             path = f.name
         try:
             hexagon_graph.map_save(path, parttab, arch)
-            assert os.path.getsize(path) > 0
+            # Scotch mapping file: first line is the vertex count, then one
+            # "vertex_label target_domain" pair per line
+            with open(path) as f:
+                lines = f.read().split()
+            assert int(lines[0]) == 6
+            values = [int(v) for v in lines[1:]]
+            assert len(values) == 12
+            saved = {values[2 * i]: values[2 * i + 1] for i in range(6)}
+            assert saved == {i: int(parttab[i]) for i in range(6)}
         finally:
             os.unlink(path)
 
@@ -115,6 +147,11 @@ class TestMappingIO:
             path = f.name
         try:
             hexagon_graph.map_view(path, parttab, arch)
-            assert os.path.getsize(path) > 0
+            content = open(path).read()
+            # map_view emits mapping statistics; a balanced bipartition of the
+            # hexagon uses both of the 2 target processors
+            assert "Processors 2/2" in content
+            assert "CommDilat" in content
+            assert "CommCutSz" in content
         finally:
             os.unlink(path)

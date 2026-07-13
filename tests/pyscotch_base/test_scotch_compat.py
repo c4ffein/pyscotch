@@ -46,7 +46,7 @@ class TestGraphBasic:
         """Test graph initialization and cleanup."""
         graph = Graph()
         assert graph is not None
-        # Cleanup happens automatically via __del__
+        graph.close()
 
     def test_graph_size_empty(self):
         """Test getting size of an uninitialized graph."""

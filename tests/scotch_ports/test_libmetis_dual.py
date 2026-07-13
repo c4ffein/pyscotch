@@ -1,16 +1,14 @@
 """
 NOT PORTED: external/scotch/src/check/test_libmetis_dual.c
 
-METIS dual graph compatibility - BLOCKED BY FILE* API
+METIS dual graph compatibility - MISSING BINDINGS
 
 REASON FOR NOT PORTING:
-This test uses SCOTCH_graphLoad() which requires FILE* pointers. Python ctypes
-cannot safely handle FILE* pointers.
-
-The test loads a graph from file and tests METIS dual graph partitioning
-functions provided by libscotchmetis.
-
-See QUESTIONS_FOR_SCOTCH_TEAM.md Issue #4 for the FILE* problem.
+PyScotch does not provide bindings for libscotchmetis (the METIS compatibility
+layer). The FILE* limitation that originally blocked this has been resolved
+via the c_fopen() compatibility shim, but porting this test would still
+require creating ctypes bindings for METIS_MeshToDual(), METIS_PartMeshDual(),
+etc.
 """
 
-# No tests - blocked by FILE* pointer limitations
+# No tests - missing libscotchmetis bindings

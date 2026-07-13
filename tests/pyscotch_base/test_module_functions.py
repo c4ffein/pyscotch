@@ -35,3 +35,28 @@ class TestMemory:
 
     def test_mem_max_returns_int(self):
         assert isinstance(mem_max(), int)
+
+    def test_mem_values_consistent(self):
+        # Without COMMON_MEMORY_TRACE, Scotch returns the -1 sentinel from
+        # both routines; with it, both are byte counts and peak >= current.
+        cur = mem_cur()
+        peak = mem_max()
+        if cur == -1:
+            assert peak == -1
+        else:
+            assert 0 <= cur <= peak
+
+    def test_mem_max_is_monotonic(self):
+        from pyscotch import Graph
+
+        before = mem_max()
+        graphs = [
+            Graph.from_edges([(i, i + 1) for i in range(99)], num_vertices=100)
+            for _ in range(4)
+        ]
+        after = mem_max()
+        assert len(graphs) == 4
+        if before == -1:
+            assert after == -1  # memory tracing not compiled in
+        else:
+            assert after >= before  # peak footprint never decreases

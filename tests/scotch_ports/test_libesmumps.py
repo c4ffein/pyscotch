@@ -1,20 +1,15 @@
 """
 NOT PORTED: external/scotch/src/check/test_libesmumps.c
 
-ESMUMPS compatibility layer - BLOCKED BY FILE* API
+ESMUMPS compatibility layer - MISSING BINDINGS
 
 REASON FOR NOT PORTING:
-This test uses SCOTCH_graphLoad() which requires FILE* pointers. Python ctypes
-cannot safely handle FILE* pointers.
+PyScotch does not provide bindings for libesmumps (the ESMUMPS compatibility
+layer). The FILE* limitation that originally blocked this has been resolved
+via the c_fopen() compatibility shim, but porting this test would still
+require creating ctypes bindings for the ESMUMPS API (esmumps(), esmumpsv()).
 
-The test loads a graph from file and tests the ESMUMPS compatibility API
-provided by libesmumps. This compatibility layer provides ESMUMPS-compatible
-function signatures implemented using Scotch internally.
-
-The ESMUMPS compatibility functions use the PUBLIC API, but the test
-infrastructure (graph file loading) is blocked by FILE* limitations.
-
-See QUESTIONS_FOR_SCOTCH_TEAM.md Issue #4 for the FILE* problem.
+This is out of scope for PyScotch's core Scotch API coverage.
 """
 
-# No tests - blocked by FILE* pointer limitations
+# No tests - missing libesmumps bindings

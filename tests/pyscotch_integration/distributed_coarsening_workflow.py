@@ -70,6 +70,19 @@ def main():
         if rank == 0:
             print(f"  Original: {orig_vertglbnbr} vertices (global), {orig_edgeglbnbr} edges")
 
+        # Upper bound on the number of local coarse vertices, as returned by
+        # SCOTCH_dgraphCoarsenVertLocMax() (same check as in Scotch's own
+        # test_scotch_dgraph_coarsen.c)
+        # For plain coarsening it equals the local vertex count (the local
+        # number of vertices may not shrink if no local matching succeeds)
+        coarvertlocmax = grafdat.coarsen_vert_loc_max(COARSEN_NONE)
+        if coarvertlocmax != orig_vertlocnbr:
+            print(f"ERROR on rank {rank}: coarsen_vert_loc_max returned "
+                  f"{coarvertlocmax}, expected {orig_vertlocnbr} local vertices")
+            grafdat.exit()
+            mpi.finalize()
+            return 1
+
         # Perform coarsening
         coargrafdat, multloctab = grafdat.coarsen(coarrat=0.8, foldval=COARSEN_NONE)
 
@@ -77,6 +90,16 @@ def main():
             if rank == 0:
                 print("  Graph could not be coarsened (already optimal)")
         else:
+            # The bound announced before coarsening must hold afterwards
+            coar_vertlocnbr = coargrafdat.data(want_vertlocnbr=True)['vertlocnbr']
+            if coar_vertlocnbr > coarvertlocmax:
+                print(f"ERROR on rank {rank}: Invalid local multinode array size "
+                      f"({coar_vertlocnbr} > {coarvertlocmax})")
+                grafdat.exit()
+                coargrafdat.exit()
+                mpi.finalize()
+                return 1
+
             # Validate coarse graph
             if not coargrafdat.check():
                 if rank == 0:
