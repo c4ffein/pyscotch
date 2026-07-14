@@ -71,6 +71,7 @@ def parse_page(path):
 
 def render_markdown_with_examples(text):
     """First pass: resolve {% example %} tags. Second pass: render markdown."""
+
     # Replace {% example "filename.py" %} with highlighted code
     def replace_example(match):
         filename = match.group(1)
@@ -85,22 +86,33 @@ def render_markdown_with_examples(text):
 
 
 API_PLACEHOLDER = """<h1>API Reference</h1>
-<p>This page is normally generated from the <code>pyscotch</code> package itself,
-but it could not be imported — the Scotch libraries are probably not built.</p>
-<blockquote><p>Run <code>make build-all</code> at the repository root, then rebuild
-the site with <code>python docs/site/build.py</code>.</p></blockquote>
+<p>This page is rendered from <code>docs/site/api_data.json</code>, which is
+missing from this checkout.</p>
+<blockquote><p>Regenerate it with
+<code>python docs/site/gen_api.py --dump</code> (needs a built Scotch), then
+rebuild the site with <code>python docs/site/build.py</code>.</p></blockquote>
 """
 
 
 def build_api_content():
-    """API reference HTML and section anchors, or a placeholder if pyscotch can't load."""
+    """API reference HTML and section anchors from the committed api_data.json.
+
+    Renders purely from JSON — no pyscotch import, so the site builds without a
+    compiled Scotch. Regenerate the JSON with `python docs/site/gen_api.py
+    --dump` after any API change (a CI job checks it is not stale).
+    """
     sys.path.insert(0, str(SITE_DIR))
-    try:
-        import gen_api
-        return gen_api.generate_api_html(), gen_api.api_sections()
-    except Exception as exc:
-        print(f"  ! api.html: could not import pyscotch ({exc}), writing placeholder", file=sys.stderr)
+    import gen_api
+
+    data = gen_api.load_data()
+    if data is None:
+        print(
+            "  ! api.html: docs/site/api_data.json missing — run "
+            "'python docs/site/gen_api.py --dump'; writing placeholder",
+            file=sys.stderr,
+        )
         return API_PLACEHOLDER, []
+    return gen_api.render_html(data), gen_api.api_sections_from(data)
 
 
 def build():

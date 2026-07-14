@@ -1,0 +1,1749 @@
+{
+ "coverage": {
+  "declared": 179,
+  "direct": 103,
+  "exposed": 116,
+  "helpers": 21,
+  "python": 15,
+  "undecorated": 0
+ },
+ "sections": [
+  {
+   "doc": "Represents a graph structure for partitioning and ordering.",
+   "entries": [
+    {
+     "c_functions": [
+      "SCOTCH_graphExit"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "close",
+     "signature": "()",
+     "summary": "Release graph resources. Called automatically when used as a context manager."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphLoad"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "load",
+     "signature": "(filename: str | pathlib.Path) -> None",
+     "summary": "Load a graph from a file in Scotch graph format."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphSave"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "save",
+     "signature": "(filename: str | pathlib.Path) -> None",
+     "summary": "Save the graph to a file in Scotch graph format."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphBuild"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "build",
+     "signature": "(verttab: numpy.ndarray, edgetab: numpy.ndarray, velotab: numpy.ndarray | None = None, edlotab: numpy.ndarray | None = None, baseval: int = 0) -> None",
+     "summary": "Build a graph from arrays."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphCheck"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "check",
+     "signature": "() -> bool",
+     "summary": "Check the consistency of the graph structure."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphSize"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "size",
+     "signature": "() -> Tuple[int, int]",
+     "summary": "Get the size of the graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphBase"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "base",
+     "signature": "(baseval: int) -> int",
+     "summary": "Set the base value for vertex numbering."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphStat"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "stat",
+     "signature": "() -> dict",
+     "summary": "Get statistics about the graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphMapInit",
+      "SCOTCH_graphMapCompute",
+      "SCOTCH_graphMapExit"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "partition",
+     "signature": "(nparts: int, strategy=None) -> numpy.ndarray",
+     "summary": "Partition the graph into a specified number of parts."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphOrder"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order",
+     "signature": "(strategy=None) -> Tuple[numpy.ndarray, numpy.ndarray]",
+     "summary": "Compute an ordering of the graph vertices (for sparse matrix factorization)."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_randomReset",
+      "SCOTCH_graphColor"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "color",
+     "signature": "(reset_random: bool = True) -> Tuple[numpy.ndarray, int]",
+     "summary": "Compute a graph coloring (vertex coloring)."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphInduceList"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "induce_list",
+     "signature": "(vertex_list: numpy.ndarray) -> 'Graph'",
+     "summary": "Create an induced subgraph from a list of vertices."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphInducePart"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "induce_part",
+     "signature": "(partition: numpy.ndarray, part_id: int) -> 'Graph'",
+     "summary": "Create an induced subgraph from vertices in a specific partition."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphCoarsen"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "coarsen",
+     "signature": "(min_vertices: int = 1, coarrat: float = 0.8, flags: int = 0) -> Tuple[ForwardRef('Graph') | None, numpy.ndarray | None]",
+     "summary": "Create a coarsened version of the graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphCoarsenMatch"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "coarsen_match",
+     "signature": "(coarrat: float = 0.8, flags: int = 0) -> Tuple[int, numpy.ndarray]",
+     "summary": "Compute a matching for coarsening without building the coarse graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphCoarsenBuild"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "coarsen_build",
+     "signature": "(coar_vertnbr: int, mate: numpy.ndarray) -> Tuple[ForwardRef('Graph'), numpy.ndarray]",
+     "summary": "Build a coarse graph from a precomputed matching."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphPartFixed"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "partition_fixed",
+     "signature": "(nparts: int, parttab: numpy.ndarray, strategy=None) -> numpy.ndarray",
+     "summary": "Partition the graph with some vertices fixed to specific parts."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphPartOvl"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "partition_overlap",
+     "signature": "(nparts: int, strategy=None) -> numpy.ndarray",
+     "summary": "Partition the graph with overlap (vertices can belong to multiple parts)."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphRepart"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "repart",
+     "signature": "(nparts: int, old_partition: numpy.ndarray, emrat: float = 1.0, vmlotab: numpy.ndarray | None = None, strategy=None) -> numpy.ndarray",
+     "summary": "Repartition the graph starting from an existing partition."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphMapSave"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "map_save",
+     "signature": "(filename: str | pathlib.Path, parttab: numpy.ndarray, arch) -> None",
+     "summary": "Save a mapping to a file in Scotch mapping format."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphMapView"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "map_view",
+     "signature": "(filename: str | pathlib.Path, parttab: numpy.ndarray, arch) -> None",
+     "summary": "Save mapping statistics to a file."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphOrderCheck"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_check",
+     "signature": "(permtab: numpy.ndarray, peritab: numpy.ndarray) -> bool",
+     "summary": "Check the validity of an ordering."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphOrderSave"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_save",
+     "signature": "(filename: str | pathlib.Path, permtab: numpy.ndarray, peritab: numpy.ndarray) -> None",
+     "summary": "Save an ordering to a file in Scotch ordering format."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphTabSave"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "tab_save",
+     "signature": "(filename: str | pathlib.Path, tab: numpy.ndarray) -> None",
+     "summary": "Save a partition/mapping table to a file."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphTabLoad"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "tab_load",
+     "signature": "(filename: str | pathlib.Path) -> numpy.ndarray",
+     "summary": "Load a partition/mapping table from a file."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "save_mapping",
+     "signature": "(filename: str | pathlib.Path, mapping: numpy.ndarray) -> None",
+     "summary": "Save a mapping/partition to a file."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphInit",
+      "SCOTCH_graphBuild"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "from_edges",
+     "signature": "(edges: List[Tuple[int, int]], num_vertices: int | None = None, vertex_weights: List[int] | None = None, edge_weights: List[int] | None = None) -> 'Graph'",
+     "summary": "Create a graph from a list of edges."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphInit",
+      "SCOTCH_graphBuild"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "from_scipy_sparse",
+     "signature": "(matrix, *, use_edge_weights: bool = True, drop_self_loops: bool = False) -> 'Graph'",
+     "summary": "Create a graph from a scipy sparse adjacency matrix."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphData"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "to_scipy_sparse",
+     "signature": "()",
+     "summary": "Export the graph adjacency as a scipy sparse CSR matrix."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphInit",
+      "SCOTCH_graphBuild"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "from_networkx",
+     "signature": "(G, *, weight: str = 'weight') -> Tuple[ForwardRef('Graph'), list]",
+     "summary": "Create a graph from a networkx undirected simple graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphData"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "to_networkx",
+     "signature": "(*, nodes: list | None = None)",
+     "summary": "Export the graph as a networkx undirected graph."
+    }
+   ],
+   "name": "Graph",
+   "slug": "graph"
+  },
+  {
+   "doc": "Represents a mesh structure for partitioning.",
+   "entries": [
+    {
+     "c_functions": [
+      "SCOTCH_meshExit"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "close",
+     "signature": "()",
+     "summary": "Release mesh resources. Called automatically when used as a context manager."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_meshLoad"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "load",
+     "signature": "(filename: str | pathlib.Path) -> None",
+     "summary": "Load a mesh from a file in Scotch mesh format."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_meshSave"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "save",
+     "signature": "(filename: str | pathlib.Path) -> None",
+     "summary": "Save the mesh to a file in Scotch mesh format."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_meshBuild"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "build",
+     "signature": "(velmnbr: int, vnodnbr: int, verttab: numpy.ndarray, edgetab: numpy.ndarray, velotab: numpy.ndarray | None = None, vnlotab: numpy.ndarray | None = None, velmbas: int = 0, vnodbas: int = 0) -> None",
+     "summary": "Build a mesh from arrays."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_meshCheck"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "check",
+     "signature": "() -> bool",
+     "summary": "Check the consistency of the mesh structure."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_meshGraph"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "to_graph",
+     "signature": "()",
+     "summary": "Convert the mesh to a graph representation."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_meshGraphDual"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "to_dual_graph",
+     "signature": "(ncomm: int = 1)",
+     "summary": "Convert the mesh to a dual graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_meshOrder"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order",
+     "signature": "(strategy=None)",
+     "summary": "Compute an ordering of the mesh nodes."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_meshGraph",
+      "SCOTCH_graphMapInit",
+      "SCOTCH_graphMapCompute",
+      "SCOTCH_graphMapExit"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "partition",
+     "signature": "(nparts: int, strategy=None) -> numpy.ndarray",
+     "summary": "Partition the mesh into a specified number of parts."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "save_mapping",
+     "signature": "(filename: str | pathlib.Path, mapping: numpy.ndarray) -> None",
+     "summary": "Save a mapping/partition to a file."
+    }
+   ],
+   "name": "Mesh",
+   "slug": "mesh"
+  },
+  {
+   "doc": "Represents a strategy for graph operations (partitioning, ordering, etc.).",
+   "entries": [
+    {
+     "c_functions": [
+      "SCOTCH_stratExit"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "close",
+     "signature": "()",
+     "summary": "Release strategy resources. Called automatically when used as a context manager."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratGraphMap"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "set_mapping",
+     "signature": "(strategy_string: str) -> None",
+     "summary": "Set a mapping/partitioning strategy from a string."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratGraphOrder"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "set_ordering",
+     "signature": "(strategy_string: str) -> None",
+     "summary": "Set an ordering strategy from a string."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratDgraphMap"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "set_dgraph_mapping",
+     "signature": "(strategy_string: str) -> None",
+     "summary": "Set a parallel (PT-Scotch) mapping/partitioning strategy from a string."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratDgraphOrder"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "set_dgraph_ordering",
+     "signature": "(strategy_string: str) -> None",
+     "summary": "Set a parallel (PT-Scotch) ordering strategy from a string."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratDgraphMapBuild"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "build_dgraph_mapping",
+     "signature": "(flagval: int, procnbr: int, partnbr: int, kbalval: float) -> None",
+     "summary": "Build a parallel mapping strategy from high-level parameters."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratDgraphClusterBuild"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "build_dgraph_clustering",
+     "signature": "(flagval: int, procnbr: int, pwgtval: int, densval: float, bbalval: float) -> None",
+     "summary": "Build a parallel clustering strategy from high-level parameters."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratDgraphOrderBuild"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "build_dgraph_ordering",
+     "signature": "(flagval: int, procnbr: int, levlnbr: int, balrat: float) -> None",
+     "summary": "Build a parallel ordering strategy from high-level parameters."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratGraphOrder"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "set_ordering_default",
+     "signature": "() -> None",
+     "summary": "Set the default ordering strategy."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratGraphMap"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "set_mapping_default",
+     "signature": "() -> None",
+     "summary": "Set the default mapping/partitioning strategy."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratGraphMap"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "set_recursive_bisection",
+     "signature": "() -> None",
+     "summary": "Set recursive bisection strategy for partitioning."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratGraphMap"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "set_multilevel",
+     "signature": "() -> None",
+     "summary": "Set multilevel strategy for partitioning."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratGraphOrder"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "set_nested_dissection",
+     "signature": "() -> None",
+     "summary": "Set nested dissection strategy for ordering."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": true,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "strategy_string",
+     "signature": "",
+     "summary": "Get the current strategy string."
+    }
+   ],
+   "name": "Strategy",
+   "slug": "strategy"
+  },
+  {
+   "doc": "Collection of common strategy configurations.",
+   "entries": [
+    {
+     "c_functions": [
+      "SCOTCH_stratInit",
+      "SCOTCH_stratGraphMap"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "partition_quality",
+     "signature": "() -> pyscotch.strategy.Strategy",
+     "summary": "Get a high-quality partitioning strategy."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratInit",
+      "SCOTCH_stratGraphMap"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "partition_fast",
+     "signature": "() -> pyscotch.strategy.Strategy",
+     "summary": "Get a fast partitioning strategy."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratInit",
+      "SCOTCH_stratGraphOrder"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "order_quality",
+     "signature": "() -> pyscotch.strategy.Strategy",
+     "summary": "Get a high-quality ordering strategy."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratInit",
+      "SCOTCH_stratGraphOrder"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "order_fast",
+     "signature": "() -> pyscotch.strategy.Strategy",
+     "summary": "Get a fast ordering strategy."
+    }
+   ],
+   "name": "Strategies",
+   "slug": "strategies"
+  },
+  {
+   "doc": "Represents a target architecture for graph mapping.",
+   "entries": [
+    {
+     "c_functions": [
+      "SCOTCH_archExit"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "close",
+     "signature": "()",
+     "summary": "Release architecture resources. Called automatically when used as a context manager."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archName"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "name",
+     "signature": "() -> str",
+     "summary": "Get the name of the architecture type."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archSize"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "size",
+     "signature": "() -> int",
+     "summary": "Get the number of processors/domains in the architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archCmplt"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "complete",
+     "signature": "(size: int) -> None",
+     "summary": "Set up a complete graph architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archCmpltw"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "complete_weighted",
+     "signature": "(size: int, weights: numpy.ndarray) -> None",
+     "summary": "Set up a weighted complete graph architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archHcub"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "hypercube",
+     "signature": "(dim: int) -> None",
+     "summary": "Set up a hypercube architecture with 2^dim processors."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archMesh2"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "mesh2d",
+     "signature": "(dim_x: int, dim_y: int) -> None",
+     "summary": "Set up a 2D mesh architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archMesh3"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "mesh3d",
+     "signature": "(dim_x: int, dim_y: int, dim_z: int) -> None",
+     "summary": "Set up a 3D mesh architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archTorus2"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "torus2d",
+     "signature": "(dim_x: int, dim_y: int) -> None",
+     "summary": "Set up a 2D torus architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archTorus3"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "torus3d",
+     "signature": "(dim_x: int, dim_y: int, dim_z: int) -> None",
+     "summary": "Set up a 3D torus architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archTleaf"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "tree_leaf",
+     "signature": "(levels: int, sizes: numpy.ndarray, links: numpy.ndarray) -> None",
+     "summary": "Set up a tree-leaf architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archVcmplt"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "variable_complete",
+     "signature": "() -> None",
+     "summary": "Set up a variable-size complete graph architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archVhcub"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "variable_hypercube",
+     "signature": "() -> None",
+     "summary": "Set up a variable-size hypercube architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archSub"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "sub",
+     "signature": "(parent: 'Architecture', vertex_list: numpy.ndarray) -> None",
+     "summary": "Create a sub-architecture from a parent architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archLoad"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "load",
+     "signature": "(filename) -> None",
+     "summary": "Load an architecture from a file."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archSave"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "save",
+     "signature": "(filename) -> None",
+     "summary": "Save the architecture to a file."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_archInit",
+      "SCOTCH_archCmplt"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "complete_graph",
+     "signature": "(size: int) -> 'Architecture'",
+     "summary": "Create a complete graph architecture."
+    }
+   ],
+   "name": "Architecture",
+   "slug": "architecture"
+  },
+  {
+   "doc": "Represents a mapping of graph vertices to architecture domains.",
+   "entries": [
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "save",
+     "signature": "(filename: str | pathlib.Path) -> None",
+     "summary": "Save the mapping to a file."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "load",
+     "signature": "(filename: str | pathlib.Path) -> 'Mapping'",
+     "summary": "Load a mapping from a file."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "get_partition_sizes",
+     "signature": "() -> numpy.ndarray",
+     "summary": "Get the size of each partition."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "get_partition",
+     "signature": "(domain: int) -> numpy.ndarray",
+     "summary": "Get the vertices assigned to a specific domain."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "num_partitions",
+     "signature": "() -> int",
+     "summary": "Get the number of partitions."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "balance",
+     "signature": "() -> float",
+     "summary": "Compute the load balance of the mapping."
+    }
+   ],
+   "name": "Mapping",
+   "slug": "mapping"
+  },
+  {
+   "doc": "Represents an ordering of graph vertices.",
+   "entries": [
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "save",
+     "signature": "(filename: str | pathlib.Path) -> None",
+     "summary": "Save the ordering to a file."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "load",
+     "signature": "(filename: str | pathlib.Path) -> 'Ordering'",
+     "summary": "Load an ordering from a file."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "apply",
+     "signature": "(array: numpy.ndarray) -> numpy.ndarray",
+     "summary": "Apply the ordering to an array."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "apply_inverse",
+     "signature": "(array: numpy.ndarray) -> numpy.ndarray",
+     "summary": "Apply the inverse ordering to an array."
+    }
+   ],
+   "name": "Ordering",
+   "slug": "ordering"
+  },
+  {
+   "doc": "Distributed graph for PT-Scotch parallel partitioning and ordering.",
+   "entries": [
+    {
+     "c_functions": [
+      "SCOTCH_dgraphExit"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "exit",
+     "signature": "()",
+     "summary": "Release distributed graph resources."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphBuild"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "build",
+     "signature": "(vertloctab: numpy.ndarray, edgeloctab: numpy.ndarray, baseval: int = 0, vendloctab: numpy.ndarray | None = None, veloloctab: numpy.ndarray | None = None, vlblloctab: numpy.ndarray | None = None, edgegsttab: numpy.ndarray | None = None, edloloctab: numpy.ndarray | None = None) -> None",
+     "summary": "Build the distributed graph from local data on this MPI process."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphCheck"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "check",
+     "signature": "() -> bool",
+     "summary": "Check the consistency of the distributed graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphLoad"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "load",
+     "signature": "(filepath: pathlib.Path, baseval: int = 0, flagval: int = 0) -> None",
+     "summary": "Load a distributed graph from a file."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphSave"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "save",
+     "signature": "(filepath: pathlib.Path) -> None",
+     "summary": "Save the distributed graph to a file."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphData"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "data",
+     "signature": "(want_baseval: bool = False, want_vertglbnbr: bool = False, want_vertlocnbr: bool = False, want_vertlocmax: bool = False, want_vertgstnbr: bool = False, want_vertloctab: bool = False, want_vendloctab: bool = False, want_veloloctab: bool = False, want_vlblloctab: bool = False, want_edgeglbnbr: bool = False, want_edgelocnbr: bool = False, want_edgelocsiz: bool = False, want_edgeloctab: bool = False, want_edgegsttab: bool = False, want_edloloctab: bool = False, want_commptr: bool = False)",
+     "summary": "Get selected internal data fields from the distributed graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphCoarsenVertLocMax"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "coarsen_vert_loc_max",
+     "signature": "(foldval: int = 0) -> int",
+     "summary": "Get maximum size needed for multinode array in coarsening."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphInit",
+      "SCOTCH_dgraphCoarsenVertLocMax",
+      "SCOTCH_dgraphCoarsen"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "coarsen",
+     "signature": "(coarrat: float = 0.8, foldval: int = 0, flags: int = 0) -> tuple['Dgraph', numpy.ndarray | None]",
+     "summary": "Create a coarsened version of this distributed graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphGhst"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "ghst",
+     "signature": "() -> int",
+     "summary": "Compute ghost edge array for distributed graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphGrow"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "grow",
+     "signature": "(seedlocnbr: int, seedloctab: numpy.ndarray, distmax: int, partgsttab: numpy.ndarray) -> int",
+     "summary": "Grow subgraphs from seed vertices to create partitions."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphBand"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "band",
+     "signature": "(fronlocnbr: int, fronloctab: numpy.ndarray, distmax: int, bandgrafdat: 'Dgraph') -> int",
+     "summary": "Extract a band graph containing vertices within distance from frontier."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphRedist"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "redist",
+     "signature": "(partloctab: numpy.ndarray, permgsttab: numpy.ndarray | None = None, vertlocdlt: int = -1, edgelocdlt: int = -1, dstgrafdat: 'Dgraph' = None) -> int",
+     "summary": "Redistribute graph across processes according to partition."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphInducePart"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "induce_part",
+     "signature": "(orgpartloctab: numpy.ndarray, partval: int, indvertlocnbr: int, indgrafdat: 'Dgraph') -> int",
+     "summary": "Extract induced subgraph for vertices in a specific partition."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphFree"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "free",
+     "signature": "() -> None",
+     "summary": "Free the graph contents while keeping the structure initialized."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphBuildGrid3D"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "build_grid_3d",
+     "signature": "(dimx: int, dimy: int, dimz: int, baseval: int = 0, incrval: int = 1, flagval: int = 0) -> None",
+     "summary": "Build a distributed 3D grid/torus graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphStat"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "stat",
+     "signature": "() -> dict",
+     "summary": "Get global statistics about the distributed graph (collective call)."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphGather"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "gather",
+     "signature": "(graph=None)",
+     "summary": "Gather the distributed graph into a centralized (sequential) Graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphScatter"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "scatter",
+     "signature": "(graph=None) -> None",
+     "summary": "Scatter a centralized (sequential) Graph into this distributed graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphPart"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "part",
+     "signature": "(nparts: int, strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "summary": "Partition the distributed graph into a specified number of parts."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphMap"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "map",
+     "signature": "(arch, strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "summary": "Map the distributed graph onto a target architecture."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphMapInit",
+      "SCOTCH_dgraphMapCompute",
+      "SCOTCH_dgraphMapExit"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "map_compute",
+     "signature": "(arch, strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "summary": "Map the distributed graph using the 3-step Init/Compute/Exit API."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphMapSave"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "map_save",
+     "signature": "(filepath, arch, strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "summary": "Compute a mapping onto arch and save it to a file (root process)."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphMapView"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "map_view",
+     "signature": "(filepath, arch, strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "summary": "Compute a mapping onto arch and write its statistics to a file."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderInit"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_init",
+     "signature": "()",
+     "summary": "Initialize a distributed ordering structure for this graph."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderExit"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_exit",
+     "signature": "(dordering) -> None",
+     "summary": "Release a distributed ordering structure created by order_init()."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderCompute"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_compute",
+     "signature": "(dordering, strategy=None, reset_random: bool = True) -> None",
+     "summary": "Compute a distributed ordering of the graph (collective call)."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderComputeList"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_compute_list",
+     "signature": "(dordering, listloctab: numpy.ndarray | None, strategy=None, reset_random: bool = True) -> None",
+     "summary": "Compute a distributed ordering of a subset of the graph vertices."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderPerm"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_perm",
+     "signature": "(dordering) -> numpy.ndarray",
+     "summary": "Get the direct permutation of a computed distributed ordering."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderCblkDist"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_cblk_dist",
+     "signature": "(dordering) -> int",
+     "summary": "Get the number of distributed elimination-tree column blocks."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderTreeDist"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_tree_dist",
+     "signature": "(dordering) -> Tuple[numpy.ndarray, numpy.ndarray]",
+     "summary": "Get the distributed part of the elimination tree structure."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderSave"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_save",
+     "signature": "(dordering, filepath) -> None",
+     "summary": "Save a distributed ordering to a file (root process)."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderSaveMap"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_save_map",
+     "signature": "(dordering, filepath) -> None",
+     "summary": "Save a distributed ordering as a block mapping file (root process)."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderSaveTree"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_save_tree",
+     "signature": "(dordering, filepath) -> None",
+     "summary": "Save the separator tree of a distributed ordering (root process)."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphCorderInit"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "corder_init",
+     "signature": "(permtab: numpy.ndarray | None = None, peritab: numpy.ndarray | None = None, rangtab: numpy.ndarray | None = None, treetab: numpy.ndarray | None = None)",
+     "summary": "Initialize a centralized ordering to receive a gathered ordering."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphCorderExit"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "corder_exit",
+     "signature": "(cordering) -> None",
+     "summary": "Release a centralized ordering structure created by corder_init()."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderGather"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "order_gather",
+     "signature": "(dordering, cordering=None) -> None",
+     "summary": "Gather a distributed ordering into a centralized ordering."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_dgraphOrderInit",
+      "SCOTCH_dgraphOrderCompute",
+      "SCOTCH_dgraphOrderPerm",
+      "SCOTCH_dgraphOrderExit"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "order",
+     "signature": "(strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "summary": "Compute a distributed ordering and return the local permutation."
+    }
+   ],
+   "name": "Dgraph",
+   "slug": "dgraph"
+  },
+  {
+   "doc": "A Scotch execution context for controlling threading and options.",
+   "entries": [
+    {
+     "c_functions": [
+      "SCOTCH_contextExit"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "close",
+     "signature": "()",
+     "summary": "Release context resources. Called automatically when used as a context manager."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_contextOptionGetNum"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "option_get",
+     "signature": "(option: int) -> int",
+     "summary": "Get a context option value."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_contextOptionSetNum"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "option_set",
+     "signature": "(option: int, value: int) -> None",
+     "summary": "Set a context option value."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_contextRandomClone"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "random_clone",
+     "signature": "() -> None",
+     "summary": "Clone the global random state into this context."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_contextRandomReset"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "random_reset",
+     "signature": "() -> None",
+     "summary": "Reset the context's random state."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_contextRandomSeed"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "random_seed",
+     "signature": "(seed: int) -> None",
+     "summary": "Set the context's random seed."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_contextBindGraph"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "bind_graph",
+     "signature": "(source_graph)",
+     "summary": "Bind a graph to this context, returning a context-bound graph."
+    }
+   ],
+   "name": "Context",
+   "slug": "context"
+  },
+  {
+   "doc": "Represents geometry data associated with a graph or mesh.",
+   "entries": [
+    {
+     "c_functions": [
+      "SCOTCH_geomExit"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "close",
+     "signature": "()",
+     "summary": "Release geometry resources. Called automatically when used as a context manager."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_geomData"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "data",
+     "signature": "()",
+     "summary": "Get the geometry data."
+    }
+   ],
+   "name": "Geometry",
+   "slug": "geometry"
+  },
+  {
+   "doc": "Functions available directly on the <code>pyscotch</code> module.",
+   "entries": [
+    {
+     "c_functions": [
+      "SCOTCH_version"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "scotch_version",
+     "signature": "() -> tuple",
+     "summary": "Get the Scotch library version."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_randomReset"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "random_reset",
+     "signature": "() -> None",
+     "summary": "Reset Scotch's pseudorandom number generator to its initial state."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_randomSeed"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "random_seed",
+     "signature": "(seed: int) -> None",
+     "summary": "Set the seed of Scotch's pseudorandom number generator."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_memCur"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "mem_cur",
+     "signature": "() -> int",
+     "summary": "Get current Scotch memory usage in bytes (requires SCOTCH_DEBUG_MEM)."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_memMax"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "mem_max",
+     "signature": "() -> int",
+     "summary": "Get peak Scotch memory usage in bytes (requires SCOTCH_DEBUG_MEM)."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "get_scotch_int_size",
+     "signature": "() -> int",
+     "summary": "Return the SCOTCH_Num size in bits (32 or 64)."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": false,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "get_scotch_dtype",
+     "signature": "()",
+     "summary": "Return the numpy dtype corresponding to SCOTCH_Num."
+    }
+   ],
+   "name": "Module functions",
+   "slug": "module-functions"
+  }
+ ],
+ "version": "7.0.11"
+}

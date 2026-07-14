@@ -1,0 +1,64 @@
+name: Verify docs API data
+
+# Guards docs/site/api_data.json (the committed API-reference data the docs
+# site renders from) against drift. Builds Scotch, regenerates the JSON, and
+# fails if it differs from what is committed — i.e. someone changed the API
+# but forgot to run `python docs/site/gen_api.py --dump`.
+#
+# Runs only when the package or the generator changes (not on doc-prose edits),
+# and never deploys.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pyscotch/**"
+      - "docs/site/gen_api.py"
+      - "docs/site/api_data.json"
+      - ".github/workflows/docs-verify.yml"
+  pull_request:
+    paths:
+      - "pyscotch/**"
+      - "docs/site/gen_api.py"
+      - "docs/site/api_data.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitlab.inria.fr is public https; anonymous clone works in CI
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build toolchain (incl. MPI for PT-Scotch)
+        run: sudo apt-get update && sudo apt-get install -y flex bison zlib1g-dev libopenmpi-dev openmpi-bin
+
+      - name: Build Scotch (64-bit, sequential + parallel)
+        # The committed api_data.json is generated with PYSCOTCH_PARALLEL=1
+        # (its coverage counts the Dgraph bindings), so the verify build must
+        # include PT-Scotch to reproduce it exactly — matching what a developer
+        # runs locally after `make build-64`.
+        run: make build-64
+
+      - name: Install dependencies
+        run: python -m pip install numpy
+
+      - name: Regenerate API data and check it is not stale
+        env:
+          PYSCOTCH_INT_SIZE: "64"
+          PYSCOTCH_PARALLEL: "1"
+        run: |
+          python docs/site/gen_api.py --dump
+          if ! git diff --exit-code -- docs/site/api_data.json; then
+            echo "::error::docs/site/api_data.json is stale. Run 'python docs/site/gen_api.py --dump' and commit the result." >&2
+            exit 1
+          fi
