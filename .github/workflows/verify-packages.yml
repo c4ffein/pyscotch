@@ -1,0 +1,106 @@
+name: Verify install methods
+
+# Proves every documented install path actually works end-to-end: build the
+# wheel + sdist once, then install them four different ways in clean
+# environments and run a smoke partition/order from OUTSIDE the repo.
+#
+# Runs on release tags (a gate before/after publishing), on demand, and weekly
+# — the weekly run catches drift in the *external* paths (a new system or
+# conda Scotch that breaks the unsuffixed-symbol / width-check logic) even when
+# our own code hasn't changed.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build wheel + sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Stage bundled sequential Scotch libraries
+        run: bash scripts/build_wheel_libs.sh
+
+      - name: Build wheel and sdist
+        run: |
+          python -m pip install build
+          # wheel picks up pyscotch/_libs staged above; sdist stays pure
+          python -m build --wheel
+          rm -rf pyscotch/_libs
+          python -m build --sdist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+
+  verify:
+    name: ${{ matrix.method }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        method: [pip-wheel, uv-wheel, pip-sdist-system, conda-scotch-sdist]
+    steps:
+      - uses: actions/checkout@v4  # for scripts/install_smoke_test.py only
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      # -- pip + bundled wheel (the default `pip install pyscotch`) -----------
+      - name: pip install the wheel
+        if: matrix.method == 'pip-wheel'
+        run: |
+          python -m venv "$RUNNER_TEMP/v" && . "$RUNNER_TEMP/v/bin/activate"
+          pip install dist/*.whl
+          cp scripts/install_smoke_test.py "$RUNNER_TEMP/"
+          cd "$RUNNER_TEMP" && PYSCOTCH_PARALLEL=0 python install_smoke_test.py
+
+      # -- uv + bundled wheel (the `uv pip install pyscotch` path) ------------
+      - name: uv install the wheel
+        if: matrix.method == 'uv-wheel'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          uv venv "$RUNNER_TEMP/v"
+          uv pip install --python "$RUNNER_TEMP/v/bin/python" dist/*.whl
+          cp scripts/install_smoke_test.py "$RUNNER_TEMP/"
+          cd "$RUNNER_TEMP" && PYSCOTCH_PARALLEL=0 "$RUNNER_TEMP/v/bin/python" install_smoke_test.py
+
+      # -- sdist (pure) + distro's system Scotch -----------------------------
+      - name: pip install sdist against system Scotch
+        if: matrix.method == 'pip-sdist-system'
+        run: |
+          sudo apt-get update && sudo apt-get install -y libscotch-dev
+          python -m venv "$RUNNER_TEMP/v" && . "$RUNNER_TEMP/v/bin/activate"
+          pip install dist/*.tar.gz
+          cp scripts/install_smoke_test.py "$RUNNER_TEMP/"
+          # Debian's libscotch is 32-bit; the width check will confirm/correct
+          cd "$RUNNER_TEMP" && PYSCOTCH_SYSTEM=1 PYSCOTCH_PARALLEL=0 PYSCOTCH_INT_SIZE=32 python install_smoke_test.py
+
+      # -- sdist + conda-forge's Scotch (what the conda package will reuse) ---
+      - name: install sdist in a conda env with conda-forge Scotch
+        if: matrix.method == 'conda-scotch-sdist'
+        run: |
+          curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xj bin/micromamba
+          ./bin/micromamba create -y -p "$RUNNER_TEMP/c" -c conda-forge python=3.12 scotch numpy
+          ./bin/micromamba run -p "$RUNNER_TEMP/c" pip install dist/*.tar.gz
+          cp scripts/install_smoke_test.py "$RUNNER_TEMP/"
+          # conda-forge Scotch is 64-bit = pyscotch's default; discovery via RPATH
+          cd "$RUNNER_TEMP" && ../bin/micromamba run -p "$RUNNER_TEMP/c" python install_smoke_test.py
