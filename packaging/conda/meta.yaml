@@ -19,8 +19,9 @@
 #   unsuffixed symbols and verifies the library's integer width via
 #   SCOTCH_numSizeof(), refusing to load under a mismatched PYSCOTCH_INT_SIZE.
 #   Remaining caveat: an unsuffixed library ships ONE integer width, so only
-#   the matching PYSCOTCH_INT_SIZE works (conda-forge scotch is 32-bit by
-#   default).
+#   the matching PYSCOTCH_INT_SIZE works. Verified 2026-07-13: conda-forge's
+#   scotch 7.0.11 is 64-bit — it matches PyScotch's default, so imports work
+#   with zero configuration (tested: partition, file I/O, ordering).
 #
 # Other integration notes:
 #   - pyscotch falls back to the system-installed Scotch (dlopen by soname)
@@ -79,8 +80,8 @@ requirements:
     # - {{ mpi }}
 
 test:
-  # Requires PYSCOTCH_INT_SIZE to match the conda scotch build (32 by default)
-  # and PYSCOTCH_LIB_DIR=$PREFIX/lib — see header notes.
+  # conda-forge scotch is 64-bit = PyScotch's default; discovery works via
+  # the interpreter's RPATH, so no env vars are needed (verified 2026-07-13).
   imports:
     - pyscotch
   commands:
