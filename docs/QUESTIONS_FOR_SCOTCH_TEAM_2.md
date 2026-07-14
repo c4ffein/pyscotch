@@ -295,3 +295,65 @@ if so, a comment in module.h would make that explicit).
 
 The sweep is a 15-line script; happy to contribute it as a CI check upstream
 so this bug class cannot recur.
+
+---
+
+## libscotch.so under-declares its shared-library dependencies (no NEEDED for libz/libm/libpthread)
+
+*Added: 2026-07-14, found while building self-contained binary wheels.*
+
+`libscotch.so` calls into zlib (`gzread`, `gzclose`, …), libm, and libpthread,
+but its dynamic section records `NEEDED = libc.so.6` only — the other
+dependencies are undeclared:
+
+```
+$ nm -D scotch-builds/lib64/libscotch.so | grep -E ' U (gz|pthread_create|sqrt)'
+                 U gzclose
+                 U gzread
+                 U pthread_create@...
+$ readelf -d scotch-builds/lib64/libscotch.so | grep NEEDED
+ 0x0000000000000001 (NEEDED)  Shared library: [libc.so.6]     # libz/libm/libpthread absent
+```
+
+Root cause is in `src/Makefile.inc`: the shared object is created with
+`AR = gcc`, `ARFLAGS = -shared -o` (i.e. `gcc -shared -o libscotch.so *.o`),
+while `LDFLAGS = -lz -lm -lrt -pthread ...` is applied only when linking the
+command-line executables. So the libraries never make it into the `.so`'s own
+`NEEDED` list.
+
+This is invisible in normal use — Scotch's executables supply the libraries at
+their final link, and most distro packages re-link the shared object with
+proper `NEEDED` — so it has clearly never caused a problem in practice. It only
+surfaces when the *bare, as-built* `.so` is loaded standalone (e.g. `dlopen`'d
+by a language binding) under eager binding: the manylinux toolchain links with
+`-z now`, so the loader resolves every symbol up front and the import fails with
+
+```
+libscotch.so: undefined symbol: gzclose
+```
+
+Under the more common lazy binding it "works" until the first compressed-file
+operation, which makes it a latent trap rather than an immediate error.
+
+### Suggested fix (upstream)
+
+Link the shared object with its libraries, or — cleaner — build it with
+`-Wl,--no-undefined`, which makes the linker **reject** an under-declared shared
+object at build time instead of silently shipping one. Either way the `.so`
+becomes self-describing and every downstream that loads it directly benefits.
+
+### Question
+
+Is the shared library intentionally built to defer its library resolution to
+the executable link, or would recording the real `NEEDED` entries (and/or adding
+`-Wl,--no-undefined` as a guardrail) be a welcome change? We're happy to send a
+small Makefile.inc patch if useful.
+
+### What PyScotch does meanwhile
+
+Two independent, self-sufficient layers (see
+`scripts/build_wheel_libs.sh` step 3b and `pyscotch/libscotch.py`
+`_preload_dependencies`): we stamp the honest `NEEDED` entries onto the bundled
+wheel library with `patchelf`, and we also preload the dependency by runtime
+soname (`libz.so.1`) before Scotch loads — the latter also covers an
+under-linked *system* Scotch, which we cannot re-link.

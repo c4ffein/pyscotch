@@ -17,6 +17,7 @@ Example:
     >>> partitions = graph.partition(nparts=4)
 """
 
+from ._version import __version__  # single source of truth (CI stamps it from the tag)
 from .api_decorators import scotch_binding
 from .graph import Graph
 from .mesh import Mesh
@@ -89,7 +90,6 @@ def mem_max() -> int:
     return lib.SCOTCH_memMax()
 
 
-__version__ = "7.0.0"
 __all__ = [
     "Graph",
     "Mesh",

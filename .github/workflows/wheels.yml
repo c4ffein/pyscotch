@@ -29,6 +29,11 @@ jobs:
           # gitlab.inria.fr is public https, anonymous clone works in CI
           submodules: recursive
 
+      - name: Stamp version from tag
+        # v7.0.0rc1 -> _version.py 7.0.0rc1; no-op on non-tag builds. Runs on
+        # the host before cibuildwheel copies the tree into the container.
+        run: python3 scripts/apply_release_version.py "${{ github.ref }}"
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.23.3
         env:
@@ -102,6 +107,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Stamp version from tag
+        run: python scripts/apply_release_version.py "${{ github.ref }}"
 
       - name: Build sdist
         run: |

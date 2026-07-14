@@ -1,10 +1,13 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "numpy>=1.19.0"]
+requires = ["setuptools>=61", "wheel", "numpy>=1.19.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyscotch"
-version = "7.0.0"
+# Single source of truth: pyscotch/_version.py (import-free; read statically via
+# the attr directive below). CI stamps it from the release tag before building
+# — see scripts/apply_release_version.py — so v7.0.0rc1 -> 7.0.0rc1.
+dynamic = ["version"]
 description = "Python wrapper for PT-Scotch graph partitioning library"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -51,6 +54,9 @@ Repository = "https://github.com/c4ffein/pyscotch"
 
 [project.scripts]
 pyscotch = "pyscotch.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "pyscotch._version.__version__"}
 
 [tool.black]
 line-length = 100

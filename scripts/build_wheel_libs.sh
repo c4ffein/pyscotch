@@ -25,6 +25,11 @@ command -v flex >/dev/null 2>&1 || missing+=(flex)
 command -v bison >/dev/null 2>&1 || missing+=(bison)
 command -v make >/dev/null 2>&1 || missing+=(make)
 command -v gcc >/dev/null 2>&1 || missing+=(gcc)
+# patchelf: Scotch builds libscotch.so via `gcc -shared -o` WITHOUT its
+# LDFLAGS, so the .so calls libz/libm/libpthread but records no DT_NEEDED for
+# them (see step 3b). We patch the NEEDED list back in; auditwheel then vendors
+# libz. The package is named `patchelf` on dnf/yum and apt alike.
+command -v patchelf >/dev/null 2>&1 || missing+=(patchelf)
 if ! printf '#include <zlib.h>\nint main(void){return 0;}\n' \
         | gcc -xc - -o /dev/null -lz 2>/dev/null; then
     missing+=(zlib-devel)
@@ -72,6 +77,47 @@ for size in 32 64; do
     done
 done
 
+# ---------------------------------------------------------------------------
+# 3b. Record the DT_NEEDED entries Scotch's build omits
+# ---------------------------------------------------------------------------
+# Root cause (upstream): Scotch builds the shared object with
+# `gcc -shared -o libscotch.so *.o` (Makefile.inc AR/ARFLAGS) and applies its
+# `-lz -lm -pthread` LDFLAGS only when linking the command-line *executables*.
+# So libscotch.so calls gz*/pthread_*/sqrt but declares NEEDED = libc.so.6 only.
+# This is harmless in Scotch's own world (its executables and most distro
+# re-links supply the libraries), but it bites a standalone, dlopen'd,
+# self-contained wheel: under lazy binding (typical dev boxes) the import still
+# works, yet under the eager binding (-z now / full RELRO) the manylinux
+# toolchain uses, dlopen resolves every symbol up front and fails with
+# `undefined symbol: gzclose`.
+#
+# The clean fix belongs upstream: link libscotch.so with its libraries, or build
+# it with `-Wl,--no-undefined` so the linker *rejects* an under-declared shared
+# object instead of shipping one. Worth raising with the Scotch team — it would
+# help every downstream that loads the bare .so, not just us. Until then we
+# defend in two independent layers, either of which is sufficient:
+#   1. HERE (build time): stamp the honest NEEDED entries onto the bundled .so,
+#      so the loader is self-sufficient and the artifact is correctly linked for
+#      auditwheel and any non-Python consumer.
+#   2. pyscotch/libscotch.py `_preload_dependencies` (runtime): preload libz by
+#      soname RTLD_GLOBAL before Scotch loads — this also covers an under-linked
+#      *system* Scotch, which this build-time step cannot reach.
+# Idempotent.
+add_needed() {
+    local so="$1" soname
+    for soname in libz.so.1 libm.so.6 libpthread.so.0; do
+        if ! patchelf --print-needed "$so" | grep -qx "$soname"; then
+            patchelf --add-needed "$soname" "$so"
+        fi
+    done
+}
+for size in 32 64; do
+    add_needed "$DEST/lib$size/libscotch.so"
+done
+
 echo ""
 echo "Staged wheel libraries in pyscotch/_libs/:"
 ls -l "$DEST"/lib32 "$DEST"/lib64
+echo ""
+echo "NEEDED of libscotch.so (must include libz.so.1):"
+patchelf --print-needed "$DEST/lib64/libscotch.so"

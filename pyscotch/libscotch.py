@@ -103,24 +103,42 @@ def _dlopen_system(short_name, sonames):
     return None
 
 
-def _preload_dependencies():
-    """Preload shared dependencies (zlib, mpi) globally."""
-    # Preload zlib
-    try:
-        zlib_path = ctypes.util.find_library("z")
-        if zlib_path:
-            ctypes.CDLL(zlib_path, mode=ctypes.RTLD_GLOBAL)
-    except (OSError, AttributeError, TypeError):
-        pass
+# Runtime sonames of dependencies that Scotch's as-built libraries under-declare.
+#
+# Upstream root cause: Scotch links libscotch.so with `gcc -shared -o ... *.o`
+# and no `-lz`/`-lm`/`-pthread` (those go only on its executable links), so the
+# library calls libz but records no NEEDED entry for it. The proper fix is in
+# Scotch's build (link the .so with its libs, or `-Wl,--no-undefined`) and is
+# worth raising with the team politely — it would help everyone who loads the
+# bare .so. Until then we compensate in two independent layers, either of which
+# is sufficient on its own:
+#   1. scripts/build_wheel_libs.sh (build time): stamp the honest NEEDED entries
+#      onto the *bundled wheel* .so. Cannot reach a system-installed Scotch.
+#   2. HERE (runtime): preload the dependency RTLD_GLOBAL before Scotch loads —
+#      this covers every source (bundled, PYSCOTCH_LIB_DIR, and a system/conda
+#      Scotch that is itself under-linked), for which layer 1 can do nothing.
+#
+# The *versioned runtime* soname comes first on purpose: ctypes.util.find_library
+# ("z") resolves the `libz.so` devel symlink (via gcc/ld/ldconfig) and returns
+# None in a clean `pip install` environment with no -dev packages — exactly where
+# a wheel runs. `libz.so.1` is the file every runtime actually ships, and dlopen
+# finds it through the normal loader search path (ldconfig cache, LD_LIBRARY_PATH,
+# default dirs). This was the real reason the CI wheel smoke test failed: the old
+# preloader asked find_library("z"), got None, and skipped libz entirely.
+_ZLIB_SONAMES = ["libz.so.1", "libz.so", "libz.1.dylib", "libz.dylib"]
+_MPI_SONAMES = ["libmpi.so", "libmpi.so.40", "libmpi.so.12", "libmpi.dylib"]
 
-    # Preload MPI if parallel
+
+def _preload_dependencies():
+    """Preload under-declared shared dependencies (zlib, and MPI when parallel)
+    RTLD_GLOBAL, before Scotch loads, so its calls resolve even under eager
+    binding (-z now, the manylinux default). See the module comment above for
+    why this is needed and why it is one of two independent layers of defense.
+    Reuses _dlopen_system's find_library-then-soname search; a miss is a no-op
+    (the library may already be global, or the bundled .so's NEEDED covers it)."""
+    _dlopen_system("z", _ZLIB_SONAMES)
     if _PARALLEL:
-        try:
-            mpi_path = ctypes.util.find_library("mpi")
-            if mpi_path:
-                ctypes.CDLL(mpi_path, mode=ctypes.RTLD_GLOBAL)
-        except (OSError, AttributeError, TypeError):
-            pass
+        _dlopen_system("mpi", _MPI_SONAMES)
 
 
 def _load_system_libraries():

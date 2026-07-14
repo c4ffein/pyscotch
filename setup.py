@@ -10,6 +10,10 @@ from pathlib import Path
 readme_file = Path(__file__).parent / "README.md"
 long_description = readme_file.read_text(encoding="utf-8") if readme_file.exists() else ""
 
+# NOTE: version is declared dynamic in pyproject.toml, sourced from
+# pyscotch/_version.py — do not set it here (setuptools forbids setting a field
+# both statically in setup() and dynamically in [project]).
+
 # When scripts/build_wheel_libs.sh has staged the Scotch shared libraries into
 # pyscotch/_libs/, we ship them as package data and must produce a
 # platform-specific wheel. Otherwise (sdist / dev install), the package is
@@ -48,9 +52,9 @@ class PlatformBdistWheel(_bdist_wheel):
             return "py3", "none", plat
         return python, abi, plat
 
+
 setup(
     name="pyscotch",
-    version="7.0.0",
     author="c4ffein",
     description="Python wrapper for PT-Scotch graph partitioning library",
     long_description=long_description,

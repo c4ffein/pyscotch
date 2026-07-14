@@ -32,6 +32,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Stamp version from tag
+        run: python scripts/apply_release_version.py "${{ github.ref }}"
+
       - name: Stage bundled sequential Scotch libraries
         run: bash scripts/build_wheel_libs.sh
 
