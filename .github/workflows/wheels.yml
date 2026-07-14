@@ -121,3 +121,26 @@ jobs:
         with:
           name: sdist
           path: dist/*.tar.gz
+
+  publish:
+    name: Publish to PyPI
+    # Runs only on version tags, and only after every wheel is built AND
+    # smoke-tested and the sdist passed its purity gate.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      # OIDC token for PyPI Trusted Publishing — no API-token secret needed.
+      # One-time setup: https://pypi.org/manage/account/publishing/ → add a
+      # "pending publisher" for project `pyscotch`, owner `c4ffein`, repo
+      # `pyscotch`, workflow `wheels.yml`, environment `pypi`.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          # Merges wheels-x86_64, wheels-aarch64 and sdist into dist/
+          path: dist
+          merge-multiple: true
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
