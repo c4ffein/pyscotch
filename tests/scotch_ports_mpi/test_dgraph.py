@@ -4,6 +4,7 @@ Orchestration tests for PT-Scotch distributed graph operations.
 These tests spawn MPI processes using mpirun to execute standalone scripts.
 Following the pattern used in the Scotch test suite.
 """
+
 import os
 import subprocess
 import sys
@@ -57,7 +58,7 @@ def run_mpi_script(script_name: str, num_processes: int = 2) -> tuple[int, str, 
         capture_output=True,
         text=True,
         timeout=30,  # 30 second timeout
-        env=_get_ptscotch_env()
+        env=_get_ptscotch_env(),
     )
 
     return result.returncode, result.stdout, result.stderr
@@ -125,11 +126,7 @@ class TestDgraphCheck:
         cmd = _mpirun_cmd(2) + [sys.executable, str(script_path), str(graph_path)]
 
         result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            env=_get_ptscotch_env()
+            cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env()
         )
 
         # Print output for debugging
@@ -155,11 +152,7 @@ class TestDgraphCoarsen:
         cmd = _mpirun_cmd(3) + [sys.executable, str(script_path), str(graph_path)]
 
         result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            env=_get_ptscotch_env()
+            cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env()
         )
 
         # Print output for debugging
@@ -180,11 +173,7 @@ class TestDgraphCoarsen:
         cmd = _mpirun_cmd(3) + [sys.executable, str(script_path), str(graph_path)]
 
         result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            env=_get_ptscotch_env()
+            cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env()
         )
 
         # Print output for debugging
@@ -205,11 +194,7 @@ class TestDgraphCoarsen:
         cmd = _mpirun_cmd(3) + [sys.executable, str(script_path), str(graph_path)]
 
         result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            env=_get_ptscotch_env()
+            cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env()
         )
 
         # Print output for debugging
@@ -222,3 +207,85 @@ class TestDgraphCoarsen:
         assert result.returncode == 0, f"MPI script failed with return code {result.returncode}"
         assert "PASS" in result.stdout, "Expected PASS message in output"
 
+
+def _run_script(script_name: str, num_processes: int, *args) -> None:
+    """Run an MPI script with extra arguments and assert it PASSes."""
+    script_path = SCRIPT_DIR / script_name
+
+    cmd = _mpirun_cmd(num_processes) + [sys.executable, str(script_path)]
+    cmd.extend(str(arg) for arg in args)
+
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=60, env=_get_ptscotch_env()
+    )
+
+    # Print output for debugging
+    if result.stdout:
+        print("STDOUT:", result.stdout)
+    if result.stderr:
+        print("STDERR:", result.stderr)
+
+    # Check that the script succeeded
+    assert result.returncode == 0, f"MPI script failed with return code {result.returncode}"
+    assert "PASS" in result.stdout, "Expected PASS message in output"
+
+
+class TestDgraphPart:
+    """Tests for distributed graph partitioning and mapping."""
+
+    def test_dgraph_part_bump_2procs(self, tmp_path):
+        """Partition bump.grf on 2 processes; every vertex gets a valid,
+        non-empty part."""
+        graph_path = Path("external/scotch/src/check/data/bump.grf")
+        _run_script("dgraph_part.py", 2, graph_path, tmp_path / "part.out")
+
+    def test_dgraph_part_bump_3procs(self, tmp_path):
+        """Partition bump.grf on 3 processes."""
+        graph_path = Path("external/scotch/src/check/data/bump.grf")
+        _run_script("dgraph_part.py", 3, graph_path, tmp_path / "part.out")
+
+    def test_dgraph_part_bump_b100000(self, tmp_path):
+        """Partition with a non-zero base value graph."""
+        graph_path = Path("external/scotch/src/check/data/bump_b100000.grf")
+        _run_script("dgraph_part.py", 3, graph_path, tmp_path / "part.out")
+
+
+class TestDgraphGatherScatter:
+    """Tests for centralized <-> distributed graph conversion."""
+
+    def test_dgraph_gather_scatter_bump(self, tmp_path):
+        """Scatter/gather roundtrip preserves the adjacency structure."""
+        graph_path = Path("external/scotch/src/check/data/bump.grf")
+        _run_script("dgraph_gather_scatter.py", 3, graph_path)
+
+    def test_dgraph_gather_scatter_m4x4(self, tmp_path):
+        """Roundtrip with a small mesh graph on 2 processes."""
+        graph_path = Path("external/scotch/src/check/data/m4x4.grf")
+        _run_script("dgraph_gather_scatter.py", 2, graph_path)
+
+
+class TestDgraphOrder:
+    """Tests for distributed graph ordering."""
+
+    def test_dgraph_order_bump(self):
+        """Port of test_scotch_dgraph_order.c with bump.grf on 3 processes."""
+        graph_path = Path("external/scotch/src/check/data/bump.grf")
+        _run_script("dgraph_order.py", 3, graph_path)
+
+    def test_dgraph_order_bump_b100000(self):
+        """Port of test_scotch_dgraph_order.c with a non-zero base value."""
+        graph_path = Path("external/scotch/src/check/data/bump_b100000.grf")
+        _run_script("dgraph_order.py", 3, graph_path)
+
+    def test_dgraph_order_extra_bump(self, tmp_path):
+        """Permutation validity, elimination tree accessors and saving."""
+        graph_path = Path("external/scotch/src/check/data/bump.grf")
+        _run_script("dgraph_order_extra.py", 3, graph_path, tmp_path / "order.out")
+
+
+class TestDgraphGridStat:
+    """Tests for grid building, statistics and freeing."""
+
+    def test_dgraph_grid_stat(self):
+        """Build 3D grids, check statistics, partition, free and rebuild."""
+        _run_script("dgraph_grid_stat.py", 2)

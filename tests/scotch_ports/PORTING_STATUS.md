@@ -30,7 +30,15 @@
 | test_scotch_dgraph_coarsen.c | test_scotch_dgraph_coarsen.py | 📡 | MPI required |
 | test_scotch_dgraph_grow.c | test_scotch_dgraph_grow.py | 📡 | MPI required |
 | test_scotch_dgraph_induce.c | test_scotch_dgraph_induce.py | 📡 | MPI required |
+| test_scotch_dgraph_order.c | scotch_ports_mpi/mpi_scripts/dgraph_order.py | ✅ 📡 | Ported - runs under mpirun via scotch_ports_mpi/test_dgraph.py (2 tests passing) |
 | test_scotch_dgraph_redist.c | test_scotch_dgraph_redist.py | 📡 | MPI required |
+
+PyScotch-specific MPI tests without an upstream C equivalent (in
+`scotch_ports_mpi/mpi_scripts/`, run via `scotch_ports_mpi/test_dgraph.py`):
+- `dgraph_part.py` — SCOTCH_dgraphPart / dgraphMap / dgraphMapInit/Compute/Exit / dgraphMapView (3 tests passing)
+- `dgraph_gather_scatter.py` — SCOTCH_dgraphScatter / dgraphGather roundtrip vs a sequential graph (2 tests passing)
+- `dgraph_order_extra.py` — dgraphOrderCompute/Perm/CblkDist/TreeDist/Save/SaveMap/SaveTree (1 test passing)
+- `dgraph_grid_stat.py` — SCOTCH_dgraphBuildGrid3D / dgraphStat / dgraphFree (1 test passing)
 
 ## Architecture & Strategy
 
