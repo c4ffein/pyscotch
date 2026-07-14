@@ -37,7 +37,10 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          # gen_api.py requires >=3.14: type annotations (Optional/Union)
+          # stringify differently on older Pythons, so the committed
+          # api_data.json is only reproducible on the version that generated it.
+          python-version: "3.14"
 
       - name: Install build toolchain (incl. MPI for PT-Scotch)
         run: sudo apt-get update && sudo apt-get install -y flex bison zlib1g-dev libopenmpi-dev openmpi-bin

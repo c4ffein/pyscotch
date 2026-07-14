@@ -60,7 +60,13 @@ def first_paragraph(doc):
 
 
 def signature_of(func):
-    """Python signature as a string, without the leading self/cls."""
+    """Python signature as a string, without the leading self/cls.
+
+    NOTE: annotation stringification is Python-version-dependent (<=3.13 renders
+    "Optional[X]" / "Union[A, B]"; 3.14+ uses PEP 604 pipes "X | None" / "A | B").
+    collect_data() therefore requires Python >= 3.14 so the committed
+    api_data.json is reproducible — see the guard there.
+    """
     try:
         sig = inspect.signature(func)
     except (TypeError, ValueError):
@@ -149,6 +155,20 @@ def collect_data():
     """
     import os
     import sys
+
+    # Annotation stringification (Optional/Union) is Python-version-dependent —
+    # <=3.13 renders "Optional[X]", 3.14+ renders "X | None" — so the committed
+    # api_data.json is only reproducible on one interpreter. We standardize on
+    # 3.14+ (the PEP 604 pipe form). Fail loudly rather than silently emit a
+    # file that the docs-verify CI job (which runs 3.14) will flag as stale.
+    if sys.version_info < (3, 14):
+        raise SystemExit(
+            "gen_api.py --dump requires Python >= 3.14 (you are on "
+            f"{sys.version_info.major}.{sys.version_info.minor}). Type annotations "
+            "stringify differently on older versions, producing a spuriously "
+            "'stale' api_data.json. Try: uv run --python 3.14 python "
+            "docs/site/gen_api.py --dump"
+        )
 
     os.environ.setdefault("PYSCOTCH_INT_SIZE", "64")
     os.environ.setdefault("PYSCOTCH_PARALLEL", "1")
