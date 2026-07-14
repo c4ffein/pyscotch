@@ -41,21 +41,11 @@ Claude Code events. PyScotch includes a hook configuration at
 Hooks can automate repetitive setup:
 
 ```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo 'Reminder: use PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0 for sequential tests'"
-          }
-        ]
-      }
-    ]
-  }
-}
+{ "hooks": { "PreToolUse": [ {
+  "matcher": "Bash",
+  "hooks": [ {
+    "type": "command",
+    "command": "echo 'Reminder: use PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0 for sequential tests'" } ] } ] } }
 ```
 
 This reminds Claude to set the right environment variables before running
