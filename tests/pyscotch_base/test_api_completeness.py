@@ -25,13 +25,6 @@ INTENTIONALLY_UNBOUND = {
     "SCOTCH_errorProg": "Error handling - we use Python exceptions instead",
     "SCOTCH_errorPrint": "Error handling - we use Python exceptions instead",
     "SCOTCH_errorPrintW": "Error handling - we use Python exceptions instead",
-
-    # Random number seeding - handled internally
-    "SCOTCH_randomSeed": "Random seeding - Scotch handles internally",
-    "SCOTCH_randomReset": "Random seeding - Scotch handles internally",
-
-    # Version info - available but not critical for bindings
-    "SCOTCH_version": "Version info - available via other means",
 }
 
 

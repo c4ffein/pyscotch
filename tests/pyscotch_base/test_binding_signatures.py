@@ -54,6 +54,8 @@ _STRUCTS = {
     "SCOTCH_Geom": lib.SCOTCH_Geom,
     "SCOTCH_Context": lib.SCOTCH_Context,
     "SCOTCH_Dgraph": lib.SCOTCH_Dgraph,
+    "SCOTCH_Dmapping": lib.SCOTCH_Dmapping,
+    "SCOTCH_Dordering": lib.SCOTCH_Dordering,
     "SCOTCH_ArchDom": None,  # not wrapped by pyscotch
 }
 
