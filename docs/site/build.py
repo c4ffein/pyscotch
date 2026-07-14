@@ -93,14 +93,14 @@ the site with <code>python docs/site/build.py</code>.</p></blockquote>
 
 
 def build_api_content():
-    """Generate the API reference via gen_api, or a placeholder if pyscotch can't load."""
+    """API reference HTML and section anchors, or a placeholder if pyscotch can't load."""
     sys.path.insert(0, str(SITE_DIR))
     try:
         import gen_api
-        return gen_api.generate_api_html()
+        return gen_api.generate_api_html(), gen_api.api_sections()
     except Exception as exc:
         print(f"  ! api.html: could not import pyscotch ({exc}), writing placeholder", file=sys.stderr)
-        return API_PLACEHOLDER
+        return API_PLACEHOLDER, []
 
 
 def build():
@@ -112,6 +112,12 @@ def build():
     static_out.mkdir(exist_ok=True)
     for f in STATIC_DIR.iterdir():
         (static_out / f.name).write_text(f.read_text())
+
+    # The API reference deep-links into the Scotch manuals on INRIA's GitLab
+    # (see gen_api.SCOTCH_DOC_TAG) — remove any manuals a previous build
+    # copied locally.
+    for pdf in ("scotch_user7.0.pdf", "ptscotch_user7.0.pdf"):
+        (static_out / pdf).unlink(missing_ok=True)
 
     # Set up Jinja
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)))
@@ -128,7 +134,8 @@ def build():
 
     # Render each page (markdown pages first, then the generated API reference)
     contents = [render_markdown_with_examples(parse_page(p)[1]) for p in pages]
-    contents.append(build_api_content())
+    api_html, api_sections = build_api_content()
+    contents.append(api_html)
 
     for i, item in enumerate(nav):
         prev_page = nav[i - 1] if i > 0 else None
@@ -141,6 +148,7 @@ def build():
             current=item["stem"],
             prev_page=prev_page,
             next_page=next_page,
+            api_sections=api_sections,
             pygments_css=GITHUB_LIGHT_CSS,
         )
 

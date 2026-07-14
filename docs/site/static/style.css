@@ -134,6 +134,50 @@ body {
     background: var(--accent-soft);
 }
 
+/* Submenu: section anchors of the active page (API Reference) */
+.nav-sub {
+    list-style: none;
+    padding: 0.15rem 0 0.35rem;
+}
+
+.nav-sub li a {
+    display: block;
+    padding: 0.28rem 1.75rem 0.28rem 2.9rem;
+    color: var(--fg-subtle);
+    text-decoration: none;
+    font-size: 0.8rem;
+    border-left: 2px solid transparent;
+    transition: all var(--transition);
+}
+
+.nav-sub li a:hover {
+    color: var(--fg);
+    background: var(--surface-raised);
+}
+
+/* Inside the active item, the anchor links stay neutral */
+.nav-list li.active .nav-sub li a {
+    color: var(--fg-subtle);
+    font-weight: 400;
+    background: none;
+    border-left-color: transparent;
+}
+
+.nav-list li.active .nav-sub li a:hover {
+    color: var(--accent);
+}
+
+/* Scrollspy: the section currently on screen */
+.nav-list li.active .nav-sub li a.active {
+    color: var(--accent);
+    font-weight: 500;
+}
+
+/* Anchored section titles land with breathing room, not glued to the top */
+article h2[id] {
+    scroll-margin-top: 1.25rem;
+}
+
 .sidebar-footer {
     padding: 1.25rem 1.75rem;
     display: flex;
@@ -654,6 +698,33 @@ article blockquote code {
     overflow-wrap: anywhere;
 }
 
+/* Long signatures: one parameter per line */
+.api-method-head.api-sig-multi code {
+    white-space: pre;
+    overflow-x: auto;
+    display: block;
+}
+
+.api-legend {
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+    margin-bottom: 1.5rem;
+}
+
+/* C function names linking into the Scotch user manuals */
+.api-c-link {
+    text-decoration: none;
+    border-bottom: 1px dotted var(--fg-subtle);
+}
+
+.api-c-link:hover {
+    border-bottom-color: var(--accent);
+}
+
+.api-c-link:hover code {
+    color: var(--accent);
+}
+
 .api-badge {
     font-size: 0.68rem;
     font-weight: 600;
@@ -686,6 +757,12 @@ article blockquote code {
     background: #6b5b2e18;
 }
 
+.api-badge-python {
+    color: #2e4d6b;
+    background: #2e4d6b18;
+}
+
+
 .api-method-doc {
     margin: 0.4rem 0 0;
     font-size: 0.9rem;
@@ -697,13 +774,23 @@ article .api-method-doc {
 }
 
 .api-method-c {
-    margin: 0.35rem 0 0;
     font-size: 0.78rem;
     color: var(--fg-subtle);
 }
 
-article .api-method-c {
-    margin-bottom: 0;
+/* Meta line on top of each card: badge, then the C functions */
+.api-method-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.65rem;
+    margin-bottom: 0.5rem;
+}
+
+.api-method-meta .api-badge {
+    /* Outdent by the pill's own padding: badge text aligns with the
+       signature text below, the pill hangs slightly left, decorator-style */
+    margin-left: -0.5rem;
 }
 
 .api-method-c code {

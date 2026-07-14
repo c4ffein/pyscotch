@@ -23,6 +23,13 @@
             {% for item in nav %}
             <li class="{% if item.stem == current %}active{% endif %}">
                 <a href="{{ item.url }}">{{ item.title }}</a>
+                {% if item.stem == "api" and current == "api" and api_sections %}
+                <ul class="nav-sub">
+                    {% for s in api_sections %}
+                    <li><a href="#{{ s.slug }}">{{ s.name }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>
@@ -57,5 +64,49 @@
             {% endif %}
         </nav>
     </main>
+
+    {% if api_sections and current == "api" %}
+    <script>
+    // Scrollspy for the API submenu: color the section currently on screen
+    // and keep the URL anchor in sync (replaceState: no history spam).
+    (function () {
+        var sub = document.querySelector(".nav-sub");
+        if (!sub) return;
+        var links = Array.prototype.slice.call(sub.querySelectorAll('a[href^="#"]'));
+        var heads = links
+            .map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); })
+            .filter(Boolean);
+        if (!heads.length) return;
+        var content = document.querySelector(".content");
+        var ticking = false;
+
+        function update() {
+            ticking = false;
+            var current = heads[0];
+            for (var i = 0; i < heads.length; i++) {
+                if (heads[i].getBoundingClientRect().top <= 130) current = heads[i];
+                else break;
+            }
+            links.forEach(function (a) {
+                a.classList.toggle("active", a.getAttribute("href") === "#" + current.id);
+            });
+            if (location.hash !== "#" + current.id) {
+                history.replaceState(null, "", "#" + current.id);
+            }
+        }
+
+        function onScroll() {
+            if (!ticking) {
+                ticking = true;
+                requestAnimationFrame(update);
+            }
+        }
+
+        (content || window).addEventListener("scroll", onScroll, { passive: true });
+        window.addEventListener("resize", onScroll, { passive: true });
+        update();
+    }());
+    </script>
+    {% endif %}
 </body>
 </html>

@@ -15,6 +15,7 @@ back to a placeholder page when this module fails to import.
 
 import html
 import inspect
+import json
 import os
 import re
 import sys
@@ -35,8 +36,41 @@ from pyscotch import libscotch  # noqa: E402
 LEVELS = {
     "scotch_binding": ("direct binding", "binding", "Maps to"),
     "highlevel": ("high-level helper", "helper", "Wraps"),
+    "internal": ("pure python", "python", "Calls"),
     None: ("undecorated", "undecorated", "Calls (detected)"),
 }
+
+# {SCOTCH_function: {"pdf": ..., "page": ...}} extracted from the manuals'
+# bookmarks by gen_pdf_map.py. Links point at INRIA's GitLab, pinned to the
+# tag the page map was extracted from — bump the tag AND rerun gen_pdf_map.py
+# together, or the page numbers drift.
+_MAP_PATH = Path(__file__).parent / "scotch_manual_pages.json"
+MANUAL_PAGES = json.loads(_MAP_PATH.read_text()) if _MAP_PATH.exists() else {}
+SCOTCH_DOC_TAG = "v7.0.11"
+_MANUAL_URL = "https://gitlab.inria.fr/scotch/scotch/-/raw/{tag}/doc/{pdf}?inline=true"
+
+
+def manual_entry(c_function):
+    """(href, hover_text) into the Scotch manual for c_function, or None."""
+    entry = MANUAL_PAGES.get(c_function)
+    if not entry:
+        return None
+    manual = "PT-Scotch" if "ptscotch" in entry["pdf"] else "Scotch"
+    url = _MANUAL_URL.format(tag=SCOTCH_DOC_TAG, pdf=entry["pdf"])
+    return f'{url}#page={entry["page"]}', f'{manual} user manual, page {entry["page"]}'
+
+
+def manual_link(c_function):
+    """<a> to the Scotch manual page documenting c_function, or plain <code>."""
+    escaped = html.escape(c_function)
+    entry = manual_entry(c_function)
+    if entry is None:
+        return f"<code>{escaped}</code>"
+    href, hover = entry
+    return (
+        f'<a class="api-c-link" href="{href}" target="_blank" rel="noopener" '
+        f'title="{hover}"><code>{escaped}</code></a>'
+    )
 
 
 def first_paragraph(doc):
@@ -56,6 +90,35 @@ def signature_of(func):
     if params and params[0].name in ("self", "cls"):
         sig = sig.replace(parameters=params[1:])
     return str(sig)
+
+
+def format_signature(name, sig):
+    """`name(sig)`, one parameter per line when the one-liner gets long."""
+    one_line = f"{name}{sig}"
+    if len(one_line) <= 72:
+        return one_line
+    body, arrow, ret = sig.partition(" -> ")
+    params = split_params(body[1:-1])  # strip the outer parentheses
+    lines = [f"{name}("]
+    lines += [f"    {p}," for p in params]
+    lines.append(f"){arrow}{ret}")
+    return "\n".join(lines)
+
+
+def split_params(body):
+    """Split a signature body on top-level commas (brackets may nest)."""
+    params, depth, current = [], 0, ""
+    for ch in body:
+        if ch == "," and depth == 0:
+            params.append(current.strip())
+            current = ""
+            continue
+        depth += ch in "([{"
+        depth -= ch in ")]}"
+        current += ch
+    if current.strip():
+        params.append(current.strip())
+    return params
 
 
 def detected_calls(func):
@@ -109,6 +172,10 @@ def class_entries(cls):
     return entries
 
 
+def slugify(name):
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
 def collect():
     """One section per public class, plus one for module-level functions."""
     sections = []
@@ -119,6 +186,7 @@ def collect():
             sections.append(
                 {
                     "name": name,
+                    "slug": slugify(name),
                     "doc": html.escape(first_paragraph(obj.__doc__)),
                     "entries": class_entries(obj),
                 }
@@ -128,6 +196,7 @@ def collect():
     sections.append(
         {
             "name": "Module functions",
+            "slug": "module-functions",
             "doc": "Functions available directly on the <code>pyscotch</code> module.",
             "entries": functions,
         }
@@ -143,25 +212,49 @@ def coverage(sections):
     return {
         "direct": sum(e["level"] == "direct binding" for e in entries),
         "helpers": sum(e["level"] == "high-level helper" for e in entries),
+        "python": sum(e["level"] == "pure python" for e in entries),
         "undecorated": sum(e["level"] == "undecorated" for e in entries),
         "declared": len(declared),
         "exposed": len(exposed),
     }
 
 
+def badge_tooltip(e):
+    """Hover text for the API-level badge."""
+    funcs = ", ".join(e["c_functions"])
+    if e["level"] == "direct binding":
+        return f"1:1 wrapper of {funcs}" if funcs else "1:1 wrapper of a Scotch C function"
+    if e["level"] == "high-level helper":
+        return f"Composes {funcs}" if funcs else "Pythonic helper"
+    if e["level"] == "pure python":
+        return "Pure Python — makes no Scotch C call"
+    return "Not yet annotated; C calls detected from the source"
+
+
 def render_entry(e):
-    name = html.escape(e["name"])
-    sig = html.escape(e["signature"])
-    badges = f'<span class="api-badge api-badge-{e["level_css"]}">{e["level"]}</span>'
+    shown = e["name"] if e["is_property"] else format_signature(e["name"], e["signature"])
+    tooltip = html.escape(badge_tooltip(e))
+
+    badges = (
+        f'<span class="api-badge api-badge-{e["level_css"]}" title="{tooltip}">'
+        f'{e["level"]}</span>'
+    )
     if e["is_property"]:
         badges = '<span class="api-badge api-badge-property">property</span>' + badges
+
+    # Meta line on top: badge, then the C functions as plain, Ctrl-F-able
+    # (and manual-linked) text.
+    meta = [badges]
+    if e["c_functions"]:
+        funcs = ", ".join(manual_link(f) for f in e["c_functions"])
+        meta.append(f'<span class="api-method-c">{e["c_label"]}: {funcs}</span>')
+
+    multi = " api-sig-multi" if "\n" in shown else ""
     out = ['<div class="api-method">']
-    out.append(f'<div class="api-method-head"><code>{name}{sig}</code>{badges}</div>')
+    out.append(f'<div class="api-method-meta">{" ".join(meta)}</div>')
+    out.append(f'<div class="api-method-head{multi}"><code>{html.escape(shown)}</code></div>')
     if e["summary"]:
         out.append(f'<p class="api-method-doc">{html.escape(e["summary"])}</p>')
-    if e["c_functions"]:
-        funcs = ", ".join(f"<code>{html.escape(f)}</code>" for f in e["c_functions"])
-        out.append(f'<p class="api-method-c">{e["c_label"]}: {funcs}</p>')
     out.append("</div>")
     return "\n".join(out)
 
@@ -181,9 +274,11 @@ def generate_api_html():
     stats = [
         (cov["direct"], "direct bindings"),
         (cov["helpers"], "high-level helpers"),
-        (cov["undecorated"], "undecorated methods"),
+        (cov["python"], "pure-python methods"),
         (f"{cov['exposed']} / {cov['declared']}", "declared C bindings exposed via methods"),
     ]
+    if cov["undecorated"]:
+        stats.insert(3, (cov["undecorated"], "undecorated methods"))
     out.append('<div class="api-summary">')
     for num, label in stats:
         out.append(
@@ -191,13 +286,26 @@ def generate_api_html():
             f'<span class="api-stat-label">{label}</span></div>'
         )
     out.append("</div>")
+    out.append(
+        '<p class="api-legend"><strong>Badges:</strong> '
+        "<em>direct binding</em> — wraps exactly one Scotch C function, 1:1; "
+        "<em>high-level helper</em> — a Pythonic method composing several C calls; "
+        "<em>pure python</em> — makes no Scotch C call (result containers, accessors). "
+        "C function names link to the section of the Scotch / PT-Scotch user "
+        "manual documenting them.</p>"
+    )
     for section in sections:
-        out.append(f'<h2>{html.escape(section["name"])}</h2>')
+        out.append(f'<h2 id="{section["slug"]}">{html.escape(section["name"])}</h2>')
         if section["doc"]:
             out.append(f'<p>{section["doc"]}</p>')
         for e in section["entries"]:
             out.append(render_entry(e))
     return "\n".join(out)
+
+
+def api_sections():
+    """Names and anchor slugs of the API sections, for the sidebar submenu."""
+    return [{"name": s["name"], "slug": s["slug"]} for s in collect()]
 
 
 if __name__ == "__main__":
