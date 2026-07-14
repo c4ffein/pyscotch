@@ -6,6 +6,8 @@ import numpy as np
 from pathlib import Path
 from typing import Union, Tuple, Optional
 
+from .api_decorators import internal_api
+
 
 class Ordering:
     """
@@ -45,6 +47,7 @@ class Ordering:
             for i, p in enumerate(self.permutation):
                 self.inverse_permutation[p] = i
 
+    @internal_api
     def save(self, filename: Union[str, Path]) -> None:
         """
         Save the ordering to a file.
@@ -59,6 +62,7 @@ class Ordering:
                 f.write(f"{i}\t{self.permutation[i]}\t{self.inverse_permutation[i]}\n")
 
     @staticmethod
+    @internal_api
     def load(filename: Union[str, Path]) -> "Ordering":
         """
         Load an ordering from a file.
@@ -93,6 +97,7 @@ class Ordering:
 
         return Ordering(permutation, inverse_permutation)
 
+    @internal_api
     def apply(self, array: np.ndarray) -> np.ndarray:
         """
         Apply the ordering to an array.
@@ -107,11 +112,10 @@ class Ordering:
             ValueError: If array size doesn't match ordering size
         """
         if len(array) != self.size:
-            raise ValueError(
-                f"array size ({len(array)}) must match ordering size ({self.size})"
-            )
+            raise ValueError(f"array size ({len(array)}) must match ordering size ({self.size})")
         return array[self.permutation]
 
+    @internal_api
     def apply_inverse(self, array: np.ndarray) -> np.ndarray:
         """
         Apply the inverse ordering to an array.
@@ -126,9 +130,7 @@ class Ordering:
             ValueError: If array size doesn't match ordering size
         """
         if len(array) != self.size:
-            raise ValueError(
-                f"array size ({len(array)}) must match ordering size ({self.size})"
-            )
+            raise ValueError(f"array size ({len(array)}) must match ordering size ({self.size})")
         return array[self.inverse_permutation]
 
     def __len__(self) -> int:

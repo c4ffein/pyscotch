@@ -6,6 +6,8 @@ import numpy as np
 from pathlib import Path
 from typing import Union
 
+from .api_decorators import internal_api
+
 
 class Mapping:
     """
@@ -35,6 +37,7 @@ class Mapping:
 
         self.size = len(self.mapping)
 
+    @internal_api
     def save(self, filename: Union[str, Path]) -> None:
         """
         Save the mapping to a file.
@@ -49,6 +52,7 @@ class Mapping:
                 f.write(f"{i}\t{domain}\n")
 
     @staticmethod
+    @internal_api
     def load(filename: Union[str, Path]) -> "Mapping":
         """
         Load a mapping from a file.
@@ -80,6 +84,7 @@ class Mapping:
 
         return Mapping(mapping)
 
+    @internal_api
     def get_partition_sizes(self) -> np.ndarray:
         """
         Get the size of each partition.
@@ -90,6 +95,7 @@ class Mapping:
         num_parts = int(np.max(self.mapping)) + 1
         return np.bincount(self.mapping.astype(np.intp), minlength=num_parts).astype(np.int64)
 
+    @internal_api
     def get_partition(self, domain: int) -> np.ndarray:
         """
         Get the vertices assigned to a specific domain.
@@ -108,12 +114,11 @@ class Mapping:
 
         max_domain = int(np.max(self.mapping))
         if domain > max_domain:
-            raise ValueError(
-                f"domain {domain} exceeds maximum domain {max_domain}"
-            )
+            raise ValueError(f"domain {domain} exceeds maximum domain {max_domain}")
 
         return np.where(self.mapping == domain)[0]
 
+    @internal_api
     def num_partitions(self) -> int:
         """
         Get the number of partitions.
@@ -123,6 +128,7 @@ class Mapping:
         """
         return int(np.max(self.mapping)) + 1
 
+    @internal_api
     def balance(self) -> float:
         """
         Compute the load balance of the mapping.

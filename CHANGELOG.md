@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/FINDINGS.md` — index of all internal and upstream findings
 
 ### Changed
-- **Default variant is now 64-bit sequential** (`PYSCOTCH_INT_SIZE=64`, `PYSCOTCH_PARALLEL=0`; was 32/0 in code, documented as 64/1). 64-bit indices are safe at any graph size, and a sequential default is required for the binary wheels, which do not ship PT-Scotch. Conda's 32-bit Scotch users must set `PYSCOTCH_INT_SIZE=32` (the load-time width check says so explicitly).
+- **Default variant is now 64-bit sequential** (`PYSCOTCH_INT_SIZE=64`, `PYSCOTCH_PARALLEL=0`; was 32/0 in code, documented as 64/1). 64-bit indices are safe at any graph size, and a sequential default is required for the binary wheels, which do not ship PT-Scotch. conda-forge's `scotch` is 64-bit, so it matches the new default; a mismatched-width system Scotch gets a load-time error naming the correct `PYSCOTCH_INT_SIZE`.
 
 ### Fixed - Binding signatures (found by the new signature verifier)
 - `SCOTCH_meshBuild` (missing parameter), `SCOTCH_meshData` (3 missing parameters), `SCOTCH_dgraphData` (misaligned 16/17 layout)

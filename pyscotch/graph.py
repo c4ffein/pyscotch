@@ -42,7 +42,7 @@ def c_fopen(filename: str, mode: str = "r"):
     # lib._lib_dir is None when the system-installed Scotch is loaded: system
     # Scotch and CPython link the same platform libc, so plain fopen/fclose
     # are ABI-safe and no compat shim is needed.
-    lib_dir = getattr(lib, '_lib_dir', None)
+    lib_dir = getattr(lib, "_lib_dir", None)
     if lib_dir is not None:
         compat_path = os.path.join(lib_dir, "libpyscotch_compat.so")
         if not os.path.exists(compat_path):
@@ -124,7 +124,9 @@ def _coerce_edge_weights(values, what: str = "edge weights") -> Optional[np.ndar
                 "(e.g. numpy.rint(weights * scale))"
             )
     elif arr.dtype.kind not in "iu":
-        raise ValueError(f"{what} must be numeric (strictly positive integers), got dtype {arr.dtype}")
+        raise ValueError(
+            f"{what} must be numeric (strictly positive integers), got dtype {arr.dtype}"
+        )
     if np.any(arr <= 0):
         raise ValueError(
             f"{what} must be strictly positive integers, found minimum value {arr.min()}. "
@@ -133,7 +135,9 @@ def _coerce_edge_weights(values, what: str = "edge weights") -> Optional[np.ndar
         )
     out = arr.astype(lib.get_scotch_dtype())
     if not np.array_equal(out, arr):
-        raise ValueError(f"{what} do not fit in the Scotch integer type ({lib.get_scotch_dtype().__name__})")
+        raise ValueError(
+            f"{what} do not fit in the Scotch integer type ({lib.get_scotch_dtype().__name__})"
+        )
     if np.all(out == 1):
         return None
     return out
@@ -145,7 +149,7 @@ def _scotch_mapping(graph_ptr, arch_ptr, parttab_c):
     mappdat = lib.SCOTCH_Mapping()
     ret = lib.SCOTCH_graphMapInit(byref(graph_ptr), byref(mappdat), byref(arch_ptr), parttab_c)
     if ret != 0:
-        raise RuntimeError(f"SCOTCH_graphMapInit failed (error code: {ret})")
+        raise lib.scotch_error("SCOTCH_graphMapInit failed", ret)
     try:
         yield mappdat
     finally:
@@ -158,9 +162,10 @@ def _scotch_ordering(graph_ptr, permtab_c, peritab_c):
     cblkptr = lib.SCOTCH_Num()
     orddat = lib.SCOTCH_Ordering()
     ret = lib.SCOTCH_graphOrderInit(
-        byref(graph_ptr), byref(orddat), permtab_c, peritab_c, byref(cblkptr), None, None)
+        byref(graph_ptr), byref(orddat), permtab_c, peritab_c, byref(cblkptr), None, None
+    )
     if ret != 0:
-        raise RuntimeError(f"SCOTCH_graphOrderInit failed (error code: {ret})")
+        raise lib.scotch_error("SCOTCH_graphOrderInit failed", ret)
     try:
         yield orddat
     finally:
@@ -184,7 +189,7 @@ class Graph:
         self._graph = lib.SCOTCH_Graph()
         ret = lib.SCOTCH_graphInit(byref(self._graph))
         if ret != 0:
-            raise RuntimeError(f"Failed to initialize graph (error code: {ret})")
+            raise lib.scotch_error("Failed to initialize graph", ret)
 
         self._initialized = True
         # Keep references to arrays to prevent garbage collection
@@ -201,13 +206,16 @@ class Graph:
         self.close()
         return False
 
+    @scotch_binding("SCOTCH_graphExit", "void SCOTCH_graphExit(SCOTCH_Graph *)")
     def close(self):
         """Release graph resources. Called automatically when used as a context manager."""
         if getattr(self, "_initialized", False):
             lib.SCOTCH_graphExit(byref(self._graph))
             self._initialized = False
 
-    @scotch_binding("SCOTCH_graphLoad", "int SCOTCH_graphLoad(SCOTCH_Graph *, FILE *, SCOTCH_Num, SCOTCH_Num)")
+    @scotch_binding(
+        "SCOTCH_graphLoad", "int SCOTCH_graphLoad(SCOTCH_Graph *, FILE *, SCOTCH_Num, SCOTCH_Num)"
+    )
     def load(self, filename: Union[str, Path]) -> None:
         """
         Load a graph from a file in Scotch graph format.
@@ -232,15 +240,10 @@ class Graph:
         # Use -1 to preserve the file's original base value if needed.
         with c_fopen(str(filename), "r") as file_ptr:
             baseval = lib.SCOTCH_Num(0)
-            ret = lib.SCOTCH_graphLoad(
-                byref(self._graph),
-                file_ptr,
-                baseval,
-                0
-            )
+            ret = lib.SCOTCH_graphLoad(byref(self._graph), file_ptr, baseval, 0)
 
             if ret != 0:
-                raise RuntimeError(f"Failed to load graph from {filename} (error code: {ret})")
+                raise lib.scotch_error(f"Failed to load graph from {filename}", ret)
 
     @scotch_binding("SCOTCH_graphSave", "int SCOTCH_graphSave(const SCOTCH_Graph *, FILE *)")
     def save(self, filename: Union[str, Path]) -> None:
@@ -263,9 +266,12 @@ class Graph:
             ret = lib.SCOTCH_graphSave(byref(self._graph), file_ptr)
 
             if ret != 0:
-                raise RuntimeError(f"Failed to save graph to {filename} (error code: {ret})")
+                raise lib.scotch_error(f"Failed to save graph to {filename}", ret)
 
-    @scotch_binding("SCOTCH_graphBuild", "int SCOTCH_graphBuild(SCOTCH_Graph *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *)")
+    @scotch_binding(
+        "SCOTCH_graphBuild",
+        "int SCOTCH_graphBuild(SCOTCH_Graph *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *)",
+    )
     def build(
         self,
         verttab: np.ndarray,
@@ -321,8 +327,16 @@ class Graph:
         verttab_c = self._verttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
         edgetab_c = self._edgetab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
-        velotab_c = self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._velotab is not None else None
-        edlotab_c = self._edlotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._edlotab is not None else None
+        velotab_c = (
+            self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            if self._velotab is not None
+            else None
+        )
+        edlotab_c = (
+            self._edlotab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            if self._edlotab is not None
+            else None
+        )
 
         # Pass verttab as vendtab to trigger Scotch's (vendtab == verttab) check
         # which automatically uses verttab[i+1] as the end index for vertex i
@@ -340,9 +354,8 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(
-                f"Failed to build graph with {vertnbr} vertices and {edgenbr} edges "
-                f"(Scotch error code: {ret})"
+            raise lib.scotch_error(
+                f"Failed to build graph with {vertnbr} vertices and {edgenbr} edges", ret
             )
 
     @scotch_binding("SCOTCH_graphCheck", "int SCOTCH_graphCheck(const SCOTCH_Graph *)")
@@ -356,7 +369,10 @@ class Graph:
         ret = lib.SCOTCH_graphCheck(byref(self._graph))
         return ret == 0
 
-    @scotch_binding("SCOTCH_graphSize", "void SCOTCH_graphSize(const SCOTCH_Graph *, SCOTCH_Num *, SCOTCH_Num *)")
+    @scotch_binding(
+        "SCOTCH_graphSize",
+        "void SCOTCH_graphSize(const SCOTCH_Graph *, SCOTCH_Num *, SCOTCH_Num *)",
+    )
     def size(self) -> Tuple[int, int]:
         """
         Get the size of the graph.
@@ -416,26 +432,36 @@ class Graph:
 
         lib.SCOTCH_graphStat(
             byref(self._graph),
-            byref(velomin), byref(velomax), byref(velosum),
-            byref(veloavg), byref(velodlt),
-            byref(degrmin), byref(degrmax),
-            byref(degravg), byref(degrdlt),
-            byref(edlomin), byref(edlomax), byref(edlosum),
-            byref(edloavg), byref(edlodlt),
+            byref(velomin),
+            byref(velomax),
+            byref(velosum),
+            byref(veloavg),
+            byref(velodlt),
+            byref(degrmin),
+            byref(degrmax),
+            byref(degravg),
+            byref(degrdlt),
+            byref(edlomin),
+            byref(edlomax),
+            byref(edlosum),
+            byref(edloavg),
+            byref(edlodlt),
         )
 
         return {
-            'velomin': velomin.value,
-            'velomax': velomax.value,
-            'velosum': velosum.value,
-            'degrmin': degrmin.value,
-            'degrmax': degrmax.value,
-            'edlomin': edlomin.value,
-            'edlomax': edlomax.value,
-            'edlosum': edlosum.value,
+            "velomin": velomin.value,
+            "velomax": velomax.value,
+            "velosum": velosum.value,
+            "degrmin": degrmin.value,
+            "degrmax": degrmax.value,
+            "edlomin": edlomin.value,
+            "edlomax": edlomax.value,
+            "edlosum": edlosum.value,
         }
 
-    @highlevel_api(scotch_functions=["SCOTCH_graphMapInit", "SCOTCH_graphMapCompute", "SCOTCH_graphMapExit"])
+    @highlevel_api(
+        scotch_functions=["SCOTCH_graphMapInit", "SCOTCH_graphMapCompute", "SCOTCH_graphMapExit"]
+    )
     def partition(
         self,
         nparts: int,
@@ -464,9 +490,7 @@ class Graph:
         vertnbr, _ = self.size()
 
         if nparts > vertnbr:
-            raise ValueError(
-                f"nparts ({nparts}) cannot exceed number of vertices ({vertnbr})"
-            )
+            raise ValueError(f"nparts ({nparts}) cannot exceed number of vertices ({vertnbr})")
 
         # Create partition array (dtype matches compiled Scotch)
         parttab = np.zeros(vertnbr, dtype=lib.get_scotch_dtype())
@@ -493,10 +517,7 @@ class Graph:
             parttab_c,
         )
         if ret != 0:
-            raise RuntimeError(
-                f"Failed to initialize mapping for {nparts} parts "
-                f"(Scotch error code: {ret})"
-            )
+            raise lib.scotch_error(f"Failed to initialize mapping for {nparts} parts", ret)
 
         # Step 2: Compute mapping
         ret = lib.SCOTCH_graphMapCompute(
@@ -509,14 +530,16 @@ class Graph:
         lib.SCOTCH_graphMapExit(byref(self._graph), byref(mappdat))
 
         if ret != 0:
-            raise RuntimeError(
-                f"Failed to compute partition into {nparts} parts "
-                f"({vertnbr} vertices) (Scotch error code: {ret})"
+            raise lib.scotch_error(
+                f"Failed to compute partition into {nparts} parts ({vertnbr} vertices)", ret
             )
 
         return parttab
 
-    @scotch_binding("SCOTCH_graphOrder", "int SCOTCH_graphOrder(const SCOTCH_Graph *, const SCOTCH_Strat *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *)")
+    @scotch_binding(
+        "SCOTCH_graphOrder",
+        "int SCOTCH_graphOrder(const SCOTCH_Graph *, const SCOTCH_Strat *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *)",
+    )
     def order(
         self,
         strategy=None,
@@ -561,13 +584,11 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(
-                f"Failed to order graph with {vertnbr} vertices "
-                f"(Scotch error code: {ret})"
-            )
+            raise lib.scotch_error(f"Failed to order graph with {vertnbr} vertices", ret)
 
         return permtab, peritab
 
+    @highlevel_api(scotch_functions=["SCOTCH_randomReset", "SCOTCH_graphColor"])
     def color(self, reset_random: bool = True) -> Tuple[np.ndarray, int]:
         """
         Compute a graph coloring (vertex coloring).
@@ -607,13 +628,14 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(
-                f"Failed to color graph with {vertnbr} vertices "
-                f"(Scotch error code: {ret})"
-            )
+            raise lib.scotch_error(f"Failed to color graph with {vertnbr} vertices", ret)
 
         return colotab, colonbr.value
 
+    @scotch_binding(
+        "SCOTCH_graphInduceList",
+        "int SCOTCH_graphInduceList(const SCOTCH_Graph *, SCOTCH_Num, const SCOTCH_Num *, SCOTCH_Graph *)",
+    )
     def induce_list(self, vertex_list: np.ndarray) -> "Graph":
         """
         Create an induced subgraph from a list of vertices.
@@ -648,13 +670,14 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(
-                f"Failed to induce subgraph from {indvertnbr} vertices "
-                f"(Scotch error code: {ret})"
-            )
+            raise lib.scotch_error(f"Failed to induce subgraph from {indvertnbr} vertices", ret)
 
         return induced_graph
 
+    @scotch_binding(
+        "SCOTCH_graphInducePart",
+        "int SCOTCH_graphInducePart(const SCOTCH_Graph *, SCOTCH_Num, const SCOTCH_GraphPart2 *, SCOTCH_GraphPart2, SCOTCH_Graph *)",
+    )
     def induce_part(self, partition: np.ndarray, part_id: int) -> "Graph":
         """
         Create an induced subgraph from vertices in a specific partition.
@@ -690,9 +713,8 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(
-                f"Failed to induce subgraph from partition {part_id} "
-                f"({indvertnbr} vertices) (Scotch error code: {ret})"
+            raise lib.scotch_error(
+                f"Failed to induce subgraph from partition {part_id} ({indvertnbr} vertices)", ret
             )
 
         return induced_graph
@@ -736,7 +758,7 @@ class Graph:
         elif ret == 1:
             return (None, None)
         else:
-            raise RuntimeError(f"Failed to coarsen graph (error code: {ret})")
+            raise lib.scotch_error("Failed to coarsen graph", ret)
 
     @scotch_binding("SCOTCH_graphCoarsenMatch", "int SCOTCH_graphCoarsenMatch(...)")
     def coarsen_match(
@@ -769,7 +791,7 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(f"Failed to compute coarsening match (error code: {ret})")
+            raise lib.scotch_error("Failed to compute coarsening match", ret)
 
         return (coar_vertnbr.value, mate)
 
@@ -804,7 +826,7 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(f"Failed to build coarse graph (error code: {ret})")
+            raise lib.scotch_error("Failed to build coarse graph", ret)
 
         return (coarse, multinode)
 
@@ -842,7 +864,7 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(f"Failed to compute fixed partition (error code: {ret})")
+            raise lib.scotch_error("Failed to compute fixed partition", ret)
 
         return parttab
 
@@ -880,7 +902,7 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(f"Failed to compute overlap partition (error code: {ret})")
+            raise lib.scotch_error("Failed to compute overlap partition", ret)
 
         return parttab
 
@@ -931,7 +953,7 @@ class Graph:
         )
 
         if ret != 0:
-            raise RuntimeError(f"Failed to repartition graph (error code: {ret})")
+            raise lib.scotch_error("Failed to repartition graph", ret)
 
         return parttab
 
@@ -950,7 +972,7 @@ class Graph:
             with c_fopen(str(filename), "w") as fp:
                 ret = lib.SCOTCH_graphMapSave(byref(self._graph), byref(mappdat), fp)
                 if ret != 0:
-                    raise RuntimeError(f"Failed to save mapping (error code: {ret})")
+                    raise lib.scotch_error("Failed to save mapping", ret)
 
     @scotch_binding("SCOTCH_graphMapView", "int SCOTCH_graphMapView(...)")
     def map_view(self, filename: Union[str, Path], parttab: np.ndarray, arch) -> None:
@@ -967,7 +989,7 @@ class Graph:
             with c_fopen(str(filename), "w") as fp:
                 ret = lib.SCOTCH_graphMapView(byref(self._graph), byref(mappdat), fp)
                 if ret != 0:
-                    raise RuntimeError(f"Failed to write mapping view (error code: {ret})")
+                    raise lib.scotch_error("Failed to write mapping view", ret)
 
     @scotch_binding("SCOTCH_graphOrderCheck", "int SCOTCH_graphOrderCheck(...)")
     def order_check(self, permtab: np.ndarray, peritab: np.ndarray) -> bool:
@@ -988,7 +1010,9 @@ class Graph:
             return ret == 0
 
     @scotch_binding("SCOTCH_graphOrderSave", "int SCOTCH_graphOrderSave(...)")
-    def order_save(self, filename: Union[str, Path], permtab: np.ndarray, peritab: np.ndarray) -> None:
+    def order_save(
+        self, filename: Union[str, Path], permtab: np.ndarray, peritab: np.ndarray
+    ) -> None:
         """
         Save an ordering to a file in Scotch ordering format.
 
@@ -1003,7 +1027,7 @@ class Graph:
             with c_fopen(str(filename), "w") as fp:
                 ret = lib.SCOTCH_graphOrderSave(byref(self._graph), byref(orddat), fp)
                 if ret != 0:
-                    raise RuntimeError(f"Failed to save ordering (error code: {ret})")
+                    raise lib.scotch_error("Failed to save ordering", ret)
 
     @scotch_binding("SCOTCH_graphTabSave", "int SCOTCH_graphTabSave(...)")
     def tab_save(self, filename: Union[str, Path], tab: np.ndarray) -> None:
@@ -1018,7 +1042,7 @@ class Graph:
         with c_fopen(str(filename), "w") as fp:
             ret = lib.SCOTCH_graphTabSave(byref(self._graph), tab_c, fp)
             if ret != 0:
-                raise RuntimeError(f"Failed to save tab (error code: {ret})")
+                raise lib.scotch_error("Failed to save tab", ret)
 
     @scotch_binding("SCOTCH_graphTabLoad", "int SCOTCH_graphTabLoad(...)")
     def tab_load(self, filename: Union[str, Path]) -> np.ndarray:
@@ -1038,10 +1062,11 @@ class Graph:
         with c_fopen(str(filename), "r") as fp:
             ret = lib.SCOTCH_graphTabLoad(byref(self._graph), tab_c, fp)
             if ret != 0:
-                raise RuntimeError(f"Failed to load tab (error code: {ret})")
+                raise lib.scotch_error("Failed to load tab", ret)
 
         return tab
 
+    @internal_api
     def save_mapping(self, filename: Union[str, Path], mapping: np.ndarray) -> None:
         """
         Save a mapping/partition to a file.
@@ -1057,6 +1082,7 @@ class Graph:
                 f.write(f"{i}\t{part}\n")
 
     @staticmethod
+    @highlevel_api(scotch_functions=["SCOTCH_graphInit", "SCOTCH_graphBuild"])
     def from_edges(
         edges: List[Tuple[int, int]],
         num_vertices: Optional[int] = None,
@@ -1160,9 +1186,15 @@ class Graph:
 
         lib.SCOTCH_graphData(
             byref(self._graph),
-            byref(baseval), byref(vertnbr),
-            byref(verttab_p), byref(vendtab_p), byref(velotab_p), byref(vlbltab_p),
-            byref(edgenbr), byref(edgetab_p), byref(edlotab_p),
+            byref(baseval),
+            byref(vertnbr),
+            byref(verttab_p),
+            byref(vendtab_p),
+            byref(velotab_p),
+            byref(vlbltab_p),
+            byref(edgenbr),
+            byref(edgetab_p),
+            byref(edlotab_p),
         )
 
         base = baseval.value
@@ -1190,9 +1222,9 @@ class Graph:
         if compact:
             sel = slice(0, arcnbr)
         else:
-            sel = np.concatenate([
-                np.arange(int(verttab[i]) - base, int(vendtab[i]) - base) for i in range(n)
-            ])
+            sel = np.concatenate(
+                [np.arange(int(verttab[i]) - base, int(vendtab[i]) - base) for i in range(n)]
+            )
         indices = edgebuf[sel].astype(scotch_dtype) - base
         edlotab = edlobuf[sel].astype(scotch_dtype) if edlobuf is not None else None
 
@@ -1298,7 +1330,11 @@ class Graph:
                 "A = A + A.T, or A = A.maximum(A.T) to keep existing weights unchanged"
             )
 
-        edlotab = _coerce_edge_weights(A.data, what="edge weights (matrix values)") if use_edge_weights else None
+        edlotab = (
+            _coerce_edge_weights(A.data, what="edge weights (matrix values)")
+            if use_edge_weights
+            else None
+        )
 
         scotch_dtype = lib.get_scotch_dtype()
         graph = cls()

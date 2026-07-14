@@ -171,7 +171,7 @@ Test categories:
 
 | Class | Key Methods |
 |-------|-------------|
-| `Dgraph` | `build()`, `load()`, `save()`, `check()`, `coarsen()`, `ghst()`, `grow()`, `band()`, `redist()`, `induce_part()` |
+| `Dgraph` | `build()`, `build_grid_3d()`, `load()`, `save()`, `check()`, `stat()`, `coarsen()`, `ghst()`, `grow()`, `band()`, `redist()`, `induce_part()`, `part()`, `map()`, `map_compute()`, `map_save()`, `map_view()`, `order()`, `order_init()`/`order_compute()`/`order_perm()`/`order_exit()`, `order_save()`, `gather()`, `scatter()`, `free()` |
 
 ## Project Structure
 

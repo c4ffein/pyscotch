@@ -15,12 +15,11 @@ import os
 import sys
 
 import numpy as np
-from ctypes import (
-    c_int, c_long, c_double, c_char_p, c_void_p,
-    POINTER, Structure, byref
-)
+from ctypes import c_int, c_long, c_double, c_char_p, c_void_p, POINTER, Structure, byref
 from pathlib import Path
 from typing import Optional
+
+from .api_decorators import internal_api
 
 # =============================================================================
 # Configuration from Environment
@@ -43,6 +42,14 @@ SCOTCH_COARSENFOLD = 0x0100
 SCOTCH_COARSENFOLDDUP = 0x0300
 SCOTCH_COARSENNOMERGE = 0x4000
 
+# 3D grid distributed graph building flags (from ptscotch.h)
+SCOTCH_DGRAPHBUILDGRID3DGRID = 0
+SCOTCH_DGRAPHBUILDGRID3DTORUS = 2
+SCOTCH_DGRAPHBUILDGRID3DNGB6 = 0
+SCOTCH_DGRAPHBUILDGRID3DNGB26 = 1
+SCOTCH_DGRAPHBUILDGRID3DVERTLOAD = 4
+SCOTCH_DGRAPHBUILDGRID3DEDGELOAD = 8
+
 # =============================================================================
 # Type Definitions
 # =============================================================================
@@ -54,6 +61,7 @@ SCOTCH_GraphPart2 = ctypes.c_ubyte
 # =============================================================================
 # Library Loading
 # =============================================================================
+
 
 def _get_lib_dir() -> Optional[Path]:
     """Get the library directory for the current configuration.
@@ -99,7 +107,7 @@ def _preload_dependencies():
     """Preload shared dependencies (zlib, mpi) globally."""
     # Preload zlib
     try:
-        zlib_path = ctypes.util.find_library('z')
+        zlib_path = ctypes.util.find_library("z")
         if zlib_path:
             ctypes.CDLL(zlib_path, mode=ctypes.RTLD_GLOBAL)
     except (OSError, AttributeError, TypeError):
@@ -108,7 +116,7 @@ def _preload_dependencies():
     # Preload MPI if parallel
     if _PARALLEL:
         try:
-            mpi_path = ctypes.util.find_library('mpi')
+            mpi_path = ctypes.util.find_library("mpi")
             if mpi_path:
                 ctypes.CDLL(mpi_path, mode=ctypes.RTLD_GLOBAL)
         except (OSError, AttributeError, TypeError):
@@ -136,7 +144,9 @@ def _load_system_libraries():
 
     par = None
     if _PARALLEL:
-        par = _dlopen_system("ptscotch", ["libptscotch.so", "libptscotch.so.7", "libptscotch-7.0.so"])
+        par = _dlopen_system(
+            "ptscotch", ["libptscotch.so", "libptscotch.so.7", "libptscotch-7.0.so"]
+        )
         if par is None:
             raise FileNotFoundError(
                 "No system PT-Scotch library found (PYSCOTCH_PARALLEL=1). "
@@ -148,12 +158,65 @@ def _load_system_libraries():
     return seq, par
 
 
+# Handle to libpyscotch_compat.so when it provides error capture; None when
+# running against a system Scotch (no shim, messages go to stderr as usual)
+_err_capture = None
+
+
+def _load_error_capture(lib_dir):
+    """Load the compat shim FIRST and globally, so Scotch's calls to the
+    deliberately-unsuffixed SCOTCH_errorPrint/W resolve to our capturing
+    implementations instead of libscotcherr's stderr printers."""
+    global _err_capture
+    compat_path = lib_dir / "libpyscotch_compat.so"
+    if not compat_path.exists():
+        return
+    try:
+        handle = ctypes.CDLL(str(compat_path), mode=ctypes.RTLD_GLOBAL)
+        handle.pyscotch_err_get.restype = c_char_p
+        handle.pyscotch_err_get.argtypes = []
+        handle.pyscotch_err_clear.restype = None
+        handle.pyscotch_err_clear.argtypes = []
+        _err_capture = handle
+    except (OSError, AttributeError):
+        pass  # older shim without error capture: keep stderr behavior
+
+
+def get_scotch_messages(clear=True) -> str:
+    """Error/warning messages Scotch emitted since the last clear.
+
+    Empty string when capture is unavailable (system-Scotch mode) or when
+    nothing was emitted. Messages may include warnings from earlier calls.
+    """
+    if _err_capture is None:
+        return ""
+    text = (_err_capture.pyscotch_err_get() or b"").decode("utf-8", "replace")
+    if clear:
+        _err_capture.pyscotch_err_clear()
+    return text
+
+
+def scotch_error(context: str, ret=None) -> RuntimeError:
+    """Build a RuntimeError for a failed Scotch call, appending any captured
+    Scotch error messages. Usage: `raise lib.scotch_error("SCOTCH_x failed", ret)`.
+    """
+    message = context if ret is None else f"{context} (error code: {ret})"
+    captured = get_scotch_messages()
+    if captured:
+        message = f"{message}\n{captured}"
+    return RuntimeError(message)
+
+
 def _load_libraries():
     """Load the Scotch libraries."""
     lib_dir = _get_lib_dir()
 
     if lib_dir is None:
         return _load_system_libraries()
+
+    # Error capture must be in the global symbol table before any Scotch
+    # library binds SCOTCH_errorPrint
+    _load_error_capture(lib_dir)
 
     # Load error library
     err_lib_path = lib_dir / "libscotcherr.so"
@@ -198,10 +261,13 @@ _lib_dir = str(_loaded_lib_dir) if _loaded_lib_dir is not None else None
 # Opaque Structure Definitions
 # =============================================================================
 
+
 def _make_opaque_struct(name: str, size: int):
     """Create an opaque ctypes Structure class with given size."""
+
     class OpaqueStruct(Structure):
         _fields_ = [("_opaque", ctypes.c_byte * size)]
+
     OpaqueStruct.__name__ = name
     OpaqueStruct.__qualname__ = name
     return OpaqueStruct
@@ -248,10 +314,16 @@ def _detect_suffix() -> str:
     )
 
 
+# Function-name prefixes (lowercased) of symbols exported by libptscotch.so:
+# distributed graphs, parallel strategies and the distributed mapping/ordering
+# opaque-structure helpers all live in the parallel library.
+_PARALLEL_FUNC_PREFIXES = ("scotch_dgraph", "scotch_stratdgraph", "scotch_dmap", "scotch_dorder")
+
+
 def _get_func(name: str):
     """Get a Scotch function with the correct suffix."""
-    # Distributed graph functions are in the parallel library
-    if name.lower().startswith("scotch_dgraph"):
+    # PT-Scotch functions are in the parallel library
+    if name.lower().startswith(_PARALLEL_FUNC_PREFIXES):
         if not _lib_parallel:
             raise AttributeError(
                 f"{name} requires PT-Scotch (parallel variant). "
@@ -280,20 +352,24 @@ def _compute_structure_sizes():
     sizes = {}
 
     # Sequential structures (always available)
-    sizes['graph'] = _get_func("SCOTCH_graphSizeof")()
-    sizes['mesh'] = _get_func("SCOTCH_meshSizeof")()
-    sizes['strat'] = _get_func("SCOTCH_stratSizeof")()
-    sizes['arch'] = _get_func("SCOTCH_archSizeof")()
-    sizes['mapping'] = _get_func("SCOTCH_mapSizeof")()
-    sizes['ordering'] = _get_func("SCOTCH_orderSizeof")()
-    sizes['geom'] = _get_func("SCOTCH_geomSizeof")()
-    sizes['context'] = _get_func("SCOTCH_contextSizeof")()
+    sizes["graph"] = _get_func("SCOTCH_graphSizeof")()
+    sizes["mesh"] = _get_func("SCOTCH_meshSizeof")()
+    sizes["strat"] = _get_func("SCOTCH_stratSizeof")()
+    sizes["arch"] = _get_func("SCOTCH_archSizeof")()
+    sizes["mapping"] = _get_func("SCOTCH_mapSizeof")()
+    sizes["ordering"] = _get_func("SCOTCH_orderSizeof")()
+    sizes["geom"] = _get_func("SCOTCH_geomSizeof")()
+    sizes["context"] = _get_func("SCOTCH_contextSizeof")()
 
     # Parallel structures (only if parallel variant)
     if _lib_parallel:
-        sizes['dgraph'] = _get_func("SCOTCH_dgraphSizeof")()
+        sizes["dgraph"] = _get_func("SCOTCH_dgraphSizeof")()
+        sizes["dmapping"] = _get_func("SCOTCH_dmapSizeof")()
+        sizes["dordering"] = _get_func("SCOTCH_dorderSizeof")()
     else:
-        sizes['dgraph'] = None
+        sizes["dgraph"] = None
+        sizes["dmapping"] = None
+        sizes["dordering"] = None
 
     return sizes
 
@@ -301,26 +377,34 @@ def _compute_structure_sizes():
 # Compute sizes and define structures
 _SIZES = _compute_structure_sizes()
 
-SCOTCH_Graph = _make_opaque_struct("SCOTCH_Graph", _SIZES['graph'])
-SCOTCH_Mesh = _make_opaque_struct("SCOTCH_Mesh", _SIZES['mesh'])
-SCOTCH_Strat = _make_opaque_struct("SCOTCH_Strat", _SIZES['strat'])
-SCOTCH_Arch = _make_opaque_struct("SCOTCH_Arch", _SIZES['arch'])
-SCOTCH_Mapping = _make_opaque_struct("SCOTCH_Mapping", _SIZES['mapping'])
-SCOTCH_Ordering = _make_opaque_struct("SCOTCH_Ordering", _SIZES['ordering'])
-SCOTCH_Geom = _make_opaque_struct("SCOTCH_Geom", _SIZES['geom'])
-SCOTCH_Context = _make_opaque_struct("SCOTCH_Context", _SIZES['context'])
+SCOTCH_Graph = _make_opaque_struct("SCOTCH_Graph", _SIZES["graph"])
+SCOTCH_Mesh = _make_opaque_struct("SCOTCH_Mesh", _SIZES["mesh"])
+SCOTCH_Strat = _make_opaque_struct("SCOTCH_Strat", _SIZES["strat"])
+SCOTCH_Arch = _make_opaque_struct("SCOTCH_Arch", _SIZES["arch"])
+SCOTCH_Mapping = _make_opaque_struct("SCOTCH_Mapping", _SIZES["mapping"])
+SCOTCH_Ordering = _make_opaque_struct("SCOTCH_Ordering", _SIZES["ordering"])
+SCOTCH_Geom = _make_opaque_struct("SCOTCH_Geom", _SIZES["geom"])
+SCOTCH_Context = _make_opaque_struct("SCOTCH_Context", _SIZES["context"])
 
-if _SIZES['dgraph']:
-    SCOTCH_Dgraph = _make_opaque_struct("SCOTCH_Dgraph", _SIZES['dgraph'])
+if _SIZES["dgraph"]:
+    SCOTCH_Dgraph = _make_opaque_struct("SCOTCH_Dgraph", _SIZES["dgraph"])
+    SCOTCH_Dmapping = _make_opaque_struct("SCOTCH_Dmapping", _SIZES["dmapping"])
+    SCOTCH_Dordering = _make_opaque_struct("SCOTCH_Dordering", _SIZES["dordering"])
 else:
     SCOTCH_Dgraph = None
+    SCOTCH_Dmapping = None
+    SCOTCH_Dordering = None
 
-print(f"✓ Structure sizes: graph={_SIZES['graph']}, strat={_SIZES['strat']}, "
-      f"arch={_SIZES['arch']}, dgraph={_SIZES['dgraph']}", file=sys.stderr)
+print(
+    f"✓ Structure sizes: graph={_SIZES['graph']}, strat={_SIZES['strat']}, "
+    f"arch={_SIZES['arch']}, dgraph={_SIZES['dgraph']}",
+    file=sys.stderr,
+)
 
 # =============================================================================
 # Function Bindings
 # =============================================================================
+
 
 def _bind_functions():
     """Bind all Scotch functions with proper type signatures."""
@@ -339,216 +423,330 @@ def _bind_functions():
     bindings = {}
 
     # --- Graph functions ---
-    bindings['SCOTCH_graphInit'] = (c_int, [GraphPtr])
-    bindings['SCOTCH_graphExit'] = (None, [GraphPtr])
-    bindings['SCOTCH_graphBuild'] = (c_int, [
-        GraphPtr, SCOTCH_Num, SCOTCH_Num,
-        NumPtr, NumPtr, NumPtr, NumPtr,
-        SCOTCH_Num, NumPtr, NumPtr
-    ])
-    bindings['SCOTCH_graphCheck'] = (c_int, [GraphPtr])
-    bindings['SCOTCH_graphSize'] = (None, [GraphPtr, NumPtr, NumPtr])
-    bindings['SCOTCH_graphData'] = (None, [
-        GraphPtr, NumPtr, NumPtr, POINTER(NumPtr), POINTER(NumPtr),
-        POINTER(NumPtr), POINTER(NumPtr), NumPtr, POINTER(NumPtr), POINTER(NumPtr)
-    ])
-    bindings['SCOTCH_graphLoad'] = (c_int, [GraphPtr, c_void_p, SCOTCH_Num, SCOTCH_Num])
-    bindings['SCOTCH_graphSave'] = (c_int, [GraphPtr, c_void_p])
-    bindings['SCOTCH_graphBase'] = (SCOTCH_Num, [GraphPtr, SCOTCH_Num])
-    bindings['SCOTCH_graphPart'] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
-    bindings['SCOTCH_graphPartOvl'] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
-    bindings['SCOTCH_graphPartFixed'] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
-    bindings['SCOTCH_graphOrder'] = (c_int, [
-        GraphPtr, StratPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr
-    ])
-    bindings['SCOTCH_graphCoarsen'] = (c_int, [
-        GraphPtr, SCOTCH_Num, c_double, SCOTCH_Num, GraphPtr, NumPtr
-    ])
-    bindings['SCOTCH_graphCoarsenMatch'] = (c_int, [
-        GraphPtr, NumPtr, c_double, SCOTCH_Num, NumPtr
-    ])
-    bindings['SCOTCH_graphCoarsenBuild'] = (c_int, [
-        GraphPtr, SCOTCH_Num, NumPtr, GraphPtr, NumPtr
-    ])
-    bindings['SCOTCH_graphInduceList'] = (c_int, [GraphPtr, SCOTCH_Num, NumPtr, GraphPtr])
-    bindings['SCOTCH_graphInducePart'] = (c_int, [GraphPtr, SCOTCH_Num, POINTER(SCOTCH_GraphPart2), SCOTCH_GraphPart2, GraphPtr])
-    bindings['SCOTCH_graphDiamPV'] = (SCOTCH_Num, [GraphPtr])
-    bindings['SCOTCH_graphColor'] = (c_int, [GraphPtr, NumPtr, NumPtr, SCOTCH_Num])
-    bindings['SCOTCH_graphStat'] = (None, [
-        GraphPtr, NumPtr, NumPtr, NumPtr, POINTER(c_double), POINTER(c_double),
-        NumPtr, NumPtr, POINTER(c_double), POINTER(c_double),
-        NumPtr, NumPtr, NumPtr, POINTER(c_double), POINTER(c_double)
-    ])
-    bindings['SCOTCH_graphMap'] = (c_int, [GraphPtr, ArchPtr, StratPtr, NumPtr])
-    bindings['SCOTCH_graphMapInit'] = (c_int, [GraphPtr, MappingPtr, ArchPtr, NumPtr])
-    bindings['SCOTCH_graphMapExit'] = (None, [GraphPtr, MappingPtr])
-    bindings['SCOTCH_graphMapCompute'] = (c_int, [GraphPtr, MappingPtr, StratPtr])
-    bindings['SCOTCH_graphRemapCompute'] = (c_int, [
-        GraphPtr, MappingPtr, MappingPtr, c_double, NumPtr, StratPtr
-    ])
-    bindings['SCOTCH_graphMapFixed'] = (c_int, [GraphPtr, ArchPtr, StratPtr, NumPtr])
-    bindings['SCOTCH_graphMapFixedCompute'] = (c_int, [GraphPtr, MappingPtr, StratPtr])
-    bindings['SCOTCH_graphMapLoad'] = (c_int, [GraphPtr, MappingPtr, c_void_p])
-    bindings['SCOTCH_graphMapSave'] = (c_int, [GraphPtr, MappingPtr, c_void_p])
-    bindings['SCOTCH_graphMapView'] = (c_int, [GraphPtr, MappingPtr, c_void_p])
-    bindings['SCOTCH_graphRemap'] = (c_int, [
-        GraphPtr, ArchPtr, NumPtr, c_double, NumPtr, StratPtr, NumPtr
-    ])
-    bindings['SCOTCH_graphRemapFixed'] = (c_int, [
-        GraphPtr, ArchPtr, NumPtr, c_double, NumPtr, StratPtr, NumPtr
-    ])
-    bindings['SCOTCH_graphRemapFixedCompute'] = (c_int, [
-        GraphPtr, MappingPtr, MappingPtr, c_double, NumPtr, StratPtr
-    ])
-    bindings['SCOTCH_graphRepart'] = (c_int, [
-        GraphPtr, SCOTCH_Num, NumPtr, c_double, NumPtr, StratPtr, NumPtr
-    ])
-    bindings['SCOTCH_graphRepartFixed'] = (c_int, [
-        GraphPtr, SCOTCH_Num, NumPtr, c_double, NumPtr, StratPtr, NumPtr
-    ])
-    bindings['SCOTCH_graphPartOvlView'] = (c_int, [GraphPtr, SCOTCH_Num, NumPtr, c_void_p])
-    bindings['SCOTCH_graphFree'] = (None, [GraphPtr])
-    bindings['SCOTCH_graphDump'] = (c_int, [GraphPtr, c_char_p, c_char_p, c_void_p])
-    bindings['SCOTCH_graphTabLoad'] = (c_int, [GraphPtr, NumPtr, c_void_p])
-    bindings['SCOTCH_graphTabSave'] = (c_int, [GraphPtr, NumPtr, c_void_p])
+    bindings["SCOTCH_graphInit"] = (c_int, [GraphPtr])
+    bindings["SCOTCH_graphExit"] = (None, [GraphPtr])
+    bindings["SCOTCH_graphBuild"] = (
+        c_int,
+        [
+            GraphPtr,
+            SCOTCH_Num,
+            SCOTCH_Num,
+            NumPtr,
+            NumPtr,
+            NumPtr,
+            NumPtr,
+            SCOTCH_Num,
+            NumPtr,
+            NumPtr,
+        ],
+    )
+    bindings["SCOTCH_graphCheck"] = (c_int, [GraphPtr])
+    bindings["SCOTCH_graphSize"] = (None, [GraphPtr, NumPtr, NumPtr])
+    bindings["SCOTCH_graphData"] = (
+        None,
+        [
+            GraphPtr,
+            NumPtr,
+            NumPtr,
+            POINTER(NumPtr),
+            POINTER(NumPtr),
+            POINTER(NumPtr),
+            POINTER(NumPtr),
+            NumPtr,
+            POINTER(NumPtr),
+            POINTER(NumPtr),
+        ],
+    )
+    bindings["SCOTCH_graphLoad"] = (c_int, [GraphPtr, c_void_p, SCOTCH_Num, SCOTCH_Num])
+    bindings["SCOTCH_graphSave"] = (c_int, [GraphPtr, c_void_p])
+    bindings["SCOTCH_graphBase"] = (SCOTCH_Num, [GraphPtr, SCOTCH_Num])
+    bindings["SCOTCH_graphPart"] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
+    bindings["SCOTCH_graphPartOvl"] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
+    bindings["SCOTCH_graphPartFixed"] = (c_int, [GraphPtr, SCOTCH_Num, StratPtr, NumPtr])
+    bindings["SCOTCH_graphOrder"] = (
+        c_int,
+        [GraphPtr, StratPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr],
+    )
+    bindings["SCOTCH_graphCoarsen"] = (
+        c_int,
+        [GraphPtr, SCOTCH_Num, c_double, SCOTCH_Num, GraphPtr, NumPtr],
+    )
+    bindings["SCOTCH_graphCoarsenMatch"] = (c_int, [GraphPtr, NumPtr, c_double, SCOTCH_Num, NumPtr])
+    bindings["SCOTCH_graphCoarsenBuild"] = (c_int, [GraphPtr, SCOTCH_Num, NumPtr, GraphPtr, NumPtr])
+    bindings["SCOTCH_graphInduceList"] = (c_int, [GraphPtr, SCOTCH_Num, NumPtr, GraphPtr])
+    bindings["SCOTCH_graphInducePart"] = (
+        c_int,
+        [GraphPtr, SCOTCH_Num, POINTER(SCOTCH_GraphPart2), SCOTCH_GraphPart2, GraphPtr],
+    )
+    bindings["SCOTCH_graphDiamPV"] = (SCOTCH_Num, [GraphPtr])
+    bindings["SCOTCH_graphColor"] = (c_int, [GraphPtr, NumPtr, NumPtr, SCOTCH_Num])
+    bindings["SCOTCH_graphStat"] = (
+        None,
+        [
+            GraphPtr,
+            NumPtr,
+            NumPtr,
+            NumPtr,
+            POINTER(c_double),
+            POINTER(c_double),
+            NumPtr,
+            NumPtr,
+            POINTER(c_double),
+            POINTER(c_double),
+            NumPtr,
+            NumPtr,
+            NumPtr,
+            POINTER(c_double),
+            POINTER(c_double),
+        ],
+    )
+    bindings["SCOTCH_graphMap"] = (c_int, [GraphPtr, ArchPtr, StratPtr, NumPtr])
+    bindings["SCOTCH_graphMapInit"] = (c_int, [GraphPtr, MappingPtr, ArchPtr, NumPtr])
+    bindings["SCOTCH_graphMapExit"] = (None, [GraphPtr, MappingPtr])
+    bindings["SCOTCH_graphMapCompute"] = (c_int, [GraphPtr, MappingPtr, StratPtr])
+    bindings["SCOTCH_graphRemapCompute"] = (
+        c_int,
+        [GraphPtr, MappingPtr, MappingPtr, c_double, NumPtr, StratPtr],
+    )
+    bindings["SCOTCH_graphMapFixed"] = (c_int, [GraphPtr, ArchPtr, StratPtr, NumPtr])
+    bindings["SCOTCH_graphMapFixedCompute"] = (c_int, [GraphPtr, MappingPtr, StratPtr])
+    bindings["SCOTCH_graphMapLoad"] = (c_int, [GraphPtr, MappingPtr, c_void_p])
+    bindings["SCOTCH_graphMapSave"] = (c_int, [GraphPtr, MappingPtr, c_void_p])
+    bindings["SCOTCH_graphMapView"] = (c_int, [GraphPtr, MappingPtr, c_void_p])
+    bindings["SCOTCH_graphRemap"] = (
+        c_int,
+        [GraphPtr, ArchPtr, NumPtr, c_double, NumPtr, StratPtr, NumPtr],
+    )
+    bindings["SCOTCH_graphRemapFixed"] = (
+        c_int,
+        [GraphPtr, ArchPtr, NumPtr, c_double, NumPtr, StratPtr, NumPtr],
+    )
+    bindings["SCOTCH_graphRemapFixedCompute"] = (
+        c_int,
+        [GraphPtr, MappingPtr, MappingPtr, c_double, NumPtr, StratPtr],
+    )
+    bindings["SCOTCH_graphRepart"] = (
+        c_int,
+        [GraphPtr, SCOTCH_Num, NumPtr, c_double, NumPtr, StratPtr, NumPtr],
+    )
+    bindings["SCOTCH_graphRepartFixed"] = (
+        c_int,
+        [GraphPtr, SCOTCH_Num, NumPtr, c_double, NumPtr, StratPtr, NumPtr],
+    )
+    bindings["SCOTCH_graphPartOvlView"] = (c_int, [GraphPtr, SCOTCH_Num, NumPtr, c_void_p])
+    bindings["SCOTCH_graphFree"] = (None, [GraphPtr])
+    bindings["SCOTCH_graphDump"] = (c_int, [GraphPtr, c_char_p, c_char_p, c_void_p])
+    bindings["SCOTCH_graphTabLoad"] = (c_int, [GraphPtr, NumPtr, c_void_p])
+    bindings["SCOTCH_graphTabSave"] = (c_int, [GraphPtr, NumPtr, c_void_p])
 
     # --- Graph ordering (low-level) ---
-    bindings['SCOTCH_graphOrderInit'] = (c_int, [
-        GraphPtr, OrderingPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr
-    ])
-    bindings['SCOTCH_graphOrderExit'] = (None, [GraphPtr, OrderingPtr])
-    bindings['SCOTCH_graphOrderLoad'] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
-    bindings['SCOTCH_graphOrderSave'] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
-    bindings['SCOTCH_graphOrderSaveMap'] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
-    bindings['SCOTCH_graphOrderSaveTree'] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
-    bindings['SCOTCH_graphOrderCompute'] = (c_int, [GraphPtr, OrderingPtr, StratPtr])
-    bindings['SCOTCH_graphOrderComputeList'] = (c_int, [
-        GraphPtr, OrderingPtr, SCOTCH_Num, NumPtr, StratPtr
-    ])
-    bindings['SCOTCH_graphOrderCheck'] = (c_int, [GraphPtr, OrderingPtr])
-    bindings['SCOTCH_graphOrderList'] = (c_int, [
-        GraphPtr, SCOTCH_Num, NumPtr, StratPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr
-    ])
+    bindings["SCOTCH_graphOrderInit"] = (
+        c_int,
+        [GraphPtr, OrderingPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr],
+    )
+    bindings["SCOTCH_graphOrderExit"] = (None, [GraphPtr, OrderingPtr])
+    bindings["SCOTCH_graphOrderLoad"] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
+    bindings["SCOTCH_graphOrderSave"] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
+    bindings["SCOTCH_graphOrderSaveMap"] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
+    bindings["SCOTCH_graphOrderSaveTree"] = (c_int, [GraphPtr, OrderingPtr, c_void_p])
+    bindings["SCOTCH_graphOrderCompute"] = (c_int, [GraphPtr, OrderingPtr, StratPtr])
+    bindings["SCOTCH_graphOrderComputeList"] = (
+        c_int,
+        [GraphPtr, OrderingPtr, SCOTCH_Num, NumPtr, StratPtr],
+    )
+    bindings["SCOTCH_graphOrderCheck"] = (c_int, [GraphPtr, OrderingPtr])
+    bindings["SCOTCH_graphOrderList"] = (
+        c_int,
+        [GraphPtr, SCOTCH_Num, NumPtr, StratPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr],
+    )
 
     # --- Graph geometry I/O ---
-    bindings['SCOTCH_graphGeomLoadScot'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
-    bindings['SCOTCH_graphGeomLoadChac'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
-    bindings['SCOTCH_graphGeomLoadHabo'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
-    bindings['SCOTCH_graphGeomLoadMmkt'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
-    bindings['SCOTCH_graphGeomSaveScot'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
-    bindings['SCOTCH_graphGeomSaveChac'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
-    bindings['SCOTCH_graphGeomSaveMmkt'] = (c_int, [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p])
+    bindings["SCOTCH_graphGeomLoadScot"] = (
+        c_int,
+        [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p],
+    )
+    bindings["SCOTCH_graphGeomLoadChac"] = (
+        c_int,
+        [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p],
+    )
+    bindings["SCOTCH_graphGeomLoadHabo"] = (
+        c_int,
+        [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p],
+    )
+    bindings["SCOTCH_graphGeomLoadMmkt"] = (
+        c_int,
+        [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p],
+    )
+    bindings["SCOTCH_graphGeomSaveScot"] = (
+        c_int,
+        [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p],
+    )
+    bindings["SCOTCH_graphGeomSaveChac"] = (
+        c_int,
+        [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p],
+    )
+    bindings["SCOTCH_graphGeomSaveMmkt"] = (
+        c_int,
+        [GraphPtr, GeomPtr, c_void_p, c_void_p, c_char_p],
+    )
 
     # --- Strategy functions ---
-    bindings['SCOTCH_stratInit'] = (c_int, [StratPtr])
-    bindings['SCOTCH_stratExit'] = (None, [StratPtr])
-    bindings['SCOTCH_stratGraphMap'] = (c_int, [StratPtr, c_char_p])
-    bindings['SCOTCH_stratGraphMapBuild'] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double])
-    bindings['SCOTCH_stratGraphOrder'] = (c_int, [StratPtr, c_char_p])
-    bindings['SCOTCH_stratGraphOrderBuild'] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double])
-    bindings['SCOTCH_stratGraphPartOvl'] = (c_int, [StratPtr, c_char_p])
-    bindings['SCOTCH_stratGraphPartOvlBuild'] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double])
-    bindings['SCOTCH_stratGraphBipart'] = (c_int, [StratPtr, c_char_p])
-    bindings['SCOTCH_stratGraphClusterBuild'] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double, c_double])
-    bindings['SCOTCH_stratMeshOrder'] = (c_int, [StratPtr, c_char_p])
-    bindings['SCOTCH_stratMeshOrderBuild'] = (c_int, [StratPtr, SCOTCH_Num, c_double])
-    bindings['SCOTCH_stratSave'] = (c_int, [StratPtr, c_void_p])
+    bindings["SCOTCH_stratInit"] = (c_int, [StratPtr])
+    bindings["SCOTCH_stratExit"] = (None, [StratPtr])
+    bindings["SCOTCH_stratGraphMap"] = (c_int, [StratPtr, c_char_p])
+    bindings["SCOTCH_stratGraphMapBuild"] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double])
+    bindings["SCOTCH_stratGraphOrder"] = (c_int, [StratPtr, c_char_p])
+    bindings["SCOTCH_stratGraphOrderBuild"] = (c_int, [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double])
+    bindings["SCOTCH_stratGraphPartOvl"] = (c_int, [StratPtr, c_char_p])
+    bindings["SCOTCH_stratGraphPartOvlBuild"] = (
+        c_int,
+        [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double],
+    )
+    bindings["SCOTCH_stratGraphBipart"] = (c_int, [StratPtr, c_char_p])
+    bindings["SCOTCH_stratGraphClusterBuild"] = (
+        c_int,
+        [StratPtr, SCOTCH_Num, SCOTCH_Num, c_double, c_double],
+    )
+    bindings["SCOTCH_stratMeshOrder"] = (c_int, [StratPtr, c_char_p])
+    bindings["SCOTCH_stratMeshOrderBuild"] = (c_int, [StratPtr, SCOTCH_Num, c_double])
+    bindings["SCOTCH_stratSave"] = (c_int, [StratPtr, c_void_p])
 
     # --- Architecture functions ---
-    bindings['SCOTCH_archInit'] = (c_int, [ArchPtr])
-    bindings['SCOTCH_archExit'] = (None, [ArchPtr])
-    bindings['SCOTCH_archCmplt'] = (c_int, [ArchPtr, SCOTCH_Num])
-    bindings['SCOTCH_archCmpltw'] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr])
-    bindings['SCOTCH_archBuild0'] = (c_int, [ArchPtr, GraphPtr, SCOTCH_Num, NumPtr, StratPtr])
-    bindings['SCOTCH_archBuild2'] = (c_int, [ArchPtr, GraphPtr, SCOTCH_Num, NumPtr])
-    bindings['SCOTCH_archSub'] = (c_int, [ArchPtr, ArchPtr, SCOTCH_Num, NumPtr])
-    bindings['SCOTCH_archLoad'] = (c_int, [ArchPtr, c_void_p])
-    bindings['SCOTCH_archSave'] = (c_int, [ArchPtr, c_void_p])
-    bindings['SCOTCH_archSize'] = (SCOTCH_Num, [ArchPtr])
-    bindings['SCOTCH_archName'] = (c_char_p, [ArchPtr])
-    bindings['SCOTCH_archVar'] = (c_int, [ArchPtr])
-    bindings['SCOTCH_archBuild'] = (c_int, [ArchPtr, GraphPtr, SCOTCH_Num, NumPtr, StratPtr])
-    bindings['SCOTCH_archHcub'] = (c_int, [ArchPtr, SCOTCH_Num])
-    bindings['SCOTCH_archMesh2'] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num])
-    bindings['SCOTCH_archMesh3'] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num])
-    bindings['SCOTCH_archMeshX'] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr])
-    bindings['SCOTCH_archTleaf'] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr, NumPtr])
-    bindings['SCOTCH_archTorus2'] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num])
-    bindings['SCOTCH_archTorus3'] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num])
-    bindings['SCOTCH_archTorusX'] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr])
-    bindings['SCOTCH_archVcmplt'] = (c_int, [ArchPtr])
-    bindings['SCOTCH_archVhcub'] = (c_int, [ArchPtr])
+    bindings["SCOTCH_archInit"] = (c_int, [ArchPtr])
+    bindings["SCOTCH_archExit"] = (None, [ArchPtr])
+    bindings["SCOTCH_archCmplt"] = (c_int, [ArchPtr, SCOTCH_Num])
+    bindings["SCOTCH_archCmpltw"] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr])
+    bindings["SCOTCH_archBuild0"] = (c_int, [ArchPtr, GraphPtr, SCOTCH_Num, NumPtr, StratPtr])
+    bindings["SCOTCH_archBuild2"] = (c_int, [ArchPtr, GraphPtr, SCOTCH_Num, NumPtr])
+    bindings["SCOTCH_archSub"] = (c_int, [ArchPtr, ArchPtr, SCOTCH_Num, NumPtr])
+    bindings["SCOTCH_archLoad"] = (c_int, [ArchPtr, c_void_p])
+    bindings["SCOTCH_archSave"] = (c_int, [ArchPtr, c_void_p])
+    bindings["SCOTCH_archSize"] = (SCOTCH_Num, [ArchPtr])
+    bindings["SCOTCH_archName"] = (c_char_p, [ArchPtr])
+    bindings["SCOTCH_archVar"] = (c_int, [ArchPtr])
+    bindings["SCOTCH_archBuild"] = (c_int, [ArchPtr, GraphPtr, SCOTCH_Num, NumPtr, StratPtr])
+    bindings["SCOTCH_archHcub"] = (c_int, [ArchPtr, SCOTCH_Num])
+    bindings["SCOTCH_archMesh2"] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num])
+    bindings["SCOTCH_archMesh3"] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num])
+    bindings["SCOTCH_archMeshX"] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr])
+    bindings["SCOTCH_archTleaf"] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr, NumPtr])
+    bindings["SCOTCH_archTorus2"] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num])
+    bindings["SCOTCH_archTorus3"] = (c_int, [ArchPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num])
+    bindings["SCOTCH_archTorusX"] = (c_int, [ArchPtr, SCOTCH_Num, NumPtr])
+    bindings["SCOTCH_archVcmplt"] = (c_int, [ArchPtr])
+    bindings["SCOTCH_archVhcub"] = (c_int, [ArchPtr])
 
     # --- Mesh functions ---
-    bindings['SCOTCH_meshInit'] = (c_int, [MeshPtr])
-    bindings['SCOTCH_meshExit'] = (None, [MeshPtr])
-    bindings['SCOTCH_meshLoad'] = (c_int, [MeshPtr, c_void_p, SCOTCH_Num])
-    bindings['SCOTCH_meshSave'] = (c_int, [MeshPtr, c_void_p])
-    bindings['SCOTCH_meshCheck'] = (c_int, [MeshPtr])
-    bindings['SCOTCH_meshBuild'] = (c_int, [
-        MeshPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num,
-        NumPtr, NumPtr, NumPtr, NumPtr, NumPtr,
-        SCOTCH_Num, NumPtr
-    ])
-    bindings['SCOTCH_meshGraph'] = (c_int, [MeshPtr, GraphPtr])
-    bindings['SCOTCH_meshSize'] = (None, [MeshPtr, NumPtr, NumPtr, NumPtr])
-    bindings['SCOTCH_meshData'] = (None, [
-        MeshPtr, NumPtr, NumPtr, NumPtr, NumPtr,
-        POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr),
-        NumPtr, POINTER(NumPtr), NumPtr
-    ])
-    bindings['SCOTCH_meshGraph'] = (c_int, [MeshPtr, GraphPtr])
-    bindings['SCOTCH_meshGraphDual'] = (c_int, [MeshPtr, GraphPtr, SCOTCH_Num])
-    bindings['SCOTCH_meshStat'] = (None, [
-        MeshPtr, NumPtr, NumPtr, NumPtr, POINTER(c_double), POINTER(c_double),
-        NumPtr, NumPtr, POINTER(c_double), POINTER(c_double),
-        NumPtr, NumPtr, POINTER(c_double), POINTER(c_double)
-    ])
-    bindings['SCOTCH_meshOrder'] = (c_int, [
-        MeshPtr, StratPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr
-    ])
-    bindings['SCOTCH_meshOrderInit'] = (c_int, [
-        MeshPtr, OrderingPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr
-    ])
-    bindings['SCOTCH_meshOrderExit'] = (None, [MeshPtr, OrderingPtr])
-    bindings['SCOTCH_meshOrderSave'] = (c_int, [MeshPtr, OrderingPtr, c_void_p])
-    bindings['SCOTCH_meshOrderSaveMap'] = (c_int, [MeshPtr, OrderingPtr, c_void_p])
-    bindings['SCOTCH_meshOrderSaveTree'] = (c_int, [MeshPtr, OrderingPtr, c_void_p])
-    bindings['SCOTCH_meshOrderCompute'] = (c_int, [MeshPtr, OrderingPtr, StratPtr])
-    bindings['SCOTCH_meshOrderCheck'] = (c_int, [MeshPtr, OrderingPtr])
+    bindings["SCOTCH_meshInit"] = (c_int, [MeshPtr])
+    bindings["SCOTCH_meshExit"] = (None, [MeshPtr])
+    bindings["SCOTCH_meshLoad"] = (c_int, [MeshPtr, c_void_p, SCOTCH_Num])
+    bindings["SCOTCH_meshSave"] = (c_int, [MeshPtr, c_void_p])
+    bindings["SCOTCH_meshCheck"] = (c_int, [MeshPtr])
+    bindings["SCOTCH_meshBuild"] = (
+        c_int,
+        [
+            MeshPtr,
+            SCOTCH_Num,
+            SCOTCH_Num,
+            SCOTCH_Num,
+            SCOTCH_Num,
+            NumPtr,
+            NumPtr,
+            NumPtr,
+            NumPtr,
+            NumPtr,
+            SCOTCH_Num,
+            NumPtr,
+        ],
+    )
+    bindings["SCOTCH_meshGraph"] = (c_int, [MeshPtr, GraphPtr])
+    bindings["SCOTCH_meshSize"] = (None, [MeshPtr, NumPtr, NumPtr, NumPtr])
+    bindings["SCOTCH_meshData"] = (
+        None,
+        [
+            MeshPtr,
+            NumPtr,
+            NumPtr,
+            NumPtr,
+            NumPtr,
+            POINTER(NumPtr),
+            POINTER(NumPtr),
+            POINTER(NumPtr),
+            POINTER(NumPtr),
+            POINTER(NumPtr),
+            NumPtr,
+            POINTER(NumPtr),
+            NumPtr,
+        ],
+    )
+    bindings["SCOTCH_meshGraph"] = (c_int, [MeshPtr, GraphPtr])
+    bindings["SCOTCH_meshGraphDual"] = (c_int, [MeshPtr, GraphPtr, SCOTCH_Num])
+    bindings["SCOTCH_meshStat"] = (
+        None,
+        [
+            MeshPtr,
+            NumPtr,
+            NumPtr,
+            NumPtr,
+            POINTER(c_double),
+            POINTER(c_double),
+            NumPtr,
+            NumPtr,
+            POINTER(c_double),
+            POINTER(c_double),
+            NumPtr,
+            NumPtr,
+            POINTER(c_double),
+            POINTER(c_double),
+        ],
+    )
+    bindings["SCOTCH_meshOrder"] = (
+        c_int,
+        [MeshPtr, StratPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr],
+    )
+    bindings["SCOTCH_meshOrderInit"] = (
+        c_int,
+        [MeshPtr, OrderingPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr],
+    )
+    bindings["SCOTCH_meshOrderExit"] = (None, [MeshPtr, OrderingPtr])
+    bindings["SCOTCH_meshOrderSave"] = (c_int, [MeshPtr, OrderingPtr, c_void_p])
+    bindings["SCOTCH_meshOrderSaveMap"] = (c_int, [MeshPtr, OrderingPtr, c_void_p])
+    bindings["SCOTCH_meshOrderSaveTree"] = (c_int, [MeshPtr, OrderingPtr, c_void_p])
+    bindings["SCOTCH_meshOrderCompute"] = (c_int, [MeshPtr, OrderingPtr, StratPtr])
+    bindings["SCOTCH_meshOrderCheck"] = (c_int, [MeshPtr, OrderingPtr])
 
     # --- Geometry functions ---
-    bindings['SCOTCH_geomInit'] = (c_int, [GeomPtr])
-    bindings['SCOTCH_geomExit'] = (None, [GeomPtr])
-    bindings['SCOTCH_geomData'] = (None, [GeomPtr, NumPtr, POINTER(POINTER(c_double))])
+    bindings["SCOTCH_geomInit"] = (c_int, [GeomPtr])
+    bindings["SCOTCH_geomExit"] = (None, [GeomPtr])
+    bindings["SCOTCH_geomData"] = (None, [GeomPtr, NumPtr, POINTER(POINTER(c_double))])
 
     # --- Random functions ---
-    bindings['SCOTCH_randomReset'] = (None, [])
-    bindings['SCOTCH_randomSeed'] = (None, [SCOTCH_Num])
-    bindings['SCOTCH_randomVal'] = (SCOTCH_Num, [SCOTCH_Num])
-    bindings['SCOTCH_randomProc'] = (None, [c_int])
-    bindings['SCOTCH_randomSave'] = (c_int, [c_void_p])
-    bindings['SCOTCH_randomLoad'] = (c_int, [c_void_p])
+    bindings["SCOTCH_randomReset"] = (None, [])
+    bindings["SCOTCH_randomSeed"] = (None, [SCOTCH_Num])
+    bindings["SCOTCH_randomVal"] = (SCOTCH_Num, [SCOTCH_Num])
+    bindings["SCOTCH_randomProc"] = (None, [c_int])
+    bindings["SCOTCH_randomSave"] = (c_int, [c_void_p])
+    bindings["SCOTCH_randomLoad"] = (c_int, [c_void_p])
 
     # --- Memory functions ---
-    bindings['SCOTCH_memCur'] = (SCOTCH_Idx, [])
-    bindings['SCOTCH_memMax'] = (SCOTCH_Idx, [])
-    bindings['SCOTCH_memFree'] = (None, [c_void_p])
+    bindings["SCOTCH_memCur"] = (SCOTCH_Idx, [])
+    bindings["SCOTCH_memMax"] = (SCOTCH_Idx, [])
+    bindings["SCOTCH_memFree"] = (None, [c_void_p])
 
     # --- Context functions ---
-    bindings['SCOTCH_contextInit'] = (c_int, [ContextPtr])
-    bindings['SCOTCH_contextExit'] = (None, [ContextPtr])
-    bindings['SCOTCH_contextOptionGetNum'] = (c_int, [ContextPtr, c_int, NumPtr])
-    bindings['SCOTCH_contextOptionSetNum'] = (c_int, [ContextPtr, c_int, SCOTCH_Num])
-    bindings['SCOTCH_contextRandomClone'] = (c_int, [ContextPtr])
-    bindings['SCOTCH_contextRandomReset'] = (None, [ContextPtr])
-    bindings['SCOTCH_contextRandomSeed'] = (None, [ContextPtr, SCOTCH_Num])
-    bindings['SCOTCH_contextBindGraph'] = (c_int, [ContextPtr, GraphPtr, GraphPtr])
-    bindings['SCOTCH_contextBindMesh'] = (c_int, [ContextPtr, MeshPtr, MeshPtr])
+    bindings["SCOTCH_contextInit"] = (c_int, [ContextPtr])
+    bindings["SCOTCH_contextExit"] = (None, [ContextPtr])
+    bindings["SCOTCH_contextOptionGetNum"] = (c_int, [ContextPtr, c_int, NumPtr])
+    bindings["SCOTCH_contextOptionSetNum"] = (c_int, [ContextPtr, c_int, SCOTCH_Num])
+    bindings["SCOTCH_contextRandomClone"] = (c_int, [ContextPtr])
+    bindings["SCOTCH_contextRandomReset"] = (None, [ContextPtr])
+    bindings["SCOTCH_contextRandomSeed"] = (None, [ContextPtr, SCOTCH_Num])
+    bindings["SCOTCH_contextBindGraph"] = (c_int, [ContextPtr, GraphPtr, GraphPtr])
+    bindings["SCOTCH_contextBindMesh"] = (c_int, [ContextPtr, MeshPtr, MeshPtr])
 
     # --- Version function ---
     # Takes plain int*, not SCOTCH_Num*
-    bindings['SCOTCH_version'] = (None, [POINTER(c_int), POINTER(c_int), POINTER(c_int)])
+    bindings["SCOTCH_version"] = (None, [POINTER(c_int), POINTER(c_int), POINTER(c_int)])
 
     # Apply bindings
     missing = []
@@ -565,33 +763,146 @@ def _bind_functions():
         DgraphPtr = POINTER(SCOTCH_Dgraph)
 
         dgraph_bindings = {
-            'SCOTCH_dgraphInit': (c_int, [DgraphPtr, c_void_p]),  # MPI_Comm as void*
-            'SCOTCH_dgraphExit': (None, [DgraphPtr]),
-            'SCOTCH_dgraphBuild': (c_int, [
-                DgraphPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num,
-                NumPtr, NumPtr, NumPtr, NumPtr,  # vertloctab, vendloctab, veloloctab, vlblloctab
-                SCOTCH_Num, SCOTCH_Num, NumPtr, NumPtr, NumPtr  # edgelocnbr, edgelocsiz, edgeloctab, edgegsttab, edloloctab
-            ]),
-            'SCOTCH_dgraphCheck': (c_int, [DgraphPtr]),
-            'SCOTCH_dgraphData': (None, [
-                DgraphPtr,
-                NumPtr, NumPtr, NumPtr, NumPtr, NumPtr,  # baseval, vertglbnbr, vertlocnbr, vertlocmax, vertgstnbr
-                POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr),  # vertloctab, vendloctab, veloloctab, vlblloctab
-                NumPtr, NumPtr, NumPtr,  # edgeglbnbr, edgelocnbr, edgelocsiz
-                POINTER(NumPtr), POINTER(NumPtr), POINTER(NumPtr),  # edgeloctab, edgegsttab, edloloctab
-                c_void_p  # MPI_Comm*
-            ]),
-            'SCOTCH_dgraphLoad': (c_int, [DgraphPtr, c_void_p, SCOTCH_Num, SCOTCH_Num]),
-            'SCOTCH_dgraphSave': (c_int, [DgraphPtr, c_void_p]),
-            'SCOTCH_dgraphCoarsen': (c_int, [
-                DgraphPtr, SCOTCH_Num, c_double, SCOTCH_Num, DgraphPtr, NumPtr
-            ]),
-            'SCOTCH_dgraphCoarsenVertLocMax': (SCOTCH_Num, [DgraphPtr, SCOTCH_Num]),
-            'SCOTCH_dgraphGhst': (c_int, [DgraphPtr]),
-            'SCOTCH_dgraphGrow': (c_int, [DgraphPtr, SCOTCH_Num, NumPtr, SCOTCH_Num, NumPtr]),
-            'SCOTCH_dgraphBand': (c_int, [DgraphPtr, SCOTCH_Num, NumPtr, SCOTCH_Num, DgraphPtr]),
-            'SCOTCH_dgraphRedist': (c_int, [DgraphPtr, NumPtr, NumPtr, SCOTCH_Num, SCOTCH_Num, DgraphPtr]),
-            'SCOTCH_dgraphInducePart': (c_int, [DgraphPtr, NumPtr, SCOTCH_Num, SCOTCH_Num, DgraphPtr]),
+            "SCOTCH_dgraphInit": (c_int, [DgraphPtr, c_void_p]),  # MPI_Comm as void*
+            "SCOTCH_dgraphExit": (None, [DgraphPtr]),
+            "SCOTCH_dgraphBuild": (
+                c_int,
+                [
+                    DgraphPtr,
+                    SCOTCH_Num,
+                    SCOTCH_Num,
+                    SCOTCH_Num,
+                    NumPtr,
+                    NumPtr,
+                    NumPtr,
+                    NumPtr,  # vertloctab, vendloctab, veloloctab, vlblloctab
+                    SCOTCH_Num,
+                    SCOTCH_Num,
+                    NumPtr,
+                    NumPtr,
+                    NumPtr,  # edgelocnbr, edgelocsiz, edgeloctab, edgegsttab, edloloctab
+                ],
+            ),
+            "SCOTCH_dgraphCheck": (c_int, [DgraphPtr]),
+            "SCOTCH_dgraphData": (
+                None,
+                [
+                    DgraphPtr,
+                    NumPtr,
+                    NumPtr,
+                    NumPtr,
+                    NumPtr,
+                    NumPtr,  # baseval, vertglbnbr, vertlocnbr, vertlocmax, vertgstnbr
+                    POINTER(NumPtr),
+                    POINTER(NumPtr),
+                    POINTER(NumPtr),
+                    POINTER(NumPtr),  # vertloctab, vendloctab, veloloctab, vlblloctab
+                    NumPtr,
+                    NumPtr,
+                    NumPtr,  # edgeglbnbr, edgelocnbr, edgelocsiz
+                    POINTER(NumPtr),
+                    POINTER(NumPtr),
+                    POINTER(NumPtr),  # edgeloctab, edgegsttab, edloloctab
+                    c_void_p,  # MPI_Comm*
+                ],
+            ),
+            "SCOTCH_dgraphLoad": (c_int, [DgraphPtr, c_void_p, SCOTCH_Num, SCOTCH_Num]),
+            "SCOTCH_dgraphSave": (c_int, [DgraphPtr, c_void_p]),
+            "SCOTCH_dgraphCoarsen": (
+                c_int,
+                [DgraphPtr, SCOTCH_Num, c_double, SCOTCH_Num, DgraphPtr, NumPtr],
+            ),
+            "SCOTCH_dgraphCoarsenVertLocMax": (SCOTCH_Num, [DgraphPtr, SCOTCH_Num]),
+            "SCOTCH_dgraphGhst": (c_int, [DgraphPtr]),
+            "SCOTCH_dgraphGrow": (c_int, [DgraphPtr, SCOTCH_Num, NumPtr, SCOTCH_Num, NumPtr]),
+            "SCOTCH_dgraphBand": (c_int, [DgraphPtr, SCOTCH_Num, NumPtr, SCOTCH_Num, DgraphPtr]),
+            "SCOTCH_dgraphRedist": (
+                c_int,
+                [DgraphPtr, NumPtr, NumPtr, SCOTCH_Num, SCOTCH_Num, DgraphPtr],
+            ),
+            "SCOTCH_dgraphInducePart": (
+                c_int,
+                [DgraphPtr, NumPtr, SCOTCH_Num, SCOTCH_Num, DgraphPtr],
+            ),
+            "SCOTCH_dgraphFree": (None, [DgraphPtr]),
+            "SCOTCH_dgraphBuildGrid3D": (
+                c_int,
+                [DgraphPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num],
+            ),
+            "SCOTCH_dgraphStat": (
+                c_int,
+                [
+                    DgraphPtr,
+                    NumPtr,
+                    NumPtr,
+                    NumPtr,  # velomin, velomax, velosum
+                    POINTER(c_double),
+                    POINTER(c_double),  # veloavg, velodlt
+                    NumPtr,
+                    NumPtr,  # degrmin, degrmax
+                    POINTER(c_double),
+                    POINTER(c_double),  # degravg, degrdlt
+                    NumPtr,
+                    NumPtr,
+                    NumPtr,  # edlomin, edlomax, edlosum
+                    POINTER(c_double),
+                    POINTER(c_double),  # edloavg, edlodlt
+                ],
+            ),
+            # Centralized <-> distributed conversion (SCOTCH_Graph on root rank)
+            "SCOTCH_dgraphGather": (c_int, [DgraphPtr, GraphPtr]),
+            "SCOTCH_dgraphScatter": (c_int, [DgraphPtr, GraphPtr]),
+            # Distributed partitioning/mapping (one-shot entry points)
+            "SCOTCH_dgraphPart": (c_int, [DgraphPtr, SCOTCH_Num, StratPtr, NumPtr]),
+            "SCOTCH_dgraphMap": (c_int, [DgraphPtr, ArchPtr, StratPtr, NumPtr]),
+            # Centralized ordering gathered from a distributed one (root rank)
+            "SCOTCH_dgraphCorderInit": (
+                c_int,
+                [DgraphPtr, OrderingPtr, NumPtr, NumPtr, NumPtr, NumPtr, NumPtr],
+            ),
+            "SCOTCH_dgraphCorderExit": (None, [DgraphPtr, OrderingPtr]),
+            # Parallel strategies (exported by libptscotch, not libscotch)
+            "SCOTCH_stratDgraphMap": (c_int, [StratPtr, c_char_p]),
+            "SCOTCH_stratDgraphMapBuild": (
+                c_int,
+                [StratPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, c_double],
+            ),
+            "SCOTCH_stratDgraphClusterBuild": (
+                c_int,
+                [StratPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, c_double, c_double],
+            ),
+            "SCOTCH_stratDgraphOrder": (c_int, [StratPtr, c_char_p]),
+            "SCOTCH_stratDgraphOrderBuild": (
+                c_int,
+                [StratPtr, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, c_double],
+            ),
+        }
+
+        # Bindings whose prototypes involve SCOTCH_Dmapping/SCOTCH_Dordering,
+        # copied verbatim from ptscotch.h (FILE* -> c_void_p).
+        DmappingPtr = POINTER(SCOTCH_Dmapping)
+        DorderingPtr = POINTER(SCOTCH_Dordering)
+
+        dgraph_bindings |= {
+            "SCOTCH_dgraphMapInit": (c_int, [DgraphPtr, DmappingPtr, ArchPtr, NumPtr]),
+            "SCOTCH_dgraphMapExit": (None, [DgraphPtr, DmappingPtr]),
+            "SCOTCH_dgraphMapCompute": (c_int, [DgraphPtr, DmappingPtr, StratPtr]),
+            "SCOTCH_dgraphMapSave": (c_int, [DgraphPtr, DmappingPtr, c_void_p]),
+            "SCOTCH_dgraphMapView": (c_int, [DgraphPtr, DmappingPtr, c_void_p]),
+            "SCOTCH_dgraphOrderInit": (c_int, [DgraphPtr, DorderingPtr]),
+            "SCOTCH_dgraphOrderExit": (None, [DgraphPtr, DorderingPtr]),
+            "SCOTCH_dgraphOrderCompute": (c_int, [DgraphPtr, DorderingPtr, StratPtr]),
+            "SCOTCH_dgraphOrderComputeList": (
+                c_int,
+                [DgraphPtr, DorderingPtr, SCOTCH_Num, NumPtr, StratPtr],
+            ),
+            "SCOTCH_dgraphOrderPerm": (c_int, [DgraphPtr, DorderingPtr, NumPtr]),
+            "SCOTCH_dgraphOrderCblkDist": (SCOTCH_Num, [DgraphPtr, DorderingPtr]),
+            "SCOTCH_dgraphOrderTreeDist": (c_int, [DgraphPtr, DorderingPtr, NumPtr, NumPtr]),
+            "SCOTCH_dgraphOrderSave": (c_int, [DgraphPtr, DorderingPtr, c_void_p]),
+            "SCOTCH_dgraphOrderSaveMap": (c_int, [DgraphPtr, DorderingPtr, c_void_p]),
+            "SCOTCH_dgraphOrderSaveTree": (c_int, [DgraphPtr, DorderingPtr, c_void_p]),
+            "SCOTCH_dgraphOrderGather": (c_int, [DgraphPtr, DorderingPtr, OrderingPtr]),
         }
 
         for name, (restype, argtypes) in dgraph_bindings.items():
@@ -617,14 +928,18 @@ _DECLARED_BINDINGS, _MISSING_BINDINGS = _bind_functions()
 # Public API
 # =============================================================================
 
+
+@internal_api
 def get_scotch_int_size() -> int:
     """Return the SCOTCH_Num size in bits (32 or 64)."""
     return _INT_SIZE
 
 
+@internal_api
 def get_scotch_dtype():
     """Return the numpy dtype corresponding to SCOTCH_Num."""
     import numpy as np
+
     return np.int32 if _INT_SIZE == 32 else np.int64
 
 
@@ -660,6 +975,7 @@ def is_parallel() -> bool:
 # Wrapped functions with validation
 # =============================================================================
 
+
 def _wrapped_randomVal(randmax):
     """Wrapper for SCOTCH_randomVal with input validation.
 
@@ -680,6 +996,7 @@ _WRAPPED_FUNCTIONS = {
 # =============================================================================
 # Module-level function access
 # =============================================================================
+
 
 def __getattr__(name: str):
     """Provide attribute access for Scotch functions."""
@@ -721,9 +1038,17 @@ __all__ = [
     "SCOTCH_Geom",
     "SCOTCH_Context",
     "SCOTCH_Dgraph",
+    "SCOTCH_Dmapping",
+    "SCOTCH_Dordering",
     # Constants
     "SCOTCH_COARSENNONE",
     "SCOTCH_COARSENFOLD",
     "SCOTCH_COARSENFOLDDUP",
     "SCOTCH_COARSENNOMERGE",
+    "SCOTCH_DGRAPHBUILDGRID3DGRID",
+    "SCOTCH_DGRAPHBUILDGRID3DTORUS",
+    "SCOTCH_DGRAPHBUILDGRID3DNGB6",
+    "SCOTCH_DGRAPHBUILDGRID3DNGB26",
+    "SCOTCH_DGRAPHBUILDGRID3DVERTLOAD",
+    "SCOTCH_DGRAPHBUILDGRID3DEDGELOAD",
 ]

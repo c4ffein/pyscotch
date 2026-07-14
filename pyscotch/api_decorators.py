@@ -55,6 +55,7 @@ def scotch_binding(c_function: str, c_signature: Optional[str] = None):
             \"\"\"Check the consistency of the graph.\"\"\"
             return lib.SCOTCH_graphCheck(byref(self._graph)) == 0
     """
+
     def decorator(func: Callable) -> Callable:
         # Add metadata attributes
         func._api_level = "scotch_binding"
@@ -80,6 +81,7 @@ def scotch_binding(c_function: str, c_signature: Optional[str] = None):
         #     func.__doc__ = api_doc
 
         return func
+
     return decorator
 
 
@@ -104,6 +106,7 @@ def highlevel_api(scotch_functions: Optional[List[str]] = None):
             \"\"\"Partition the graph into nparts.\"\"\"
             # Implementation that wraps the low-level Scotch functions
     """
+
     def decorator(func: Callable) -> Callable:
         # Add metadata attributes
         func._api_level = "highlevel"
@@ -128,6 +131,7 @@ def highlevel_api(scotch_functions: Optional[List[str]] = None):
         #     func.__doc__ = api_doc
 
         return func
+
     return decorator
 
 

@@ -27,7 +27,7 @@ class Mesh:
         self._mesh = lib.SCOTCH_Mesh()
         ret = lib.SCOTCH_meshInit(byref(self._mesh))
         if ret != 0:
-            raise RuntimeError(f"Failed to initialize mesh (error code: {ret})")
+            raise lib.scotch_error("Failed to initialize mesh", ret)
 
         self._initialized = True
 
@@ -38,6 +38,7 @@ class Mesh:
         self.close()
         return False
 
+    @scotch_binding("SCOTCH_meshExit", "void SCOTCH_meshExit(SCOTCH_Mesh *)")
     def close(self):
         """Release mesh resources. Called automatically when used as a context manager."""
         if getattr(self, "_initialized", False):
@@ -69,7 +70,7 @@ class Mesh:
             ret = lib.SCOTCH_meshLoad(byref(self._mesh), file_ptr, baseval)
 
             if ret != 0:
-                raise RuntimeError(f"Failed to load mesh from {filename} (error code: {ret})")
+                raise lib.scotch_error(f"Failed to load mesh from {filename}", ret)
 
     @scotch_binding("SCOTCH_meshSave", "int SCOTCH_meshSave(const SCOTCH_Mesh *, FILE *)")
     def save(self, filename: Union[str, Path]) -> None:
@@ -92,9 +93,12 @@ class Mesh:
             ret = lib.SCOTCH_meshSave(byref(self._mesh), file_ptr)
 
             if ret != 0:
-                raise RuntimeError(f"Failed to save mesh to {filename} (error code: {ret})")
+                raise lib.scotch_error(f"Failed to save mesh to {filename}", ret)
 
-    @scotch_binding("SCOTCH_meshBuild", "int SCOTCH_meshBuild(SCOTCH_Mesh *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num *)")
+    @scotch_binding(
+        "SCOTCH_meshBuild",
+        "int SCOTCH_meshBuild(SCOTCH_Mesh *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num *)",
+    )
     def build(
         self,
         velmnbr: int,
@@ -134,8 +138,16 @@ class Mesh:
         verttab_c = self._verttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
         edgetab_c = self._edgetab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
-        velotab_c = self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._velotab is not None else None
-        vnlotab_c = self._vnlotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._vnlotab is not None else None
+        velotab_c = (
+            self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            if self._velotab is not None
+            else None
+        )
+        vnlotab_c = (
+            self._vnlotab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            if self._vnlotab is not None
+            else None
+        )
 
         ret = lib.SCOTCH_meshBuild(
             byref(self._mesh),
@@ -153,7 +165,7 @@ class Mesh:
         )
 
         if ret != 0:
-            raise RuntimeError(f"Failed to build mesh (error code: {ret})")
+            raise lib.scotch_error("Failed to build mesh", ret)
 
     @scotch_binding("SCOTCH_meshCheck", "int SCOTCH_meshCheck(const SCOTCH_Mesh *)")
     def check(self) -> bool:
@@ -183,11 +195,14 @@ class Mesh:
         ret = lib.SCOTCH_meshGraph(byref(self._mesh), byref(graph._graph))
 
         if ret != 0:
-            raise RuntimeError(f"Failed to convert mesh to graph (error code: {ret})")
+            raise lib.scotch_error("Failed to convert mesh to graph", ret)
 
         return graph
 
-    @scotch_binding("SCOTCH_meshGraphDual", "int SCOTCH_meshGraphDual(const SCOTCH_Mesh *, SCOTCH_Graph *, SCOTCH_Num)")
+    @scotch_binding(
+        "SCOTCH_meshGraphDual",
+        "int SCOTCH_meshGraphDual(const SCOTCH_Mesh *, SCOTCH_Graph *, SCOTCH_Num)",
+    )
     def to_dual_graph(self, ncomm: int = 1):
         """
         Convert the mesh to a dual graph.
@@ -204,10 +219,12 @@ class Mesh:
         from .graph import Graph
 
         graph = Graph()
-        ret = lib.SCOTCH_meshGraphDual(byref(self._mesh), byref(graph._graph), lib.SCOTCH_Num(ncomm))
+        ret = lib.SCOTCH_meshGraphDual(
+            byref(self._mesh), byref(graph._graph), lib.SCOTCH_Num(ncomm)
+        )
 
         if ret != 0:
-            raise RuntimeError(f"Failed to convert mesh to dual graph (error code: {ret})")
+            raise lib.scotch_error("Failed to convert mesh to dual graph", ret)
 
         return graph
 
@@ -244,15 +261,23 @@ class Mesh:
             permtab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
             peritab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
             byref(cblkptr),
-            None, None,
+            None,
+            None,
         )
 
         if ret != 0:
-            raise RuntimeError(f"Failed to order mesh (error code: {ret})")
+            raise lib.scotch_error("Failed to order mesh", ret)
 
         return permtab, peritab
 
-    @highlevel_api(scotch_functions=["SCOTCH_meshGraph", "SCOTCH_graphMapInit", "SCOTCH_graphMapCompute", "SCOTCH_graphMapExit"])
+    @highlevel_api(
+        scotch_functions=[
+            "SCOTCH_meshGraph",
+            "SCOTCH_graphMapInit",
+            "SCOTCH_graphMapCompute",
+            "SCOTCH_graphMapExit",
+        ]
+    )
     def partition(
         self,
         nparts: int,

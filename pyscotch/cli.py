@@ -177,31 +177,36 @@ def main():
     # Graph partition command
     partition_parser = subparsers.add_parser("partition", help="Partition a graph or mesh")
     partition_parser.add_argument("input", help="Input graph/mesh file")
-    partition_parser.add_argument("-n", "--nparts", type=int, required=True, help="Number of partitions")
-    partition_parser.add_argument("-o", "--output", help="Output file (default: <input>.part.<nparts>)")
     partition_parser.add_argument(
-        "-s", "--strategy",
+        "-n", "--nparts", type=int, required=True, help="Number of partitions"
+    )
+    partition_parser.add_argument(
+        "-o", "--output", help="Output file (default: <input>.part.<nparts>)"
+    )
+    partition_parser.add_argument(
+        "-s",
+        "--strategy",
         choices=["default", "quality", "fast", "multilevel", "recursive"],
         default="default",
-        help="Partitioning strategy"
+        help="Partitioning strategy",
     )
     partition_parser.add_argument(
-        "-t", "--type",
-        choices=["graph", "mesh"],
-        default="graph",
-        help="Input file type"
+        "-t", "--type", choices=["graph", "mesh"], default="graph", help="Input file type"
     )
-    partition_parser.set_defaults(func=lambda args: partition_mesh(args) if args.type == "mesh" else partition_graph(args))
+    partition_parser.set_defaults(
+        func=lambda args: partition_mesh(args) if args.type == "mesh" else partition_graph(args)
+    )
 
     # Graph order command
     order_parser = subparsers.add_parser("order", help="Order a graph")
     order_parser.add_argument("input", help="Input graph file")
     order_parser.add_argument("-o", "--output", help="Output file (default: <input>.ord)")
     order_parser.add_argument(
-        "-s", "--strategy",
+        "-s",
+        "--strategy",
         choices=["default", "quality", "fast", "nested"],
         default="default",
-        help="Ordering strategy"
+        help="Ordering strategy",
     )
     order_parser.set_defaults(func=order_graph)
 
@@ -229,6 +234,7 @@ def main():
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         return 1
 

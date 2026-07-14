@@ -4,6 +4,7 @@ Simple MPI wrapper using ctypes (no mpi4py needed).
 This provides the minimal MPI functionality needed for PT-Scotch's
 distributed graph operations.
 """
+
 import ctypes
 import ctypes.util
 from typing import Optional
@@ -23,7 +24,7 @@ class MPI:
         if self._libmpi:
             return
 
-        mpi_path = ctypes.util.find_library('mpi')
+        mpi_path = ctypes.util.find_library("mpi")
         if not mpi_path:
             raise RuntimeError(
                 "MPI library not found. PT-Scotch requires MPI.\n"
@@ -35,7 +36,7 @@ class MPI:
         # Bind MPI functions
         self._libmpi.MPI_Init.argtypes = [
             ctypes.POINTER(ctypes.c_int),
-            ctypes.POINTER(ctypes.POINTER(ctypes.c_char_p))
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char_p)),
         ]
         self._libmpi.MPI_Init.restype = ctypes.c_int
 
@@ -47,13 +48,13 @@ class MPI:
 
         self._libmpi.MPI_Comm_size.argtypes = [
             ctypes.c_void_p,  # MPI_Comm
-            ctypes.POINTER(ctypes.c_int)
+            ctypes.POINTER(ctypes.c_int),
         ]
         self._libmpi.MPI_Comm_size.restype = ctypes.c_int
 
         self._libmpi.MPI_Comm_rank.argtypes = [
             ctypes.c_void_p,  # MPI_Comm
-            ctypes.POINTER(ctypes.c_int)
+            ctypes.POINTER(ctypes.c_int),
         ]
         self._libmpi.MPI_Comm_rank.restype = ctypes.c_int
 
@@ -67,7 +68,7 @@ class MPI:
         """Get MPI_COMM_WORLD constant (implementation-specific)."""
         # Method 1: Try OpenMPI - it's a pointer to a global struct
         try:
-            comm_ptr = ctypes.c_void_p.in_dll(self._libmpi, 'ompi_mpi_comm_world')
+            comm_ptr = ctypes.c_void_p.in_dll(self._libmpi, "ompi_mpi_comm_world")
             return ctypes.addressof(comm_ptr)
         except:
             pass
@@ -83,7 +84,7 @@ class MPI:
 
         # Method 3: Try Intel MPI
         try:
-            comm_ptr = ctypes.c_void_p.in_dll(self._libmpi, 'I_MPI_COMM_WORLD')
+            comm_ptr = ctypes.c_void_p.in_dll(self._libmpi, "I_MPI_COMM_WORLD")
             return ctypes.addressof(comm_ptr)
         except:
             pass

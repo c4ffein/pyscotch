@@ -4,6 +4,7 @@ Geometry class for Scotch geometric operations.
 
 from ctypes import byref, POINTER, c_double
 
+from .api_decorators import scotch_binding
 from . import libscotch as lib
 
 
@@ -20,7 +21,7 @@ class Geometry:
         self._geom = lib.SCOTCH_Geom()
         ret = lib.SCOTCH_geomInit(byref(self._geom))
         if ret != 0:
-            raise RuntimeError(f"SCOTCH_geomInit failed with error {ret}")
+            raise lib.scotch_error("SCOTCH_geomInit failed", ret)
         self._initialized = True
 
     def __enter__(self):
@@ -30,12 +31,16 @@ class Geometry:
         self.close()
         return False
 
+    @scotch_binding("SCOTCH_geomExit", "void SCOTCH_geomExit(SCOTCH_Geom *)")
     def close(self):
         """Release geometry resources. Called automatically when used as a context manager."""
         if getattr(self, "_initialized", False):
             lib.SCOTCH_geomExit(byref(self._geom))
             self._initialized = False
 
+    @scotch_binding(
+        "SCOTCH_geomData", "void SCOTCH_geomData(const SCOTCH_Geom *, SCOTCH_Num *, double **)"
+    )
     def data(self):
         """
         Get the geometry data.

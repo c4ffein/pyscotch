@@ -5,6 +5,7 @@ Strategy class for PT-Scotch operations.
 from ctypes import byref, c_char_p
 from typing import Optional
 
+from .api_decorators import scotch_binding, highlevel_api, internal_api
 from . import libscotch as lib
 
 
@@ -26,7 +27,7 @@ class Strategy:
         self._strat = lib.SCOTCH_Strat()
         ret = lib.SCOTCH_stratInit(byref(self._strat))
         if ret != 0:
-            raise RuntimeError(f"Failed to initialize strategy (error code: {ret})")
+            raise lib.scotch_error("Failed to initialize strategy", ret)
 
         self._initialized = True
         self._strategy_string = strategy_string
@@ -38,12 +39,16 @@ class Strategy:
         self.close()
         return False
 
+    @scotch_binding("SCOTCH_stratExit", "void SCOTCH_stratExit(SCOTCH_Strat *)")
     def close(self):
         """Release strategy resources. Called automatically when used as a context manager."""
         if getattr(self, "_initialized", False):
             lib.SCOTCH_stratExit(byref(self._strat))
             self._initialized = False
 
+    @scotch_binding(
+        "SCOTCH_stratGraphMap", "int SCOTCH_stratGraphMap(SCOTCH_Strat *, const char *)"
+    )
     def set_mapping(self, strategy_string: str) -> None:
         """
         Set a mapping/partitioning strategy from a string.
@@ -60,13 +65,15 @@ class Strategy:
             - "m{vert=100,low=h{pass=10},asc=b{width=3}}": Custom strategy
         """
         ret = lib.SCOTCH_stratGraphMap(
-            byref(self._strat),
-            c_char_p(strategy_string.encode("utf-8"))
+            byref(self._strat), c_char_p(strategy_string.encode("utf-8"))
         )
         if ret != 0:
-            raise RuntimeError(f"Failed to set mapping strategy (error code: {ret})")
+            raise lib.scotch_error("Failed to set mapping strategy", ret)
         self._strategy_string = strategy_string
 
+    @scotch_binding(
+        "SCOTCH_stratGraphOrder", "int SCOTCH_stratGraphOrder(SCOTCH_Strat *, const char *)"
+    )
     def set_ordering(self, strategy_string: str) -> None:
         """
         Set an ordering strategy from a string.
@@ -84,34 +91,172 @@ class Strategy:
             - "c": Minimum fill ordering
         """
         ret = lib.SCOTCH_stratGraphOrder(
-            byref(self._strat),
-            c_char_p(strategy_string.encode("utf-8"))
+            byref(self._strat), c_char_p(strategy_string.encode("utf-8"))
         )
         if ret != 0:
-            raise RuntimeError(f"Failed to set ordering strategy (error code: {ret})")
+            raise lib.scotch_error("Failed to set ordering strategy", ret)
         self._strategy_string = strategy_string
 
+    @scotch_binding(
+        "SCOTCH_stratDgraphMap", "int SCOTCH_stratDgraphMap(SCOTCH_Strat *, const char *)"
+    )
+    def set_dgraph_mapping(self, strategy_string: str) -> None:
+        """
+        Set a parallel (PT-Scotch) mapping/partitioning strategy from a string.
+
+        Requires the parallel variant (PYSCOTCH_PARALLEL=1).
+
+        Args:
+            strategy_string: Parallel mapping strategy string in Scotch format
+
+        Raises:
+            RuntimeError: If setting the strategy fails
+        """
+        ret = lib.SCOTCH_stratDgraphMap(
+            byref(self._strat), c_char_p(strategy_string.encode("utf-8"))
+        )
+        if ret != 0:
+            raise lib.scotch_error("Failed to set parallel mapping strategy", ret)
+        self._strategy_string = strategy_string
+
+    @scotch_binding(
+        "SCOTCH_stratDgraphOrder", "int SCOTCH_stratDgraphOrder(SCOTCH_Strat *, const char *)"
+    )
+    def set_dgraph_ordering(self, strategy_string: str) -> None:
+        """
+        Set a parallel (PT-Scotch) ordering strategy from a string.
+
+        Requires the parallel variant (PYSCOTCH_PARALLEL=1).
+
+        Args:
+            strategy_string: Parallel ordering strategy string in Scotch format
+
+        Raises:
+            RuntimeError: If setting the strategy fails
+        """
+        ret = lib.SCOTCH_stratDgraphOrder(
+            byref(self._strat), c_char_p(strategy_string.encode("utf-8"))
+        )
+        if ret != 0:
+            raise lib.scotch_error("Failed to set parallel ordering strategy", ret)
+        self._strategy_string = strategy_string
+
+    @scotch_binding(
+        "SCOTCH_stratDgraphMapBuild",
+        "int SCOTCH_stratDgraphMapBuild(SCOTCH_Strat *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, double)",
+    )
+    def build_dgraph_mapping(
+        self, flagval: int, procnbr: int, partnbr: int, kbalval: float
+    ) -> None:
+        """
+        Build a parallel mapping strategy from high-level parameters.
+
+        Args:
+            flagval: Strategy characteristics flags (0 for defaults)
+            procnbr: Number of processes the strategy will run on
+            partnbr: Number of expected parts/domains
+            kbalval: Desired imbalance ratio (e.g. 0.05)
+
+        Raises:
+            RuntimeError: If building the strategy fails
+        """
+        ret = lib.SCOTCH_stratDgraphMapBuild(
+            byref(self._strat),
+            lib.SCOTCH_Num(flagval),
+            lib.SCOTCH_Num(procnbr),
+            lib.SCOTCH_Num(partnbr),
+            float(kbalval),
+        )
+        if ret != 0:
+            raise lib.scotch_error("Failed to build parallel mapping strategy", ret)
+
+    @scotch_binding(
+        "SCOTCH_stratDgraphClusterBuild",
+        "int SCOTCH_stratDgraphClusterBuild(SCOTCH_Strat *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, double, double)",
+    )
+    def build_dgraph_clustering(
+        self, flagval: int, procnbr: int, pwgtval: int, densval: float, bbalval: float
+    ) -> None:
+        """
+        Build a parallel clustering strategy from high-level parameters.
+
+        Args:
+            flagval: Strategy characteristics flags (0 for defaults)
+            procnbr: Number of processes the strategy will run on
+            pwgtval: Threshold cluster load
+            densval: Threshold cluster density value
+            bbalval: Maximum imbalance ratio
+
+        Raises:
+            RuntimeError: If building the strategy fails
+        """
+        ret = lib.SCOTCH_stratDgraphClusterBuild(
+            byref(self._strat),
+            lib.SCOTCH_Num(flagval),
+            lib.SCOTCH_Num(procnbr),
+            lib.SCOTCH_Num(pwgtval),
+            float(densval),
+            float(bbalval),
+        )
+        if ret != 0:
+            raise lib.scotch_error("Failed to build parallel clustering strategy", ret)
+
+    @scotch_binding(
+        "SCOTCH_stratDgraphOrderBuild",
+        "int SCOTCH_stratDgraphOrderBuild(SCOTCH_Strat *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, double)",
+    )
+    def build_dgraph_ordering(
+        self, flagval: int, procnbr: int, levlnbr: int, balrat: float
+    ) -> None:
+        """
+        Build a parallel ordering strategy from high-level parameters.
+
+        Args:
+            flagval: Strategy characteristics flags (0 for defaults)
+            procnbr: Number of processes the strategy will run on
+            levlnbr: Number of nested dissection levels (0 for default)
+            balrat: Desired imbalance ratio (e.g. 0.2)
+
+        Raises:
+            RuntimeError: If building the strategy fails
+        """
+        ret = lib.SCOTCH_stratDgraphOrderBuild(
+            byref(self._strat),
+            lib.SCOTCH_Num(flagval),
+            lib.SCOTCH_Num(procnbr),
+            lib.SCOTCH_Num(levlnbr),
+            float(balrat),
+        )
+        if ret != 0:
+            raise lib.scotch_error("Failed to build parallel ordering strategy", ret)
+
+    @highlevel_api(scotch_functions=["SCOTCH_stratGraphOrder"])
     def set_ordering_default(self) -> None:
         """Set the default ordering strategy."""
         self.set_ordering("")
 
+    @highlevel_api(scotch_functions=["SCOTCH_stratGraphMap"])
     def set_mapping_default(self) -> None:
         """Set the default mapping/partitioning strategy."""
         self.set_mapping("")
 
+    @highlevel_api(scotch_functions=["SCOTCH_stratGraphMap"])
     def set_recursive_bisection(self) -> None:
         """Set recursive bisection strategy for partitioning."""
         self.set_mapping("r")
 
+    @highlevel_api(scotch_functions=["SCOTCH_stratGraphMap"])
     def set_multilevel(self) -> None:
         """Set multilevel strategy for partitioning."""
         self.set_mapping("m")
 
+    @highlevel_api(scotch_functions=["SCOTCH_stratGraphOrder"])
     def set_nested_dissection(self) -> None:
         """Set nested dissection strategy for ordering."""
         self.set_ordering("n")
 
     @property
+    @internal_api
     def strategy_string(self) -> Optional[str]:
         """Get the current strategy string."""
         return self._strategy_string
@@ -172,6 +317,7 @@ class Strategies:
     FAST_ORDER = None
 
     @staticmethod
+    @highlevel_api(scotch_functions=["SCOTCH_stratInit", "SCOTCH_stratGraphMap"])
     def partition_quality() -> Strategy:
         """
         Get a high-quality partitioning strategy.
@@ -185,6 +331,7 @@ class Strategies:
         return strat
 
     @staticmethod
+    @highlevel_api(scotch_functions=["SCOTCH_stratInit", "SCOTCH_stratGraphMap"])
     def partition_fast() -> Strategy:
         """
         Get a fast partitioning strategy.
@@ -198,6 +345,7 @@ class Strategies:
         return strat
 
     @staticmethod
+    @highlevel_api(scotch_functions=["SCOTCH_stratInit", "SCOTCH_stratGraphOrder"])
     def order_quality() -> Strategy:
         """
         Get a high-quality ordering strategy.
@@ -211,6 +359,7 @@ class Strategies:
         return strat
 
     @staticmethod
+    @highlevel_api(scotch_functions=["SCOTCH_stratInit", "SCOTCH_stratGraphOrder"])
     def order_fast() -> Strategy:
         """
         Get a fast ordering strategy.

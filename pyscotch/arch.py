@@ -5,7 +5,7 @@ Architecture class for PT-Scotch target architectures.
 import numpy as np
 from ctypes import byref, POINTER
 
-from .api_decorators import scotch_binding
+from .api_decorators import scotch_binding, highlevel_api
 from . import libscotch as lib
 
 
@@ -22,7 +22,7 @@ class Architecture:
         self._arch = lib.SCOTCH_Arch()
         ret = lib.SCOTCH_archInit(byref(self._arch))
         if ret != 0:
-            raise RuntimeError(f"Failed to initialize architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to initialize architecture", ret)
 
         self._initialized = True
 
@@ -33,6 +33,7 @@ class Architecture:
         self.close()
         return False
 
+    @scotch_binding("SCOTCH_archExit", "void SCOTCH_archExit(SCOTCH_Arch *)")
     def close(self):
         """Release architecture resources. Called automatically when used as a context manager."""
         if getattr(self, "_initialized", False):
@@ -78,9 +79,11 @@ class Architecture:
         """
         ret = lib.SCOTCH_archCmplt(byref(self._arch), lib.SCOTCH_Num(size))
         if ret != 0:
-            raise RuntimeError(f"Failed to create complete architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to create complete architecture", ret)
 
-    @scotch_binding("SCOTCH_archCmpltw", "int SCOTCH_archCmpltw(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num *)")
+    @scotch_binding(
+        "SCOTCH_archCmpltw", "int SCOTCH_archCmpltw(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num *)"
+    )
     def complete_weighted(self, size: int, weights: np.ndarray) -> None:
         """
         Set up a weighted complete graph architecture.
@@ -98,48 +101,61 @@ class Architecture:
         weights_arr, weights_c = lib.to_scotch_array(weights)
         ret = lib.SCOTCH_archCmpltw(byref(self._arch), lib.SCOTCH_Num(size), weights_c)
         if ret != 0:
-            raise RuntimeError(f"Failed to create weighted complete architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to create weighted complete architecture", ret)
 
     @scotch_binding("SCOTCH_archHcub", "int SCOTCH_archHcub(SCOTCH_Arch *, SCOTCH_Num)")
     def hypercube(self, dim: int) -> None:
         """Set up a hypercube architecture with 2^dim processors."""
         ret = lib.SCOTCH_archHcub(byref(self._arch), lib.SCOTCH_Num(dim))
         if ret != 0:
-            raise RuntimeError(f"Failed to create hypercube architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to create hypercube architecture", ret)
 
-    @scotch_binding("SCOTCH_archMesh2", "int SCOTCH_archMesh2(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num)")
+    @scotch_binding(
+        "SCOTCH_archMesh2", "int SCOTCH_archMesh2(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num)"
+    )
     def mesh2d(self, dim_x: int, dim_y: int) -> None:
         """Set up a 2D mesh architecture."""
         ret = lib.SCOTCH_archMesh2(byref(self._arch), lib.SCOTCH_Num(dim_x), lib.SCOTCH_Num(dim_y))
         if ret != 0:
-            raise RuntimeError(f"Failed to create 2D mesh architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to create 2D mesh architecture", ret)
 
-    @scotch_binding("SCOTCH_archMesh3", "int SCOTCH_archMesh3(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num)")
+    @scotch_binding(
+        "SCOTCH_archMesh3",
+        "int SCOTCH_archMesh3(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num)",
+    )
     def mesh3d(self, dim_x: int, dim_y: int, dim_z: int) -> None:
         """Set up a 3D mesh architecture."""
         ret = lib.SCOTCH_archMesh3(
-            byref(self._arch),
-            lib.SCOTCH_Num(dim_x), lib.SCOTCH_Num(dim_y), lib.SCOTCH_Num(dim_z))
+            byref(self._arch), lib.SCOTCH_Num(dim_x), lib.SCOTCH_Num(dim_y), lib.SCOTCH_Num(dim_z)
+        )
         if ret != 0:
-            raise RuntimeError(f"Failed to create 3D mesh architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to create 3D mesh architecture", ret)
 
-    @scotch_binding("SCOTCH_archTorus2", "int SCOTCH_archTorus2(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num)")
+    @scotch_binding(
+        "SCOTCH_archTorus2", "int SCOTCH_archTorus2(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num)"
+    )
     def torus2d(self, dim_x: int, dim_y: int) -> None:
         """Set up a 2D torus architecture."""
         ret = lib.SCOTCH_archTorus2(byref(self._arch), lib.SCOTCH_Num(dim_x), lib.SCOTCH_Num(dim_y))
         if ret != 0:
-            raise RuntimeError(f"Failed to create 2D torus architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to create 2D torus architecture", ret)
 
-    @scotch_binding("SCOTCH_archTorus3", "int SCOTCH_archTorus3(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num)")
+    @scotch_binding(
+        "SCOTCH_archTorus3",
+        "int SCOTCH_archTorus3(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num)",
+    )
     def torus3d(self, dim_x: int, dim_y: int, dim_z: int) -> None:
         """Set up a 3D torus architecture."""
         ret = lib.SCOTCH_archTorus3(
-            byref(self._arch),
-            lib.SCOTCH_Num(dim_x), lib.SCOTCH_Num(dim_y), lib.SCOTCH_Num(dim_z))
+            byref(self._arch), lib.SCOTCH_Num(dim_x), lib.SCOTCH_Num(dim_y), lib.SCOTCH_Num(dim_z)
+        )
         if ret != 0:
-            raise RuntimeError(f"Failed to create 3D torus architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to create 3D torus architecture", ret)
 
-    @scotch_binding("SCOTCH_archTleaf", "int SCOTCH_archTleaf(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *)")
+    @scotch_binding(
+        "SCOTCH_archTleaf",
+        "int SCOTCH_archTleaf(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *)",
+    )
     def tree_leaf(self, levels: int, sizes: np.ndarray, links: np.ndarray) -> None:
         """
         Set up a tree-leaf architecture.
@@ -151,26 +167,28 @@ class Architecture:
         """
         sizes_arr, sizes_c = lib.to_scotch_array(sizes)
         links_arr, links_c = lib.to_scotch_array(links)
-        ret = lib.SCOTCH_archTleaf(
-            byref(self._arch), lib.SCOTCH_Num(levels), sizes_c, links_c)
+        ret = lib.SCOTCH_archTleaf(byref(self._arch), lib.SCOTCH_Num(levels), sizes_c, links_c)
         if ret != 0:
-            raise RuntimeError(f"Failed to create tree-leaf architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to create tree-leaf architecture", ret)
 
     @scotch_binding("SCOTCH_archVcmplt", "int SCOTCH_archVcmplt(SCOTCH_Arch *)")
     def variable_complete(self) -> None:
         """Set up a variable-size complete graph architecture."""
         ret = lib.SCOTCH_archVcmplt(byref(self._arch))
         if ret != 0:
-            raise RuntimeError(f"Failed to create variable complete architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to create variable complete architecture", ret)
 
     @scotch_binding("SCOTCH_archVhcub", "int SCOTCH_archVhcub(SCOTCH_Arch *)")
     def variable_hypercube(self) -> None:
         """Set up a variable-size hypercube architecture."""
         ret = lib.SCOTCH_archVhcub(byref(self._arch))
         if ret != 0:
-            raise RuntimeError(f"Failed to create variable hypercube architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to create variable hypercube architecture", ret)
 
-    @scotch_binding("SCOTCH_archSub", "int SCOTCH_archSub(SCOTCH_Arch *, SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num *)")
+    @scotch_binding(
+        "SCOTCH_archSub",
+        "int SCOTCH_archSub(SCOTCH_Arch *, SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num *)",
+    )
     def sub(self, parent: "Architecture", vertex_list: np.ndarray) -> None:
         """
         Create a sub-architecture from a parent architecture.
@@ -181,30 +199,33 @@ class Architecture:
         """
         vlist, vlist_c = lib.to_scotch_array(vertex_list)
         ret = lib.SCOTCH_archSub(
-            byref(self._arch), byref(parent._arch),
-            lib.SCOTCH_Num(len(vlist)), vlist_c)
+            byref(self._arch), byref(parent._arch), lib.SCOTCH_Num(len(vlist)), vlist_c
+        )
         if ret != 0:
-            raise RuntimeError(f"Failed to create sub-architecture (error code: {ret})")
+            raise lib.scotch_error("Failed to create sub-architecture", ret)
 
     @scotch_binding("SCOTCH_archLoad", "int SCOTCH_archLoad(SCOTCH_Arch *, FILE *)")
     def load(self, filename) -> None:
         """Load an architecture from a file."""
         from .graph import c_fopen
+
         with c_fopen(str(filename), "r") as fp:
             ret = lib.SCOTCH_archLoad(byref(self._arch), fp)
             if ret != 0:
-                raise RuntimeError(f"Failed to load architecture (error code: {ret})")
+                raise lib.scotch_error("Failed to load architecture", ret)
 
     @scotch_binding("SCOTCH_archSave", "int SCOTCH_archSave(const SCOTCH_Arch *, FILE *)")
     def save(self, filename) -> None:
         """Save the architecture to a file."""
         from .graph import c_fopen
+
         with c_fopen(str(filename), "w") as fp:
             ret = lib.SCOTCH_archSave(byref(self._arch), fp)
             if ret != 0:
-                raise RuntimeError(f"Failed to save architecture (error code: {ret})")
+                raise lib.scotch_error("Failed to save architecture", ret)
 
     @staticmethod
+    @highlevel_api(scotch_functions=["SCOTCH_archInit", "SCOTCH_archCmplt"])
     def complete_graph(size: int) -> "Architecture":
         """
         Create a complete graph architecture.
