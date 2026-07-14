@@ -174,6 +174,70 @@ ordering.save("ordering.ord")
 ordering = Ordering.load("ordering.ord")
 ```
 
+### Dgraph (PT-Scotch, MPI)
+
+The `Dgraph` class handles distributed graphs. It requires the parallel
+variant (`PYSCOTCH_PARALLEL=1`) and an MPI runtime (scripts launched via
+`mpirun`); every operation below is a collective call.
+
+```python
+from pyscotch import Dgraph
+from pyscotch.mpi import mpi
+from pyscotch.graph import Graph
+from pyscotch.arch import Architecture
+
+mpi.init()
+rank = mpi.comm_rank()
+
+# Create and load a distributed graph (root reads, all ranks participate)
+dgraph = Dgraph()
+dgraph.load("graph.grf")            # or dgraph.build(...) from local CSR arrays
+dgraph.build_grid_3d(8, 8, 8)       # or a synthetic 3D grid, no file needed
+
+# Distributed partitioning / mapping: each rank gets its local part array
+partloctab = dgraph.part(4)                       # SCOTCH_dgraphPart
+arch = Architecture.complete_graph(4)
+maploctab = dgraph.map(arch)                      # SCOTCH_dgraphMap
+maploctab = dgraph.map_compute(arch)              # MapInit/MapCompute/MapExit
+dgraph.map_save("out.map", arch)                  # computed + saved on root
+dgraph.map_view("out.txt", arch)                  # mapping statistics on root
+
+# Distributed ordering
+permloctab = dgraph.order()                       # local slice of global perm
+dordering = dgraph.order_init()                   # explicit lifecycle
+dgraph.order_compute(dordering)                   # or order_compute_list(...)
+permloctab = dgraph.order_perm(dordering)
+cblknbr = dgraph.order_cblk_dist(dordering)
+treetab, sizetab = dgraph.order_tree_dist(dordering)
+dgraph.order_save(dordering, "out.ord")           # also order_save_map/_tree
+dgraph.order_exit(dordering)
+
+# Centralized <-> distributed conversion (sequential Graph on the root rank)
+cgraph = Graph() if rank == 0 else None
+dgraph.gather(cgraph)                             # SCOTCH_dgraphGather
+dgraph2 = Dgraph()
+dgraph2.scatter(cgraph)                           # SCOTCH_dgraphScatter
+
+# Statistics and cleanup
+stats = dgraph.stat()                             # SCOTCH_dgraphStat
+dgraph.free()                                     # contents only; reusable
+dgraph.exit()
+mpi.finalize()
+```
+
+Parallel strategies are set through `Strategy`:
+
+```python
+from pyscotch import Strategy
+
+strat = Strategy()
+strat.set_dgraph_mapping("...")                  # SCOTCH_stratDgraphMap
+strat.set_dgraph_ordering("...")                 # SCOTCH_stratDgraphOrder
+strat.build_dgraph_mapping(0, procnbr, partnbr, 0.05)
+strat.build_dgraph_ordering(0, procnbr, 0, 0.2)
+strat.build_dgraph_clustering(0, procnbr, 1, 1.0, 0.05)
+```
+
 ## Command-Line Interface
 
 PyScotch provides a CLI for common operations. It is installed as the `pyscotch` command

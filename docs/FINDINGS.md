@@ -12,6 +12,8 @@ expansion, Scotch 7.0.12 validation). Two categories: bugs that were **ours**
 | 1 | `SCOTCH_memFree` missing from module.h rename table → exported unsuffixed while the suffixed header declares `SCOTCH_memFree_64` (7.0.11 and 7.0.12) | Link failure for C users of suffixed builds | Reported; PyScotch works around it |
 | 2 | `SCOTCH_meshBuildElem` (new in 7.0.12) missing from module.h rename table → **7.0.12 does not build at all with `SCOTCH_RENAME_ALL`** | Build regression | Reported; verified 2-line fix in `patches/scotch-7.0.12-rename-all-fix.patch` |
 | 3 | `SCOTCH_contextOptionSetNum` switches on the option *value* instead of the option *index* (`library_context.c`, 7.0.11) → the documented DETERMINISTIC→RANDOMFIXEDSEED cascade never fires; values ≥ 2 wrongly rejected | API misbehavior | Reported with Python repro |
+| 4 | 8 public functions declared in the headers but documented in neither user manual (`SCOTCH_archBuild`, `SCOTCH_archVar`, `SCOTCH_graphGeomLoad/SaveMmkt`, `SCOTCH_graphOrderList`, `SCOTCH_graphPartOvlView`, `SCOTCH_randomSave/Load`) | Docs gap | Reported with full list |
+| 5 | `SCOTCH_contextAlloc` also missing from module.h's rename table (exports unsuffixed, 7.0.11 and 7.0.12) — found by a mechanical library.h-vs-module.h sweep; `SCOTCH_error*` also absent but possibly intentional | Same class as #1/#2 | Reported; sweep script offered as upstream CI check |
 
 With fix #2 applied, PyScotch's full suite passes against Scotch 7.0.12 on all
 four variants — compatibility itself is fine.

@@ -140,3 +140,158 @@ When this is fixed upstream, the test will become `XPASS` and we'll know to remo
 
 *Created: 2025-12-05*
 *Test file: tests/hypothesis/test_graph_properties.py*
+
+---
+
+## SCOTCH_memFree is exported without the _32/_64 suffix despite SCOTCH_RENAME_ALL
+
+*Added: 2026-07-12, found by tests/pyscotch_base/test_binding_signatures.py*
+
+When Scotch v7.0.11 is built with `-DSCOTCH_NAME_SUFFIX=_64 -DSCOTCH_RENAME_ALL`,
+the generated `scotch.h` declares `SCOTCH_memFree_64`, but the shared library
+exports the **unsuffixed** symbol:
+
+```
+$ grep memFree scotch-builds/inc64/scotch.h
+void  SCOTCH_memFree_64  (void * const);
+$ nm -D scotch-builds/lib64/libscotch.so | grep memFree
+00000000000648f0 T SCOTCH_memFree
+```
+
+Neighboring functions (`SCOTCH_memCur_64`, `SCOTCH_memMax_64`) are suffixed
+correctly, so `SCOTCH_memFree` appears to be missing from the rename machinery.
+Any C program compiled against the suffixed header and calling
+`SCOTCH_memFree` will fail to link. Since the function is int-size independent
+this is harmless for PyScotch (we special-case it and resolve the unsuffixed
+symbol), but the header/library mismatch looks unintended.
+
+---
+
+## v7.0.12 does not build with SCOTCH_RENAME_ALL: SCOTCH_meshBuildElem missing from module.h
+
+*Added: 2026-07-12, found while validating PyScotch against v7.0.12*
+
+The new public function `SCOTCH_meshBuildElem` (added in v7.0.12 by commit
+2285ed4 "Refactor `_SCOTCH_METIS_MeshToDual2()` as `SCOTCH_meshBuildElem()`")
+has no entry in `src/libscotch/module.h`'s rename table. With
+`-DSCOTCH_NAME_SUFFIX=_64 -DSCOTCH_RENAME_ALL` the build **fails**:
+
+```
+library_mesh_f.c:233:14: error: implicit declaration of function
+'SCOTCH_meshBuildElem'; did you mean 'SCOTCH_meshBuildElem_64'?
+```
+
+(`library_mesh_f.c` calls the unsuffixed name; the generated `scotch.h`
+declares only the suffixed one, and implicit declarations are errors with
+current GCC.)
+
+This is the same root cause as the `SCOTCH_memFree` issue above: both names
+are missing from module.h's `SCOTCH_NAME_PUBLIC` list. Two-line fix, verified
+against PyScotch's full test suite (all 4 variants pass with v7.0.12 once
+applied): see `patches/scotch-7.0.12-rename-all-fix.patch` in this repo.
+
+---
+
+## SCOTCH_contextOptionSetNum switches on the option *value* instead of the option *index*
+
+*Added: 2026-07-12, found while writing behavioral tests for context options*
+
+In `library_context.c` (v7.0.11), `SCOTCH_contextOptionSetNum()` contains:
+
+```c
+switch (optival) {                                /* <-- should be optinum? */
+  case CONTEXTOPTIONNUMRANDOMFIXEDSEED :
+    if (optitmp != 0)
+      optitmp = 1;                                /* Only two values available */
+    break;
+  case CONTEXTOPTIONNUMDETERMINISTIC :
+    if (optitmp != 0) {
+      optitmp = 1;
+      o = contextValuesSetInt ((Context *) libcontptr, CONTEXTOPTIONNUMRANDOMFIXEDSEED, 1);
+    }
+    break;
+  default :
+    errorPrint (STRINGIFY (SCOTCH_contextOptionSetNum) ": invalid option name");
+    return (1);
+}
+```
+
+The `switch` is on `optival` (the value being set) rather than on `optinum`
+(the option index). Since `CONTEXTOPTIONNUMDETERMINISTIC == 0` and
+`CONTEXTOPTIONNUMRANDOMFIXEDSEED == 1`, the dispatch accidentally "works" for
+values 0 and 1, but the observable consequences are:
+
+1. **The documented cascade never happens.** Setting
+   `SCOTCH_OPTIONNUMDETERMINISTIC` to 1 is supposed to also force
+   `SCOTCH_OPTIONNUMRANDOMFIXEDSEED` to 1 ("If deterministic behavior wanted,
+   use fixed random seed"), but the value 1 lands in the
+   `CONTEXTOPTIONNUMRANDOMFIXEDSEED` case, which only clamps. Reproduction:
+
+   ```python
+   ctx = Context()
+   ctx.option_set(1, 0)   # RANDOMFIXEDSEED off
+   ctx.option_set(0, 1)   # DETERMINISTIC on
+   ctx.option_get(1)      # -> 0, expected 1 per the code's intent
+   ```
+
+2. **Values >= 2 are rejected instead of clamped.** The `if (optitmp != 0)
+   optitmp = 1;` clamping code is unreachable for any value other than 0/1:
+   e.g. `SCOTCH_contextOptionSetNum(ctx, SCOTCH_OPTIONNUMDETERMINISTIC, 2)`
+   falls into `default:` and fails with "invalid option name" even though the
+   option name is valid.
+
+3. **Invalid option indices are only caught late.** E.g. option index 99 with
+   value 1 is dispatched as if it were a fixed-seed update, and only fails in
+   `contextValuesSetInt()`'s bounds check.
+
+Our tests only assert the 0/1 round-trip behavior, which is identical whether
+or not the `switch` is fixed; we did not encode the cascade or the clamping
+in tests since both look unintended in their current form.
+
+### Question
+
+Should this be `switch (optinum)`? If so, is the cascading of
+DETERMINISTIC=1 into RANDOMFIXEDSEED=1 the intended long-term semantics
+(i.e., should PyScotch expose/emulate it)?
+
+---
+
+## Public functions declared in scotch.h but documented in neither user manual
+
+*Added: 2026-07-13, found while generating deep links from the PyScotch API
+reference into the user manuals (function → page map extracted from the PDFs'
+own bookmarks).*
+
+Of the 149 public functions PyScotch binds, 8 appear in `scotch.h` /
+`ptscotch.h` (v7.0.11) but in neither `scotch_user7.0.pdf` nor
+`ptscotch_user7.0.pdf`:
+
+- `SCOTCH_archBuild` (the manual documents `SCOTCH_archBuild0`/`archBuild2`,
+  but not the plain `archBuild` also exported)
+- `SCOTCH_archVar`
+- `SCOTCH_graphGeomLoadMmkt` / `SCOTCH_graphGeomSaveMmkt` (Matrix Market
+  geometry I/O; the other Geom formats are documented)
+- `SCOTCH_graphOrderList`
+- `SCOTCH_graphPartOvlView`
+- `SCOTCH_randomSave` / `SCOTCH_randomLoad`
+
+Is the omission intentional (semi-private API)? If so, a note in the headers
+would help binding authors; if not, this list may help complete the manuals.
+
+---
+
+## Rename-table sweep: SCOTCH_contextAlloc is also missing from module.h
+
+*Added: 2026-07-13, from a mechanical sweep of library.h vs module.h*
+
+Cross-checking every public function in `library.h` against `module.h`'s
+`SCOTCH_NAME_PUBLIC` rename table (v7.0.11 and v7.0.12) finds 5 absentees:
+`SCOTCH_memFree` (reported above), `SCOTCH_meshBuildElem` (7.0.12, reported
+above), **`SCOTCH_contextAlloc`** (exports unsuffixed while e.g.
+`SCOTCH_graphAlloc_64` is correctly suffixed — verified with `nm`), and
+`SCOTCH_errorPrint`/`SCOTCH_errorPrintW`/`SCOTCH_errorProg` (possibly
+intentional, since the error library is shared between suffixed variants —
+if so, a comment in module.h would make that explicit).
+
+The sweep is a 15-line script; happy to contribute it as a CI check upstream
+so this bug class cannot recur.
