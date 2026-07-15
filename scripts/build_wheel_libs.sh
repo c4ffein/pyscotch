@@ -25,6 +25,7 @@ command -v flex >/dev/null 2>&1 || missing+=(flex)
 command -v bison >/dev/null 2>&1 || missing+=(bison)
 command -v make >/dev/null 2>&1 || missing+=(make)
 command -v gcc >/dev/null 2>&1 || missing+=(gcc)
+command -v m4 >/dev/null 2>&1 || missing+=(m4)  # needed to build flex from source (below)
 # patchelf: Scotch builds libscotch.so via `gcc -shared -o` WITHOUT its
 # LDFLAGS, so the .so calls libz/libm/libpthread but records no DT_NEEDED for
 # them (see step 3b). We patch the NEEDED list back in; auditwheel then vendors
@@ -53,6 +54,40 @@ if [ "${#missing[@]}" -gt 0 ]; then
         echo "package manager (dnf/yum/apt-get) found. Install them manually." >&2
         exit 1
     fi
+fi
+
+# ---------------------------------------------------------------------------
+# 1b. Ensure flex >= 2.6.4
+# ---------------------------------------------------------------------------
+# Scotch's Makefile rejects older flex (e.g. the 2.6.1 that AlmaLinux 8 /
+# manylinux_2_28 ships) as "bogus" and SILENTLY falls back to a pre-generated
+# last_resort lexer that does NOT carry the _32/_64 rename prefix. Bison still
+# emits a parser calling `_SCOTCHyy_32lex`, so the built libscotch.so ends up
+# with `undefined symbol: _SCOTCHyy_32lex` at load. The distro packages only
+# ship 2.6.1, so when the system flex is too old we build 2.6.4 from source.
+flex_ok=0
+if command -v flex >/dev/null 2>&1; then
+    fv="$(flex --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -1)"
+    if [ -n "$fv" ] && [ "$(printf '2.6.4\n%s\n' "$fv" | sort -V | head -1)" = "2.6.4" ]; then
+        flex_ok=1
+    fi
+fi
+if [ "$flex_ok" -ne 1 ]; then
+    echo "System flex is missing or < 2.6.4 ($(flex --version 2>/dev/null || echo none)); building flex 2.6.4 from source"
+    ftmp="$(mktemp -d)"
+    (
+        cd "$ftmp"
+        curl -LsSf https://github.com/westes/flex/releases/download/v2.6.4/flex-2.6.4.tar.gz -o flex.tar.gz
+        tar xzf flex.tar.gz
+        cd flex-2.6.4
+        ./configure --prefix=/usr/local >/dev/null
+        make -j"$(nproc)" >/dev/null
+        ${SUDO:-} make install >/dev/null
+    )
+    rm -rf "$ftmp"
+    export PATH="/usr/local/bin:$PATH"
+    hash -r
+    echo "flex is now: $(flex --version)"
 fi
 
 # ---------------------------------------------------------------------------
