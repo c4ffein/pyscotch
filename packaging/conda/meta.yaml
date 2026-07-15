@@ -1,49 +1,53 @@
 # =============================================================================
-# conda-forge recipe SKELETON for pyscotch — NOT ready for submission as-is.
+# conda-forge recipe for pyscotch — sequential (nompi) + parallel (openmpi /
+# mpich) via conda-forge's MPI variant system. NOT yet submitted.
 #
-# How to submit to conda-forge (when ready):
-#   1. Publish a pyscotch release to PyPI (the sdist is used as `source` below).
-#   2. Fork https://github.com/conda-forge/staged-recipes
-#   3. Copy this file to recipes/pyscotch/meta.yaml in the fork, fill in the
-#      sha256 of the released sdist, and strip this comment block down to
-#      recipe-relevant notes.
-#   4. Open a PR against staged-recipes; once merged, a dedicated
-#      pyscotch-feedstock repo is created and future updates go there.
+# How to submit to conda-forge:
+#   1. Publish a pyscotch release to PyPI (the sdist is the `source` below).
+#   2. Fork https://github.com/conda-forge/staged-recipes and copy this file
+#      (plus conda_build_config.yaml and build.sh) to recipes/pyscotch/.
+#   3. Fill in the sdist sha256 and open a PR against staged-recipes. Once
+#      merged, a pyscotch-feedstock is created; future updates go there.
 #
-# IMPORTANT — KNOWN BLOCKER, do not submit before it is resolved:
-#   conda-forge already ships `scotch` and `ptscotch` packages, and this recipe
-#   depends on them instead of bundling our own build. However, conda-forge's
-#   scotch is built WITHOUT symbol suffixes: it exports SCOTCH_graphInit, not
-#   SCOTCH_graphInit_32 / SCOTCH_graphInit_64 like the wheels' bundled builds.
-#   pyscotch/libscotch.py handles this: _detect_suffix() falls back to
-#   unsuffixed symbols and verifies the library's integer width via
+# MPI variants (see conda_build_config.yaml):
+#   - nompi  → depends on conda-forge `scotch`  (sequential; PYSCOTCH_PARALLEL=0)
+#   - openmpi/mpich → depend on `ptscotch` + `mpi4py` for the same MPI, and
+#     enable the Dgraph class (PYSCOTCH_PARALLEL=1). Pass mpi4py communicators
+#     straight to Dgraph(comm=...).
+# The nompi build gets a higher build number so it is preferred by default;
+# request a parallel build explicitly with e.g. `pyscotch=*=mpi_openmpi_*`.
+#
+# Why this works without linking Scotch:
+#   pyscotch is a pure-ctypes wrapper — it dlopen's libscotch/libptscotch at
+#   runtime rather than linking them. conda-forge's Scotch exports UNSUFFIXED
+#   symbols (SCOTCH_dgraphInit, not ..._64); pyscotch/libscotch.py
+#   _detect_suffix() handles that and verifies the integer width via
 #   SCOTCH_numSizeof(), refusing to load under a mismatched PYSCOTCH_INT_SIZE.
-#   Remaining caveat: an unsuffixed library ships ONE integer width, so only
-#   the matching PYSCOTCH_INT_SIZE works. Verified 2026-07-13: conda-forge's
-#   scotch 7.0.11 is 64-bit — it matches PyScotch's default, so imports work
-#   with zero configuration (tested: partition, file I/O, ordering).
+#   conda-forge's scotch/ptscotch are int64 = pyscotch's default, so imports
+#   work with zero configuration.
 #
-# Other integration notes:
-#   - pyscotch falls back to the system-installed Scotch (dlopen by soname)
-#     when no bundled/dev libraries are found, and PYSCOTCH_SYSTEM=1 forces
-#     that mode. In a conda env, dlopen("libscotch.so") resolves to
-#     $PREFIX/lib via the interpreter's RPATH, so no activation script is
-#     usually needed; PYSCOTCH_LIB_DIR=$PREFIX/lib remains the explicit
-#     escape hatch.
-#   - conda-forge's scotch is built for ONE integer size per package; the
-#     32/64-bit selection via PYSCOTCH_INT_SIZE maps differently than for
-#     wheels (which bundle both variants).
-#   - libpyscotch_compat.so (pyscotch/native/file_compat.c) is not part of
-#     conda's scotch; the recipe must compile it in the build script (add a
-#     small build.sh compiling it into $PREFIX/lib, plus a c compiler in
-#     build requirements).
-#   - MPI/PT-Scotch: unlike wheels, conda CAN express MPI dependencies via
-#     conda-forge's mpi variant system (`ptscotch` builds exist for openmpi
-#     and mpich), so PYSCOTCH_PARALLEL=1 is feasible here eventually.
+# Verified 2026-07-15:
+#   - sequential: conda-forge scotch 7.0.11 (int64) — partition, I/O, ordering.
+#   - parallel:   conda-forge ptscotch 7.0.11 (int64, UNSUFFIXED) driven through
+#     conda mpi4py across multiple MPI ranks — build_grid_3d + check + part.
+#     Both the openmpi AND mpich variants were exercised (4 ranks each).
+#
+# Discovery note: in a conda env, dlopen("libptscotch.so") resolves to
+# $PREFIX/lib via the interpreter's RPATH, so no activation script is needed;
+# PYSCOTCH_LIB_DIR=$PREFIX/lib remains the explicit escape hatch.
 # =============================================================================
 
 {% set name = "pyscotch" %}
 {% set version = "7.0.0" %}
+{% set mpi = mpi or "nompi" %}
+
+# Prefer the nompi build by default: a higher build number wins in the solver
+# unless the user explicitly pins an mpi variant.
+{% if mpi == "nompi" %}
+{% set build = 100 %}
+{% else %}
+{% set build = 0 %}
+{% endif %}
 
 package:
   name: {{ name|lower }}
@@ -54,40 +58,61 @@ source:
   sha256: 0000000000000000000000000000000000000000000000000000000000000000  # FIXME: fill in after PyPI release
 
 build:
-  number: 0
-  # Not noarch: depends on unix-only scotch libraries and ships a compiled
-  # compat helper (see build.sh note in the header).
+  number: {{ build }}
+  # Keep the three variants from colliding and let downstreams pin a specific
+  # one (e.g. pyscotch=*=mpi_openmpi_*).
+  {% if mpi == "nompi" %}
+  string: "nompi_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build }}"
+  {% else %}
+  string: "mpi_{{ mpi }}_py{{ CONDA_PY }}h{{ PKG_HASH }}_{{ build }}"
+  {% endif %}
+  # Unix-only: depends on the scotch shared libraries and ships a compiled
+  # libc compat shim (build.sh).
   skip: true  # [win]
-  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
   entry_points:
     - pyscotch = pyscotch.cli:main
 
 requirements:
   build:
-    - {{ compiler('c') }}          # for pyscotch/native/file_compat.c
+    - {{ compiler('c') }}          # for pyscotch/native/file_compat.c (build.sh)
   host:
     - python
     - pip
-    - setuptools
+    - setuptools >=61
     - wheel
+    # Pin the MPI variant at solve time so the run deps below resolve to the
+    # matching openmpi/mpich builds of ptscotch and mpi4py.
+    {% if mpi != "nompi" %}
+    - {{ mpi }}
+    {% endif %}
   run:
     - python
     - numpy >=1.19.0
-    # Reuse conda-forge's existing Scotch packages instead of bundling:
+    {% if mpi == "nompi" %}
     - scotch
-    # Optional / future (parallel support, see header notes):
-    # - ptscotch
-    # - {{ mpi }}
+    {% else %}
+    - {{ mpi }}
+    - ptscotch
+    - mpi4py >=3.1
+    {% endif %}
 
 test:
-  # conda-forge scotch is 64-bit = PyScotch's default; discovery works via
-  # the interpreter's RPATH, so no env vars are needed (verified 2026-07-13).
+  requires:
+    - pip
   imports:
     - pyscotch
   commands:
+    # Discovery + width check against the conda Scotch (no env vars needed:
+    # conda-forge scotch/ptscotch are int64 = pyscotch's default).
+    - pip check
     - pyscotch --help
-  requires:
-    - pip
+    {% if mpi == "nompi" %}
+    - python -c "from pyscotch import Graph, Strategy, Architecture"
+    {% else %}
+    # Singleton MPI (no mpirun needed): exercises the unsuffixed-ptscotch +
+    # mpi4py handoff — the parallel path proven on 2026-07-15.
+    - PYSCOTCH_PARALLEL=1 PYSCOTCH_INT_SIZE=64 python -c "from mpi4py import MPI; from pyscotch import Dgraph; dg = Dgraph(comm=MPI.COMM_WORLD); dg.build_grid_3d(4, 4, 4); assert dg.check(); dg.exit()"
+    {% endif %}
 
 about:
   home: https://github.com/c4ffein/pyscotch

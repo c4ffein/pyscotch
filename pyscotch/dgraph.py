@@ -30,6 +30,53 @@ from pyscotch.mpi import mpi
 from pyscotch.graph import c_fopen
 
 
+def _resolve_comm(comm):
+    """Resolve a Dgraph ``comm`` argument to what Scotch and Python each need.
+
+    Accepts three forms and returns ``(scotch_comm, mpi4py_comm)`` where
+    ``scotch_comm`` is a ``ctypes.c_void_p`` holding the native ``MPI_Comm``
+    value to pass to ``SCOTCH_dgraphInit`` (by value), and ``mpi4py_comm`` is
+    the original mpi4py communicator object (or ``None``) so rank-dependent
+    methods can query it directly:
+
+    - ``None``: use the bundled zero-dependency MPI wrapper's ``MPI_COMM_WORLD``.
+      Requires ``mpi.init()`` to have been called first.
+    - an **mpi4py** communicator (``mpi4py.MPI.Comm``): its native ``MPI_Comm``
+      handle is extracted with ``MPI._handleof`` — verified to be the exact same
+      value the bundled wrapper derives for ``MPI_COMM_WORLD``. mpi4py runs
+      ``MPI_Init`` itself on import, so no ``mpi.init()`` is needed.
+    - a raw ``ctypes.c_void_p`` (or ``int``) ``MPI_Comm`` handle: passed through
+      unchanged (escape hatch; also how ``coarsen`` reuses a parent's comm).
+    """
+    if comm is None:
+        if not mpi.is_initialized():
+            raise RuntimeError(
+                "MPI must be initialized before creating Dgraph.\n"
+                "Call mpi.init() first, or pass an mpi4py communicator "
+                "(e.g. Dgraph(comm=MPI.COMM_WORLD))."
+            )
+        return mpi.get_comm_world(), None
+
+    if isinstance(comm, ctypes.c_void_p):
+        return comm, None
+    if isinstance(comm, int):
+        return ctypes.c_void_p(comm), None
+
+    # Anything else may only be an mpi4py communicator. Gate on the module name
+    # BEFORE importing mpi4py, so a stray object never triggers mpi4py's import
+    # side effect (MPI_Init) just to be type-checked.
+    if type(comm).__module__.split(".", 1)[0] == "mpi4py":
+        from mpi4py import MPI
+
+        if isinstance(comm, MPI.Comm):
+            return ctypes.c_void_p(MPI._handleof(comm)), comm
+
+    raise TypeError(
+        "Dgraph comm must be None, an mpi4py communicator, or a ctypes "
+        f"c_void_p MPI_Comm handle, not {type(comm).__name__}."
+    )
+
+
 class Dgraph:
     """
     Distributed graph for PT-Scotch parallel partitioning and ordering.
@@ -42,26 +89,24 @@ class Dgraph:
     - MPI initialized
     - Running in an MPI environment (e.g., via mpirun/mpiexec)
 
-    Example:
-        >>> # Set environment variables before importing pyscotch:
+    Example (mpi4py — recommended when you already use MPI from Python):
         >>> # export PYSCOTCH_INT_SIZE=64
         >>> # export PYSCOTCH_PARALLEL=1
+        >>> from mpi4py import MPI            # runs MPI_Init on import
+        >>> from pyscotch import Dgraph
         >>>
+        >>> dgraph = Dgraph(comm=MPI.COMM_WORLD)   # any sub-communicator works too
+        >>> dgraph.build_grid_3d(8, 8, 8)          # each rank gets its share
+        >>> part = dgraph.part(4)                  # local part assignments
+        >>> dgraph.exit()
+        >>> # Run with:  mpirun -n 4 python script.py
+
+    Example (bundled zero-dependency wrapper, no mpi4py):
         >>> from pyscotch import mpi, Dgraph
-        >>>
-        >>> # Initialize MPI
         >>> mpi.init()
-        >>>
-        >>> # Create distributed graph
-        >>> dgraph = Dgraph()
-        >>>
-        >>> # Build from distributed data
-        >>> # (each MPI rank provides its local portion)
+        >>> dgraph = Dgraph()                      # bundled MPI_COMM_WORLD
         >>> dgraph.build(vertloctab, edgeloctab, baseval=0)
-        >>>
-        >>> # Operations like partitioning would go here
-        >>>
-        >>> # Cleanup
+        >>> dgraph.exit()
         >>> mpi.finalize()
     """
 
@@ -70,12 +115,18 @@ class Dgraph:
         Initialize a distributed graph.
 
         Args:
-            comm: MPI communicator (default: MPI_COMM_WORLD).
-                  Can be a ctypes.c_void_p representing an MPI_Comm.
+            comm: MPI communicator (default: MPI_COMM_WORLD via the bundled
+                  zero-dependency MPI wrapper, after mpi.init()). Accepts:
+                  - None: bundled wrapper's MPI_COMM_WORLD (requires mpi.init());
+                  - an mpi4py communicator, e.g. ``Dgraph(comm=MPI.COMM_WORLD)``
+                    or any sub-communicator — the recommended path when you use
+                    mpi4py (no mpi.init() needed);
+                  - a ctypes.c_void_p (or int) raw MPI_Comm handle.
 
         Raises:
             RuntimeError: If PT-Scotch (parallel variant) is not loaded
-            RuntimeError: If MPI is not available
+            RuntimeError: If comm is None and MPI is not initialized
+            TypeError: If comm is an unsupported type
         """
         # Check that parallel variant is loaded
         if not lib.is_parallel():
@@ -84,21 +135,15 @@ class Dgraph:
                 "Set PYSCOTCH_PARALLEL=1 environment variable before importing pyscotch."
             )
 
-        # Get MPI communicator
-        if comm is None:
-            if not mpi.is_initialized():
-                raise RuntimeError(
-                    "MPI must be initialized before creating Dgraph.\n" "Call mpi.init() first."
-                )
-            comm = mpi.get_comm_world()
-
-        # Save communicator for later use (e.g., in coarsen)
-        self._comm = comm
+        # Resolve the communicator: `_comm` is the native MPI_Comm handle to
+        # hand Scotch (also reused by coarsen); `_mpi4py_comm` is the mpi4py
+        # object, if any, so rank queries can go straight through it.
+        self._comm, self._mpi4py_comm = _resolve_comm(comm)
 
         # Initialize distributed graph
         self._dgraph = lib.SCOTCH_Dgraph()
         self._exit_called = False
-        ret = lib.SCOTCH_dgraphInit(byref(self._dgraph), comm)
+        ret = lib.SCOTCH_dgraphInit(byref(self._dgraph), self._comm)
         if ret != 0:
             raise lib.scotch_error("SCOTCH_dgraphInit failed", ret)
 
@@ -229,7 +274,7 @@ class Dgraph:
         filepath = Path(filepath)
 
         # Only process 0 opens the file, others pass NULL
-        rank = mpi.comm_rank()
+        rank = self._comm_rank()
 
         if rank == 0:
             with c_fopen(filepath, "r") as file_ptr:
@@ -480,8 +525,11 @@ class Dgraph:
         # Allocate multinode array
         multloctab = np.zeros(coarvertlocmax * 2, dtype=lib.get_scotch_dtype())
 
-        # Create coarse graph
-        coarse_graph = Dgraph(comm=self._comm)
+        # Create coarse graph on the same communicator (pass the mpi4py object
+        # through when we have one, so the child keeps rank queries mpi4py-based)
+        coarse_graph = Dgraph(
+            comm=self._mpi4py_comm if self._mpi4py_comm is not None else self._comm
+        )
 
         # Perform coarsening
         ret = lib.SCOTCH_dgraphCoarsen(
@@ -940,6 +988,17 @@ class Dgraph:
         return self.data(want_vertlocnbr=True)["vertlocnbr"]
 
     @internal_api
+    def _comm_rank(self) -> int:
+        """Rank of this process in the graph's communicator.
+
+        Prefers the mpi4py communicator when the Dgraph was created from one,
+        so no ``mpi.init()`` on the bundled wrapper is required.
+        """
+        if self._mpi4py_comm is not None:
+            return self._mpi4py_comm.Get_rank()
+        return mpi.comm_rank(self._comm)
+
+    @internal_api
     @contextmanager
     def _root_fopen(self, filepath, mode: str):
         """Open a file on the root process of this graph's communicator only.
@@ -947,7 +1006,7 @@ class Dgraph:
         PT-Scotch save routines are collective but expect a non-NULL stream
         on exactly one process; all others must pass NULL.
         """
-        if mpi.comm_rank(self._comm) == 0:
+        if self._comm_rank() == 0:
             with c_fopen(Path(filepath), mode) as file_ptr:
                 yield file_ptr
         else:

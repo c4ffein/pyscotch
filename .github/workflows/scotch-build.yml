@@ -1,0 +1,143 @@
+name: Build Scotch from CLI (end-to-end)
+
+# Exercises the FULL `pyscotch scotch build` path in a clean runner — the real
+# wheel/sdist user scenario: no submodule, no scotch-builds/, no bundled libs.
+# It downloads Scotch from GitLab, compiles it, selects it, and then actually
+# loads + partitions through the resulting library (sequential AND parallel),
+# and asserts the known-bad 7.0.12 fails cleanly with the right diagnosis.
+#
+# This is the automated counterpart to the unit tests in
+# tests/pyscotch_base/test_scotch_build.py (which cover the logic offline).
+#
+# Note: it fetches from gitlab.inria.fr and relies on the pinned checksums in
+# pyscotch/scotch_build.py — if GitLab regenerates an archive, bump the pin
+# there (the CLI's --sha256 is the manual override).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pyscotch/scotch_build.py"
+      - "pyscotch/_store.py"
+      - "pyscotch/libscotch.py"
+      - "pyscotch/native/**"
+      - ".github/workflows/scotch-build.yml"
+  pull_request:
+    paths:
+      - "pyscotch/scotch_build.py"
+      - "pyscotch/_store.py"
+      - "pyscotch/libscotch.py"
+      - "pyscotch/native/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-scotch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        # No submodules: build-scotch downloads its own Scotch source.
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build toolchain (flex >= 2.6.4, bison, zlib, MPI)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flex bison zlib1g-dev libopenmpi-dev openmpi-bin
+          flex --version   # ubuntu-latest ships flex 2.6.4
+
+      - name: Install pyscotch as a pure package (no bundled libs)
+        run: |
+          rm -rf pyscotch/_libs           # ensure the wheel-bundled path is absent
+          python -m pip install --upgrade pip
+          pip install numpy mpi4py
+          pip install .                   # into site-packages, like a real user
+
+      - name: Prepare an isolated store and workdir
+        run: |
+          echo "PYSCOTCH_HOME=$RUNNER_TEMP/pshome" >> "$GITHUB_ENV"
+          echo "PYSCOTCH_MPI_OVERSUBSCRIBE=1" >> "$GITHUB_ENV"
+
+      - name: doctor on a fresh env (before any build)
+        working-directory: ${{ runner.temp }}
+        run: pyscotch doctor || true   # informational; may report "no Scotch" and exit 1
+
+      - name: Build sequential 7.0.11 and select it
+        working-directory: ${{ runner.temp }}
+        run: |
+          pyscotch scotch build 7.0.11 --sequential --use
+          pyscotch scotch list
+          pyscotch doctor
+
+      - name: Load + partition through the managed sequential build
+        working-directory: ${{ runner.temp }}
+        run: |
+          python - <<'PY'
+          import numpy as np
+          from pyscotch import Graph, scotch_version
+          assert scotch_version() == (7, 0, 11), scotch_version()
+          g = Graph()
+          g.build(np.array([0, 2, 4, 6, 8, 10, 12]),
+                  np.array([1, 5, 0, 2, 1, 3, 2, 4, 3, 5, 4, 0]))
+          part = g.partition(2)
+          assert set(part.tolist()) == {0, 1}, part
+          print("sequential managed build OK:", scotch_version())
+          PY
+
+      - name: Build parallel 7.0.11 and drive Dgraph under mpirun
+        working-directory: ${{ runner.temp }}
+        run: |
+          pyscotch scotch build 7.0.11 --parallel --use
+          pyscotch scotch list
+          cat > dgraph_smoke.py <<'PY'
+          import os
+          os.environ.setdefault("PYSCOTCH_INT_SIZE", "64")
+          os.environ.setdefault("PYSCOTCH_PARALLEL", "1")
+          from mpi4py import MPI
+          from pyscotch import Dgraph, scotch_version
+          comm = MPI.COMM_WORLD
+          dg = Dgraph(comm=comm)
+          dg.build_grid_3d(6, 6, 6)
+          assert dg.check()
+          part = dg.part(3)
+          assert part.min() >= 0 and part.max() < 3
+          dg.exit()
+          comm.Barrier()
+          if comm.Get_rank() == 0:
+              print("parallel managed build OK:", scotch_version(), "ranks:", comm.Get_size())
+          PY
+          PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 \
+            mpirun --oversubscribe -n 2 python dgraph_smoke.py
+
+      - name: Switching the default changes the loaded library
+        working-directory: ${{ runner.temp }}
+        run: |
+          pyscotch scotch use 7.0.11-64-seq
+          python -c "from pyscotch import scotch_version as v; assert v()==(7,0,11); print('use seq ->', v())"
+          pyscotch scotch rm 7.0.11-64-seq
+          pyscotch scotch list
+
+      - name: Known-bad 7.0.12 must fail cleanly with the right diagnosis
+        working-directory: ${{ runner.temp }}
+        run: |
+          # Build ONCE; assert non-zero exit, a diagnosis naming the rename-table
+          # bug, and that nothing was staged.
+          set +e
+          out="$(pyscotch scotch build 7.0.12 --sequential 2>&1)"
+          rc=$?
+          set -e
+          echo "$out"
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::7.0.12 unexpectedly built (upstream may have fixed it — update this guard)"
+            exit 1
+          fi
+          echo "$out" | grep -q "SCOTCH_meshBuildElem" \
+            || { echo "::error::7.0.12 failure not diagnosed as the rename-table bug"; exit 1; }
+          if pyscotch scotch list | grep -q "7.0.12"; then
+            echo "::error::a broken 7.0.12 build was staged"; exit 1
+          fi
+          echo "7.0.12 failed cleanly with the expected diagnosis."

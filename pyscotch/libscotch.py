@@ -69,15 +69,23 @@ def _get_lib_dir() -> Optional[Path]:
     Search order:
     1. PYSCOTCH_SYSTEM=1 forces system-installed Scotch (returns None)
     2. PYSCOTCH_LIB_DIR environment variable (explicit override)
-    3. pyscotch/_libs/lib{32,64}/ (libraries bundled inside an installed wheel)
-    4. scotch-builds/lib{32,64}/ next to the repo (development layout)
-    5. None: fall back to the system-installed Scotch (dlopen by soname)
+    3. A user-built Scotch marked default via `pyscotch scotch use` (the store)
+    4. pyscotch/_libs/lib{32,64}/ (libraries bundled inside an installed wheel)
+    5. scotch-builds/lib{32,64}/ next to the repo (development layout)
+    6. None: fall back to the system-installed Scotch (dlopen by soname)
     """
     if os.environ.get("PYSCOTCH_SYSTEM") == "1":
         return None
     env_dir = os.environ.get("PYSCOTCH_LIB_DIR")
     if env_dir:
         return Path(env_dir)
+    # A build the user explicitly `use`d wins over the bundled wheel libraries,
+    # but only when it can serve the requested width/parallel variant.
+    from ._store import managed_lib_dir
+
+    managed = managed_lib_dir(_INT_SIZE, _PARALLEL)
+    if managed is not None:
+        return managed
     packaged_dir = Path(__file__).parent / "_libs" / f"lib{_INT_SIZE}"
     if packaged_dir.exists():
         return packaged_dir
@@ -147,6 +155,15 @@ def _load_system_libraries():
     System packages ship unsuffixed symbols and a single integer width;
     _detect_suffix() verifies the width matches PYSCOTCH_INT_SIZE.
     """
+    # If a libpyscotch_compat.so is reachable on the system linker path (e.g.
+    # the conda package drops one into $PREFIX/lib), load it RTLD_GLOBAL FIRST
+    # — before libscotcherr — so Scotch's unsuffixed SCOTCH_errorPrint binds to
+    # the capturing shim instead of the stderr printer. Absent shim: no-op, and
+    # messages go to stderr as before.
+    compat = _dlopen_system("pyscotch_compat", ["libpyscotch_compat.so"])
+    if compat is not None:
+        _wire_err_capture(compat)
+
     _dlopen_system("scotcherr", ["libscotcherr.so", "libscotcherr.so.7", "libscotcherr-7.0.so"])
 
     seq = _dlopen_system("scotch", ["libscotch.so", "libscotch.so.7", "libscotch-7.0.so"])
@@ -181,23 +198,35 @@ def _load_system_libraries():
 _err_capture = None
 
 
-def _load_error_capture(lib_dir):
-    """Load the compat shim FIRST and globally, so Scotch's calls to the
-    deliberately-unsuffixed SCOTCH_errorPrint/W resolve to our capturing
-    implementations instead of libscotcherr's stderr printers."""
+def _wire_err_capture(handle):
+    """Adopt an already-loaded compat shim as the error-capture source.
+
+    The shim must have been dlopen'd RTLD_GLOBAL *before* libscotcherr so that
+    Scotch's deliberately-unsuffixed SCOTCH_errorPrint/W bind to the shim's
+    capturing implementations rather than libscotcherr's stderr printers. A
+    shim too old to expose pyscotch_err_* is ignored (stderr behavior kept)."""
     global _err_capture
-    compat_path = lib_dir / "libpyscotch_compat.so"
-    if not compat_path.exists():
-        return
     try:
-        handle = ctypes.CDLL(str(compat_path), mode=ctypes.RTLD_GLOBAL)
         handle.pyscotch_err_get.restype = c_char_p
         handle.pyscotch_err_get.argtypes = []
         handle.pyscotch_err_clear.restype = None
         handle.pyscotch_err_clear.argtypes = []
         _err_capture = handle
-    except (OSError, AttributeError):
+    except AttributeError:
         pass  # older shim without error capture: keep stderr behavior
+
+
+def _load_error_capture(lib_dir):
+    """Load the compat shim from a known lib dir (bundled / PYSCOTCH_LIB_DIR)
+    FIRST and globally, before any Scotch library binds SCOTCH_errorPrint."""
+    compat_path = lib_dir / "libpyscotch_compat.so"
+    if not compat_path.exists():
+        return
+    try:
+        handle = ctypes.CDLL(str(compat_path), mode=ctypes.RTLD_GLOBAL)
+    except OSError:
+        return
+    _wire_err_capture(handle)
 
 
 def get_scotch_messages(clear=True) -> str:
@@ -1018,6 +1047,13 @@ def is_parallel() -> bool:
     return _PARALLEL
 
 
+def get_scotch_version() -> tuple:
+    """Return the loaded Scotch version as a (major, minor, patch) int tuple."""
+    major, minor, patch = c_int(), c_int(), c_int()
+    _get_func("SCOTCH_version")(byref(major), byref(minor), byref(patch))
+    return (major.value, minor.value, patch.value)
+
+
 # =============================================================================
 # Wrapped functions with validation
 # =============================================================================
@@ -1069,6 +1105,7 @@ __all__ = [
     "get_scotch_dtype",
     "get_dtype",
     "is_parallel",
+    "get_scotch_version",
     "to_scotch_array",
     "to_scotch_array_optional",
     # Types

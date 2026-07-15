@@ -46,6 +46,14 @@ interop = [
     "scipy>=1.8",
     "networkx>=2.6",
 ]
+# Distributed (PT-Scotch / Dgraph) interop. mpi4py bridges an existing MPI
+# runtime to PyScotch: pass its communicators straight to Dgraph(comm=...).
+# It builds against whatever system MPI is present, so it is an opt-in extra,
+# not a hard dependency; the bundled zero-dependency mpi.py wrapper remains the
+# fallback for the common single-implementation case.
+parallel = [
+    "mpi4py>=3.1",
+]
 
 [project.urls]
 Homepage = "https://github.com/c4ffein/pyscotch"

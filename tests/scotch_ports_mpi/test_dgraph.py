@@ -289,3 +289,29 @@ class TestDgraphGridStat:
     def test_dgraph_grid_stat(self):
         """Build 3D grids, check statistics, partition, free and rebuild."""
         _run_script("dgraph_grid_stat.py", 2)
+
+
+def _mpi4py_available() -> bool:
+    """True if mpi4py can be imported (the optional `parallel` extra)."""
+    import importlib.util
+
+    return importlib.util.find_spec("mpi4py") is not None
+
+
+class TestDgraphMpi4pyInterop:
+    """Driving a Dgraph from an mpi4py communicator (the `parallel` extra)."""
+
+    @pytest.mark.skipif(
+        not _mpi4py_available(), reason="mpi4py not installed (pip install pyscotch[parallel])"
+    )
+    def test_dgraph_mpi4py_interop(self):
+        """COMM_WORLD, coarsen propagation, and a Split() subset comm."""
+        returncode, stdout, stderr = run_mpi_script("dgraph_mpi4py_interop.py", num_processes=4)
+
+        if stdout:
+            print("STDOUT:", stdout)
+        if stderr:
+            print("STDERR:", stderr)
+
+        assert returncode == 0, f"MPI script failed with return code {returncode}"
+        assert "PASS" in stdout, "Expected PASS message in output"

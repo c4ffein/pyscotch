@@ -61,6 +61,30 @@ sequential + parallel libraries, each in 32-bit and 64-bit `SCOTCH_Num`
 flavors — plus the small `libpyscotch_compat` shim for FILE\* ABI
 compatibility. PyScotch finds this development layout automatically.
 
+**Driving PT-Scotch from your MPI program.** If you already use
+[mpi4py](https://mpi4py.readthedocs.io/), install the `parallel` extra and hand
+its communicators straight to `Dgraph` — any communicator works, not just
+`COMM_WORLD`:
+
+```bash
+uv pip install -e ".[parallel]"     # pulls mpi4py, built against your MPI
+```
+
+```python
+from mpi4py import MPI               # runs MPI_Init on import
+from pyscotch import Dgraph
+
+dg = Dgraph(comm=MPI.COMM_WORLD)      # or any sub-communicator (Split/Dup)
+dg.build_grid_3d(8, 8, 8)
+part = dg.part(4)                     # local part assignments on each rank
+dg.exit()
+# mpirun -n 4 python your_script.py
+```
+
+Under the hood PyScotch passes mpi4py's native `MPI_Comm` handle to Scotch, so
+both share one MPI runtime. Without mpi4py, the bundled zero-dependency
+`pyscotch.mpi` wrapper still drives `MPI_COMM_WORLD` after `mpi.init()`.
+
 ## 3. Using a System-Installed Scotch
 
 If PyScotch finds neither bundled wheel libraries nor a `scotch-builds/`
@@ -93,6 +117,40 @@ PYSCOTCH_SYSTEM=1 PYSCOTCH_INT_SIZE=32 python my_script.py
 A conda recipe exists (`packaging/conda/meta.yaml`) but the package is not
 yet published on conda-forge. Coming soon — until then, use pip/uv or a
 source build inside your conda environment.
+
+## 5. Diagnosing and Building Scotch from the CLI
+
+Two commands help when an install misbehaves or you need a specific Scotch.
+
+**`pyscotch doctor`** reports exactly which backend loaded (bundled wheel,
+system, conda, or a user build), its version, integer width, symbol suffix,
+whether PT-Scotch and contexts are available, the MPI implementation, and —
+when something is missing — the exact `apt`/`dnf`/`conda` command to fix it. It
+runs even when Scotch fails to load (that's the point), and `--json` emits the
+report for scripts:
+
+```bash
+pyscotch doctor
+pyscotch doctor --json
+```
+
+**`pyscotch scotch`** downloads and compiles Scotch locally when no suitable
+build is available (e.g. a sequential wheel but you need PT-Scotch). Builds are
+checksum-verified, kept side by side, and a `use`d build takes precedence over
+the bundled wheel libraries:
+
+```bash
+pyscotch scotch build 7.0.11 --parallel --use   # download, compile, select
+pyscotch scotch list                            # what's installed (\* = default)
+pyscotch scotch use 7.0.11-64-seq               # switch the default
+pyscotch scotch rm 7.0.11-64-par                # delete a build
+```
+
+Builds land under `~/.local/share/pyscotch` (override with `PYSCOTCH_HOME`). A
+preflight checks the toolchain first — C compiler, `make`, **flex ≥ 2.6.4**
+(older flex silently breaks the lexer symbols), bison, zlib headers, and
+`mpicc` for `--parallel` — and stops with a distro-specific fix list rather
+than failing halfway. With neither `--sequential` nor `--parallel`, it asks.
 
 ## Configuration
 

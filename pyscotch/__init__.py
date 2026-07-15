@@ -18,26 +18,48 @@ Example:
 """
 
 from ._version import __version__  # single source of truth (CI stamps it from the tag)
-from .api_decorators import scotch_binding
-from .graph import Graph
-from .mesh import Mesh
-from .strategy import Strategy, Strategies
-from .arch import Architecture
-from .mapping import Mapping
-from .ordering import Ordering
-from .dgraph import Dgraph
-from .context import Context
-from .geom import Geometry
-from . import mpi
-from .libscotch import (
-    get_scotch_int_size,
-    get_scotch_dtype,
-    SCOTCH_COARSENNONE,
-    SCOTCH_COARSENFOLD,
-    SCOTCH_COARSENFOLDDUP,
-    SCOTCH_COARSENNOMERGE,
-)
+from .api_decorators import scotch_binding  # Scotch-free at import
+from . import mpi  # Scotch-free at import (ctypes-only MPI wrapper)
 from ctypes import byref
+
+# Lazy attribute access (PEP 562). Importing any of these submodules loads the
+# Scotch shared libraries, so we defer them to first use. This keeps a bare
+# `import pyscotch` cheap and — crucially — lets `pyscotch doctor` run to
+# DIAGNOSE a broken/missing Scotch instead of crashing on import with the very
+# load error it exists to explain. `from pyscotch import Graph` still works
+# (it triggers __getattr__ below).
+_LAZY = {
+    "Graph": ("graph", "Graph"),
+    "Mesh": ("mesh", "Mesh"),
+    "Strategy": ("strategy", "Strategy"),
+    "Strategies": ("strategy", "Strategies"),
+    "Architecture": ("arch", "Architecture"),
+    "Mapping": ("mapping", "Mapping"),
+    "Ordering": ("ordering", "Ordering"),
+    "Dgraph": ("dgraph", "Dgraph"),
+    "Context": ("context", "Context"),
+    "Geometry": ("geom", "Geometry"),
+    "get_scotch_int_size": ("libscotch", "get_scotch_int_size"),
+    "get_scotch_dtype": ("libscotch", "get_scotch_dtype"),
+    "SCOTCH_COARSENNONE": ("libscotch", "SCOTCH_COARSENNONE"),
+    "SCOTCH_COARSENFOLD": ("libscotch", "SCOTCH_COARSENFOLD"),
+    "SCOTCH_COARSENFOLDDUP": ("libscotch", "SCOTCH_COARSENFOLDDUP"),
+    "SCOTCH_COARSENNOMERGE": ("libscotch", "SCOTCH_COARSENNOMERGE"),
+}
+
+
+def __getattr__(name):
+    """PEP 562 lazy loader for the Scotch-backed public API."""
+    if name in _LAZY:
+        import importlib
+
+        modname, attr = _LAZY[name]
+        return getattr(importlib.import_module(f".{modname}", __name__), attr)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(globals()) + list(_LAZY))
 
 
 @scotch_binding("SCOTCH_version", "void SCOTCH_version(int *, int *, int *)")

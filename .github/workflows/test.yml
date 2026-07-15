@@ -71,7 +71,9 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-cov numpy hypothesis
+        # mpi4py builds against the OpenMPI installed above; it makes the
+        # Dgraph mpi4py-interop test run instead of skip (the `parallel` extra).
+        pip install pytest pytest-cov numpy hypothesis mpi4py
 
     - name: Install PyScotch
       run: |

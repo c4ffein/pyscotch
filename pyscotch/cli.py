@@ -5,18 +5,19 @@ Command-line interface for PyScotch.
 
 import argparse
 import sys
-from pathlib import Path
-from typing import Optional
 
-from .graph import Graph
-from .mesh import Mesh
-from .strategy import Strategy, Strategies
-from .mapping import Mapping
-from .ordering import Ordering
+# NOTE: Scotch-touching imports (Graph, Mesh, ...) are intentionally done lazily
+# inside each command below, not at module top level. Importing them loads the
+# Scotch libraries, which would make even `pyscotch doctor` / `pyscotch --help`
+# crash on a broken install — exactly when the user needs the diagnostics.
 
 
 def partition_graph(args):
     """Partition a graph."""
+    from .graph import Graph
+    from .strategy import Strategy, Strategies
+    from .mapping import Mapping
+
     print(f"Loading graph from {args.input}...")
     graph = Graph()
     graph.load(args.input)
@@ -62,6 +63,10 @@ def partition_graph(args):
 
 def order_graph(args):
     """Order a graph."""
+    from .graph import Graph
+    from .strategy import Strategy, Strategies
+    from .ordering import Ordering
+
     print(f"Loading graph from {args.input}...")
     graph = Graph()
     graph.load(args.input)
@@ -95,6 +100,10 @@ def order_graph(args):
 
 def partition_mesh(args):
     """Partition a mesh."""
+    from .mesh import Mesh
+    from .strategy import Strategy, Strategies
+    from .mapping import Mapping
+
     print(f"Loading mesh from {args.input}...")
     mesh = Mesh()
     mesh.load(args.input)
@@ -131,6 +140,8 @@ def partition_mesh(args):
 
 def check_graph(args):
     """Check a graph for consistency."""
+    from .graph import Graph
+
     print(f"Loading graph from {args.input}...")
     graph = Graph()
     graph.load(args.input)
@@ -147,8 +158,34 @@ def check_graph(args):
         return 1
 
 
+def doctor(args):
+    """Report the PyScotch environment and how to fix what's missing."""
+    from . import doctor as _doctor
+
+    return _doctor.run(as_json=args.json)
+
+
+def scotch_manage(args):
+    """Dispatch `pyscotch scotch <build|list|use|rm>`."""
+    from . import scotch_build
+
+    if args.scotch_command == "build":
+        return scotch_build.cmd_build(args)
+    if args.scotch_command == "list":
+        return scotch_build.cmd_list(args)
+    if args.scotch_command == "use":
+        return scotch_build.cmd_use(args)
+    if args.scotch_command == "rm":
+        return scotch_build.cmd_rm(args)
+    # No sub-command: show this group's help.
+    args._scotch_parser.print_help()
+    return 1
+
+
 def info_graph(args):
     """Display information about a graph."""
+    from .graph import Graph
+
     print(f"Loading graph from {args.input}...")
     graph = Graph()
     graph.load(args.input)
@@ -219,6 +256,44 @@ def main():
     info_parser = subparsers.add_parser("info", help="Display graph information")
     info_parser.add_argument("input", help="Input graph file")
     info_parser.set_defaults(func=info_graph)
+
+    # Doctor command
+    doctor_parser = subparsers.add_parser(
+        "doctor", help="Diagnose the PyScotch/Scotch environment and suggest fixes"
+    )
+    doctor_parser.add_argument(
+        "--json", action="store_true", help="Emit the report as JSON for scripts"
+    )
+    doctor_parser.set_defaults(func=doctor)
+
+    # Scotch management: download/compile/select local Scotch builds
+    scotch_parser = subparsers.add_parser(
+        "scotch", help="Download, build and manage local Scotch libraries"
+    )
+    scotch_sub = scotch_parser.add_subparsers(dest="scotch_command", title="scotch commands")
+    scotch_parser.set_defaults(func=scotch_manage, _scotch_parser=scotch_parser)
+
+    sb = scotch_sub.add_parser("build", help="Download and compile a Scotch version")
+    sb.add_argument("version", nargs="?", default="7.0.11", help="Scotch version (default: 7.0.11)")
+    sb.add_argument(
+        "-i", "--int-size", choices=["32", "64"], default="64", help="Integer width (default: 64)"
+    )
+    mode = sb.add_mutually_exclusive_group()
+    mode.add_argument("--parallel", action="store_true", help="Also build PT-Scotch (needs MPI)")
+    mode.add_argument("--sequential", action="store_true", help="Sequential only (no MPI)")
+    sb.add_argument("--use", action="store_true", help="Set as default after building")
+    sb.add_argument("--force", action="store_true", help="Rebuild even if it exists")
+    sb.add_argument("--url", help="Override the source tarball URL")
+    sb.add_argument("--sha256", help="Override/skip the pinned checksum")
+
+    sl = scotch_sub.add_parser("list", help="List locally built Scotch libraries")
+    sl.set_defaults()
+
+    su = scotch_sub.add_parser("use", help="Set the default local Scotch build")
+    su.add_argument("key", help="Build key, e.g. 7.0.11-64-par")
+
+    sr = scotch_sub.add_parser("rm", help="Remove a local Scotch build")
+    sr.add_argument("key", help="Build key, e.g. 7.0.11-64-par")
 
     # Parse arguments
     args = parser.parse_args()

@@ -29,6 +29,12 @@
                     <li><a href="#{{ s.slug }}">{{ s.name }}</a></li>
                     {% endfor %}
                 </ul>
+                {% elif item.stem == current and item.sections %}
+                <ul class="nav-sub">
+                    {% for s in item.sections %}
+                    <li><a href="#{{ s.slug }}">{{ s.name }}</a></li>
+                    {% endfor %}
+                </ul>
                 {% endif %}
             </li>
             {% endfor %}
@@ -65,9 +71,9 @@
         </nav>
     </main>
 
-    {% if api_sections and current == "api" %}
+    {% if has_subnav %}
     <script>
-    // Scrollspy for the API submenu: color the section currently on screen
+    // Scrollspy for the sidebar submenu: color the section currently on screen
     // and keep the URL anchor in sync (replaceState: no history spam).
     (function () {
         var sub = document.querySelector(".nav-sub");

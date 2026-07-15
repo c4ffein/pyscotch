@@ -85,6 +85,19 @@ def render_markdown_with_examples(text):
     return html
 
 
+def extract_sections(html):
+    """Return [{slug, name}] for each <h2 id="..."> in rendered page HTML.
+
+    Uses the ids the markdown `toc` extension emitted, so the sidebar sub-nav
+    links always match the on-page anchors. Strips any inner tags from titles.
+    """
+    sections = []
+    for m in re.finditer(r'<h2[^>]*\bid="([^"]+)"[^>]*>(.*?)</h2>', html, re.S):
+        name = re.sub(r"<[^>]+>", "", m.group(2)).strip()
+        sections.append({"slug": m.group(1), "name": name})
+    return sections
+
+
 API_PLACEHOLDER = """<h1>API Reference</h1>
 <p>This page is rendered from <code>docs/site/api_data.json</code>, which is
 missing from this checkout.</p>
@@ -149,9 +162,21 @@ def build():
     api_html, api_sections = build_api_content()
     contents.append(api_html)
 
+    # Give each markdown page an expandable sub-nav from its own ## headings
+    # (same mechanism the API reference uses). Anchors are the ids the toc
+    # extension emitted, so the links are guaranteed to match.
+    for i in range(len(pages)):
+        nav[i]["sections"] = extract_sections(contents[i])
+
     for i, item in enumerate(nav):
         prev_page = nav[i - 1] if i > 0 else None
         next_page = nav[i + 1] if i < len(nav) - 1 else None
+
+        # Whether the current page shows a sub-nav (drives the scrollspy script)
+        if item["stem"] == "api":
+            has_subnav = bool(api_sections)
+        else:
+            has_subnav = bool(item.get("sections"))
 
         html = template.render(
             title=item["title"],
@@ -161,6 +186,7 @@ def build():
             prev_page=prev_page,
             next_page=next_page,
             api_sections=api_sections,
+            has_subnav=has_subnav,
             pygments_css=GITHUB_LIGHT_CSS,
         )
 
