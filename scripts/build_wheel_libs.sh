@@ -80,7 +80,13 @@ if [ "$flex_ok" -ne 1 ]; then
         curl -LsSf https://github.com/westes/flex/releases/download/v2.6.4/flex-2.6.4.tar.gz -o flex.tar.gz
         tar xzf flex.tar.gz
         cd flex-2.6.4
-        ./configure --prefix=/usr/local >/dev/null
+        # flex 2.6.4 fails to build on glibc >= 2.26 under a strict GCC (as in
+        # manylinux): configure detects glibc's reallocarray so flex omits its
+        # own copy, but the call site has no declaration (no _GNU_SOURCE) and
+        # GCC errors on the implicit int->pointer. Force flex's self-contained
+        # reallocarray (ac_cv_func_reallocarray=no) AND expose GNU decls.
+        ./configure --prefix=/usr/local CFLAGS="-O2 -D_GNU_SOURCE" \
+            ac_cv_func_reallocarray=no >/dev/null
         make -j"$(nproc)" >/dev/null
         ${SUDO:-} make install >/dev/null
     )
