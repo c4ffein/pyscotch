@@ -377,7 +377,16 @@ def _compute_structure_sizes():
     sizes["mapping"] = _get_func("SCOTCH_mapSizeof")()
     sizes["ordering"] = _get_func("SCOTCH_orderSizeof")()
     sizes["geom"] = _get_func("SCOTCH_geomSizeof")()
-    sizes["context"] = _get_func("SCOTCH_contextSizeof")()
+    # SCOTCH_contextSizeof was added in Scotch 7.0.5. Older system/distro builds
+    # (e.g. Debian's libscotch-7.0) export SCOTCH_contextInit/Exit but NOT the
+    # sizeof accessor, so we can't learn the SCOTCH_Context struct size. Record
+    # None here; import still works, and SCOTCH_Context is then defined as an
+    # un-allocatable type (see below) rather than guessing a size and handing an
+    # undersized buffer to the (present) SCOTCH_contextInit.
+    try:
+        sizes["context"] = _get_func("SCOTCH_contextSizeof")()
+    except AttributeError:
+        sizes["context"] = None
 
     # Parallel structures (only if parallel variant)
     if _lib_parallel:
@@ -402,7 +411,27 @@ SCOTCH_Arch = _make_opaque_struct("SCOTCH_Arch", _SIZES["arch"])
 SCOTCH_Mapping = _make_opaque_struct("SCOTCH_Mapping", _SIZES["mapping"])
 SCOTCH_Ordering = _make_opaque_struct("SCOTCH_Ordering", _SIZES["ordering"])
 SCOTCH_Geom = _make_opaque_struct("SCOTCH_Geom", _SIZES["geom"])
-SCOTCH_Context = _make_opaque_struct("SCOTCH_Context", _SIZES["context"])
+if _SIZES["context"] is not None:
+    # Scotch >= 7.0.5: SCOTCH_contextSizeof gave us the real size.
+    SCOTCH_Context = _make_opaque_struct("SCOTCH_Context", _SIZES["context"])
+else:
+    # Scotch < 7.0.5: no SCOTCH_contextSizeof, so the struct size is unknown.
+    # The TYPE must still exist (POINTER() in signatures, imports, exports), but
+    # it must be impossible to ALLOCATE — otherwise a wrongly-sized buffer could
+    # reach the (present) SCOTCH_contextInit from ANY code path and overflow.
+    # Enforce that at the type level rather than trusting one caller's guard.
+    class SCOTCH_Context(Structure):
+        _fields_ = [("_unavailable", ctypes.c_byte * 1)]
+
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError(
+                "SCOTCH_Context is unavailable: the loaded Scotch lacks "
+                "SCOTCH_contextSizeof (added in Scotch 7.0.5), so its size is "
+                "unknown and it cannot be allocated safely. Use the bundled "
+                "wheel or conda Scotch, or upgrade the system Scotch to >= 7.0.5."
+            )
+
+    SCOTCH_Context.__qualname__ = "SCOTCH_Context"
 
 if _SIZES["dgraph"]:
     SCOTCH_Dgraph = _make_opaque_struct("SCOTCH_Dgraph", _SIZES["dgraph"])
