@@ -102,8 +102,11 @@ jobs:
         if: matrix.method == 'conda-scotch-sdist'
         run: |
           curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xj bin/micromamba
-          ./bin/micromamba create -y -p "$RUNNER_TEMP/c" -c conda-forge python=3.12 scotch numpy
-          ./bin/micromamba run -p "$RUNNER_TEMP/c" pip install dist/*.tar.gz
+          # absolute path: the smoke test runs after `cd $RUNNER_TEMP`, where a
+          # relative ./bin/micromamba (or ../bin) no longer resolves.
+          MAMBA="$PWD/bin/micromamba"
+          "$MAMBA" create -y -p "$RUNNER_TEMP/c" -c conda-forge python=3.12 scotch numpy
+          "$MAMBA" run -p "$RUNNER_TEMP/c" pip install dist/*.tar.gz
           cp scripts/install_smoke_test.py "$RUNNER_TEMP/"
           # conda-forge Scotch is 64-bit = pyscotch's default; discovery via RPATH
-          cd "$RUNNER_TEMP" && ../bin/micromamba run -p "$RUNNER_TEMP/c" python install_smoke_test.py
+          cd "$RUNNER_TEMP" && "$MAMBA" run -p "$RUNNER_TEMP/c" python install_smoke_test.py
