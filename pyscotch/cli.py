@@ -173,6 +173,8 @@ def scotch_manage(args):
         return scotch_build.cmd_build(args)
     if args.scotch_command == "list":
         return scotch_build.cmd_list(args)
+    if args.scotch_command == "patches":
+        return scotch_build.cmd_patches(args)
     if args.scotch_command == "use":
         return scotch_build.cmd_use(args)
     if args.scotch_command == "rm":
@@ -283,11 +285,18 @@ def main():
     mode.add_argument("--sequential", action="store_true", help="Sequential only (no MPI)")
     sb.add_argument("--use", action="store_true", help="Set as default after building")
     sb.add_argument("--force", action="store_true", help="Rebuild even if it exists")
+    sb.add_argument(
+        "--pristine",
+        action="store_true",
+        help="Do NOT apply bundled quickfix patches (upstream may fail to build)",
+    )
     sb.add_argument("--url", help="Override the source tarball URL")
     sb.add_argument("--sha256", help="Override/skip the pinned checksum")
 
     sl = scotch_sub.add_parser("list", help="List locally built Scotch libraries")
     sl.set_defaults()
+
+    scotch_sub.add_parser("patches", help="List bundled Scotch build quickfix patches")
 
     su = scotch_sub.add_parser("use", help="Set the default local Scotch build")
     su.add_argument("key", help="Build key, e.g. 7.0.11-64-par")

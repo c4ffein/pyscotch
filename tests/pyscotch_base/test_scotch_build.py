@@ -118,3 +118,31 @@ class TestPreflightAndInc:
         assert "CCS        = clang" in inc
         assert "CCP        = mpicc" in inc
         assert "SCOTCH_RENAME" in inc
+
+    def test_preflight_patch_check_only_when_needed(self):
+        assert not any("patch" in c.name for c in sb.preflight(False, need_patch=False))
+        assert any("patch" in c.name for c in sb.preflight(False, need_patch=True))
+
+
+class TestQuickfixPatches:
+    def test_catalog_targets_7012_not_7011(self):
+        assert sb.patches_for("7.0.12"), "expected a bundled quickfix for 7.0.12"
+        assert sb.patches_for("7.0.11") == []
+
+    def test_bundled_patch_files_exist(self):
+        # Every patch named in the manifest must actually ship in the package.
+        for version, patches in sb._PATCHES.items():
+            for fname, _reason in patches:
+                assert (sb._patches_dir() / fname).is_file(), f"{version}: {fname} missing"
+
+    def test_patch_records_roundtrip(self, tmp_home):
+        _make_build(tmp_home, "7.0.12-64-seq")
+        assert store.read_patches("7.0.12-64-seq") == []
+        store.write_patches("7.0.12-64-seq", ["a.patch", "b.patch"])
+        assert store.read_patches("7.0.12-64-seq") == ["a.patch", "b.patch"]
+
+    def test_cmd_patches_runs(self, capsys):
+        rc = sb.cmd_patches(object())
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "7.0.12" in out and "--pristine" in out

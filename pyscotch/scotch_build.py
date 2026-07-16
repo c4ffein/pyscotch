@@ -44,6 +44,31 @@ _KNOWN_VERSIONS = {
 }
 _DEFAULT_VERSION = "7.0.11"
 
+# Bundled "quickfix" patches, applied live to the extracted source before
+# building (unless --pristine). Keyed by exact version; each entry is
+# (patch filename in pyscotch/_patches/, one-line reason). These fix real
+# upstream build breaks under PyScotch's suffixed (-DSCOTCH_RENAME_ALL) build,
+# so they are ON BY DEFAULT — a pristine 7.0.12 simply does not compile.
+_PATCHES = {
+    "7.0.12": [
+        (
+            "scotch-7.0.12-rename-all-fix.patch",
+            "register SCOTCH_meshBuildElem & SCOTCH_memFree in the RENAME_ALL "
+            "table (upstream omission; breaks suffixed builds)",
+        ),
+    ],
+}
+
+
+def _patches_dir():
+    return Path(__file__).parent / "_patches"
+
+
+def patches_for(version):
+    """[(filename, reason)] bundled for a version (empty if none)."""
+    return _PATCHES.get(version, [])
+
+
 # Base CFLAGS mirror patches/Makefile.inc.default (the flags PyScotch's own
 # builds use). Per-build we append -DINTSIZE64 / -DSCOTCH_NAME_SUFFIX / RENAME.
 _BASE_CFLAGS = (
@@ -140,7 +165,7 @@ def _find_cc():
     return shutil.which("gcc") or shutil.which("cc")
 
 
-def preflight(parallel: bool):
+def preflight(parallel: bool, need_patch: bool = False):
     """Return a list[Check]. `.ok` False on any entry means do not build."""
     from .doctor import _scotch_install_hint, _mpi_install_hint, _distro_family
 
@@ -204,6 +229,19 @@ def preflight(parallel: bool):
             Check("mpicc (for PT-Scotch)", bool(mpicc), mpicc or "not found", _mpi_install_hint())
         )
 
+    if need_patch:
+        patch = shutil.which("patch")
+        checks.append(
+            Check(
+                "patch (for quickfixes)",
+                bool(patch),
+                patch or "not found",
+                {"debian": "sudo apt install patch", "fedora": "sudo dnf install patch"}.get(
+                    fam, "install GNU patch, or build with --pristine"
+                ),
+            )
+        )
+
     return checks
 
 
@@ -235,8 +273,10 @@ def _diagnose_make_output(text: str) -> str:
             f"This Scotch release's symbol-rename table is missing {fn}: under "
             "-DSCOTCH_RENAME_ALL a Fortran stub calls the unsuffixed name, which "
             "is not declared. Known upstream bug in 7.0.12 (SCOTCH_meshBuildElem). "
-            "Build a different version (e.g. 7.0.11), or apply "
-            "patches/scotch-7.0.12-rename-all-fix.patch to the source tree."
+            "PyScotch ships a quickfix that is applied automatically — if you see "
+            "this, you built with --pristine (drop it) or this version has no "
+            "bundled patch yet (see `pyscotch scotch patches`); alternatively "
+            "build a known-good version such as 7.0.11."
         )
     if "fatal error: zlib.h" in text or "undefined reference to `gz" in text:
         return "zlib development headers/library missing (install zlib1g-dev / zlib-devel)."
@@ -326,6 +366,30 @@ def _run_make(src: Path, target: str, cflags: str, log: list):
         raise BuildError(msg)
 
 
+def _apply_patches(srcroot: Path, version: str):
+    """Apply the bundled quickfix patches for `version`. Returns [names]."""
+    applied = []
+    for fname, reason in patches_for(version):
+        pf = _patches_dir() / fname
+        if not pf.exists():
+            raise BuildError(f"Bundled patch not found in the package: {fname}")
+        proc = subprocess.run(
+            ["patch", "-p1", "-i", str(pf)],
+            cwd=srcroot,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            raise BuildError(
+                f"Failed to apply bundled patch {fname} (does it match Scotch "
+                f"{version}?):\n{proc.stdout}{proc.stderr}\n"
+                "Build with --pristine to skip patches."
+            )
+        print(f"  Applied quickfix: {fname}\n      ({reason})")
+        applied.append(fname)
+    return applied
+
+
 def _build_libs(src: Path, bits: int, parallel: bool, cc: str, mpicc: str) -> Path:
     """Compile Scotch in `src`; return the dir holding the built .so files."""
     (src / "src" / "Makefile.inc").write_text(_makefile_inc(cc, mpicc))
@@ -366,7 +430,7 @@ def _compile_compat(dest_lib: Path, cc: str):
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
-def build(version, bits, parallel, url=None, sha256=None, force=False):
+def build(version, bits, parallel, url=None, sha256=None, force=False, pristine=False):
     """Full build pipeline. Returns the build key on success."""
     if platform.system() != "Linux":
         raise BuildError(
@@ -382,14 +446,22 @@ def build(version, bits, parallel, url=None, sha256=None, force=False):
             return key
         shutil.rmtree(dest)  # incomplete leftover
 
+    quickfixes = [] if pristine else patches_for(version)
+
     # 1. Preflight — hard stop before any network/compile.
     print(f"Preflight for {key}:")
-    checks = preflight(parallel)
+    checks = preflight(parallel, need_patch=bool(quickfixes))
     _print_checks(checks)
     failed = [c for c in checks if not c.ok]
     if failed:
         lines = "\n".join(f"  - {c.name}: {c.fix}" for c in failed)
         raise BuildError("Missing build prerequisites. Install them and retry:\n" + lines)
+
+    if pristine and patches_for(version):
+        print(
+            f"  ! --pristine: NOT applying {len(patches_for(version))} bundled quickfix(es); "
+            "this version may fail to build."
+        )
 
     cc = _find_cc()
     mpicc = shutil.which("mpicc") or "mpicc"
@@ -402,6 +474,7 @@ def build(version, bits, parallel, url=None, sha256=None, force=False):
         work = Path(td)
         _download(url, sha256, tarball)
         srcroot = _extract(tarball, work)
+        applied = [] if pristine else _apply_patches(srcroot, version)
         print(f"Building Scotch {version} ({bits}-bit, {'parallel' if parallel else 'sequential'})")
         libout = _build_libs(srcroot, bits, parallel, cc, mpicc)
 
@@ -413,8 +486,10 @@ def build(version, bits, parallel, url=None, sha256=None, force=False):
         for so in libout.glob("lib*scotch*.so"):
             shutil.copy2(so, libdir / so.name)
         _compile_compat(libdir, cc)
+        _store.write_patches(key, applied)
 
-    print(f"\n✓ Built {key}  ->  {libdir}")
+    tag = f"  [quickfix: {', '.join(applied)}]" if applied else ""
+    print(f"\n✓ Built {key}  ->  {libdir}{tag}")
     return key
 
 
@@ -437,6 +512,7 @@ def cmd_build(args):
             url=args.url,
             sha256=args.sha256,
             force=args.force,
+            pristine=args.pristine,
         )
     except BuildError as e:
         print(f"\nError: {e}", file=sys.stderr)
@@ -474,11 +550,28 @@ def cmd_list(args):
         info = _store.parse_key(k)
         mark = "*" if k == default else " "
         variant = "parallel" if info["parallel"] else "sequential"
-        print(f" {mark} {k:<20} {info['bits']}-bit {variant:<10} {_store.build_lib_dir(k)}")
+        fix = "  [quickfix]" if _store.read_patches(k) else ""
+        print(f" {mark} {k:<20} {info['bits']}-bit {variant:<10} {_store.build_lib_dir(k)}{fix}")
     if default:
         print(f"\n* = default (loaded when its width/variant matches the run).")
     else:
         print("\nNo default set. `pyscotch scotch use <key>` to pick one.")
+    return 0
+
+
+def cmd_patches(args):
+    """List the bundled quickfix patches and which versions they target."""
+    if not _PATCHES:
+        print("No bundled quickfix patches.")
+        return 0
+    print("Bundled Scotch quickfix patches (applied automatically on build):")
+    for version, patches in sorted(_PATCHES.items()):
+        for fname, reason in patches:
+            present = (_patches_dir() / fname).exists()
+            mark = " " if present else "!"
+            print(f" {mark} {version}: {fname}")
+            print(f"       {reason}")
+    print("\nBuild with --pristine to skip them (upstream may then fail to compile).")
     return 0
 
 

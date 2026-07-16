@@ -21,6 +21,7 @@ on:
       - "pyscotch/_store.py"
       - "pyscotch/libscotch.py"
       - "pyscotch/native/**"
+      - "pyscotch/_patches/**"
       - ".github/workflows/scotch-build.yml"
   pull_request:
     paths:
@@ -28,6 +29,7 @@ on:
       - "pyscotch/_store.py"
       - "pyscotch/libscotch.py"
       - "pyscotch/native/**"
+      - "pyscotch/_patches/**"
   workflow_dispatch:
 
 permissions:
@@ -121,23 +123,33 @@ jobs:
           pyscotch scotch rm 7.0.11-64-seq
           pyscotch scotch list
 
-      - name: Known-bad 7.0.12 must fail cleanly with the right diagnosis
+      - name: Quickfix — 7.0.12 builds by default (bundled patch applied)
         working-directory: ${{ runner.temp }}
         run: |
-          # Build ONCE; assert non-zero exit, a diagnosis naming the rename-table
-          # bug, and that nothing was staged.
+          pyscotch scotch patches | grep -q "7.0.12" \
+            || { echo "::error::7.0.12 not listed in the quickfix catalog"; exit 1; }
+          out="$(pyscotch scotch build 7.0.12 --sequential --use 2>&1)"
+          echo "$out"
+          echo "$out" | grep -q "Applied quickfix" \
+            || { echo "::error::7.0.12 built without applying the bundled quickfix"; exit 1; }
+          pyscotch scotch list | grep "7.0.12" | grep -q "quickfix" \
+            || { echo "::error::7.0.12 build not marked as quickfixed"; exit 1; }
+          python -c "from pyscotch import scotch_version as v; assert v()==(7,0,12), v(); print('quickfixed 7.0.12 loads ->', v())"
+
+      - name: --pristine 7.0.12 must fail cleanly with the right diagnosis
+        working-directory: ${{ runner.temp }}
+        run: |
+          # Without the quickfix, 7.0.12 must fail non-zero, name the rename-table
+          # bug, and stage nothing.
           set +e
-          out="$(pyscotch scotch build 7.0.12 --sequential 2>&1)"
+          out="$(pyscotch scotch build 7.0.12 --sequential --pristine --force 2>&1)"
           rc=$?
           set -e
           echo "$out"
           if [ "$rc" -eq 0 ]; then
-            echo "::error::7.0.12 unexpectedly built (upstream may have fixed it — update this guard)"
+            echo "::error::--pristine 7.0.12 unexpectedly built (upstream may have fixed it)"
             exit 1
           fi
           echo "$out" | grep -q "SCOTCH_meshBuildElem" \
-            || { echo "::error::7.0.12 failure not diagnosed as the rename-table bug"; exit 1; }
-          if pyscotch scotch list | grep -q "7.0.12"; then
-            echo "::error::a broken 7.0.12 build was staged"; exit 1
-          fi
-          echo "7.0.12 failed cleanly with the expected diagnosis."
+            || { echo "::error::--pristine 7.0.12 failure not diagnosed as the rename-table bug"; exit 1; }
+          echo "--pristine 7.0.12 failed cleanly with the expected diagnosis."

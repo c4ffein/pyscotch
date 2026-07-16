@@ -1,0 +1,16 @@
+diff --git a/src/libscotch/module.h b/src/libscotch/module.h
+index 6928056..7b2f164 100644
+--- a/src/libscotch/module.h
++++ b/src/libscotch/module.h
+@@ -1333,9 +1333,11 @@
+ #define SCOTCH_mapAlloc             SCOTCH_NAME_PUBLIC (SCOTCH_mapAlloc)
+ #define SCOTCH_mapSizeof            SCOTCH_NAME_PUBLIC (SCOTCH_mapSizeof)
+ #define SCOTCH_memCur               SCOTCH_NAME_PUBLIC (SCOTCH_memCur)
++#define SCOTCH_memFree              SCOTCH_NAME_PUBLIC (SCOTCH_memFree)
+ #define SCOTCH_memMax               SCOTCH_NAME_PUBLIC (SCOTCH_memMax)
+ #define SCOTCH_meshAlloc            SCOTCH_NAME_PUBLIC (SCOTCH_meshAlloc)
+ #define SCOTCH_meshBuild            SCOTCH_NAME_PUBLIC (SCOTCH_meshBuild)
++#define SCOTCH_meshBuildElem        SCOTCH_NAME_PUBLIC (SCOTCH_meshBuildElem)
+ #define SCOTCH_meshCheck            SCOTCH_NAME_PUBLIC (SCOTCH_meshCheck)
+ #define SCOTCH_meshData             SCOTCH_NAME_PUBLIC (SCOTCH_meshData)
+ #define SCOTCH_meshExit             SCOTCH_NAME_PUBLIC (SCOTCH_meshExit)

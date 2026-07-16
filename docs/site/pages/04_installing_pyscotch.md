@@ -152,6 +152,13 @@ preflight checks the toolchain first — C compiler, `make`, **flex ≥ 2.6.4**
 `mpicc` for `--parallel` — and stops with a distro-specific fix list rather
 than failing halfway. With neither `--sequential` nor `--parallel`, it asks.
 
+**Quickfix patches.** Some upstream releases don't compile under PyScotch's
+suffixed build (e.g. Scotch 7.0.12 omits `SCOTCH_meshBuildElem` from its
+symbol-rename table). PyScotch bundles small fixes and applies them
+automatically, so those versions just build; such builds are marked
+`[quickfix]` in `list`. `pyscotch scotch patches` shows the catalog, and
+`--pristine` builds the untouched upstream source (which may then fail).
+
 ## Configuration
 
 PyScotch selects which Scotch variant to load via environment variables,

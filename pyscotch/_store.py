@@ -100,6 +100,22 @@ def list_keys():
     return sorted(p.name for p in d.iterdir() if p.is_dir() and parse_key(p.name))
 
 
+def _patches_file(key: str) -> Path:
+    return build_dir(key) / "PATCHES"
+
+
+def write_patches(key: str, names) -> None:
+    """Record which bundled patches were applied when building `key`."""
+    if names:
+        _patches_file(key).write_text("\n".join(names) + "\n")
+
+
+def read_patches(key: str):
+    """Names of patches applied to this build (empty list if pristine)."""
+    f = _patches_file(key)
+    return f.read_text().split() if f.is_file() else []
+
+
 def has_lib(key: str, parallel: bool) -> bool:
     """True if this build actually contains the libraries it needs."""
     libd = build_lib_dir(key)
