@@ -144,10 +144,11 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           # Without the quickfix, 7.0.12 must fail non-zero and name the
-          # rename-table bug. Robust across compilers: strict GCC errors at
-          # compile; a lenient GCC only warns, but then build-scotch's
-          # post-build symbol check rejects the broken libscotch.so. Either way
-          # the offending SCOTCH_meshBuildElem is named and nothing is staged.
+          # rename-table bug. Deterministic across compilers: build-scotch
+          # compiles with -Werror=implicit-function-declaration, so the missing
+          # SCOTCH_meshBuildElem prototype is a hard compile error on every GCC
+          # (not just GCC >= 14, which errors by default). The offending symbol
+          # is named in the output and nothing is staged.
           set +e
           out="$(pyscotch scotch build 7.0.12 --sequential --pristine --force 2>&1)"
           rc=$?

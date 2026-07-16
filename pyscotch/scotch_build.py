@@ -71,10 +71,20 @@ def patches_for(version):
 
 # Base CFLAGS mirror patches/Makefile.inc.default (the flags PyScotch's own
 # builds use). Per-build we append -DINTSIZE64 / -DSCOTCH_NAME_SUFFIX / RENAME.
+#
+# -Werror=implicit-function-declaration is deliberate and load-bearing: under
+# -DSCOTCH_RENAME_ALL a Fortran stub calls the *unsuffixed* API name, and when a
+# release's symbol-rename table omits an entry (the 7.0.12 SCOTCH_meshBuildElem
+# regression) that call has no visible prototype. GCC >= 14 rejects an implicit
+# declaration by default, but older GCC only *warns* and silently produces a
+# library whose public suffixed export is missing. Forcing it to an error makes
+# such a broken release fail at compile-time *on every compiler*, deterministically,
+# with the offending SCOTCH_ symbol named in the output (see _diagnose_make_output).
 _BASE_CFLAGS = (
     "-O3 -fPIC -U_FORTIFY_SOURCE -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD "
     "-DCOMMON_PTHREAD_AFFINITY_LINUX -DCOMMON_RANDOM_FIXED_SEED "
-    "-DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME"
+    "-DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME "
+    "-Werror=implicit-function-declaration"
 )
 
 
@@ -414,48 +424,6 @@ def _build_libs(src: Path, bits: int, parallel: bool, cc: str, mpicc: str) -> Pa
     return libout
 
 
-# Public Scotch symbols a healthy libscotch.so legitimately leaves undefined
-# (they are resolved at load from libscotcherr or PyScotch's compat shim, and
-# SCOTCH_errorPrint* are kept unsuffixed on purpose so the shim can interpose).
-_ALLOWED_UNDEF = {"SCOTCH_errorPrint", "SCOTCH_errorPrintW", "SCOTCH_errorProg"}
-
-
-def _verify_symbols(libout: Path):
-    """Reject a libscotch.so with unresolved *public* Scotch symbols.
-
-    A shared object links even with undefined symbols, and some compilers only
-    *warn* (not error) on the implicit-declaration that an upstream rename-table
-    omission produces — so a broken build (e.g. pristine 7.0.12's missing
-    SCOTCH_meshBuildElem) can compile yet fail at runtime. Catch it here so a
-    dud never reaches the store. Only libscotch.so is checked: libptscotch.so
-    intentionally imports SCOTCH_* from libscotch at load.
-    """
-    nm = shutil.which("nm")
-    so = libout / "libscotch.so"
-    if not nm or not so.exists():
-        return  # can't check (no binutils) — don't block on that
-    proc = subprocess.run([nm, "-D", str(so)], capture_output=True, text=True)
-    if proc.returncode != 0:
-        return
-    undefined = {
-        parts[1]
-        for line in proc.stdout.splitlines()
-        if len(parts := line.split()) == 2 and parts[0] == "U" and parts[1].startswith("SCOTCH_")
-    }
-    bad = sorted(undefined - _ALLOWED_UNDEF)
-    if bad:
-        raise BuildError(
-            "The built libscotch.so has unresolved Scotch symbols, so it is "
-            "broken (it links but would fail at runtime):\n"
-            f"    {', '.join(bad)}\n"
-            "This means the function is missing from the upstream symbol-rename "
-            "table under -DSCOTCH_RENAME_ALL (the 7.0.12 SCOTCH_meshBuildElem "
-            "regression); some compilers only warn, so the object still built. "
-            "Drop --pristine to apply the bundled quickfix, or build a known-good "
-            "version such as 7.0.11."
-        )
-
-
 def _compile_compat(dest_lib: Path, cc: str):
     """Compile the FILE*/error-capture shim next to the built libs."""
     src = Path(__file__).parent / "native" / "file_compat.c"
@@ -519,7 +487,6 @@ def build(version, bits, parallel, url=None, sha256=None, force=False, pristine=
         applied = [] if pristine else _apply_patches(srcroot, version)
         print(f"Building Scotch {version} ({bits}-bit, {'parallel' if parallel else 'sequential'})")
         libout = _build_libs(srcroot, bits, parallel, cc, mpicc)
-        _verify_symbols(libout)  # reject builds-but-broken libraries before staging
 
         # 4. Stage into the store.
         libdir = _store.build_lib_dir(key)
