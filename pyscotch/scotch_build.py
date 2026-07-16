@@ -414,6 +414,48 @@ def _build_libs(src: Path, bits: int, parallel: bool, cc: str, mpicc: str) -> Pa
     return libout
 
 
+# Public Scotch symbols a healthy libscotch.so legitimately leaves undefined
+# (they are resolved at load from libscotcherr or PyScotch's compat shim, and
+# SCOTCH_errorPrint* are kept unsuffixed on purpose so the shim can interpose).
+_ALLOWED_UNDEF = {"SCOTCH_errorPrint", "SCOTCH_errorPrintW", "SCOTCH_errorProg"}
+
+
+def _verify_symbols(libout: Path):
+    """Reject a libscotch.so with unresolved *public* Scotch symbols.
+
+    A shared object links even with undefined symbols, and some compilers only
+    *warn* (not error) on the implicit-declaration that an upstream rename-table
+    omission produces — so a broken build (e.g. pristine 7.0.12's missing
+    SCOTCH_meshBuildElem) can compile yet fail at runtime. Catch it here so a
+    dud never reaches the store. Only libscotch.so is checked: libptscotch.so
+    intentionally imports SCOTCH_* from libscotch at load.
+    """
+    nm = shutil.which("nm")
+    so = libout / "libscotch.so"
+    if not nm or not so.exists():
+        return  # can't check (no binutils) — don't block on that
+    proc = subprocess.run([nm, "-D", str(so)], capture_output=True, text=True)
+    if proc.returncode != 0:
+        return
+    undefined = {
+        parts[1]
+        for line in proc.stdout.splitlines()
+        if len(parts := line.split()) == 2 and parts[0] == "U" and parts[1].startswith("SCOTCH_")
+    }
+    bad = sorted(undefined - _ALLOWED_UNDEF)
+    if bad:
+        raise BuildError(
+            "The built libscotch.so has unresolved Scotch symbols, so it is "
+            "broken (it links but would fail at runtime):\n"
+            f"    {', '.join(bad)}\n"
+            "This means the function is missing from the upstream symbol-rename "
+            "table under -DSCOTCH_RENAME_ALL (the 7.0.12 SCOTCH_meshBuildElem "
+            "regression); some compilers only warn, so the object still built. "
+            "Drop --pristine to apply the bundled quickfix, or build a known-good "
+            "version such as 7.0.11."
+        )
+
+
 def _compile_compat(dest_lib: Path, cc: str):
     """Compile the FILE*/error-capture shim next to the built libs."""
     src = Path(__file__).parent / "native" / "file_compat.c"
@@ -477,6 +519,7 @@ def build(version, bits, parallel, url=None, sha256=None, force=False, pristine=
         applied = [] if pristine else _apply_patches(srcroot, version)
         print(f"Building Scotch {version} ({bits}-bit, {'parallel' if parallel else 'sequential'})")
         libout = _build_libs(srcroot, bits, parallel, cc, mpicc)
+        _verify_symbols(libout)  # reject builds-but-broken libraries before staging
 
         # 4. Stage into the store.
         libdir = _store.build_lib_dir(key)

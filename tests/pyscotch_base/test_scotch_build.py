@@ -146,3 +146,43 @@ class TestQuickfixPatches:
         out = capsys.readouterr().out
         assert rc == 0
         assert "7.0.12" in out and "--pristine" in out
+
+
+class TestVerifySymbols:
+    """The post-build guard that rejects a builds-but-broken libscotch.so."""
+
+    def _shared_lib(self, tmp_path, body):
+        import subprocess
+
+        cc = sb._find_cc()
+        if not cc:
+            import pytest
+
+            pytest.skip("no C compiler")
+        (tmp_path / "x.c").write_text(body)
+        so = tmp_path / "libscotch.so"
+        subprocess.run([cc, "-shared", "-fPIC", "-o", str(so), str(tmp_path / "x.c")], check=True)
+        return tmp_path
+
+    def test_rejects_unresolved_public_symbol(self, tmp_path):
+        # References an undefined SCOTCH_ function NOT on the allowlist -> broken.
+        libout = self._shared_lib(
+            tmp_path,
+            "extern int SCOTCH_meshBuildElem(void);\n"
+            "int f(void){ return SCOTCH_meshBuildElem(); }\n",
+        )
+        with pytest.raises(sb.BuildError) as e:
+            sb._verify_symbols(libout)
+        assert "SCOTCH_meshBuildElem" in str(e.value)
+
+    def test_accepts_allowed_externals(self, tmp_path):
+        # SCOTCH_errorPrint is a deliberate external -> must NOT be flagged.
+        libout = self._shared_lib(
+            tmp_path,
+            "extern int SCOTCH_errorPrint(const char*);\n"
+            "int f(void){ return SCOTCH_errorPrint(0); }\n",
+        )
+        sb._verify_symbols(libout)  # no raise
+
+    def test_missing_lib_is_noop(self, tmp_path):
+        sb._verify_symbols(tmp_path)  # no libscotch.so -> quietly returns
