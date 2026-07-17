@@ -1,9 +1,9 @@
 {
  "coverage": {
   "declared": 179,
-  "direct": 103,
-  "exposed": 116,
-  "helpers": 21,
+  "direct": 104,
+  "exposed": 119,
+  "helpers": 24,
   "python": 15,
   "undecorated": 0
  },
@@ -109,6 +109,7 @@
     },
     {
      "c_functions": [
+      "SCOTCH_randomReset",
       "SCOTCH_graphMapInit",
       "SCOTCH_graphMapCompute",
       "SCOTCH_graphMapExit"
@@ -118,7 +119,7 @@
      "level": "high-level helper",
      "level_css": "helper",
      "name": "partition",
-     "signature": "(nparts: int, strategy=None) -> numpy.ndarray",
+     "signature": "(nparts: int, strategy=None, reset_random: bool = True) -> numpy.ndarray",
      "summary": "Partition the graph into a specified number of parts."
     },
     {
@@ -560,6 +561,18 @@
     },
     {
      "c_functions": [
+      "SCOTCH_stratGraphPartOvl"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "set_overlap_partitioning",
+     "signature": "(strategy_string: str) -> None",
+     "summary": "Set an overlap-partitioning strategy from a string."
+    },
+    {
+     "c_functions": [
       "SCOTCH_stratDgraphMap"
      ],
      "c_label": "Maps to",
@@ -620,7 +633,32 @@
     },
     {
      "c_functions": [
-      "SCOTCH_stratGraphOrder"
+      "SCOTCH_stratGraphMapBuild"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "request_mapping",
+     "signature": "(flags: pyscotch.strategy.StrategyFlags = <StrategyFlags.DEFAULT: 0>, balance: float = 0.01) -> None",
+     "summary": "Request a mapping strategy built from characteristic flags."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratGraphOrderBuild"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "request_ordering",
+     "signature": "(flags: pyscotch.strategy.StrategyFlags = <StrategyFlags.DEFAULT: 0>, levels: int = 0, balance: float = 0.2) -> None",
+     "summary": "Request an ordering strategy built from characteristic flags."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratInit",
+      "SCOTCH_stratExit"
      ],
      "c_label": "Wraps",
      "is_property": false,
@@ -628,11 +666,12 @@
      "level_css": "helper",
      "name": "set_ordering_default",
      "signature": "() -> None",
-     "summary": "Set the default ordering strategy."
+     "summary": "Select Scotch's default ordering strategy."
     },
     {
      "c_functions": [
-      "SCOTCH_stratGraphMap"
+      "SCOTCH_stratInit",
+      "SCOTCH_stratExit"
      ],
      "c_label": "Wraps",
      "is_property": false,
@@ -640,11 +679,24 @@
      "level_css": "helper",
      "name": "set_mapping_default",
      "signature": "() -> None",
-     "summary": "Set the default mapping/partitioning strategy."
+     "summary": "Select Scotch's default mapping/partitioning strategy."
     },
     {
      "c_functions": [
-      "SCOTCH_stratGraphMap"
+      "SCOTCH_stratInit",
+      "SCOTCH_stratExit"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "reset",
+     "signature": "() -> None",
+     "summary": "Return the strategy to its initial (Scotch default) state."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratGraphMapBuild"
      ],
      "c_label": "Wraps",
      "is_property": false,
@@ -656,7 +708,7 @@
     },
     {
      "c_functions": [
-      "SCOTCH_stratGraphMap"
+      "SCOTCH_stratGraphMapBuild"
      ],
      "c_label": "Wraps",
      "is_property": false,
@@ -668,7 +720,7 @@
     },
     {
      "c_functions": [
-      "SCOTCH_stratGraphOrder"
+      "SCOTCH_stratGraphOrderBuild"
      ],
      "c_label": "Wraps",
      "is_property": false,
@@ -686,7 +738,7 @@
      "level_css": "python",
      "name": "strategy_string",
      "signature": "",
-     "summary": "Get the current strategy string."
+     "summary": "Get the current strategy string (None for flag-built strategies)."
     }
    ],
    "name": "Strategy",
@@ -698,7 +750,7 @@
     {
      "c_functions": [
       "SCOTCH_stratInit",
-      "SCOTCH_stratGraphMap"
+      "SCOTCH_stratGraphMapBuild"
      ],
      "c_label": "Wraps",
      "is_property": false,
@@ -711,7 +763,7 @@
     {
      "c_functions": [
       "SCOTCH_stratInit",
-      "SCOTCH_stratGraphMap"
+      "SCOTCH_stratGraphMapBuild"
      ],
      "c_label": "Wraps",
      "is_property": false,
@@ -724,7 +776,7 @@
     {
      "c_functions": [
       "SCOTCH_stratInit",
-      "SCOTCH_stratGraphOrder"
+      "SCOTCH_stratGraphOrderBuild"
      ],
      "c_label": "Wraps",
      "is_property": false,
@@ -737,7 +789,7 @@
     {
      "c_functions": [
       "SCOTCH_stratInit",
-      "SCOTCH_stratGraphOrder"
+      "SCOTCH_stratGraphOrderBuild"
      ],
      "c_label": "Wraps",
      "is_property": false,
@@ -750,6 +802,12 @@
    ],
    "name": "Strategies",
    "slug": "strategies"
+  },
+  {
+   "doc": "Strategy characteristic flags for SCOTCH_strat*Build functions.",
+   "entries": [],
+   "name": "StrategyFlags",
+   "slug": "strategyflags"
   },
   {
    "doc": "Represents a target architecture for graph mapping.",

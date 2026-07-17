@@ -85,6 +85,10 @@ Under the hood PyScotch passes mpi4py's native `MPI_Comm` handle to Scotch, so
 both share one MPI runtime. Without mpi4py, the bundled zero-dependency
 `pyscotch.mpi` wrapper still drives `MPI_COMM_WORLD` after `mpi.init()`.
 
+Launching, communicators, running without `mpirun`, and what each parallel
+failure message means are covered in the dedicated
+[Parallel PyScotch tutorial](06_parallel_pyscotch.html).
+
 ## 3. Using a System-Installed Scotch
 
 If PyScotch finds neither bundled wheel libraries nor a `scotch-builds/`
