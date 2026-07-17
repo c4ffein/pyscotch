@@ -1,0 +1,7 @@
+FileNotFoundError: No Scotch library found. Either:
+  - let PyScotch build one for you (no root needed):
+        pyscotch scotch build 7.0.11 --sequential --use
+    (add --parallel instead for PT-Scotch; see `pyscotch doctor`),
+  - install a system Scotch (e.g. 'apt install libscotch-dev', 'conda install scotch'),
+  - set PYSCOTCH_LIB_DIR to a directory containing libscotch.so,
+  - or run 'make build-all' in a PyScotch checkout.

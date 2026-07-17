@@ -1,0 +1,5 @@
+Locally built Scotch libraries:
+ * 7.0.11-64-par        64-bit parallel   <WORK>/store/builds/7.0.11-64-par/lib64
+   7.0.11-64-seq        64-bit sequential <WORK>/store/builds/7.0.11-64-seq/lib64
+
+* = default (loaded when its width/variant matches the run).

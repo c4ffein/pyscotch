@@ -1,0 +1,16 @@
+Preflight for 7.0.11-64-par:
+  ✓ C compiler             /usr/bin/gcc
+  ✓ make                   /usr/bin/make
+  ✓ flex >= 2.6.4          2.6.4
+  ✓ bison                  /usr/bin/bison
+  ✓ zlib headers           zlib.h compilable
+  ✓ mpicc (for PT-Scotch)  /usr/bin/mpicc
+  Downloading https://gitlab.inria.fr/scotch/scotch/-/archive/v7.0.11/scotch-v7.0.11.tar.gz
+  Saved 8314 KiB, sha256 OK
+  Extracting source
+Building Scotch 7.0.11 (64-bit, parallel)
+  make libscotch ...
+  make libptscotch ...
+
+✓ Built 7.0.11-64-par  ->  <WORK>/store/builds/7.0.11-64-par/lib64
+Set 7.0.11-64-par as the default (PyScotch will now load it).

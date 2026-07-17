@@ -1,0 +1,5 @@
+✓ Loaded Scotch: 64-bit from <WORK>/store/builds/7.0.11-64-par/lib64/libscotch.so
+✓ Loaded PT-Scotch: 64-bit from <WORK>/store/builds/7.0.11-64-par/lib64/libptscotch.so
+✓ Structure sizes: graph=120, strat=8, arch=96, dgraph=296
+RuntimeError: MPI must be initialized before creating Dgraph.
+Call mpi.init() first, or pass an mpi4py communicator (e.g. Dgraph(comm=MPI.COMM_WORLD)).

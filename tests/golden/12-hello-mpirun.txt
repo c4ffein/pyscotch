@@ -1,0 +1,25 @@
+==============================================================
+PyScotch hello-world
+==============================================================
+  pyscotch version : 7.0.0
+  Scotch version   : 7.0.11
+  integer width    : 64-bit
+  PT-Scotch loaded : True
+  parallel wanted  : True
+
+-- sequential ------------------------------------------------
+  built ring graph : 6 vertices, 12 edges (check OK)
+  partition(2)     : [1, 1, 0, 0, 0, 1]  -> sizes [3, 3]
+  order() perm     : [0, 1, 2, 3, 4, 5]
+  order()          : permutation/inverse consistent
+  sequential OK
+
+-- parallel --------------------------------------------------
+  ranks            : 2
+  6x6x6 grid       : 216 vertices total (check OK)
+  part(3)          : sizes [72, 72, 72]
+  parallel OK
+
+==============================================================
+ALL OK
+==============================================================

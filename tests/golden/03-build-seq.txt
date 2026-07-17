@@ -1,0 +1,14 @@
+Preflight for 7.0.11-64-seq:
+  ✓ C compiler             /usr/bin/gcc
+  ✓ make                   /usr/bin/make
+  ✓ flex >= 2.6.4          2.6.4
+  ✓ bison                  /usr/bin/bison
+  ✓ zlib headers           zlib.h compilable
+  Downloading https://gitlab.inria.fr/scotch/scotch/-/archive/v7.0.11/scotch-v7.0.11.tar.gz
+  Saved 8314 KiB, sha256 OK
+  Extracting source
+Building Scotch 7.0.11 (64-bit, sequential)
+  make libscotch ...
+
+✓ Built 7.0.11-64-seq  ->  <WORK>/store/builds/7.0.11-64-seq/lib64
+Set 7.0.11-64-seq as the default (PyScotch will now load it).

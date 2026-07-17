@@ -1,0 +1,28 @@
+✓ Loaded Scotch: 64-bit from <WORK>/store/builds/7.0.11-64-seq/lib64/libscotch.so
+✓ Structure sizes: graph=120, strat=8, arch=96, dgraph=None
+PyScotch environment report
+========================================
+  PyScotch version       7.0.0
+  Python                 <PYTHON>
+  Platform               <PLATFORM>
+
+Requested (env):
+  PYSCOTCH_INT_SIZE      64
+  PYSCOTCH_PARALLEL      0
+
+Scotch backend:
+  Loaded                 yes
+  Version                7.0.11
+  Source                 user-built (pyscotch scotch use 7.0.11-64-seq)
+  Library dir            <WORK>/store/builds/7.0.11-64-seq/lib64
+  Integer width          64-bit
+  Symbol suffix          _64
+  Parallel (PT-Scotch)   no
+  Context (>=7.0.5)      yes
+  Error capture          active
+
+MPI:
+  libmpi                 libmpi.so.40
+  mpi4py                 not installed
+
+No problems detected. ✓

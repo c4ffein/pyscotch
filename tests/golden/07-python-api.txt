@@ -1,0 +1,6 @@
+✓ Loaded Scotch: 64-bit from <WORK>/store/builds/7.0.11-64-seq/lib64/libscotch.so
+✓ Structure sizes: graph=120, strat=8, arch=96, dgraph=None
+scotch version: 7.0.11
+partition(2): [1, 1, 0, 0, 0, 1]
+order perm : [0, 1, 2, 3, 4, 5]
+order valid: True
