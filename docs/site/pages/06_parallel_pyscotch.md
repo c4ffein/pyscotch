@@ -114,8 +114,28 @@ PYSCOTCH_PARALLEL=1 pyscotch doctor
 
 ## Reproducibility across ranks
 
-Scotch's pseudo-random generator state affects partitioning. The high-level
-`Dgraph` operations (`part`, `map`, `order_compute`, …) take
-`reset_random=True` by default, so repeated identical calls give identical
-results on every rank. Pass `reset_random=False` when you explicitly want
-independent randomized runs.
+Scotch's pseudo-random generator state affects partitioning, and PyScotch
+follows Scotch's own semantics exactly: **the PRNG stream carries across
+calls, and nothing resets it implicitly.** A fresh process starts from the
+seed, so single-operation runs are reproducible whenever the library was
+compiled with `COMMON_RANDOM_FIXED_SEED` (seed = 1) — which is the norm: 31 of
+Scotch's 32 upstream `Make.inc` templates set it, and `pyscotch scotch build`
+does too. Without that flag the seed is `time(NULL)` and no run is
+reproducible. For repeated in-process calls, choose explicitly:
+
+```python
+pyscotch.random_reset()      # before an operation: make this call reproducible
+part = dg.part(4)            # ... or pass reset_random=True for the same effect
+```
+
+Ranks stay in lockstep **by default**: the seed ignores the process rank, so
+all ranks draw identical sequences. Both escape hatches are deliberate,
+user-invoked features, mirroring the C API one-to-one:
+
+- `SCOTCH_randomProc(rank)` folds a process number into the seed when you
+  *want* decorrelated ranks;
+- `Context.random_clone()` gives a context its own private stream — which a
+  global `random_reset()` then deliberately does *not* touch.
+
+Leave the stream running when you want variation — e.g. partition several
+times and keep the best cut.
