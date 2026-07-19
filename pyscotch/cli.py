@@ -4,6 +4,7 @@ Command-line interface for PyScotch.
 """
 
 import argparse
+import os
 import sys
 
 # NOTE: Scotch-touching imports (Graph, Mesh, ...) are intentionally done lazily
@@ -276,7 +277,12 @@ def main():
     scotch_parser.set_defaults(func=scotch_manage, _scotch_parser=scotch_parser)
 
     sb = scotch_sub.add_parser("build", help="Download and compile a Scotch version")
-    sb.add_argument("version", nargs="?", default="7.0.11", help="Scotch version (default: 7.0.11)")
+    sb.add_argument(
+        "version",
+        nargs="?",
+        default=None,
+        help="Scotch version (default: the latest known release)",
+    )
     sb.add_argument(
         "-i", "--int-size", choices=["32", "64"], default="64", help="Integer width (default: 64)"
     )
@@ -317,9 +323,15 @@ def main():
         return result if result is not None else 0
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        import traceback
+        # The common failures here (no Scotch installed, unreadable graph file)
+        # carry a self-explanatory message; a traceback only buries it. Keep it
+        # available for real debugging, but behind an opt-in.
+        if os.environ.get("PYSCOTCH_TRACEBACK") == "1":
+            import traceback
 
-        traceback.print_exc()
+            traceback.print_exc()
+        else:
+            print("(set PYSCOTCH_TRACEBACK=1 for the full traceback)", file=sys.stderr)
         return 1
 
 

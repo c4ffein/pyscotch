@@ -168,12 +168,17 @@ def _load_system_libraries():
 
     seq = _dlopen_system("scotch", ["libscotch.so", "libscotch.so.7", "libscotch-7.0.so"])
     if seq is None:
+        from .scotch_build import latest_version
+
         raise FileNotFoundError(
             "No Scotch library found. Either:\n"
-            "  - run 'make build-all' in a PyScotch checkout,\n"
+            "  - let PyScotch build one for you (no root needed):\n"
+            f"        pyscotch scotch build {latest_version()} --sequential --use\n"
+            "    (add --parallel instead for PT-Scotch; see `pyscotch doctor`),\n"
+            "  - install a system Scotch (e.g. 'apt install libscotch-dev', "
+            "'conda install scotch'),\n"
             "  - set PYSCOTCH_LIB_DIR to a directory containing libscotch.so,\n"
-            "  - or install a system Scotch (e.g. 'apt install libscotch-dev', "
-            "'conda install scotch')."
+            "  - or run 'make build-all' in a PyScotch checkout."
         )
     print(f"✓ Loaded system Scotch ({_INT_SIZE}-bit requested)", file=sys.stderr)
 

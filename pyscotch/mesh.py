@@ -234,10 +234,17 @@ class Mesh:
         Compute an ordering of the mesh nodes.
 
         Args:
-            strategy: Ordering strategy (optional)
+            strategy: Ordering strategy (optional). Strategies carrying a
+                deferred graph-strategy request (request_ordering, constructor
+                strings) are rejected: mesh ordering uses its own strategy
+                grammar. Use a fresh Strategy for the default.
 
         Returns:
             Tuple of (permutation array, inverse permutation array)
+
+        Note:
+            Scotch's PRNG state carries across calls; for reproducible results
+            call ``pyscotch.random_reset()`` before this operation.
         """
         from .strategy import Strategy
 

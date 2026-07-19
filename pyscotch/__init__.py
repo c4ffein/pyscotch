@@ -33,6 +33,7 @@ _LAZY = {
     "Mesh": ("mesh", "Mesh"),
     "Strategy": ("strategy", "Strategy"),
     "Strategies": ("strategy", "Strategies"),
+    "StrategyFlags": ("strategy", "StrategyFlags"),
     "Architecture": ("arch", "Architecture"),
     "Mapping": ("mapping", "Mapping"),
     "Ordering": ("ordering", "Ordering"),
@@ -96,6 +97,19 @@ def random_seed(seed: int) -> None:
     lib.SCOTCH_randomSeed(lib.SCOTCH_Num(seed))
 
 
+@scotch_binding("SCOTCH_randomProc", "void SCOTCH_randomProc(int)")
+def random_proc(procnum: int) -> None:
+    """Fold a process number into the PRNG seed (decorrelates ranks).
+
+    By default the seed ignores the process rank, so all ranks draw identical
+    sequences. Call this (then ``random_reset()``) when you want each rank to
+    draw an independent stream; ``random_proc(0)`` restores the default.
+    """
+    from . import libscotch as lib
+
+    lib.SCOTCH_randomProc(procnum)
+
+
 @scotch_binding("SCOTCH_memCur", "SCOTCH_Idx SCOTCH_memCur(void)")
 def mem_cur() -> int:
     """Get current Scotch memory usage in bytes (requires SCOTCH_DEBUG_MEM)."""
@@ -117,6 +131,7 @@ __all__ = [
     "Mesh",
     "Strategy",
     "Strategies",
+    "StrategyFlags",
     "Architecture",
     "Mapping",
     "Ordering",
@@ -127,6 +142,7 @@ __all__ = [
     "scotch_version",
     "random_reset",
     "random_seed",
+    "random_proc",
     "mem_cur",
     "mem_max",
     "get_scotch_int_size",

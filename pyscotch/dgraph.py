@@ -1031,7 +1031,7 @@ class Dgraph:
         "SCOTCH_dgraphPart",
         "int SCOTCH_dgraphPart(SCOTCH_Dgraph *, SCOTCH_Num, SCOTCH_Strat *, SCOTCH_Num *)",
     )
-    def part(self, nparts: int, strategy=None, reset_random: bool = True) -> np.ndarray:
+    def part(self, nparts: int, strategy=None) -> np.ndarray:
         """
         Partition the distributed graph into a specified number of parts.
 
@@ -1042,8 +1042,6 @@ class Dgraph:
             nparts: Number of partitions
             strategy: Parallel mapping Strategy (optional; default lets
                       PT-Scotch pick its built-in default strategy)
-            reset_random: If True (default), reset Scotch's PRNG state before
-                          partitioning for deterministic results
 
         Returns:
             Array of part assignments for the local vertices (length
@@ -1063,9 +1061,6 @@ class Dgraph:
 
         partloctab = np.zeros(self._vertlocnbr(), dtype=lib.get_scotch_dtype())
 
-        if reset_random:
-            lib.SCOTCH_randomReset()
-
         ret = lib.SCOTCH_dgraphPart(
             byref(self._dgraph),
             lib.SCOTCH_Num(nparts),
@@ -1083,7 +1078,7 @@ class Dgraph:
         "SCOTCH_dgraphMap",
         "int SCOTCH_dgraphMap(SCOTCH_Dgraph *, const SCOTCH_Arch *, SCOTCH_Strat *, SCOTCH_Num *)",
     )
-    def map(self, arch, strategy=None, reset_random: bool = True) -> np.ndarray:
+    def map(self, arch, strategy=None) -> np.ndarray:
         """
         Map the distributed graph onto a target architecture.
 
@@ -1093,8 +1088,6 @@ class Dgraph:
         Args:
             arch: Target Architecture
             strategy: Parallel mapping Strategy (optional)
-            reset_random: If True (default), reset Scotch's PRNG state before
-                          mapping for deterministic results
 
         Returns:
             Array of target domain assignments for the local vertices
@@ -1108,9 +1101,6 @@ class Dgraph:
             strategy = Strategy()
 
         partloctab = np.zeros(self._vertlocnbr(), dtype=lib.get_scotch_dtype())
-
-        if reset_random:
-            lib.SCOTCH_randomReset()
 
         ret = lib.SCOTCH_dgraphMap(
             byref(self._dgraph),
@@ -1130,7 +1120,7 @@ class Dgraph:
             "SCOTCH_dgraphMapExit",
         ]
     )
-    def map_compute(self, arch, strategy=None, reset_random: bool = True) -> np.ndarray:
+    def map_compute(self, arch, strategy=None) -> np.ndarray:
         """
         Map the distributed graph using the 3-step Init/Compute/Exit API.
 
@@ -1140,7 +1130,6 @@ class Dgraph:
         Args:
             arch: Target Architecture
             strategy: Parallel mapping Strategy (optional)
-            reset_random: If True (default), reset Scotch's PRNG state first
 
         Returns:
             Array of target domain assignments for the local vertices
@@ -1152,9 +1141,6 @@ class Dgraph:
 
         partloctab = np.zeros(self._vertlocnbr(), dtype=lib.get_scotch_dtype())
         partloctab_c = partloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-
-        if reset_random:
-            lib.SCOTCH_randomReset()
 
         with self._scotch_dmapping(arch, partloctab_c) as dmapdat:
             ret = lib.SCOTCH_dgraphMapCompute(
@@ -1169,7 +1155,7 @@ class Dgraph:
         "SCOTCH_dgraphMapSave",
         "int SCOTCH_dgraphMapSave(const SCOTCH_Dgraph *, const SCOTCH_Dmapping *, FILE *)",
     )
-    def map_save(self, filepath, arch, strategy=None, reset_random: bool = True) -> np.ndarray:
+    def map_save(self, filepath, arch, strategy=None) -> np.ndarray:
         """
         Compute a mapping onto arch and save it to a file (root process).
 
@@ -1180,7 +1166,6 @@ class Dgraph:
             filepath: Output file path (written on the root process)
             arch: Target Architecture
             strategy: Parallel mapping Strategy (optional)
-            reset_random: If True (default), reset Scotch's PRNG state first
 
         Returns:
             Array of target domain assignments for the local vertices
@@ -1192,9 +1177,6 @@ class Dgraph:
 
         partloctab = np.zeros(self._vertlocnbr(), dtype=lib.get_scotch_dtype())
         partloctab_c = partloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-
-        if reset_random:
-            lib.SCOTCH_randomReset()
 
         with self._scotch_dmapping(arch, partloctab_c) as dmapdat:
             ret = lib.SCOTCH_dgraphMapCompute(
@@ -1213,7 +1195,7 @@ class Dgraph:
         "SCOTCH_dgraphMapView",
         "int SCOTCH_dgraphMapView(SCOTCH_Dgraph *, const SCOTCH_Dmapping *, FILE *)",
     )
-    def map_view(self, filepath, arch, strategy=None, reset_random: bool = True) -> np.ndarray:
+    def map_view(self, filepath, arch, strategy=None) -> np.ndarray:
         """
         Compute a mapping onto arch and write its statistics to a file.
 
@@ -1223,7 +1205,6 @@ class Dgraph:
             filepath: Output file path (written on the root process)
             arch: Target Architecture
             strategy: Parallel mapping Strategy (optional)
-            reset_random: If True (default), reset Scotch's PRNG state first
 
         Returns:
             Array of target domain assignments for the local vertices
@@ -1235,9 +1216,6 @@ class Dgraph:
 
         partloctab = np.zeros(self._vertlocnbr(), dtype=lib.get_scotch_dtype())
         partloctab_c = partloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-
-        if reset_random:
-            lib.SCOTCH_randomReset()
 
         with self._scotch_dmapping(arch, partloctab_c) as dmapdat:
             ret = lib.SCOTCH_dgraphMapCompute(
@@ -1291,7 +1269,7 @@ class Dgraph:
         "SCOTCH_dgraphOrderCompute",
         "int SCOTCH_dgraphOrderCompute(SCOTCH_Dgraph *, SCOTCH_Dordering *, SCOTCH_Strat *)",
     )
-    def order_compute(self, dordering, strategy=None, reset_random: bool = True) -> None:
+    def order_compute(self, dordering, strategy=None) -> None:
         """
         Compute a distributed ordering of the graph (collective call).
 
@@ -1299,7 +1277,6 @@ class Dgraph:
             dordering: Handle from order_init()
             strategy: Parallel ordering Strategy (optional; default lets
                       PT-Scotch pick its built-in default strategy)
-            reset_random: If True (default), reset Scotch's PRNG state first
 
         Raises:
             RuntimeError: If the ordering computation fails
@@ -1308,9 +1285,6 @@ class Dgraph:
 
         if strategy is None:
             strategy = Strategy()
-
-        if reset_random:
-            lib.SCOTCH_randomReset()
 
         ret = lib.SCOTCH_dgraphOrderCompute(
             byref(self._dgraph), byref(dordering), byref(strategy._strat)
@@ -1327,7 +1301,6 @@ class Dgraph:
         dordering,
         listloctab: Optional[np.ndarray],
         strategy=None,
-        reset_random: bool = True,
     ) -> None:
         """
         Compute a distributed ordering of a subset of the graph vertices.
@@ -1341,7 +1314,6 @@ class Dgraph:
                         for an empty list (no vertex of this process is
                         specifically ordered)
             strategy: Parallel ordering Strategy (optional)
-            reset_random: If True (default), reset Scotch's PRNG state first
 
         Raises:
             RuntimeError: If the ordering computation fails
@@ -1357,9 +1329,6 @@ class Dgraph:
         else:
             listloctab, listloctab_c = lib.to_scotch_array(listloctab)
             listlocnbr = len(listloctab)
-
-        if reset_random:
-            lib.SCOTCH_randomReset()
 
         ret = lib.SCOTCH_dgraphOrderComputeList(
             byref(self._dgraph),
@@ -1577,7 +1546,7 @@ class Dgraph:
             "SCOTCH_dgraphOrderExit",
         ]
     )
-    def order(self, strategy=None, reset_random: bool = True) -> np.ndarray:
+    def order(self, strategy=None) -> np.ndarray:
         """
         Compute a distributed ordering and return the local permutation.
 
@@ -1586,7 +1555,6 @@ class Dgraph:
 
         Args:
             strategy: Parallel ordering Strategy (optional)
-            reset_random: If True (default), reset Scotch's PRNG state first
 
         Returns:
             Array of length vertlocnbr: permloctab[i] is the new global index
@@ -1597,7 +1565,7 @@ class Dgraph:
         """
         dordering = self.order_init()
         try:
-            self.order_compute(dordering, strategy, reset_random=reset_random)
+            self.order_compute(dordering, strategy)
             return self.order_perm(dordering)
         finally:
             self.order_exit(dordering)

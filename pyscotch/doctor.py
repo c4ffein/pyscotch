@@ -146,7 +146,8 @@ def _distro_family():
     return None
 
 
-def _scotch_install_hint(parallel):
+def _system_scotch_hint(parallel):
+    """The distro-native way to install Scotch (needs root / a package manager)."""
     fam = _distro_family()
     if fam == "debian":
         return "sudo apt install " + ("libptscotch-dev" if parallel else "libscotch-dev")
@@ -157,6 +158,23 @@ def _scotch_install_hint(parallel):
     if fam == "macos":
         return "brew install scotch" + ("  # (PT-Scotch: build from source)" if parallel else "")
     return "install Scotch from your package manager, or build from source"
+
+
+def _scotch_install_hint(parallel):
+    """What to do when no Scotch could be loaded.
+
+    Leads with `pyscotch scotch build`: it needs no root and no package manager,
+    and it is the only option that always applies (a pip/sdist install has no
+    bundled library). The distro package is offered as the alternative.
+    """
+    from .scotch_build import latest_version
+
+    variant = "--parallel" if parallel else "--sequential"
+    return (
+        f"pyscotch scotch build {latest_version()} {variant} --use     "
+        "# builds Scotch for you, no root needed\n"
+        f"or use a system Scotch:  {_system_scotch_hint(parallel)}"
+    )
 
 
 def _mpi_install_hint():
@@ -264,7 +282,10 @@ def render(info):
         out.append(f"Problems ({len(info['problems'])}):")
         for symptom, hint in info["problems"]:
             out.append(f"  ✗ {symptom}")
-            out.append(f"      → {hint}")
+            # A hint may span several lines (alternative remedies); only the
+            # first carries the arrow, the rest align under it.
+            for i, line in enumerate(str(hint).split("\n")):
+                out.append(f"      → {line}" if i == 0 else f"        {line}")
     else:
         out.append("No problems detected. ✓")
 

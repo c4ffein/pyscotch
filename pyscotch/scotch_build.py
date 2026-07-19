@@ -42,7 +42,21 @@ _KNOWN_VERSIONS = {
     "7.0.11": "ce1ea6e16ca36ae91426a360f639c8f575fccebc0116fbcb381f164c5e862768",
     "7.0.10": "8327725a08cdd4fc7575e291251883b4f93f75b07a54bc58f89f50dcbba7b244",
 }
-_DEFAULT_VERSION = "7.0.11"
+def _version_key(version: str):
+    return tuple(int(part) for part in version.split("."))
+
+
+def latest_version() -> str:
+    """The newest version in the curated catalog (sha-pinned, validated;
+    quickfix patches applied automatically where needed). Single source of
+    truth for every 'which version should I build?' default and hint."""
+    return max(_KNOWN_VERSIONS, key=_version_key)
+
+
+def latest_pristine_version() -> str:
+    """The newest catalog version that builds without any quickfix patch —
+    what to suggest as a fallback when a patched build went wrong."""
+    return max((v for v in _KNOWN_VERSIONS if not _PATCHES.get(v)), key=_version_key)
 
 # Bundled "quickfix" patches, applied live to the extracted source before
 # building (unless --pristine). Keyed by exact version; each entry is
@@ -286,7 +300,7 @@ def _diagnose_make_output(text: str) -> str:
             "PyScotch ships a quickfix that is applied automatically — if you see "
             "this, you built with --pristine (drop it) or this version has no "
             "bundled patch yet (see `pyscotch scotch patches`); alternatively "
-            "build a known-good version such as 7.0.11."
+            f"build a known-good version such as {latest_pristine_version()}."
         )
     if "fatal error: zlib.h" in text or "undefined reference to `gz" in text:
         return "zlib development headers/library missing (install zlib1g-dev / zlib-devel)."
@@ -514,9 +528,12 @@ def _print_checks(checks):
 
 def cmd_build(args):
     parallel = _resolve_parallel(args)
+    version = args.version or latest_version()
+    if args.version is None:
+        print(f"No version given — using the latest known release: {version}")
     try:
         key = build(
-            args.version,
+            version,
             bits=int(args.int_size),
             parallel=parallel,
             url=args.url,

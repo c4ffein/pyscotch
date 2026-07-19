@@ -460,7 +460,12 @@ class Graph:
         }
 
     @highlevel_api(
-        scotch_functions=["SCOTCH_graphMapInit", "SCOTCH_graphMapCompute", "SCOTCH_graphMapExit"]
+        scotch_functions=[
+            "SCOTCH_randomReset",
+            "SCOTCH_graphMapInit",
+            "SCOTCH_graphMapCompute",
+            "SCOTCH_graphMapExit",
+        ]
     )
     def partition(
         self,
@@ -500,10 +505,11 @@ class Graph:
         arch = Architecture()
         arch.complete(nparts)
 
-        # Use provided strategy or create default (empty) strategy
-        # Note: For SCOTCH_graphPart, an empty/unmodified strategy works best
+        # A fresh Strategy is Scotch's default; deferred requests (flag builds,
+        # constructor strings) need nparts and are built here.
         if strategy is None:
-            strategy = Strategy()  # Don't call set_mapping_default() - empty strategy works better
+            strategy = Strategy()
+        strategy._materialize_mapping(nparts)
 
         # Use 3-step API: Init -> Compute -> Exit
         # This is the recommended pattern from Scotch C examples
@@ -555,6 +561,10 @@ class Graph:
 
         Raises:
             RuntimeError: If ordering fails
+
+        Note:
+            Scotch's PRNG state carries across calls; for reproducible results
+            call ``pyscotch.random_reset()`` before this operation.
         """
         from .strategy import Strategy
 
@@ -572,6 +582,7 @@ class Graph:
         if strategy is None:
             strategy = Strategy()
             strategy.set_ordering_default()
+        strategy._materialize_ordering()
 
         ret = lib.SCOTCH_graphOrder(
             byref(self._graph),
@@ -589,17 +600,11 @@ class Graph:
         return permtab, peritab
 
     @highlevel_api(scotch_functions=["SCOTCH_randomReset", "SCOTCH_graphColor"])
-    def color(self, reset_random: bool = True) -> Tuple[np.ndarray, int]:
+    def color(self) -> Tuple[np.ndarray, int]:
         """
         Compute a graph coloring (vertex coloring).
 
         Returns a coloring where no two adjacent vertices have the same color.
-
-        Args:
-            reset_random: If True (default), reset Scotch's PRNG state before
-                coloring for deterministic results. Set to False to allow
-                variation between calls or to use a custom seed via
-                SCOTCH_randomSeed().
 
         Returns:
             Tuple of (color array, number of colors used)
@@ -616,9 +621,6 @@ class Graph:
         colonbr = lib.SCOTCH_Num()
 
         colotab_c = colotab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-
-        if reset_random:
-            lib.SCOTCH_randomReset()
 
         ret = lib.SCOTCH_graphColor(
             byref(self._graph),
@@ -848,11 +850,16 @@ class Graph:
 
         Returns:
             Updated partition array
+
+        Note:
+            Scotch's PRNG state carries across calls; for reproducible results
+            call ``pyscotch.random_reset()`` before this operation.
         """
         from .strategy import Strategy
 
         if strategy is None:
             strategy = Strategy()
+        strategy._materialize_mapping(nparts)
 
         parttab, parttab_c = lib.to_scotch_array(parttab, copy=True)
 
@@ -882,7 +889,12 @@ class Graph:
             strategy: Overlap partitioning strategy (optional)
 
         Returns:
-            Partition array (values 0..nparts for parts, nparts for overlap)
+            Partition array (values 0..nparts-1 for parts, -1 for vertices in
+            the overlap, i.e. shared between several parts)
+
+        Note:
+            Scotch's PRNG state carries across calls; for reproducible results
+            call ``pyscotch.random_reset()`` before this operation.
         """
         from .strategy import Strategy
 
@@ -893,6 +905,7 @@ class Graph:
 
         if strategy is None:
             strategy = Strategy()
+        strategy._materialize_overlap(nparts)
 
         ret = lib.SCOTCH_graphPartOvl(
             byref(self._graph),
@@ -927,6 +940,10 @@ class Graph:
 
         Returns:
             New partition array
+
+        Note:
+            Scotch's PRNG state carries across calls; for reproducible results
+            call ``pyscotch.random_reset()`` before this operation.
         """
         from .strategy import Strategy
 
@@ -934,6 +951,7 @@ class Graph:
 
         if strategy is None:
             strategy = Strategy()
+        strategy._materialize_mapping(nparts)
 
         old_part, old_part_c = lib.to_scotch_array(old_partition, copy=True)
 
