@@ -116,26 +116,118 @@ PYSCOTCH_PARALLEL=1 pyscotch doctor
 
 Scotch's pseudo-random generator state affects partitioning, and PyScotch
 follows Scotch's own semantics exactly: **the PRNG stream carries across
-calls, and nothing resets it implicitly.** A fresh process starts from the
-seed, so single-operation runs are reproducible whenever the library was
-compiled with `COMMON_RANDOM_FIXED_SEED` (seed = 1) — which is the norm: 31 of
-Scotch's 32 upstream `Make.inc` templates set it, and `pyscotch scotch build`
-does too. Without that flag the seed is `time(NULL)` and no run is
-reproducible. For repeated in-process calls, choose explicitly:
+calls, and nothing resets it implicitly.**
+
+Reproducibility needs **two** things to hold, both inherited from how the
+library was built and run:
+
+1. **A fixed seed.** With `COMMON_RANDOM_FIXED_SEED` compiled in, every fresh
+   process (and every `random_reset()`) restarts the stream from seed 1;
+   without it, from `time(NULL)`. All standard builds have it — it is what
+   CMake's default determinism level (`SCOTCH_DETERMINISTIC=FIXED_SEED`)
+   compiles in, and `Make.inc` templates and `pyscotch scotch build` set it
+   too. The build only chooses the *default*: to replace the seed at run
+   time, call `pyscotch.random_seed(n)` then `random_reset()` — explicit,
+   process-local, and reproducible. (Upstream also documents a
+   `SCOTCH_RANDOM_FIXED_SEED` environment variable for this; in our testing
+   it has no effect on the default stream.)
+2. **Deterministic execution.** Without it, identical PRNG state still yields
+   different results run to run — even across fresh processes — from two
+   sources: thread scheduling (`SCOTCH_PTHREAD`), and PT-Scotch receiving
+   point-to-point messages first-come-first-serve. Since Scotch 7.0 the fix is
+   a **runtime** environment variable, no rebuild needed:
+
+   ```bash
+   SCOTCH_DETERMINISTIC=1 mpirun -n 4 python your_script.py
+   ```
+
+   This swaps only the nondeterministic kernels for deterministic ones (e.g.
+   sequential matching, fixed-order message reception) — everything else stays
+   threaded and fully multi-process, at some performance cost. Results are
+   then reproducible for a fixed number of MPI ranks; with ≥ 2 threads the
+   thread count doesn't matter (the 1-thread result differs — it is a separate
+   code path). Alternatively `SCOTCH_PTHREAD_NUMBER=1` forces one thread,
+   which handles the threading source only. Small graphs stay below the
+   threading thresholds, which can make all of this easy to miss in tests.
+
+With both in place, one variable remains: **the stream position**, which
+advances with every randomized operation. It has to be taken into account
+whenever a sequence of operations must replay identically — in unit tests, or
+when re-running a series of operations to check that results are consistent:
+call `pyscotch.random_reset()` (or pass `reset_random=True` to a high-level
+operation) to restart the stream at the seed.
+
+**All MPI processes draw the same random numbers by default.** A *rank* is
+one of the N copies of your program that `mpirun -n N` launches; each has its
+own private PRNG state, since processes share no memory. Because the seed
+ignores the rank number, those N private streams are identical: as long as
+every rank performs the same operations, they all draw exactly the same
+sequence.
+
+What is that *for*? The observable guarantee: identical computations agree.
+If every rank of your application calls **sequential** PyScotch on the same
+graph (a common pattern when the graph fits in memory), all ranks obtain the
+same partition — provided the deterministic-execution conditions above hold —
+and no result depends on which rank produced it. Upstream's stated rationale
+(`common_integer.c`): the seed ignores the rank *"in order for
+multi-sequential programs to have exactly the same behavior on any
+process"*.
+
+PT-Scotch itself does **not** rely on lockstep for agreement. In its
+gather-and-compute-sequentially phases, every rank computes its *own*
+candidate partition — the streams have usually drifted apart by then, so the
+candidates genuinely differ — and a tiny election picks the winner: an
+`MPI_Allreduce` with a "best partition" operator, then a broadcast from the
+winning rank (`bdgraph_bipart_sq.c`). Divergence between ranks is harvested,
+not feared.
+
+Accordingly, if ranks draw *unevenly* — say your code partitions a rank-local
+sequential graph on rank 0 only, between collective operations — their stream
+positions diverge, and that is not a correctness hazard: it is the normal
+state PT-Scotch's own algorithms operate in, and in our testing deliberately
+desynchronized streams entering a collective `Dgraph` operation produced
+valid, balanced partitions. Restore identical streams only when you *want*
+the replicated-computation guarantee back: have **every rank** call
+`pyscotch.random_reset()` before the next operation — the same explicit tool
+as everywhere else on this page.
+
+Two escape hatches exist, both user-invoked, mirroring the C API one-to-one:
+
+- `pyscotch.random_proc(rank)` (then `random_reset()`) folds a process number
+  into the seed when you *want* decorrelated ranks; `random_proc(0)` restores
+  the default, bit-for-bit;
+- `Context.random_clone()` gives a context its own private stream — seedable
+  and resettable via `Context.random_seed()` / `Context.random_reset()`, and
+  deliberately *not* touched by a global `random_reset()`.
+
+Finally, the reason the stream advances at all: partitioning is a randomized
+heuristic. Each call starts from different draws and lands in a different
+local optimum — a different, equally valid partition whose quality varies a
+little. Quality means the **edge cut**: the number of edges whose endpoints
+fall in different parts, i.e. the communication your application will pay.
+Leaving the stream running turns repetition into exploration:
 
 ```python
-pyscotch.random_reset()      # before an operation: make this call reproducible
-part = dg.part(4)            # ... or pass reset_random=True for the same effect
+src = np.repeat(np.arange(nvert), np.diff(verttab))
+cut = lambda part: int((part[src] != part[edgetab]).sum()) // 2
+best = min((g.partition(4) for _ in range(10)), key=cut)
 ```
 
-Ranks stay in lockstep **by default**: the seed ignores the process rank, so
-all ranks draw identical sequences. Both escape hatches are deliberate,
-user-invoked features, mirroring the C API one-to-one:
+Every attempt respects the balance constraint; you are choosing among valid
+partitions on cut alone. Expect no gain on regular graphs (a grid's optimal
+cut is found every time) and spreads around a percent on irregular ones —
+worth harvesting when the partition feeds a long-running computation. This
+exploration is exactly what an implicit per-call reset would destroy: every
+attempt would be the same attempt.
 
-- `SCOTCH_randomProc(rank)` folds a process number into the seed when you
-  *want* decorrelated ranks;
-- `Context.random_clone()` gives a context its own private stream — which a
-  global `random_reset()` then deliberately does *not* touch.
-
-Leave the stream running when you want variation — e.g. partition several
-times and keep the best cut.
+Note the parallelism layers here: the snippet is the *sequential* API — the
+ten attempts run one after another, each internally thread-parallel
+(`partition()` is where the parallelism lives). To parallelize the attempts
+themselves, replicate the graph on every rank, decorrelate the streams
+(`random_proc(rank)` then `random_reset()`), and reduce on the smallest cut —
+k attempts for the wall-clock of one. On a distributed `Dgraph` the loop must
+instead be written collectively: every rank calls `part()` together and the
+cut needs a global reduction; lockstep streams then make all ranks agree on
+the winner with no extra synchronization. Scotch can also select internally
+in a single call: the strategy grammar's `|` operator runs two strategies and
+keeps the better result.
