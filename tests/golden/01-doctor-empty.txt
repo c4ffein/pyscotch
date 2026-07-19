@@ -12,7 +12,7 @@ Scotch backend:
   Loaded                 NO
   Error                  No Scotch library found. Either:
   - let PyScotch build one for you (no root needed):
-        pyscotch scotch build 7.0.11 --sequential --use
+        pyscotch scotch build 7.0.12 --sequential --use
     (add --parallel instead for PT-Scotch; see `pyscotch doctor`),
   - install a system Scotch (e.g. 'apt install libscotch-dev', 'conda install scotch'),
   - set PYSCOTCH_LIB_DIR to a directory containing libscotch.so,
@@ -24,5 +24,5 @@ MPI:
 
 Problems (1):
   ✗ Scotch failed to load
-      → pyscotch scotch build 7.0.11 --sequential --use     # builds Scotch for you, no root needed
+      → pyscotch scotch build 7.0.12 --sequential --use     # builds Scotch for you, no root needed
         or use a system Scotch:  sudo apt install libscotch-dev
