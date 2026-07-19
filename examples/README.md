@@ -4,6 +4,25 @@ This directory contains example code demonstrating how to use PyScotch for vario
 
 ## Examples Overview
 
+### 0. Hello world — sequential and parallel in one script
+**File:** `hello_pyscotch.py`
+
+**What it demonstrates:**
+- Environment report (version, integer width, PT-Scotch availability)
+- Sequential: build a ring graph, `check()`, `partition(2)`, `order()`
+- Parallel: distribute a 3D grid across MPI ranks and `part(3)` it
+- Clean, actionable messages when a parallel prerequisite is missing
+
+**Usage:**
+```bash
+python hello_pyscotch.py                                   # sequential only
+PYSCOTCH_PARALLEL=1 PYSCOTCH_INT_SIZE=64 mpirun -n 2 \
+    python hello_pyscotch.py                               # + parallel section
+```
+
+It is also the script driven by the golden-master CI pipeline
+(`scripts/golden_walkthrough.py`).
+
 ### 1. Simple Graph Partitioning
 **File:** `simple_partition.py`
 
