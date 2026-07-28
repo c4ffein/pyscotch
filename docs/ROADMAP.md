@@ -44,8 +44,7 @@ This document provides an honest assessment of what's implemented, what's in pro
 
 ### Supporting Classes
 - ✅ **Strategy** - Partitioning/ordering strategies
-  - `Strategy.set_mapping_default()`
-  - `Strategy.set_ordering_default()`
+  - `Strategy.reset()` (back to the default; family-agnostic)
   - `Strategy.set_recursive_bisection()`
   - `Strategy.set_multilevel()`
   - `Strategy.set_nested_dissection()`
