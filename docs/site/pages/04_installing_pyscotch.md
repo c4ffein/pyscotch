@@ -144,7 +144,8 @@ checksum-verified, kept side by side, and a `use`d build takes precedence over
 the bundled wheel libraries:
 
 ```bash
-pyscotch scotch build 7.0.11 --parallel --use   # download, compile, select
+pyscotch scotch build --parallel --use          # download, compile, select
+pyscotch scotch build 7.0.10 --sequential       # or pin a specific version
 pyscotch scotch list                            # what's installed (\* = default)
 pyscotch scotch use 7.0.11-64-seq               # switch the default
 pyscotch scotch rm 7.0.11-64-par                # delete a build
@@ -181,9 +182,10 @@ When you `import pyscotch`, the libraries are located in this order:
 
 1. `PYSCOTCH_SYSTEM=1` — skip straight to the system-installed Scotch
 2. `PYSCOTCH_LIB_DIR` — explicit override
-3. Libraries bundled inside the installed wheel (`pyscotch/_libs/`)
-4. `scotch-builds/` next to the repo (development layout)
-5. Fallback: the system-installed Scotch (dlopen by soname)
+3. The build selected with `pyscotch scotch use` (under `~/.local/share/pyscotch`)
+4. Libraries bundled inside the installed wheel (`pyscotch/_libs/`)
+5. `scotch-builds/` next to the repo (development layout)
+6. Fallback: the system-installed Scotch (dlopen by soname)
 
 ## Verify Your Install
 

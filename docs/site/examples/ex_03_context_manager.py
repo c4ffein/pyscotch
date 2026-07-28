@@ -8,8 +8,7 @@ with Graph() as graph:
     edgetab = np.array([1, 2, 0, 2, 0, 1], dtype=np.int64)
     graph.build(verttab, edgetab)
 
-    with Strategy() as strategy:
-        strategy.set_mapping_default()
+    with Strategy() as strategy:  # a fresh Strategy is Scotch's default
         partitions = graph.partition(nparts=2, strategy=strategy)
         assert len(partitions) == 3
     # strategy.close() called automatically here

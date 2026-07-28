@@ -1,10 +1,10 @@
 {
  "coverage": {
   "declared": 179,
-  "direct": 104,
-  "exposed": 119,
-  "helpers": 24,
-  "python": 15,
+  "direct": 105,
+  "exposed": 121,
+  "helpers": 25,
+  "python": 17,
   "undecorated": 0
  },
  "sections": [
@@ -119,7 +119,7 @@
      "level": "high-level helper",
      "level_css": "helper",
      "name": "partition",
-     "signature": "(nparts: int, strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "signature": "(nparts: int, strategy=None) -> numpy.ndarray",
      "summary": "Partition the graph into a specified number of parts."
     },
     {
@@ -144,7 +144,7 @@
      "level": "high-level helper",
      "level_css": "helper",
      "name": "color",
-     "signature": "(reset_random: bool = True) -> Tuple[numpy.ndarray, int]",
+     "signature": "() -> Tuple[numpy.ndarray, int]",
      "summary": "Compute a graph coloring (vertex coloring)."
     },
     {
@@ -640,7 +640,7 @@
      "level": "high-level helper",
      "level_css": "helper",
      "name": "request_mapping",
-     "signature": "(flags: pyscotch.strategy.StrategyFlags = <StrategyFlags.DEFAULT: 0>, balance: float = 0.01) -> None",
+     "signature": "(flags: pyscotch.strategy.StrategyFlags = <StrategyFlags.DEFAULT: 0>, balance: float | None = None, nparts: int | None = None) -> None",
      "summary": "Request a mapping strategy built from characteristic flags."
     },
     {
@@ -652,34 +652,44 @@
      "level": "high-level helper",
      "level_css": "helper",
      "name": "request_ordering",
-     "signature": "(flags: pyscotch.strategy.StrategyFlags = <StrategyFlags.DEFAULT: 0>, levels: int = 0, balance: float = 0.2) -> None",
+     "signature": "(flags: pyscotch.strategy.StrategyFlags = <StrategyFlags.DEFAULT: 0>, levels: int = 0, balance: float | None = None) -> None",
      "summary": "Request an ordering strategy built from characteristic flags."
     },
     {
      "c_functions": [
-      "SCOTCH_stratInit",
-      "SCOTCH_stratExit"
+      "SCOTCH_stratGraphMapBuild"
      ],
      "c_label": "Wraps",
      "is_property": false,
      "level": "high-level helper",
      "level_css": "helper",
-     "name": "set_ordering_default",
-     "signature": "() -> None",
-     "summary": "Select Scotch's default ordering strategy."
+     "name": "built_for_mapping",
+     "signature": "(nparts: int)",
+     "summary": "Materialize this strategy once for repeated mapping/partitioning."
     },
     {
      "c_functions": [
-      "SCOTCH_stratInit",
-      "SCOTCH_stratExit"
+      "SCOTCH_stratGraphOrderBuild"
      ],
      "c_label": "Wraps",
      "is_property": false,
      "level": "high-level helper",
      "level_css": "helper",
-     "name": "set_mapping_default",
-     "signature": "() -> None",
-     "summary": "Select Scotch's default mapping/partitioning strategy."
+     "name": "built_for_ordering",
+     "signature": "()",
+     "summary": "Materialize this strategy once for repeated ordering use."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_stratGraphPartOvlBuild"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "built_for_overlap",
+     "signature": "(nparts: int)",
+     "summary": "Materialize this strategy once for repeated overlap partitioning."
     },
     {
      "c_functions": [
@@ -808,6 +818,33 @@
    "entries": [],
    "name": "StrategyFlags",
    "slug": "strategyflags"
+  },
+  {
+   "doc": "A strategy materialized for one operation family \u2014 and, for the partitioning families, one part count.",
+   "entries": [
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": true,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "family",
+     "signature": "",
+     "summary": "Operation family this strategy was materialized for."
+    },
+    {
+     "c_functions": [],
+     "c_label": "Calls",
+     "is_property": true,
+     "level": "pure python",
+     "level_css": "python",
+     "name": "nparts",
+     "signature": "",
+     "summary": "Part count this strategy was materialized for (None for ordering)."
+    }
+   ],
+   "name": "BuiltStrategy",
+   "slug": "builtstrategy"
   },
   {
    "doc": "Represents a target architecture for graph mapping.",
@@ -1365,7 +1402,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "part",
-     "signature": "(nparts: int, strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "signature": "(nparts: int, strategy=None) -> numpy.ndarray",
      "summary": "Partition the distributed graph into a specified number of parts."
     },
     {
@@ -1377,7 +1414,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "map",
-     "signature": "(arch, strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "signature": "(arch, strategy=None) -> numpy.ndarray",
      "summary": "Map the distributed graph onto a target architecture."
     },
     {
@@ -1391,7 +1428,7 @@
      "level": "high-level helper",
      "level_css": "helper",
      "name": "map_compute",
-     "signature": "(arch, strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "signature": "(arch, strategy=None) -> numpy.ndarray",
      "summary": "Map the distributed graph using the 3-step Init/Compute/Exit API."
     },
     {
@@ -1403,7 +1440,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "map_save",
-     "signature": "(filepath, arch, strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "signature": "(filepath, arch, strategy=None) -> numpy.ndarray",
      "summary": "Compute a mapping onto arch and save it to a file (root process)."
     },
     {
@@ -1415,7 +1452,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "map_view",
-     "signature": "(filepath, arch, strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "signature": "(filepath, arch, strategy=None) -> numpy.ndarray",
      "summary": "Compute a mapping onto arch and write its statistics to a file."
     },
     {
@@ -1451,7 +1488,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "order_compute",
-     "signature": "(dordering, strategy=None, reset_random: bool = True) -> None",
+     "signature": "(dordering, strategy=None) -> None",
      "summary": "Compute a distributed ordering of the graph (collective call)."
     },
     {
@@ -1463,7 +1500,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "order_compute_list",
-     "signature": "(dordering, listloctab: numpy.ndarray | None, strategy=None, reset_random: bool = True) -> None",
+     "signature": "(dordering, listloctab: numpy.ndarray | None, strategy=None) -> None",
      "summary": "Compute a distributed ordering of a subset of the graph vertices."
     },
     {
@@ -1586,7 +1623,7 @@
      "level": "high-level helper",
      "level_css": "helper",
      "name": "order",
-     "signature": "(strategy=None, reset_random: bool = True) -> numpy.ndarray",
+     "signature": "(strategy=None) -> numpy.ndarray",
      "summary": "Compute a distributed ordering and return the local permutation."
     }
    ],
@@ -1756,6 +1793,18 @@
     },
     {
      "c_functions": [
+      "SCOTCH_randomProc"
+     ],
+     "c_label": "Maps to",
+     "is_property": false,
+     "level": "direct binding",
+     "level_css": "binding",
+     "name": "random_proc",
+     "signature": "(procnum: int) -> None",
+     "summary": "Fold a process number into the PRNG seed (decorrelates ranks)."
+    },
+    {
+     "c_functions": [
       "SCOTCH_memCur"
      ],
      "c_label": "Maps to",
@@ -1803,5 +1852,5 @@
    "slug": "module-functions"
   }
  ],
- "version": "7.0.11"
+ "version": "7.0.12"
 }

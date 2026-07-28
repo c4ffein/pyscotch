@@ -16,7 +16,7 @@ MPI-parallel and the graph is born distributed.
 Two things must be true before any of this works, and both are checked by
 `pyscotch doctor`:
 
-1. A **PT-Scotch library** is loadable (`pyscotch scotch build 7.0.11 --parallel --use`
+1. A **PT-Scotch library** is loadable (`pyscotch scotch build --parallel --use`
    builds one, no root needed).
 2. `PYSCOTCH_PARALLEL=1` is set **before `import pyscotch`** — the library is
    chosen at import time, so setting it later in the program has no effect.
@@ -100,7 +100,7 @@ Every one of these is an *expected*, tested failure with a precise meaning
 
 | You see | It means | Fix |
 |---|---|---|
-| `FileNotFoundError: No Scotch library found ...` at import | `PYSCOTCH_PARALLEL=1` is set but no PT-Scotch build is available anywhere | `pyscotch scotch build 7.0.11 --parallel --use` |
+| `FileNotFoundError: No Scotch library found ...` at import | `PYSCOTCH_PARALLEL=1` is set but no PT-Scotch build is available anywhere | `pyscotch scotch build --parallel --use` |
 | `RuntimeError: Dgraph requires PT-Scotch (parallel variant)` | The *sequential* library loaded — `PYSCOTCH_PARALLEL=1` wasn't set before import | put the env var on the command line |
 | `RuntimeError: MPI must be initialized before creating Dgraph` | You used the bundled wrapper without `mpi.init()` | call `pyscotch.mpi.init()`, or pass an mpi4py communicator |
 | `mpirun ... not enough slots` | more ranks than cores | `mpirun --oversubscribe`, `PYSCOTCH_MPI_OVERSUBSCRIBE=1` |
@@ -154,8 +154,9 @@ With both in place, one variable remains: **the stream position**, which
 advances with every randomized operation. It has to be taken into account
 whenever a sequence of operations must replay identically — in unit tests, or
 when re-running a series of operations to check that results are consistent:
-call `pyscotch.random_reset()` (or pass `reset_random=True` to a high-level
-operation) to restart the stream at the seed.
+call `pyscotch.random_reset()` to restart the stream at the seed — the same
+single call a C program makes (`SCOTCH_randomReset()`), and the same one
+Scotch's own test suite uses.
 
 **All MPI processes draw the same random numbers by default.** A *rank* is
 one of the N copies of your program that `mpirun -n N` launches; each has its
