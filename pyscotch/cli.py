@@ -38,8 +38,7 @@ def partition_graph(args):
         strategy = Strategy()
         strategy.set_recursive_bisection()
     else:
-        strategy = Strategy()
-        strategy.set_mapping_default()
+        strategy = Strategy()  # a fresh Strategy IS Scotch's default
 
     print(f"Partitioning into {args.nparts} parts...")
     partitions = graph.partition(args.nparts, strategy)
@@ -84,8 +83,7 @@ def order_graph(args):
         strategy = Strategy()
         strategy.set_nested_dissection()
     else:
-        strategy = Strategy()
-        strategy.set_ordering_default()
+        strategy = Strategy()  # a fresh Strategy IS Scotch's default
 
     print(f"Computing ordering...")
     permutation, inverse = graph.order(strategy)
@@ -115,8 +113,7 @@ def partition_mesh(args):
     elif args.strategy == "fast":
         strategy = Strategies.partition_fast()
     else:
-        strategy = Strategy()
-        strategy.set_mapping_default()
+        strategy = Strategy()  # a fresh Strategy IS Scotch's default
 
     print(f"Partitioning into {args.nparts} parts...")
     partitions = mesh.partition(args.nparts, strategy)

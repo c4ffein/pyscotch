@@ -506,34 +506,34 @@ class Graph:
         arch.complete(nparts)
 
         # A fresh Strategy is Scotch's default; deferred requests (flag builds,
-        # constructor strings) need nparts and are built here.
+        # constructor strings) need nparts and are built per call.
         if strategy is None:
             strategy = Strategy()
-        strategy._materialize_mapping(nparts)
 
-        # Use 3-step API: Init -> Compute -> Exit
-        # This is the recommended pattern from Scotch C examples
-        mappdat = lib.SCOTCH_Mapping()
+        with strategy._materialized_mapping(nparts) as stratdat:
+            # Use 3-step API: Init -> Compute -> Exit
+            # This is the recommended pattern from Scotch C examples
+            mappdat = lib.SCOTCH_Mapping()
 
-        # Step 1: Initialize mapping
-        ret = lib.SCOTCH_graphMapInit(
-            byref(self._graph),
-            byref(mappdat),
-            byref(arch._arch),
-            parttab_c,
-        )
-        if ret != 0:
-            raise lib.scotch_error(f"Failed to initialize mapping for {nparts} parts", ret)
+            # Step 1: Initialize mapping
+            ret = lib.SCOTCH_graphMapInit(
+                byref(self._graph),
+                byref(mappdat),
+                byref(arch._arch),
+                parttab_c,
+            )
+            if ret != 0:
+                raise lib.scotch_error(f"Failed to initialize mapping for {nparts} parts", ret)
 
-        # Step 2: Compute mapping
-        ret = lib.SCOTCH_graphMapCompute(
-            byref(self._graph),
-            byref(mappdat),
-            byref(strategy._strat),
-        )
+            # Step 2: Compute mapping
+            ret = lib.SCOTCH_graphMapCompute(
+                byref(self._graph),
+                byref(mappdat),
+                byref(stratdat),
+            )
 
-        # Step 3: Clean up mapping (always, even on error)
-        lib.SCOTCH_graphMapExit(byref(self._graph), byref(mappdat))
+            # Step 3: Clean up mapping (always, even on error)
+            lib.SCOTCH_graphMapExit(byref(self._graph), byref(mappdat))
 
         if ret != 0:
             raise lib.scotch_error(
@@ -581,18 +581,17 @@ class Graph:
         # Use provided strategy or create default
         if strategy is None:
             strategy = Strategy()
-            strategy.set_ordering_default()
-        strategy._materialize_ordering()
 
-        ret = lib.SCOTCH_graphOrder(
-            byref(self._graph),
-            byref(strategy._strat),
-            permtab_c,
-            peritab_c,
-            byref(cblkptr),
-            None,  # rangtab
-            None,  # treetab
-        )
+        with strategy._materialized_ordering() as stratdat:
+            ret = lib.SCOTCH_graphOrder(
+                byref(self._graph),
+                byref(stratdat),
+                permtab_c,
+                peritab_c,
+                byref(cblkptr),
+                None,  # rangtab
+                None,  # treetab
+            )
 
         if ret != 0:
             raise lib.scotch_error(f"Failed to order graph with {vertnbr} vertices", ret)
@@ -859,16 +858,16 @@ class Graph:
 
         if strategy is None:
             strategy = Strategy()
-        strategy._materialize_mapping(nparts)
 
         parttab, parttab_c = lib.to_scotch_array(parttab, copy=True)
 
-        ret = lib.SCOTCH_graphPartFixed(
-            byref(self._graph),
-            lib.SCOTCH_Num(nparts),
-            byref(strategy._strat),
-            parttab_c,
-        )
+        with strategy._materialized_mapping(nparts) as stratdat:
+            ret = lib.SCOTCH_graphPartFixed(
+                byref(self._graph),
+                lib.SCOTCH_Num(nparts),
+                byref(stratdat),
+                parttab_c,
+            )
 
         if ret != 0:
             raise lib.scotch_error("Failed to compute fixed partition", ret)
@@ -905,14 +904,14 @@ class Graph:
 
         if strategy is None:
             strategy = Strategy()
-        strategy._materialize_overlap(nparts)
 
-        ret = lib.SCOTCH_graphPartOvl(
-            byref(self._graph),
-            lib.SCOTCH_Num(nparts),
-            byref(strategy._strat),
-            parttab_c,
-        )
+        with strategy._materialized_overlap(nparts) as stratdat:
+            ret = lib.SCOTCH_graphPartOvl(
+                byref(self._graph),
+                lib.SCOTCH_Num(nparts),
+                byref(stratdat),
+                parttab_c,
+            )
 
         if ret != 0:
             raise lib.scotch_error("Failed to compute overlap partition", ret)
@@ -951,7 +950,6 @@ class Graph:
 
         if strategy is None:
             strategy = Strategy()
-        strategy._materialize_mapping(nparts)
 
         old_part, old_part_c = lib.to_scotch_array(old_partition, copy=True)
 
@@ -960,15 +958,16 @@ class Graph:
 
         vmlotab_arr, vmlotab_c = lib.to_scotch_array_optional(vmlotab)
 
-        ret = lib.SCOTCH_graphRepart(
-            byref(self._graph),
-            lib.SCOTCH_Num(nparts),
-            old_part_c,
-            float(emrat),
-            vmlotab_c,
-            byref(strategy._strat),
-            parttab_c,
-        )
+        with strategy._materialized_mapping(nparts) as stratdat:
+            ret = lib.SCOTCH_graphRepart(
+                byref(self._graph),
+                lib.SCOTCH_Num(nparts),
+                old_part_c,
+                float(emrat),
+                vmlotab_c,
+                byref(stratdat),
+                parttab_c,
+            )
 
         if ret != 0:
             raise lib.scotch_error("Failed to repartition graph", ret)
