@@ -174,7 +174,7 @@ def main():
         # --- First ordering: empty lists on all ranks => identity ---
         # C code: lines 278-286
         dorddat = grafdat.order_init()
-        grafdat.order_compute_list(dorddat, None, stradat, reset_random=False)
+        grafdat.order_compute_list(dorddat, None, stradat)
 
         # C code: lines 288-297
         permtab.fill(-1)
@@ -202,7 +202,7 @@ def main():
         list_fill_random(listlocnbr, listloctab, baseval, vertlocnbr)
 
         # C code: lines 318-321
-        grafdat.order_compute_list(dorddat, listloctab, stradat, reset_random=False)
+        grafdat.order_compute_list(dorddat, listloctab, stradat)
 
         # C code: lines 323-326
         listglbnbr = mpi_reduce_sum_num(listlocnbr)

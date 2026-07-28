@@ -91,7 +91,7 @@ def main():
 
         # --- Explicit lifecycle: compute, tree accessors, saves ---
         dorddat = grafdat.order_init()
-        grafdat.order_compute(dorddat, reset_random=False)
+        grafdat.order_compute(dorddat)
 
         permloctab2 = grafdat.order_perm(dorddat)
         assert len(permloctab2) == vertlocnbr, "order_perm result has wrong length"
