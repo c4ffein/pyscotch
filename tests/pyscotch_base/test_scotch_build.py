@@ -105,6 +105,31 @@ class TestDiagnosis:
         assert sb._diagnose_make_output("some unrelated failure") == ""
 
 
+class TestLatestVersion:
+    def test_latest_is_numerically_greatest(self):
+        assert sb.latest_version() == max(sb._KNOWN_VERSIONS, key=lambda v: tuple(map(int, v.split("."))))
+
+    def test_sorting_is_numeric_not_lexicographic(self, monkeypatch):
+        # "7.0.9" > "7.0.10" as strings — the classic trap.
+        monkeypatch.setattr(sb, "_KNOWN_VERSIONS", {"7.0.9": "x", "7.0.10": "y"})
+        assert sb.latest_version() == "7.0.10"
+
+    def test_latest_pristine_skips_patched_versions(self, monkeypatch):
+        monkeypatch.setattr(sb, "_KNOWN_VERSIONS", {"7.0.10": "x", "7.0.11": "y", "7.0.12": "z"})
+        monkeypatch.setattr(sb, "_PATCHES", {"7.0.12": [("f.patch", "why")]})
+        assert sb.latest_version() == "7.0.12"
+        assert sb.latest_pristine_version() == "7.0.11"
+
+    def test_hints_derive_from_the_catalog(self):
+        """No hint may hardcode a version: doctor and the loader error must
+        recommend whatever the catalog says is latest."""
+        from pyscotch import doctor
+
+        expected = f"pyscotch scotch build {sb.latest_version()} "
+        assert expected in doctor._scotch_install_hint(False)
+        assert expected in doctor._scotch_install_hint(True)
+
+
 class TestPreflightAndInc:
     def test_preflight_returns_checks(self):
         checks = sb.preflight(parallel=False)

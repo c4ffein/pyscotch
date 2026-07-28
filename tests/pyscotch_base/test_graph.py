@@ -64,8 +64,7 @@ class TestGraph:
         edges = [(i, (i + 1) % 10) for i in range(10)]
         graph = Graph.from_edges(edges, num_vertices=10)
 
-        strategy = Strategy()
-        strategy.set_mapping_default()
+        strategy = Strategy()  # a fresh Strategy is Scotch's default
 
         partitions = graph.partition(nparts=3, strategy=strategy)
         assert len(partitions) == 10
@@ -127,11 +126,11 @@ class TestStrategy:
         """Test strategy configuration methods."""
         strategy = Strategy()
 
-        strategy.set_mapping_default()
+        strategy.reset()
         strategy.set_recursive_bisection()
         strategy.set_multilevel()
 
-        strategy.set_ordering_default()
+        strategy.reset()
         strategy.set_nested_dissection()
 
 

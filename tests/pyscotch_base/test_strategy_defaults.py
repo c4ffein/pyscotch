@@ -1,10 +1,16 @@
 """Behavioural regression tests for the default strategies.
 
-These cover a bug where `set_mapping_default()` / `set_ordering_default()` went
-through SCOTCH_stratGraphMap("") / SCOTCH_stratGraphOrder(""). An empty strategy
-string is NOT "use the default": it installs an empty method that does nothing,
-so partitioning left every vertex unassigned (-1) and ordering returned the
-identity permutation. A freshly SCOTCH_stratInit'd strategy *is* the default.
+These cover a bug where the default-strategy paths went through
+SCOTCH_stratGraphMap("") / SCOTCH_stratGraphOrder(""). An empty strategy
+string is NOT "use the default" at the C level: it installs an empty method
+that does nothing, so partitioning left every vertex unassigned (-1) and
+ordering returned the identity permutation. A freshly SCOTCH_stratInit'd
+strategy *is* the default.
+
+The methods that originally carried the bug (set_mapping_default /
+set_ordering_default) were later removed as redundant family-named aliases
+of reset(); the surviving default spellings guarded here are reset(), the
+"" synonym in the string setters, and a plain Strategy().
 
 The pre-existing tests only asserted `strategy.strategy_string == ""`, which
 stayed true while the strategy was useless — hence these assert on behaviour.
@@ -34,7 +40,7 @@ class TestDefaultMappingStrategy:
         """The default mapping strategy must map all vertices, not leave -1."""
         g, nvert = _ring()
         strat = Strategy()
-        strat.set_mapping_default()
+        strat.reset()
         part = g.partition(2, strat)
         assert (part >= 0).all(), f"unassigned vertices (-1) in partition: {part.tolist()}"
         assert set(part.tolist()) == {0, 1}
@@ -44,7 +50,7 @@ class TestDefaultMappingStrategy:
         g1, _ = _ring()
         g2, _ = _ring()
         strat = Strategy()
-        strat.set_mapping_default()
+        strat.set_mapping("")  # "" is the string-setter synonym for default
         explicit = g1.partition(2, strat)
         implicit = g2.partition(2)
         assert (explicit >= 0).all() and (implicit >= 0).all()
@@ -52,10 +58,13 @@ class TestDefaultMappingStrategy:
         assert set(explicit.tolist()) == set(implicit.tolist()) == {0, 1}
 
     def test_default_strategy_keeps_string_bookkeeping(self):
-        """"" still denotes the default strategy in PyScotch's bookkeeping."""
+        """"" still denotes the default strategy in PyScotch's bookkeeping:
+        set_mapping("") round-trips, reset() reads back as untouched."""
         strat = Strategy()
-        strat.set_mapping_default()
+        strat.set_mapping("")
         assert strat.strategy_string == ""
+        strat.reset()
+        assert strat.strategy_string is None
 
 
 class TestDefaultOrderingStrategy:
@@ -85,7 +94,7 @@ class TestDefaultOrderingStrategy:
         g1, _ = _ring(64)
         g2, _ = _ring(64)
         strat = Strategy()
-        strat.set_ordering_default()
+        strat.set_ordering("")  # "" is the string-setter synonym for default
         random_reset()
         perm_explicit, _ = g1.order(strat)
         random_reset()
@@ -113,10 +122,10 @@ class TestStrategyReset:
 @pytest.mark.parametrize("nparts", [2, 3, 4])
 def test_cli_default_path_partitions(nparts):
     """The exact strategy path `pyscotch partition` uses must produce a real
-    partition (this is what regressed: the CLI default emitted all -1)."""
+    partition (this is what regressed: the CLI default emitted all -1). The
+    CLI's default branch is now a plain Strategy() — mirror it exactly."""
     g, _ = _ring(32)
     strat = Strategy()
-    strat.set_mapping_default()
     part = g.partition(nparts, strat)
     assert (part >= 0).all()
     assert len(set(part.tolist())) == nparts
@@ -141,7 +150,7 @@ def _with(method_name):
 
 
 STRATEGY_FACTORIES = [
-    ("set_mapping_default", _with("set_mapping_default")),
+    ("reset", _with("reset")),
     ("partition_quality", Strategies.partition_quality),
     ("partition_fast", Strategies.partition_fast),
     ("set_multilevel", _with("set_multilevel")),

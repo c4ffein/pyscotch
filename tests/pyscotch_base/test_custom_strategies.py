@@ -93,8 +93,9 @@ class TestCustomStrategies:
         1. SCOTCH_stratGraphMapBuild() - internal, uses advanced methods like 'h'
         2. SCOTCH_stratGraphMap() - public, parses user strings, does NOT support 'h'
 
-        This is why we set QUALITY_PARTITION=None to let Scotch use its internal
-        defaults rather than trying to replicate internal-only syntax.
+        This is why the quality/fast presets go through the Build API
+        (Strategy.request_mapping -> SCOTCH_stratGraphMapBuild) rather than
+        trying to replicate internal-only string syntax.
         """
         strategy = Strategy()
 
@@ -122,18 +123,24 @@ class TestCustomStrategies:
 
     def test_strategies_class_constants(self):
         """Test that Strategies class constants are correctly defined."""
+        from pyscotch import StrategyFlags
+
         assert Strategies.DEFAULT_PARTITION == ""
         assert Strategies.RECURSIVE_BISECTION == "r"
         assert Strategies.MULTILEVEL == "m"
-        assert Strategies.QUALITY_PARTITION is None
-        assert Strategies.FAST_PARTITION is None
+        # quality/fast are characteristic flags for SCOTCH_stratGraphMapBuild;
+        # they were None once, which silently made both identical to default.
+        assert Strategies.QUALITY_PARTITION == StrategyFlags.QUALITY
+        assert Strategies.FAST_PARTITION == StrategyFlags.SPEED
+        assert Strategies.QUALITY_PARTITION != Strategies.FAST_PARTITION
 
         assert Strategies.DEFAULT_ORDER == ""
         assert Strategies.NESTED_DISSECTION == "n"
         assert Strategies.SIMPLE_ORDER == "s"
         assert Strategies.MINIMUM_FILL == "c"
-        assert Strategies.QUALITY_ORDER is None
-        assert Strategies.FAST_ORDER is None
+        assert Strategies.QUALITY_ORDER == StrategyFlags.QUALITY
+        assert Strategies.FAST_ORDER == StrategyFlags.SPEED
+        assert Strategies.QUALITY_ORDER != Strategies.FAST_ORDER
 
     def test_quality_and_fast_strategies_work(self, simple_graph):
         """Test that quality and fast strategy factory methods work."""

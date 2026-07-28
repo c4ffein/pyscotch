@@ -318,29 +318,40 @@ class TestStrategy:
         strategy = Strategy()
         assert strategy is not None
 
-    def test_strategy_mapping_default(self):
-        """Test setting default mapping strategy."""
+    def test_strategy_reset_is_the_default_spelling(self):
+        """reset() is the canonical way back to the default: it clears any
+        configuration and reads back as an untouched strategy (None). The
+        family-named set_*_default() aliases were removed — the default is
+        family-agnostic, so there was nothing family-specific to set."""
         strategy = Strategy()
-        strategy.set_mapping_default()
-        assert strategy.strategy_string == ""
+        strategy.set_mapping("r{sep=gf}")
+        strategy.reset()
+        assert strategy.strategy_string is None
 
-    def test_strategy_ordering_default(self):
-        """Test setting default ordering strategy."""
+    def test_strategy_empty_string_denotes_default(self):
+        """The string setters keep "" as a synonym for the default, so
+        string-driven configuration paths round-trip."""
         strategy = Strategy()
-        strategy.set_ordering_default()
+        strategy.set_ordering("")
         assert strategy.strategy_string == ""
 
     def test_strategy_recursive_bisection(self):
-        """Test setting recursive bisection strategy."""
+        """Test setting recursive bisection strategy.
+
+        These no longer record a strategy *string*: the bare "r" string is an
+        incomplete strategy (every vertex in one part), so the method now
+        records a SCOTCH_stratGraphMapBuild request and strategy_string is
+        None. Behaviour is covered in test_strategy_defaults/_requests.
+        """
         strategy = Strategy()
         strategy.set_recursive_bisection()
-        assert strategy.strategy_string == "r"
+        assert strategy.strategy_string is None
 
     def test_strategy_multilevel(self):
-        """Test setting multilevel strategy."""
+        """Test setting multilevel strategy (see recursive_bisection note)."""
         strategy = Strategy()
         strategy.set_multilevel()
-        assert strategy.strategy_string == "m"
+        assert strategy.strategy_string is None
 
 
 class TestCompatLibrary:
