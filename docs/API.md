@@ -72,16 +72,16 @@ The `Strategy` class controls how operations are performed.
 ```python
 from pyscotch import Strategy, Strategies
 
-# Default strategy
+# Default strategy (a fresh Strategy IS Scotch's default;
+# reset() returns any configured Strategy to this state)
 strategy = Strategy()
 
 # Set mapping strategy
-strategy.set_mapping_default()
 strategy.set_recursive_bisection()
 strategy.set_multilevel()
 
 # Set ordering strategy
-strategy.set_ordering_default()
+strategy.reset()
 strategy.set_nested_dissection()
 
 # Use pre-defined strategies
