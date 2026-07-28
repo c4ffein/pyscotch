@@ -1,0 +1,74 @@
+name: Golden master (sdist user journey)
+
+# Runs the full sdist walkthrough — clean venv, no Scotch, documented failures,
+# `pyscotch scotch build` (sequential AND parallel), real partitions under
+# mpirun — and compares every user-visible output BYTE-FOR-BYTE against the
+# golden files in tests/golden/ (scripts/golden_walkthrough.py is the driver).
+#
+# A wrong exit code, a changed error message, or a single drifted byte in a
+# partition result fails this job. To accept an intentional change, run
+#     python scripts/golden_walkthrough.py --update
+# locally and commit the regenerated goldens with the code change.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pyscotch/**"
+      - "setup.py"
+      - "scripts/golden_walkthrough.py"
+      - "tests/golden/**"
+      - "examples/hello_pyscotch.py"
+      - ".github/workflows/golden-master.yml"
+  pull_request:
+    paths:
+      - "pyscotch/**"
+      - "setup.py"
+      - "scripts/golden_walkthrough.py"
+      - "tests/golden/**"
+      - "examples/hello_pyscotch.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        # No submodules: the walkthrough downloads its own Scotch source.
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build toolchain (flex >= 2.6.4, bison, zlib, OpenMPI)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flex bison zlib1g-dev libopenmpi-dev openmpi-bin
+
+      - name: Build the sdist
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --sdist
+
+      - name: Run the golden-master walkthrough
+        env:
+          # Keep the workdir under a known root so it can be uploaded on failure.
+          TMPDIR: ${{ runner.temp }}/golden
+        run: |
+          mkdir -p "$TMPDIR"
+          python scripts/golden_walkthrough.py
+
+      - name: Upload actual outputs on failure
+        # The driver keeps its workdir when a comparison fails and writes the
+        # drifted outputs as actual-<golden-name> next to the goldens' inputs.
+        # If the drift is CI-vs-local environment (not a code bug), regenerate
+        # the goldens from these files.
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-actual-outputs
+          path: ${{ runner.temp }}/golden/pyscotch-golden-*
+          if-no-files-found: ignore
