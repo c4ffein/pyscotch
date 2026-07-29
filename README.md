@@ -62,8 +62,8 @@ from pyscotch import Graph, Strategies
 
 graph = Graph.from_edges([(0,1), (1,2), (2,3), (3,0)], num_vertices=4)
 strategy = Strategies.partition_quality()
-mapping = graph.partition(4, strategy)
-print(mapping.get_partition_array())  # e.g. [0, 1, 2, 3]
+parts = graph.partition(4, strategy)  # numpy array of part indices
+print(parts)  # e.g. [0 1 2 3]
 ```
 
 ### Graph Coloring
@@ -83,9 +83,9 @@ from pyscotch import Graph, Strategies
 
 graph = Graph()
 graph.load("matrix.grf")
-strategy = Strategies.ordering_quality()
-ordering = graph.order(strategy)
-print(ordering.get_permutation())
+strategy = Strategies.order_quality()
+permtab, peritab = graph.order(strategy)  # permutation + inverse permutation
+print(permtab)
 ```
 
 ### Distributed Graph (MPI)
@@ -163,8 +163,8 @@ Test categories:
 | `Graph` | `build()`, `load()`, `save()`, `partition()`, `order()`, `color()`, `induce_list()`, `induce_part()`, `stat()`, `base()`, `from_edges()`, `from_scipy_sparse()`, `to_scipy_sparse()`, `from_networkx()`, `to_networkx()` |
 | `Mesh` | `build()`, `load()`, `save()`, `check()`, `to_graph()`, `partition()` |
 | `Architecture` | `complete()`, `complete_weighted()`, `complete_graph()`, `name()`, `size()` |
-| `Strategy` | `set()`, `set_default()`, `set_nested_dissection()` |
-| `Strategies` | `partition_quality()`, `partition_speed()`, `ordering_quality()`, `ordering_speed()` |
+| `Strategy` | `set_mapping()`, `set_ordering()`, `set_overlap_partitioning()`, `request_mapping()`, `request_ordering()`, `reset()`, `built_for_mapping()`, `built_for_ordering()`, `built_for_overlap()` (default strategy: pass `None` or a fresh `Strategy()`) |
+| `Strategies` | `partition_quality()`, `partition_fast()`, `order_quality()`, `order_fast()` |
 | `scotch_version()` | Returns `(major, minor, patch)` |
 
 ### Distributed (MPI)
