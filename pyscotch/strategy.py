@@ -69,8 +69,9 @@ class Strategy:
     and ordering. They can be customized with strategy strings or use defaults.
 
     A freshly created Strategy *is* Scotch's default: when the underlying
-    SCOTCH_Strat is still empty at compute time, Scotch builds its adaptive
-    default strategy for the operation at hand.
+    SCOTCH_Strat is still untouched at compute time, Scotch builds its
+    adaptive default strategy for the operation at hand. (Untouched is not
+    the same as the empty *string*: "" is a real, do-nothing strategy.)
 
     Some configurations cannot be built at creation time: flag-based mapping
     strategies (see request_mapping) need the number of parts, which is only
@@ -96,7 +97,9 @@ class Strategy:
                 string is applied by the operation the strategy is used with
                 (mapping strings and ordering strings have different grammars,
                 so it cannot be parsed before the target operation is known).
-                An empty string (or None) selects Scotch's default strategy.
+                None (the default) selects Scotch's default strategy. Any
+                string — including "" — is passed to Scotch verbatim; note
+                that "" parses into a do-nothing strategy (see set_mapping).
         """
         self._strat_data = lib.SCOTCH_Strat()
         ret = lib.SCOTCH_stratInit(byref(self._strat_data))
@@ -114,7 +117,7 @@ class Strategy:
         # _strat_data; False means _strat_data is still empty.
         self._configured = False
         self._strategy_string = strategy_string
-        if strategy_string:  # "" and None both mean "Scotch's default"
+        if strategy_string is not None:  # None means "Scotch's default"
             self._pending = ("string", strategy_string)
 
     @property
@@ -166,33 +169,34 @@ class Strategy:
     @scotch_binding(
         "SCOTCH_stratGraphMap", "int SCOTCH_stratGraphMap(SCOTCH_Strat *, const char *)"
     )
-    def set_mapping(self, strategy_string: str) -> None:
+    def set_mapping(self, strategy_string: Optional[str]) -> None:
         """
         Set a mapping/partitioning strategy from a string.
 
         Args:
-            strategy_string: Strategy string in Scotch format
+            strategy_string: Strategy string in Scotch format, or None for
+                Scotch's default strategy (equivalent to reset())
 
         Raises:
             RuntimeError: If setting the strategy fails
 
         Strategy string format examples:
-            - "": Use the default strategy
+            - None: Use the default strategy
             - "r{sep=gf}": Recursive bisection, greedy-growing + FM bipartitioning
             - "m{vert=100,low=r{sep=gf},asc=f}": Custom multilevel strategy
 
         Note:
-            PyScotch treats "" as "Scotch's default strategy". (At the raw C
-            level an empty string builds a do-nothing method that leaves every
-            vertex unassigned — a trap with no legitimate use.) Also beware
-            that sub-strategies left implicit — bare "r", "m", or "r{bal=0.05}"
-            — default to a do-nothing dummy in the string grammar, putting
-            every vertex into one part. Spell out the sub-strategy (e.g.
-            "r{sep=gf}") or use set_recursive_bisection()/request_mapping().
+            Strings are passed to Scotch verbatim — PyScotch means exactly
+            what C Scotch means. In particular "" parses into a do-nothing
+            strategy that leaves every vertex unassigned (-1); use None (or
+            reset()) for the default. Also beware that sub-strategies left
+            implicit — bare "r", "m", or "r{bal=0.05}" — default to a
+            do-nothing dummy in the string grammar, putting every vertex into
+            one part. Spell out the sub-strategy (e.g. "r{sep=gf}") or use
+            set_recursive_bisection()/request_mapping().
         """
-        if strategy_string == "":
+        if strategy_string is None:
             self.reset()
-            self._strategy_string = ""
             return
         ret = lib.SCOTCH_stratGraphMap(
             byref(self._strat_data), c_char_p(strategy_string.encode("utf-8"))
@@ -206,30 +210,33 @@ class Strategy:
     @scotch_binding(
         "SCOTCH_stratGraphOrder", "int SCOTCH_stratGraphOrder(SCOTCH_Strat *, const char *)"
     )
-    def set_ordering(self, strategy_string: str) -> None:
+    def set_ordering(self, strategy_string: Optional[str]) -> None:
         """
         Set an ordering strategy from a string.
 
         Args:
-            strategy_string: Strategy string in Scotch format
+            strategy_string: Strategy string in Scotch format, or None for
+                Scotch's default strategy (equivalent to reset())
 
         Raises:
             RuntimeError: If setting the strategy fails
 
         Strategy string format examples:
-            - "": Use the default strategy
+            - None: Use the default strategy
             - "s": Simple (natural-order) ordering
 
         Note:
-            PyScotch treats "" as "Scotch's default strategy" (see set_mapping).
-            Bare method codes like "n" or "c" are *incomplete* strategies that
-            return the identity permutation — no reordering at all. Use
-            set_nested_dissection() or full parameterized strings instead.
-            ("s" alone is fine: the natural order is exactly what it means.)
+            Strings are passed to Scotch verbatim (see set_mapping). "" parses
+            into a do-nothing strategy that returns the identity permutation;
+            use None (or reset()) for the default. Bare method codes like "n"
+            or "c" are *incomplete* strategies that also return the identity
+            permutation — no reordering at all. Use the default (Scotch's
+            default ordering is nested-dissection based), request_ordering(),
+            or full parameterized strings instead. ("s" alone is fine: the
+            natural order is exactly what it means.)
         """
-        if strategy_string == "":
+        if strategy_string is None:
             self.reset()
-            self._strategy_string = ""
             return
         ret = lib.SCOTCH_stratGraphOrder(
             byref(self._strat_data), c_char_p(strategy_string.encode("utf-8"))
@@ -244,7 +251,7 @@ class Strategy:
         "SCOTCH_stratGraphPartOvl",
         "int SCOTCH_stratGraphPartOvl(SCOTCH_Strat *, const char *)",
     )
-    def set_overlap_partitioning(self, strategy_string: str) -> None:
+    def set_overlap_partitioning(self, strategy_string: Optional[str]) -> None:
         """
         Set an overlap-partitioning strategy from a string.
 
@@ -253,14 +260,16 @@ class Strategy:
 
         Args:
             strategy_string: Overlap partitioning strategy string in Scotch
-                format; "" selects the default strategy.
+                format, or None for the default strategy (equivalent to
+                reset()). Strings are passed to Scotch verbatim; "" parses
+                into a do-nothing strategy that assigns no vertex to any part
+                (Graph.partition_overlap then returns all -1).
 
         Raises:
             RuntimeError: If setting the strategy fails
         """
-        if strategy_string == "":
+        if strategy_string is None:
             self.reset()
-            self._strategy_string = ""
             return
         ret = lib.SCOTCH_stratGraphPartOvl(
             byref(self._strat_data), c_char_p(strategy_string.encode("utf-8"))
@@ -274,28 +283,29 @@ class Strategy:
     @scotch_binding(
         "SCOTCH_stratDgraphMap", "int SCOTCH_stratDgraphMap(SCOTCH_Strat *, const char *)"
     )
-    def set_dgraph_mapping(self, strategy_string: str) -> None:
+    def set_dgraph_mapping(self, strategy_string: Optional[str]) -> None:
         """
         Set a parallel (PT-Scotch) mapping/partitioning strategy from a string.
 
         Requires the parallel variant (PYSCOTCH_PARALLEL=1).
 
         Args:
-            strategy_string: Parallel mapping strategy string in Scotch format
+            strategy_string: Parallel mapping strategy string in Scotch
+                format, or None for PT-Scotch's default strategy (equivalent
+                to reset())
 
         Raises:
             RuntimeError: If setting the strategy fails
 
         Note:
-            PyScotch treats "" as "PT-Scotch's default strategy", exactly like
-            set_mapping. (At the raw C level an empty string builds a
-            do-nothing method — SCOTCH_dgraphMap only builds the real default
-            when the strategy is still untouched — so "" would silently put
-            every vertex into one part.)
+            Strings are passed to Scotch verbatim, exactly like set_mapping.
+            In particular "" builds a do-nothing method — SCOTCH_dgraphMap
+            only builds the real default when the strategy is still untouched
+            — which silently puts every vertex into one part (a result that
+            can look valid). Use None (or reset()) for the default.
         """
-        if strategy_string == "":
+        if strategy_string is None:
             self.reset()
-            self._strategy_string = ""
             return
         ret = lib.SCOTCH_stratDgraphMap(
             byref(self._strat_data), c_char_p(strategy_string.encode("utf-8"))
@@ -309,27 +319,28 @@ class Strategy:
     @scotch_binding(
         "SCOTCH_stratDgraphOrder", "int SCOTCH_stratDgraphOrder(SCOTCH_Strat *, const char *)"
     )
-    def set_dgraph_ordering(self, strategy_string: str) -> None:
+    def set_dgraph_ordering(self, strategy_string: Optional[str]) -> None:
         """
         Set a parallel (PT-Scotch) ordering strategy from a string.
 
         Requires the parallel variant (PYSCOTCH_PARALLEL=1).
 
         Args:
-            strategy_string: Parallel ordering strategy string in Scotch format
+            strategy_string: Parallel ordering strategy string in Scotch
+                format, or None for PT-Scotch's default strategy (equivalent
+                to reset())
 
         Raises:
             RuntimeError: If setting the strategy fails
 
         Note:
-            PyScotch treats "" as "PT-Scotch's default strategy", exactly like
-            set_ordering. (At the raw C level an empty string builds a
-            do-nothing method, so "" would silently return the identity
-            permutation — no reordering at all.)
+            Strings are passed to Scotch verbatim, exactly like set_ordering.
+            In particular "" builds a do-nothing method, silently returning
+            the identity permutation — no reordering at all. Use None (or
+            reset()) for the default.
         """
-        if strategy_string == "":
+        if strategy_string is None:
             self.reset()
-            self._strategy_string = ""
             return
         ret = lib.SCOTCH_stratDgraphOrder(
             byref(self._strat_data), c_char_p(strategy_string.encode("utf-8"))
@@ -711,9 +722,11 @@ class Strategy:
         """Return the strategy to its initial (Scotch default) state.
 
         This is the one canonical "back to default" spelling: the default is
-        the empty state, which is family-agnostic — each consuming operation
-        builds its own default from it. (The string setters accept "" as a
-        synonym, for string-driven configuration paths.)
+        the untouched state, which is family-agnostic — each consuming
+        operation builds its own default from it. (The string setters accept
+        None as a synonym, for string-driven configuration paths. "" is NOT
+        a synonym: it is a real do-nothing strategy, passed to Scotch
+        verbatim.)
 
         The C-level reinit matters: a tree explicitly built by a set_* call
         must be freed here — no later build would free it, and dgraph/mesh
@@ -739,50 +752,6 @@ class Strategy:
             should not.
         """
         self.request_mapping(StrategyFlags.RECURSIVE)
-
-    @highlevel_api(scotch_functions=["SCOTCH_stratGraphMapBuild"])
-    def set_multilevel(self) -> None:
-        """Set multilevel strategy for partitioning.
-
-        Scotch's default strategy *is* multilevel (there is no MULTILEVEL flag
-        in the SCOTCH_strat*Build API), so this requests the default build.
-        The bare strategy string "m" is incomplete and must not be used: it
-        puts every vertex in one part.
-
-        Warning:
-            Workaround — upstream currently offers no way to select
-            "multilevel" as a distinct choice, so this method is an alias of
-            the default build, kept for compatibility with the released API.
-            It could be considered broken in the sense that it selects nothing
-            beyond the default. Pending the upstream questions in
-            QUESTIONS_FOR_SCOTCH_TEAM.md, it may change or be deprecated in a
-            future release; prefer a plain ``Strategy()`` (or
-            ``request_mapping(StrategyFlags.DEFAULT)``) to state that intent
-            exactly.
-        """
-        self.request_mapping(StrategyFlags.DEFAULT)
-
-    @highlevel_api(scotch_functions=["SCOTCH_stratGraphOrderBuild"])
-    def set_nested_dissection(self) -> None:
-        """Set nested dissection strategy for ordering.
-
-        Scotch's default ordering *is* nested-dissection based, so this
-        requests the default build. The bare strategy string "n" is incomplete
-        and must not be used: it returns the identity permutation (no
-        reordering at all).
-
-        Warning:
-            Workaround — upstream currently offers no way to select nested
-            dissection as a distinct choice, so this method is an alias of
-            the default build, kept for compatibility with the released API.
-            It could be considered broken in the sense that it selects nothing
-            beyond the default. Pending the upstream questions in
-            QUESTIONS_FOR_SCOTCH_TEAM.md, it may change or be deprecated in a
-            future release; prefer a plain ``Strategy()`` (or
-            ``request_ordering(StrategyFlags.DEFAULT)``) to state that intent
-            exactly.
-        """
-        self.request_ordering(StrategyFlags.DEFAULT)
 
     @property
     @internal_api
@@ -885,7 +854,9 @@ class Strategies:
     SCOTCH_stratGraphOrderBuild.
 
     Strategy string notes:
-        - "" (or None): Scotch's adaptive default strategy
+        - None: Scotch's adaptive default strategy
+        - "": a do-nothing strategy, passed to Scotch verbatim (mapping leaves
+          every vertex unassigned, ordering returns the identity permutation)
         - "s": Simple (natural-order) ordering
         - Complex strings: see Scotch's user documentation for the grammar
 
@@ -926,8 +897,8 @@ class Strategies:
     """
 
     # Partitioning strategies.
-    # "" is safe in PyScotch: set_mapping("") selects the default strategy.
-    DEFAULT_PARTITION = ""
+    # None selects the default; "" would be a do-nothing strategy in Scotch.
+    DEFAULT_PARTITION = None
     # Bare Scotch method codes, kept for reference; incomplete on their own
     # (see the class docstring) — prefer the flag-based methods.
     RECURSIVE_BISECTION = "r"
@@ -937,7 +908,7 @@ class Strategies:
     FAST_PARTITION = StrategyFlags.SPEED
 
     # Ordering strategies
-    DEFAULT_ORDER = ""
+    DEFAULT_ORDER = None
     NESTED_DISSECTION = "n"
     SIMPLE_ORDER = "s"
     MINIMUM_FILL = "c"

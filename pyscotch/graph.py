@@ -461,7 +461,6 @@ class Graph:
 
     @highlevel_api(
         scotch_functions=[
-            "SCOTCH_randomReset",
             "SCOTCH_graphMapInit",
             "SCOTCH_graphMapCompute",
             "SCOTCH_graphMapExit",
@@ -485,6 +484,10 @@ class Graph:
         Raises:
             ValueError: If nparts is invalid
             RuntimeError: If partitioning fails
+
+        Note:
+            Scotch's PRNG state carries across calls; for reproducible results
+            call ``pyscotch.random_reset()`` before this operation.
         """
         if nparts < 1:
             raise ValueError(f"nparts must be at least 1, got {nparts}")
@@ -598,7 +601,7 @@ class Graph:
 
         return permtab, peritab
 
-    @highlevel_api(scotch_functions=["SCOTCH_randomReset", "SCOTCH_graphColor"])
+    @highlevel_api(scotch_functions=["SCOTCH_graphColor"])
     def color(self) -> Tuple[np.ndarray, int]:
         """
         Compute a graph coloring (vertex coloring).
@@ -612,6 +615,10 @@ class Graph:
 
         Raises:
             RuntimeError: If coloring fails
+
+        Note:
+            Scotch's PRNG state carries across calls; for reproducible results
+            call ``pyscotch.random_reset()`` before this operation.
         """
         vertnbr, _ = self.size()
 
@@ -899,7 +906,11 @@ class Graph:
 
         vertnbr, _ = self.size()
 
-        parttab = np.zeros(vertnbr, dtype=lib.get_scotch_dtype())
+        # SCOTCH_graphPartOvl only writes entries a strategy method assigns; a
+        # do-nothing strategy (e.g. "") leaves the buffer as-is, so pre-fill
+        # with -1 ("in the overlap") rather than return zeros that would look
+        # like a valid everything-in-part-0 result.
+        parttab = np.full(vertnbr, -1, dtype=lib.get_scotch_dtype())
         parttab_c = parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
         if strategy is None:

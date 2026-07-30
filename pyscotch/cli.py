@@ -31,14 +31,13 @@ def partition_graph(args):
         strategy = Strategies.partition_quality()
     elif args.strategy == "fast":
         strategy = Strategies.partition_fast()
-    elif args.strategy == "multilevel":
-        strategy = Strategy()
-        strategy.set_multilevel()
     elif args.strategy == "recursive":
         strategy = Strategy()
         strategy.set_recursive_bisection()
     else:
-        strategy = Strategy()  # a fresh Strategy IS Scotch's default
+        # "default" and its synonym "multilevel" (Scotch's default IS
+        # multilevel): a fresh Strategy IS Scotch's default
+        strategy = Strategy()
 
     print(f"Partitioning into {args.nparts} parts...")
     partitions = graph.partition(args.nparts, strategy)
@@ -79,11 +78,10 @@ def order_graph(args):
         strategy = Strategies.order_quality()
     elif args.strategy == "fast":
         strategy = Strategies.order_fast()
-    elif args.strategy == "nested":
-        strategy = Strategy()
-        strategy.set_nested_dissection()
     else:
-        strategy = Strategy()  # a fresh Strategy IS Scotch's default
+        # "default" and its synonym "nested" (Scotch's default ordering IS
+        # nested-dissection based): a fresh Strategy IS Scotch's default
+        strategy = Strategy()
 
     print(f"Computing ordering...")
     permutation, inverse = graph.order(strategy)
@@ -107,13 +105,18 @@ def partition_mesh(args):
     mesh = Mesh()
     mesh.load(args.input)
 
-    # Set up strategy
+    # Set up strategy (same choices as the graph path: Mesh.partition
+    # delegates to Graph.partition, so all of them apply)
     if args.strategy == "quality":
         strategy = Strategies.partition_quality()
     elif args.strategy == "fast":
         strategy = Strategies.partition_fast()
+    elif args.strategy == "recursive":
+        strategy = Strategy()
+        strategy.set_recursive_bisection()
     else:
-        strategy = Strategy()  # a fresh Strategy IS Scotch's default
+        # "default"/"multilevel" (synonyms): a fresh Strategy IS the default
+        strategy = Strategy()
 
     print(f"Partitioning into {args.nparts} parts...")
     partitions = mesh.partition(args.nparts, strategy)
@@ -225,7 +228,8 @@ def main():
         "--strategy",
         choices=["default", "quality", "fast", "multilevel", "recursive"],
         default="default",
-        help="Partitioning strategy",
+        help="Partitioning strategy (multilevel is a synonym of default: "
+        "Scotch's default IS multilevel)",
     )
     partition_parser.add_argument(
         "-t", "--type", choices=["graph", "mesh"], default="graph", help="Input file type"
@@ -243,7 +247,8 @@ def main():
         "--strategy",
         choices=["default", "quality", "fast", "nested"],
         default="default",
-        help="Ordering strategy",
+        help="Ordering strategy (nested is a synonym of default: Scotch's "
+        "default ordering IS nested-dissection based)",
     )
     order_parser.set_defaults(func=order_graph)
 
