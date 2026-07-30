@@ -51,7 +51,7 @@ python simple_partition.py
 - Creating structured graphs (grid)
 - Computing vertex orderings
 - Applying orderings to arrays
-- Using different ordering strategies (nested dissection)
+- Using different ordering strategies (quality-flagged build)
 
 **Usage:**
 ```bash
@@ -97,7 +97,7 @@ mpirun -np 3 python distributed_coarsening.py ../external/scotch/src/check/data/
 
 **Usage:**
 ```bash
-python mesh_partitioning.py ../external/scotch/src/check/data/m4x4.msh 4
+python mesh_partitioning.py ../external/scotch/src/check/data/cube_8.msh 4
 ```
 
 **Use case:** Finite element analysis, domain decomposition
@@ -151,7 +151,7 @@ PyScotch includes Scotch test data in `external/scotch/src/check/data/`:
 - `m4x4_b1.grf` - 4x4 mesh graph
 
 **Meshes:**
-- `m4x4.msh` - 4x4 mesh
+- `cube_8.msh` - small cubic mesh
 - `m8x8.msh` - 8x8 mesh
 
 ---
@@ -175,10 +175,7 @@ graph.load("my_graph.grf")
 
 # Partition into 4 parts
 strategy = Strategies.partition_quality()
-mapping = graph.partition(4, strategy)
-
-# Get partition array
-partitions = mapping.get_partition_array()
+partitions = graph.partition(4, strategy)  # numpy array of part indices
 ```
 
 ### Distributed Graph Operations

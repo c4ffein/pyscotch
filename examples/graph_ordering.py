@@ -6,7 +6,7 @@ This example demonstrates how to compute an ordering of a graph,
 which can be used to reduce fill-in during sparse matrix factorization.
 """
 
-from pyscotch import Graph, Strategy, Ordering
+from pyscotch import Graph, Strategy, StrategyFlags, Ordering
 import numpy as np
 
 # Create a grid graph (5x5)
@@ -54,13 +54,15 @@ restored_array = ordering.apply_inverse(reordered_array)
 print(f"Restored: {restored_array[:10]}")
 print(f"Matches original: {np.array_equal(original_array, restored_array)}")
 
-# Try with nested dissection strategy
-print("\nComputing ordering with nested dissection strategy...")
+# Try with an explicitly requested quality ordering strategy
+# (Scotch's default ordering is already nested-dissection based; flags
+# tune its characteristics)
+print("\nComputing ordering with a quality-flagged strategy...")
 strategy = Strategy()
-strategy.set_nested_dissection()
+strategy.request_ordering(StrategyFlags.QUALITY)
 permutation, inverse = graph.order(strategy)
 
 ordering = Ordering(permutation, inverse)
-print(f"Nested dissection permutation: {permutation[:10]}")
+print(f"Quality-flagged permutation: {permutation[:10]}")
 
 print("\nDone!")

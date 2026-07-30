@@ -12,7 +12,7 @@ Usage:
     python mesh_partitioning.py <mesh_file> <num_parts>
 
 Example:
-    python mesh_partitioning.py ../external/scotch/src/check/data/m4x4.msh 4
+    python mesh_partitioning.py ../external/scotch/src/check/data/cube_8.msh 4
 """
 
 import sys
@@ -21,7 +21,7 @@ from pathlib import Path
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pyscotch import Mesh, Graph, Architecture, Strategies
+from pyscotch import Mesh, Strategies
 
 
 def partition_mesh(mesh_file: Path, num_parts: int):
@@ -40,21 +40,14 @@ def partition_mesh(mesh_file: Path, num_parts: int):
         return 1
     print("✓ Mesh structure validated")
 
-    # Create target architecture (complete graph with k vertices)
-    arch = Architecture.complete_graph(num_parts)
-    print(f"Target architecture: {num_parts} parts")
-
     # Create partitioning strategy
     strategy = Strategies.partition_quality()
     print("Using quality partitioning strategy")
 
     # Perform mesh partitioning
     print(f"\nPartitioning mesh into {num_parts} parts...")
-    mapping = mesh.partition(arch, strategy)
+    parttab = mesh.partition(num_parts, strategy)
     print("✓ Mesh partitioned")
-
-    # Get partition array
-    parttab = mapping.get_partition_array()
 
     # Analyze partition quality
     print("\n=== Partition Analysis ===")
@@ -74,15 +67,14 @@ def partition_mesh(mesh_file: Path, num_parts: int):
 
     # Convert mesh to graph for additional analysis
     print("\n=== Converting Mesh to Graph ===")
-    graph = Graph()
-    mesh.to_graph(graph)
+    graph = mesh.to_graph()
     print("✓ Mesh converted to graph")
 
     # Validate graph
     if not graph.check():
         print("ERROR: Converted graph validation failed!")
-        mesh.exit()
-        graph.exit()
+        graph.close()
+        mesh.close()
         return 1
     print("✓ Graph structure validated")
 
@@ -91,8 +83,8 @@ def partition_mesh(mesh_file: Path, num_parts: int):
     print(f"Graph: {vertnbr} vertices, {edgenbr} edges")
 
     # Cleanup
-    graph.exit()
-    mesh.exit()
+    graph.close()
+    mesh.close()
 
     print("\n✓ Mesh partitioning complete!")
     return 0
@@ -102,7 +94,7 @@ def main():
     if len(sys.argv) != 3:
         print(f"Usage: {sys.argv[0]} <mesh_file> <num_parts>")
         print(f"\nExample:")
-        print(f"  {sys.argv[0]} ../external/scotch/src/check/data/m4x4.msh 4")
+        print(f"  {sys.argv[0]} ../external/scotch/src/check/data/cube_8.msh 4")
         return 1
 
     mesh_file = Path(sys.argv[1])
