@@ -32,9 +32,11 @@ RING_GRF = """0
 2\t4\t0
 """
 
-# Every -s choice must produce a real partition. "multilevel" and "recursive"
-# used to pass the bare Scotch method codes "m" / "r" — incomplete strategies
-# that put every vertex in one part; they now build via SCOTCH_stratGraphMapBuild.
+# Every -s choice must produce a real partition. "recursive" used to pass the
+# bare Scotch method code "r" — an incomplete strategy that put every vertex
+# in one part; it now builds via SCOTCH_stratGraphMapBuild. "multilevel" is a
+# documented synonym of "default" (Scotch's default IS multilevel; the
+# Strategy.set_multilevel() method was removed outright).
 CLI_STRATEGIES = [
     "default",
     "quality",
@@ -184,9 +186,10 @@ class TestCliOrder:
         """Every `-s` choice of `order` must produce a real permutation.
 
         quality/fast used to be silently identical to default (their flag
-        constants were None), and nested used the bare "n" string, which
-        returns the identity (no reordering); all now build real strategies
-        via SCOTCH_stratGraphOrderBuild.
+        constants were None); both now build real strategies via
+        SCOTCH_stratGraphOrderBuild. "nested" is a documented synonym of
+        "default" (Scotch's default ordering IS nested-dissection based; it
+        used to pass the bare "n" string, which returned the identity).
         """
         out = tmp_path / f"ring.{strategy}.ord"
         r = run_cli("order", str(ring), "-s", strategy, "-o", str(out))

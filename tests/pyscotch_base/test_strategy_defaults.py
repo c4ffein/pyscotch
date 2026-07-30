@@ -10,7 +10,9 @@ strategy *is* the default.
 The methods that originally carried the bug (set_mapping_default /
 set_ordering_default) were later removed as redundant family-named aliases
 of reset(); the surviving default spellings guarded here are reset(), the
-"" synonym in the string setters, and a plain Strategy().
+None synonym in the string setters, and a plain Strategy(). "" is NOT a
+default spelling: strings are passed to Scotch verbatim, and "" is Scotch's
+do-nothing strategy (covered in test_strategy_requests.py).
 
 The pre-existing tests only asserted `strategy.strategy_string == ""`, which
 stayed true while the strategy was useless — hence these assert on behaviour.
@@ -50,7 +52,7 @@ class TestDefaultMappingStrategy:
         g1, _ = _ring()
         g2, _ = _ring()
         strat = Strategy()
-        strat.set_mapping("")  # "" is the string-setter synonym for default
+        strat.set_mapping(None)  # None is the string-setter synonym for default
         explicit = g1.partition(2, strat)
         implicit = g2.partition(2)
         assert (explicit >= 0).all() and (implicit >= 0).all()
@@ -58,11 +60,13 @@ class TestDefaultMappingStrategy:
         assert set(explicit.tolist()) == set(implicit.tolist()) == {0, 1}
 
     def test_default_strategy_keeps_string_bookkeeping(self):
-        """"" still denotes the default strategy in PyScotch's bookkeeping:
-        set_mapping("") round-trips, reset() reads back as untouched."""
+        """Bookkeeping: set_mapping(None) and reset() both read back as
+        untouched (None); a verbatim string round-trips."""
         strat = Strategy()
-        strat.set_mapping("")
-        assert strat.strategy_string == ""
+        strat.set_mapping(None)
+        assert strat.strategy_string is None
+        strat.set_mapping("r{sep=gf}")
+        assert strat.strategy_string == "r{sep=gf}"
         strat.reset()
         assert strat.strategy_string is None
 
@@ -94,7 +98,7 @@ class TestDefaultOrderingStrategy:
         g1, _ = _ring(64)
         g2, _ = _ring(64)
         strat = Strategy()
-        strat.set_ordering("")  # "" is the string-setter synonym for default
+        strat.set_ordering(None)  # None is the string-setter synonym for default
         random_reset()
         perm_explicit, _ = g1.order(strat)
         random_reset()
@@ -106,7 +110,7 @@ class TestStrategyReset:
     def test_reset_restores_default_behaviour(self):
         """A configured strategy is recoverable to the default via reset()."""
         strat = Strategy()
-        strat.set_mapping("")  # now safe: PyScotch maps "" to the default
+        strat.set_mapping("r{sep=gf}")  # a real, explicitly built strategy
         strat.reset()
         g, _ = _ring()
         part = g.partition(2, strat)
@@ -134,9 +138,11 @@ def test_cli_default_path_partitions(nparts):
 # ---------------------------------------------------------------------------
 # Every strategy PyScotch advertises must actually work.
 #
-# set_multilevel / set_recursive_bisection used to pass the bare Scotch method
-# codes "m" / "r" — incomplete strategies that put every vertex in one part.
-# They now go through SCOTCH_stratGraphMapBuild via Strategy.request_mapping.
+# set_recursive_bisection used to pass the bare Scotch method code "r" — an
+# incomplete strategy that put every vertex in one part. It now goes through
+# SCOTCH_stratGraphMapBuild via Strategy.request_mapping. (set_multilevel and
+# set_nested_dissection, which had the same bug, were removed outright: the
+# only honest implementation was an alias of the default build.)
 # ---------------------------------------------------------------------------
 def _with(method_name):
     """Build a Strategy and call one of its configuration methods."""
@@ -153,7 +159,6 @@ STRATEGY_FACTORIES = [
     ("reset", _with("reset")),
     ("partition_quality", Strategies.partition_quality),
     ("partition_fast", Strategies.partition_fast),
-    ("set_multilevel", _with("set_multilevel")),
     ("set_recursive_bisection", _with("set_recursive_bisection")),
 ]
 

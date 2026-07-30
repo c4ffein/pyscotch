@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
-Test that set_dgraph_mapping("") / set_dgraph_ordering("") select PT-Scotch's
-default strategy, mirroring the sequential set_mapping/set_ordering setters.
+Test that set_dgraph_mapping("") / set_dgraph_ordering("") pass the empty
+string to PT-Scotch verbatim, and that None selects the default strategy.
 
-At the raw C level, parsing "" installs a do-nothing method: partitioning puts
-every vertex in part 0 and ordering returns the identity permutation, because
-SCOTCH_dgraphMapCompute / SCOTCH_dgraphOrderCompute only build the real
-default strategy when the inner Strat pointer is still NULL (a parsed "" is a
-non-NULL empty strategy). PyScotch maps "" to reset-to-default so that ""
-means "default" across the whole Strategy API. There is no upstream C test for
-this; the structure mirrors the dgraph_part.py port (per-rank output
-aggregated through a shared file with barriers). All collective operations run
-before the rank-0 assertions so a failed assertion cannot deadlock the other
-ranks in a later collective call.
+At the C level, parsing "" installs a do-nothing method: partitioning puts
+every vertex in a single part and ordering returns the identity permutation,
+because SCOTCH_dgraphMapCompute / SCOTCH_dgraphOrderCompute only build the
+real default strategy when the inner Strat pointer is still NULL (a parsed ""
+is a non-NULL empty strategy). PyScotch passes strings through verbatim —
+"" means in PyScotch exactly what it means in C — while None (or a fresh
+Strategy) selects the default. There is no upstream C test for this; the
+structure mirrors the dgraph_part.py port (per-rank output aggregated through
+a shared file with barriers). All collective operations run before the rank-0
+assertions so a failed assertion cannot deadlock the other ranks in a later
+collective call.
 
 Run with: mpirun -np 2 python dgraph_strat_empty_string.py <graph_file> <output_file>
 """
@@ -51,7 +52,7 @@ def _aggregate(output_file, values, rank, size, vertglbnbr):
 
 
 def main():
-    """Test that empty-string dgraph strategies mean "default", not "do nothing"."""
+    """Test that "" dgraph strategies are verbatim do-nothing; None is default."""
     try:
         # Initialize MPI
         mpi.init()
@@ -91,20 +92,27 @@ def main():
 
         # --- Compute (collective) phase: no assertions between collectives ---
 
-        # Partition with an empty-string mapping strategy.
+        # Partition with a None mapping strategy (the default: control arm).
+        stratdef = Strategy()
+        stratdef.set_dgraph_mapping(None)
+        partloctab_default = grafdat.part(NPARTS, stratdef)
+
+        # Partition with an empty-string mapping strategy (verbatim
+        # do-nothing: every vertex ends up in a single part).
         stratdat = Strategy()
         stratdat.set_dgraph_mapping("")
         partloctab = grafdat.part(NPARTS, stratdat)
 
         # Ordering with the default strategy (precondition control: the
-        # default must reorder this graph, or the non-identity assertion on
+        # default must reorder this graph, or the identity assertion on
         # the empty-string result proves nothing).
         dorddat0 = grafdat.order_init()
         grafdat.order_compute(dorddat0)
         permloctab0 = grafdat.order_perm(dorddat0)
         grafdat.order_exit(dorddat0)
 
-        # Ordering with an empty-string ordering strategy.
+        # Ordering with an empty-string ordering strategy (verbatim
+        # do-nothing: identity permutation).
         stratdat2 = Strategy()
         stratdat2.set_dgraph_ordering("")
         dorddat = grafdat.order_init()
@@ -113,6 +121,9 @@ def main():
         grafdat.order_exit(dorddat)
 
         # Aggregate everything (barrier-sequenced shared files).
+        parts_default = _aggregate(
+            output_file.with_suffix(".dpart"), partloctab_default, rank, size, vertglbnbr
+        )
         parts = _aggregate(output_file, partloctab, rank, size, vertglbnbr)
         perm_default = _aggregate(
             output_file.with_suffix(".dord"), permloctab0, rank, size, vertglbnbr
@@ -129,23 +140,24 @@ def main():
         )
 
         if rank == 0:
-            counts = np.bincount(parts, minlength=NPARTS)
-            assert np.all(counts > 0), (
-                f"empty part(s) with set_dgraph_mapping(''): counts={counts.tolist()} "
-                "— the empty string installed a do-nothing method instead of the default"
+            counts_default = np.bincount(parts_default, minlength=NPARTS)
+            assert np.all(counts_default > 0), (
+                f"empty part(s) with set_dgraph_mapping(None): "
+                f"counts={counts_default.tolist()} — None must select the default"
+            )
+
+            assert len(set(parts.tolist())) == 1, (
+                f"set_dgraph_mapping('') must run the do-nothing method "
+                f"(every vertex in one part), got parts {sorted(set(parts.tolist()))}"
             )
 
             assert not np.array_equal(perm_default, np.arange(vertglbnbr)), (
                 "precondition: the default ordering must reorder, "
                 "or this test proves nothing"
             )
-            assert np.array_equal(np.sort(perm), np.arange(vertglbnbr)), (
-                "set_dgraph_ordering('') produced an invalid permutation"
-            )
-            assert not np.array_equal(perm, np.arange(vertglbnbr)), (
-                "set_dgraph_ordering('') returned the identity permutation "
-                "— the empty string installed a do-nothing method instead of "
-                "the default"
+            assert np.array_equal(perm, np.arange(vertglbnbr)), (
+                "set_dgraph_ordering('') must return the identity permutation "
+                "— the empty string is passed to Scotch verbatim"
             )
 
         # Clean up

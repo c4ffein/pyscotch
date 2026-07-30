@@ -125,7 +125,8 @@ class TestCustomStrategies:
         """Test that Strategies class constants are correctly defined."""
         from pyscotch import StrategyFlags
 
-        assert Strategies.DEFAULT_PARTITION == ""
+        # None selects the default; "" would be Scotch's do-nothing strategy.
+        assert Strategies.DEFAULT_PARTITION is None
         assert Strategies.RECURSIVE_BISECTION == "r"
         assert Strategies.MULTILEVEL == "m"
         # quality/fast are characteristic flags for SCOTCH_stratGraphMapBuild;
@@ -134,7 +135,7 @@ class TestCustomStrategies:
         assert Strategies.FAST_PARTITION == StrategyFlags.SPEED
         assert Strategies.QUALITY_PARTITION != Strategies.FAST_PARTITION
 
-        assert Strategies.DEFAULT_ORDER == ""
+        assert Strategies.DEFAULT_ORDER is None
         assert Strategies.NESTED_DISSECTION == "n"
         assert Strategies.SIMPLE_ORDER == "s"
         assert Strategies.MINIMUM_FILL == "c"

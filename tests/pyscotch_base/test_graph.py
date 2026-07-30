@@ -128,10 +128,8 @@ class TestStrategy:
 
         strategy.reset()
         strategy.set_recursive_bisection()
-        strategy.set_multilevel()
 
         strategy.reset()
-        strategy.set_nested_dissection()
 
 
 if __name__ == "__main__":

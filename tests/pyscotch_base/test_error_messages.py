@@ -66,6 +66,6 @@ class TestErrorCapture:
     def test_successful_operation_leaves_no_captured_errors(self):
         lib.get_scotch_messages()  # start from a clean slate
         strategy = Strategy()
-        strategy.set_mapping("")  # valid: default strategy
+        strategy.set_mapping("")  # valid parse: Scotch's do-nothing strategy
         strategy.close()
         assert lib.get_scotch_messages() == ""

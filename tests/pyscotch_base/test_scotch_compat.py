@@ -328,10 +328,14 @@ class TestStrategy:
         strategy.reset()
         assert strategy.strategy_string is None
 
-    def test_strategy_empty_string_denotes_default(self):
-        """The string setters keep "" as a synonym for the default, so
-        string-driven configuration paths round-trip."""
+    def test_strategy_none_denotes_default(self):
+        """The string setters accept None as a synonym for the default, so
+        string-driven configuration paths can express "back to default".
+        "" is NOT a synonym — it is passed to Scotch verbatim and records
+        itself like any other string."""
         strategy = Strategy()
+        strategy.set_ordering(None)
+        assert strategy.strategy_string is None
         strategy.set_ordering("")
         assert strategy.strategy_string == ""
 
@@ -345,12 +349,6 @@ class TestStrategy:
         """
         strategy = Strategy()
         strategy.set_recursive_bisection()
-        assert strategy.strategy_string is None
-
-    def test_strategy_multilevel(self):
-        """Test setting multilevel strategy (see recursive_bisection note)."""
-        strategy = Strategy()
-        strategy.set_multilevel()
         assert strategy.strategy_string is None
 
 

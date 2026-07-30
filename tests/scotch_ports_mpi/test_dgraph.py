@@ -251,12 +251,14 @@ class TestDgraphPart:
 
 
 class TestDgraphStrategyEmptyString:
-    """Empty-string dgraph strategies must mean "default", not "do nothing"."""
+    """Empty-string dgraph strategies are passed to Scotch verbatim; None
+    (or a fresh Strategy) selects the default."""
 
     def test_dgraph_strat_empty_string_2procs(self, tmp_path):
-        """set_dgraph_mapping("")/set_dgraph_ordering("") behave like the
-        default strategy: real partition (all parts used), real non-identity
-        ordering. Raw "" parses to a do-nothing method at the C level."""
+        """set_dgraph_mapping("")/set_dgraph_ordering("") behave exactly like
+        the C level: "" parses to a do-nothing method, so mapping puts every
+        vertex in a single part and ordering returns the identity permutation.
+        set_dgraph_*(None) selects the real default (control arm)."""
         graph_path = Path("external/scotch/src/check/data/bump.grf")
         _run_script("dgraph_strat_empty_string.py", 2, graph_path, tmp_path / "strat.out")
 

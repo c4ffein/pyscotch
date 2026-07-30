@@ -142,34 +142,56 @@ class TestConstructorString:
         with pytest.raises(RuntimeError, match="Failed to set mapping strategy"):
             g.partition(4, Strategy("this-is-not-a-strategy"))
 
-    def test_constructor_empty_string_is_default(self):
+    def test_constructor_empty_string_passes_through(self):
+        """Strategy("") is Scotch's do-nothing strategy, passed verbatim:
+        partitioning leaves every vertex unassigned (-1)."""
         g, nvert = _ring(20)
         part = g.partition(2, Strategy(""))
-        _assert_real_partition(part, 2, nvert)
+        assert (part == -1).all(), (
+            f"'' must be passed to Scotch verbatim (do-nothing): {part.tolist()}"
+        )
 
 
-class TestEmptyStringIsDefault:
-    def test_set_mapping_empty_partitions_everything(self):
-        """set_mapping("") means "default", not "do-nothing method".
+class TestNoneIsDefaultEmptyStringIsVerbatim:
+    """PyScotch's contract: None selects Scotch's default; every string —
+    "" included — means exactly what it means in C Scotch. "" parses into a
+    do-nothing strategy (STRATNODEEMPTY): mapping assigns nothing, ordering
+    returns the identity permutation."""
 
-        At the raw C level SCOTCH_stratGraphMap("") builds an empty method
-        that leaves every vertex at -1; PyScotch maps "" to the default
-        strategy so the documented DEFAULT_PARTITION = "" constant is safe.
-        """
+    def test_set_mapping_none_is_default(self):
         g, nvert = _ring(20)
         strat = Strategy()
-        strat.set_mapping(Strategies.DEFAULT_PARTITION)
+        strat.set_mapping(Strategies.DEFAULT_PARTITION)  # None
         part = g.partition(2, strat)
         _assert_real_partition(part, 2, nvert)
 
-    def test_set_ordering_empty_actually_reorders(self):
+    def test_set_mapping_empty_is_do_nothing(self):
+        g, nvert = _ring(20)
+        strat = Strategy()
+        strat.set_mapping("")
+        part = g.partition(2, strat)
+        assert (part == -1).all(), (
+            f"set_mapping('') must behave as in C Scotch (all -1): {part.tolist()}"
+        )
+
+    def test_set_ordering_none_is_default(self):
         g, nvert = _ring(64)
         strat = Strategy()
-        strat.set_ordering(Strategies.DEFAULT_ORDER)
+        strat.set_ordering(Strategies.DEFAULT_ORDER)  # None
         perm, _ = g.order(strat)
         assert np.array_equal(np.sort(perm), np.arange(nvert))
         assert not np.array_equal(perm, np.arange(nvert)), (
-            "set_ordering('') performed no reordering at all"
+            "set_ordering(None) performed no reordering at all"
+        )
+
+    def test_set_ordering_empty_is_identity(self):
+        g, nvert = _ring(64)
+        strat = Strategy()
+        strat.set_ordering("")
+        perm, _ = g.order(strat)
+        assert np.array_equal(perm, np.arange(nvert)), (
+            "set_ordering('') must return the identity permutation, verbatim "
+            "C Scotch behaviour"
         )
 
 
@@ -433,15 +455,30 @@ class TestEveryFlagBehaves:
         assert np.array_equal(peri[perm], np.arange(nvert))
         assert not np.array_equal(perm, np.arange(nvert))
 
-    def test_set_overlap_partitioning_empty_is_default(self):
-        """The "" -> reset-to-default branch of the overlap string setter."""
+    def test_set_overlap_partitioning_none_is_default(self):
+        """The None -> reset-to-default branch of the overlap string setter."""
+        g, nvert = _ring(32)
+        strat = Strategy()
+        strat.set_overlap_partitioning(None)
+        part = g.partition_overlap(4, strat)
+        assert len(part) == nvert
+        assert set(part.tolist()) <= {-1, 0, 1, 2, 3}
+        assert set(part.tolist()) >= {0, 1, 2, 3}, "not all parts present"
+
+    def test_set_overlap_partitioning_empty_assigns_nothing(self):
+        """"" is passed verbatim: the do-nothing strategy assigns no vertex.
+
+        SCOTCH_graphPartOvl never writes the output buffer when no method
+        runs; PyScotch pre-fills it with -1 so the degenerate result is
+        visibly all-unassigned instead of uninitialized memory."""
         g, nvert = _ring(32)
         strat = Strategy()
         strat.set_overlap_partitioning("")
         part = g.partition_overlap(4, strat)
         assert len(part) == nvert
-        assert set(part.tolist()) <= {-1, 0, 1, 2, 3}
-        assert set(part.tolist()) >= {0, 1, 2, 3}, "not all parts present"
+        assert (part == -1).all(), (
+            f"'' overlap strategy must assign nothing: {part.tolist()}"
+        )
 
 
 class TestFailedStringStaysFailed:
@@ -784,7 +821,7 @@ class TestBrokenBareStringsStayExplicit:
         part = g.partition(4, strat)
         assert len(set(part.tolist())) == 1, (
             "bare 'm' stopped being degenerate — if Scotch fixed this, "
-            "revisit the set_multilevel() docstring and QUESTIONS_FOR_SCOTCH_TEAM.md"
+            "revisit the Strategies docstring and QUESTIONS_FOR_SCOTCH_TEAM.md"
         )
 
     def test_incomplete_complex_string_is_degenerate_but_complete_works(self):
@@ -850,14 +887,3 @@ class TestBrokenBareStringsStayExplicit:
             "incomplete complex string is still a silent trap"
         )
         assert trap_is_gone_ordering("n"), "bare 'n' is still a silent trap"
-
-    def test_set_nested_dissection_reorders(self):
-        """set_nested_dissection used bare 'n', which returned the identity."""
-        g, nvert = _ring(64)
-        strat = Strategy()
-        strat.set_nested_dissection()
-        perm, _ = g.order(strat)
-        assert np.array_equal(np.sort(perm), np.arange(nvert))
-        assert not np.array_equal(perm, np.arange(nvert)), (
-            "set_nested_dissection() performed no reordering at all"
-        )
