@@ -136,11 +136,20 @@ class TestConstructorString:
         perm, _ = g.order(Strategy("s"))
         assert np.array_equal(perm, np.arange(nvert))
 
-    def test_constructor_string_parse_errors_surface(self):
-        """An invalid constructor string must fail loudly at use time, not never."""
-        g, _ = _ring(20)
-        with pytest.raises(RuntimeError, match="Failed to set mapping strategy"):
-            g.partition(4, Strategy("this-is-not-a-strategy"))
+    def test_constructor_invalid_string_fails_at_construction(self):
+        """Garbage must fail at Strategy() construction, not at first use: the
+        constructor probes the string under all three graph grammars."""
+        with pytest.raises(ValueError, match="parses under none"):
+            Strategy("this-is-not-a-strategy")
+
+    def test_constructor_hollow_string_fails_at_construction(self):
+        """A string whose every accepting grammar yields dummy slots is the
+        stratdummy trap — rejected at construction with guidance."""
+        with pytest.raises(ValueError, match="hollow"):
+            Strategy("m")
+        with pytest.raises(ValueError, match="hollow"):
+            Strategy("r{job=t,map=t,poli=S,bal=0.05}")
+        Strategy("r{sep=gf}")  # complete: accepted
 
     def test_constructor_empty_string_passes_through(self):
         """Strategy("") is Scotch's do-nothing strategy, passed verbatim:
@@ -482,36 +491,38 @@ class TestEveryFlagBehaves:
 
 
 class TestFailedStringStaysFailed:
-    """A constructor string that fails to parse must fail on EVERY use.
+    """A string that fails for an operation must fail on EVERY use.
 
-    The deferred build hands the string to the target operation at use time;
-    if the failed attempt dropped the pending string, the next call with the
-    same Strategy would silently run the default strategy — the quieter
-    sibling of the do-nothing-strategy bug."""
+    Garbage now dies at construction (see TestConstructorString), so the
+    strings that can still fail at use time are the wrong-grammar ones: valid
+    under some other family, invalid for the consuming operation. If a failed
+    attempt dropped the pending string, the next call would silently run the
+    default strategy — the quieter sibling of the do-nothing-strategy bug.
+    The error also names the grammars that DO accept the string."""
 
-    def test_failed_mapping_string_fails_again_on_retry(self):
+    def test_wrong_grammar_mapping_fails_again_on_retry(self):
         g, _ = _ring(20)
-        strat = Strategy("this-is-not-a-strategy")
-        with pytest.raises(RuntimeError, match="Failed to set mapping strategy"):
+        strat = Strategy("s")  # ordering-only
+        with pytest.raises(RuntimeError, match="Failed to set mapping strategy.*ORDERING"):
             g.partition(2, strat)
         g2, _ = _ring(20)
-        with pytest.raises(RuntimeError, match="Failed to set mapping strategy"):
+        with pytest.raises(RuntimeError, match="Failed to set mapping strategy.*ORDERING"):
             g2.partition(2, strat)
 
-    def test_failed_ordering_string_fails_again_on_retry(self):
+    def test_wrong_grammar_ordering_fails_again_on_retry(self):
         g, _ = _ring(20)
-        strat = Strategy("this-is-not-a-strategy")
-        with pytest.raises(RuntimeError, match="Failed to set ordering strategy"):
+        strat = Strategy("r{sep=gf}")  # mapping/overlap-only
+        with pytest.raises(RuntimeError, match="Failed to set ordering strategy.*MAPPING"):
             g.order(strat)
-        with pytest.raises(RuntimeError, match="Failed to set ordering strategy"):
+        with pytest.raises(RuntimeError, match="Failed to set ordering strategy.*MAPPING"):
             g.order(strat)
 
-    def test_failed_overlap_string_fails_again_on_retry(self):
+    def test_wrong_grammar_overlap_fails_again_on_retry(self):
         g, _ = _ring(20)
-        strat = Strategy("this-is-not-a-strategy")
-        with pytest.raises(RuntimeError, match="Failed to set overlap partitioning strategy"):
+        strat = Strategy("s")  # ordering-only
+        with pytest.raises(RuntimeError, match="Failed to set overlap partitioning strategy.*ORDERING"):
             g.partition_overlap(2, strat)
-        with pytest.raises(RuntimeError, match="Failed to set overlap partitioning strategy"):
+        with pytest.raises(RuntimeError, match="Failed to set overlap partitioning strategy.*ORDERING"):
             g.partition_overlap(2, strat)
 
 
