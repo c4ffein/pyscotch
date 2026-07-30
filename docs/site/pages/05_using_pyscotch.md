@@ -39,6 +39,27 @@ best, but you can tune:
 
 {% example "ex_04_strategies.py" %}
 
+A few rules worth knowing before writing your own strategies:
+
+- **The default is spelled `None`** — pass no strategy, a fresh
+  `Strategy()`, or call `strategy.reset()`. The string setters
+  (`set_mapping`, `set_ordering`, ...) also accept `None` as a synonym.
+- **Strategy strings are passed to Scotch verbatim** — a string means
+  exactly what it means in C Scotch. That includes two traps inherited
+  from the string grammar: the empty string `""` is a real *do-nothing*
+  strategy (partitioning leaves every vertex unassigned at `-1`, ordering
+  returns the identity permutation), and bare method codes such as `"r"`,
+  `"m"`, `"n"`, `"c"` parse successfully but run with do-nothing internals
+  (every vertex in one part / no reordering). Even parameterized strings
+  that omit a sub-strategy (e.g. `sep=`) degenerate silently — when
+  hand-writing strings, verify the output, or prefer the flag-based API.
+- **The flag-based API is complete by construction**:
+  `strategy.request_mapping(StrategyFlags.QUALITY)`,
+  `request_ordering(...)`, and the `Strategies.partition_quality()` /
+  `partition_fast()` / `order_quality()` / `order_fast()` presets build
+  real strategies through `SCOTCH_stratGraphMapBuild` /
+  `OrderBuild`.
+
 ## 3. Graph Coloring
 
 Coloring assigns colors to vertices such that no two adjacent vertices

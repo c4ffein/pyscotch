@@ -1,7 +1,7 @@
 # PyScotch Roadmap
 
-**Version:** 0.1.0 (Alpha) → 0.2.0 (Target)
-**Last Updated:** 2025-11-18
+**Version:** 7.0.0 (released 2026-07-13; versions mirror the supported Scotch series)
+**Last Updated:** 2026-07-28 (status sections; the phase/version-target sections below predate the 7.0.0 release and are kept as history)
 
 This document provides an honest assessment of what's implemented, what's in progress, and what's planned for PyScotch.
 
@@ -44,10 +44,19 @@ This document provides an honest assessment of what's implemented, what's in pro
 
 ### Supporting Classes
 - ✅ **Strategy** - Partitioning/ordering strategies
-  - `Strategy.reset()` (back to the default; family-agnostic)
+  - `Strategy.reset()` (back to the default; family-agnostic; the string
+    setters accept `None` as a synonym — strings, `""` included, are passed
+    to Scotch verbatim)
+  - `Strategy.set_mapping()` / `set_ordering()` / `set_overlap_partitioning()`
+    and the dgraph variants (strategy strings)
+  - `Strategy.request_mapping()` / `request_ordering()` + `StrategyFlags`
+    (flag-based builds, recommended)
+  - `Strategy.built_for_mapping()` / `built_for_ordering()` /
+    `built_for_overlap()` (materialized handles for tight loops)
   - `Strategy.set_recursive_bisection()`
-  - `Strategy.set_multilevel()`
-  - `Strategy.set_nested_dissection()`
+  - (`set_multilevel()` / `set_nested_dissection()` were removed: Scotch's
+    default IS multilevel / nested-dissection based, so they could only ever
+    alias the default build — see CHANGELOG)
 - ✅ **Strategies** - Pre-defined strategy factories
   - `Strategies.partition_quality()`
   - `Strategies.partition_fast()`
@@ -99,9 +108,9 @@ This document provides an honest assessment of what's implemented, what's in pro
 - ❌ **Stress tests** - No large-scale testing
 
 ### Missing Infrastructure
-- ❌ **Command-Line Interface** - Documented but not implemented
-- ❌ **Examples directory** - Referenced but missing
-- ❌ **Documentation examples** - Need real working examples
+- ✅ **Command-Line Interface** - Implemented (`pyscotch` command: partition/order/check/info/doctor/scotch)
+- ✅ **Examples directory** - `examples/` with 5 runnable scripts + README
+- ✅ **Documentation examples** - docs site embeds executed examples (`docs/site/examples/`)
 
 ---
 
@@ -113,8 +122,8 @@ Despite `libpyscotch_compat.so`, **9 tests still blocked** by FILE* issues:
 - Need investigation to determine workarounds
 
 ### Documentation Issues
-- ✅ **FIXED**: API.md now warns CLI is not implemented
-- ⚠️ **REMAINING**: Need examples/ directory with working code
+- ✅ **FIXED**: CLI implemented and documented in API.md
+- ✅ **FIXED**: examples/ directory exists with working code
 - ⚠️ **REMAINING**: Some documented workflows need validation
 
 ---
@@ -153,12 +162,8 @@ Despite `libpyscotch_compat.so`, **9 tests still blocked** by FILE* issues:
 ### Phase 4: User Experience (Priority 4)
 **Goal:** Make library easy to use
 
-- [ ] Create `examples/` directory
-  - `simple_partition.py`
-  - `distributed_coarsening.py`
-  - `mesh_partitioning.py`
-  - `graph_ordering.py`
-- [ ] Implement CLI (optional, documented in API.md)
+- [x] Create `examples/` directory (5 scripts + README, incl. `hello_pyscotch.py`)
+- [x] Implement CLI (documented in API.md)
 - [ ] Add Jupyter notebook tutorials
 
 ### Phase 5: Production Hardening (Priority 5)
@@ -201,9 +206,9 @@ Despite `libpyscotch_compat.so`, **9 tests still blocked** by FILE* issues:
 | **Distributed Graph Ops** | 12/12 | 100% | ✅ Complete ⭐ NEW! |
 | **MPI Tests** | 11/11 | 100% | ✅ Complete ⭐ NEW! |
 | **Support Classes** | 5/5 | 100% | ✅ Complete |
-| **Integration Tests** | 0/3 | 0% | ❌ Not Started |
+| **Integration Tests** | — | — | ✅ Golden-master CI (full sdist journey) |
 | **Performance Tests** | 0/3 | 0% | ❌ Not Started |
-| **CLI** | 0/1 | 0% | ❌ Not Started |
+| **CLI** | 1/1 | 100% | ✅ Complete (with golden-master coverage) |
 
 **Overall Completion: ~80%** 🎯
 

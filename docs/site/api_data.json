@@ -3,7 +3,7 @@
   "declared": 179,
   "direct": 105,
   "exposed": 121,
-  "helpers": 25,
+  "helpers": 23,
   "python": 17,
   "undecorated": 0
  },
@@ -109,7 +109,6 @@
     },
     {
      "c_functions": [
-      "SCOTCH_randomReset",
       "SCOTCH_graphMapInit",
       "SCOTCH_graphMapCompute",
       "SCOTCH_graphMapExit"
@@ -136,7 +135,6 @@
     },
     {
      "c_functions": [
-      "SCOTCH_randomReset",
       "SCOTCH_graphColor"
      ],
      "c_label": "Wraps",
@@ -544,7 +542,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "set_mapping",
-     "signature": "(strategy_string: str) -> None",
+     "signature": "(strategy_string: str | None) -> None",
      "summary": "Set a mapping/partitioning strategy from a string."
     },
     {
@@ -556,7 +554,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "set_ordering",
-     "signature": "(strategy_string: str) -> None",
+     "signature": "(strategy_string: str | None) -> None",
      "summary": "Set an ordering strategy from a string."
     },
     {
@@ -568,7 +566,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "set_overlap_partitioning",
-     "signature": "(strategy_string: str) -> None",
+     "signature": "(strategy_string: str | None) -> None",
      "summary": "Set an overlap-partitioning strategy from a string."
     },
     {
@@ -580,7 +578,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "set_dgraph_mapping",
-     "signature": "(strategy_string: str) -> None",
+     "signature": "(strategy_string: str | None) -> None",
      "summary": "Set a parallel (PT-Scotch) mapping/partitioning strategy from a string."
     },
     {
@@ -592,7 +590,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "set_dgraph_ordering",
-     "signature": "(strategy_string: str) -> None",
+     "signature": "(strategy_string: str | None) -> None",
      "summary": "Set a parallel (PT-Scotch) ordering strategy from a string."
     },
     {
@@ -715,30 +713,6 @@
      "name": "set_recursive_bisection",
      "signature": "() -> None",
      "summary": "Set recursive bisection strategy for partitioning."
-    },
-    {
-     "c_functions": [
-      "SCOTCH_stratGraphMapBuild"
-     ],
-     "c_label": "Wraps",
-     "is_property": false,
-     "level": "high-level helper",
-     "level_css": "helper",
-     "name": "set_multilevel",
-     "signature": "() -> None",
-     "summary": "Set multilevel strategy for partitioning."
-    },
-    {
-     "c_functions": [
-      "SCOTCH_stratGraphOrderBuild"
-     ],
-     "c_label": "Wraps",
-     "is_property": false,
-     "level": "high-level helper",
-     "level_css": "helper",
-     "name": "set_nested_dissection",
-     "signature": "() -> None",
-     "summary": "Set nested dissection strategy for ordering."
     },
     {
      "c_functions": [],

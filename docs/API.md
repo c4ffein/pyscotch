@@ -70,25 +70,46 @@ The `Strategy` class controls how operations are performed.
 #### Creating Strategies
 
 ```python
-from pyscotch import Strategy, Strategies
+from pyscotch import Strategy, Strategies, StrategyFlags
 
 # Default strategy (a fresh Strategy IS Scotch's default;
-# reset() returns any configured Strategy to this state)
+# reset() returns any configured Strategy to this state,
+# and the string setters accept None as a synonym)
 strategy = Strategy()
 
-# Set mapping strategy
-strategy.set_recursive_bisection()
-strategy.set_multilevel()
+# Flag-based requests (recommended): built with the right part count
+# by the operation that consumes them
+strategy.request_mapping(StrategyFlags.QUALITY | StrategyFlags.SAFETY)
+strategy.request_ordering(StrategyFlags.SPEED)
 
-# Set ordering strategy
+# Strategy strings, passed to Scotch verbatim
 strategy.reset()
-strategy.set_nested_dissection()
+strategy.set_mapping("r{sep=gf}")
 
 # Use pre-defined strategies
 strategy = Strategies.partition_quality()
 strategy = Strategies.partition_fast()
 strategy = Strategies.order_quality()
 strategy = Strategies.order_fast()
+```
+
+**Strategy strings are verbatim.** Any string you pass means exactly what it
+means in C Scotch — including the traps: `""` is a *do-nothing* strategy
+(mapping leaves every vertex at -1, ordering returns the identity
+permutation), and bare method codes (`"r"`, `"m"`, `"n"`, `"c"`) parse but
+run with do-nothing internals. Use `None` / a fresh `Strategy()` / `reset()`
+for the default, and prefer the flag-based API when hand-writing full
+strings isn't necessary. See `docs/STRATEGY_DESIGN.md`.
+
+For tight loops over small graphs, `built_for_mapping(nparts)` /
+`built_for_ordering()` / `built_for_overlap(nparts)` materialize a strategy
+once into a handle that skips the per-call build inside a with-block:
+
+```python
+strategy = Strategies.partition_quality()
+with strategy.built_for_mapping(64) as built:
+    for g in graphs:
+        parts = g.partition(64, built)
 ```
 
 ### Architecture
@@ -231,8 +252,8 @@ Parallel strategies are set through `Strategy`:
 from pyscotch import Strategy
 
 strat = Strategy()
-strat.set_dgraph_mapping("...")                  # SCOTCH_stratDgraphMap
-strat.set_dgraph_ordering("...")                 # SCOTCH_stratDgraphOrder
+strat.set_dgraph_mapping("...")                  # SCOTCH_stratDgraphMap (None = default; "" is verbatim do-nothing)
+strat.set_dgraph_ordering("...")                 # SCOTCH_stratDgraphOrder (same semantics)
 strat.build_dgraph_mapping(0, procnbr, partnbr, 0.05)
 strat.build_dgraph_ordering(0, procnbr, 0, 0.2)
 strat.build_dgraph_clustering(0, procnbr, 1, 1.0, 0.05)
@@ -255,8 +276,8 @@ pyscotch partition input.grf -n 4 --strategy fast
 
 ```bash
 pyscotch order input.grf -o output.ord
-pyscotch order input.grf --strategy nested
 pyscotch order input.grf --strategy quality
+pyscotch order input.grf --strategy nested  # synonym of default
 ```
 
 ### Check Graph

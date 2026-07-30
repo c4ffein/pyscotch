@@ -1,170 +1,99 @@
 # Strategy Design Documentation
 
-## Overview
+How PyScotch models Scotch strategies, and the design decisions behind it.
+The API reference lives in `docs/API.md` and the docstrings of
+`pyscotch/strategy.py`; this document explains *why* the API is shaped the
+way it is.
 
-The `Strategies` class provides convenient presets for graph partitioning and ordering operations. This document explains the design decisions and how to use custom strategies.
+## The contract
 
-## Design Philosophy
+1. **`None` (or a fresh `Strategy()`, or `reset()`) means "Scotch's default
+   strategy".** At the C level, a freshly `SCOTCH_stratInit`-ed strategy
+   holds a NULL internal pointer; each compute routine that receives one
+   builds its own adaptive default (tailored to the operation, part count,
+   etc.). PyScotch keeps that meaning and spells it `None`.
+2. **Every string is passed to Scotch verbatim — the same string means the
+   same thing in PyScotch and in C Scotch.** PyScotch never rewrites,
+   completes, or reinterprets a strategy string. This includes the empty
+   string: see the traps below.
+3. **Flag-based builds** (`request_mapping`, `request_ordering`,
+   `StrategyFlags`) wrap `SCOTCH_stratGraphMapBuild` /
+   `SCOTCH_stratGraphOrderBuild` — Scotch's own high-level templates. These
+   are the recommended way to express "quality" / "speed" / "recursive"
+   intent, because they are complete by construction.
 
-### Use Scotch's Built-in Defaults
+## Known traps in the string grammar
 
-The recommended approach is to let Scotch use its **intelligent adaptive defaults** by passing `None` or an uninitialized `Strategy()`:
+These are upstream behaviours, reproduced verbatim per rule 2 (see
+`QUESTIONS_FOR_SCOTCH_TEAM.md` for the questions raised with the Scotch
+team):
 
-```python
-from pyscotch import Graph, Strategies
+- **`""` is a real, do-nothing strategy — not the default.** Mapping leaves
+  every vertex unassigned (-1); dgraph mapping puts every vertex in a single
+  part (which can look valid); ordering returns the identity permutation;
+  overlap partitioning assigns nothing (PyScotch pre-fills the output with
+  -1 so this is visible). Use `None` for the default.
+- **Implicit sub-strategies are do-nothing dummies.** Bare method codes —
+  `"r"`, `"m"` (mapping), `"n"`, `"c"` (ordering) — parse successfully but
+  run with `stratdummy` internals: one part gets everything / the identity
+  permutation comes back. Even parameterized strings are affected:
+  `"r{job=t,map=t,poli=S,bal=0.05}"` omits `sep=` and silently degenerates,
+  while `"r{sep=gf}"` works. PyScotch cannot detect incompleteness (the
+  parse succeeds); verify outputs when hand-writing strings, or prefer the
+  flag-based API.
+- `"s"` (simple/natural ordering) is fine on its own — the natural order is
+  exactly what it means.
 
-graph = Graph()
-graph.load("graph.grf")
+## Deferred builds
 
-# Recommended: Use Scotch's adaptive defaults
-strategy = Strategies.partition_quality()  # Returns Strategy() without set_mapping()
-partitions = graph.partition(4, strategy)
+`Strategy("...")` and `request_mapping`/`request_ordering` do not touch the
+underlying `SCOTCH_Strat` at configuration time:
 
-# Or even simpler:
-partitions = graph.partition(4)  # Uses defaults automatically
-```
+- Constructor strings cannot be parsed early because mapping and ordering
+  use different grammars — only the consuming operation knows which one
+  applies.
+- Flag-based mapping builds need the part count, which is only known at
+  `graph.partition(nparts, ...)` time.
 
-### Why None Instead of Complex Strings?
+The consuming operation therefore builds the recorded request into a
+**private per-call strat** (~100 µs, negligible). Using a Strategy never
+mutates it, so one Strategy can be shared across part counts and threads.
+This also protects against an upstream subtlety: Scotch's implicit-default
+build writes itself *into* the strategy object it is handed (the manual
+documents this), which would otherwise leak a partnbr-pinned strategy into a
+shared object.
 
-The original code attempted to hardcode complex strategy strings like:
-```python
-QUALITY_PARTITION = "m{vert=100,low=h{pass=10},asc=b{...}}"  # BROKEN - syntax error
-```
+Operations that cannot build a recorded request (dgraph and mesh operations
+consume the raw strat) raise instead of silently running the default — use
+`set_dgraph_mapping` / `set_dgraph_ordering` for those.
 
-**Problems with this approach:**
+For tight loops, `built_for_mapping` / `built_for_ordering` /
+`built_for_overlap` materialize the strategy once into a `BuiltStrategy`
+handle valid inside a with-block, pinned to one operation family (and part
+count) and cross-checked at every use.
 
-1. **Syntax errors**: The original strings had bugs (missing method chaining after `h{pass=10}`)
-2. **Version-dependent**: Scotch's strategy syntax evolves between versions
-3. **Context-dependent**: Optimal parameters depend on graph size, structure, and hardware
-4. **Maintenance burden**: We'd need to keep these strings in sync with Scotch updates
+## Presets
 
-**Solution:** Set quality/fast strategies to `None` and let Scotch decide.
+`Strategies.partition_quality()` / `partition_fast()` / `order_quality()` /
+`order_fast()` are flag builds (`QUALITY` / `SPEED`) — real, distinct
+strategies, not aliases of the default.
 
-## How Scotch Handles Strategies
-
-### Internal Strategy Building
-
-When you use Scotch's C API with quality flags, it builds complex strategies internally:
-
-```c
-// From library_graph_map.c
-SCOTCH_stratGraphMapBuild(&strat, SCOTCH_STRATQUALITY, nparts, balance);
-// This internally builds:
-// "m{vert=120,low=h{pass=10}f{bal=0.05,move=120},asc=b{...}}"
-```
-
-Scotch considers:
-- Graph size (vertex count, edge count)
-- Number of partitions
-- Balance requirements
-- Platform capabilities
-
-### Strategy Initialization Modes
-
-1. **`SCOTCH_stratInit()` only** - Uses Scotch's adaptive defaults (recommended)
-2. **`SCOTCH_stratGraphMapBuild()`** - Uses predefined templates with flags
-3. **`SCOTCH_stratGraphMap()` with string** - Custom strategy string
-
-PyScotch's `Strategy()` without `set_mapping()` corresponds to mode 1.
-
-## Custom Strategy Strings
-
-For advanced users who need fine-grained control, custom strategy strings can be provided.
-
-### Basic Syntax
-
-```python
-from pyscotch import Strategy
-
-strategy = Strategy()
-strategy.set_mapping("r")  # Recursive bisection
-# or
-strategy.set_mapping("m")  # Multilevel
-```
-
-### Strategy String Reference
-
-| String | Method | Description |
-|--------|--------|-------------|
-| `""`   | Default | Scotch's adaptive defaults |
-| `"r"`  | Recursive bisection | Fast, reasonable quality |
-| `"m"`  | Multilevel | Better quality, slower |
-| `"n"`  | Nested dissection | For ordering |
-| `"s"`  | Simple | Fast ordering |
-| `"c"`  | Minimum fill | For ordering |
-
-### Advanced Syntax
-
-Complex strategies follow this pattern:
-```
-method{param1=value1,param2=value2,...}
-```
-
-Methods can be **chained** together (no spaces):
-```
-"m{vert=120,low=h{pass=10}f{bal=0.05,move=120},asc=b{...}}"
-              ^^^^^^^^^^^^^ h and f are chained, no comma between them
-```
-
-**Key insight from Scotch source:** After `h{pass=10}` you **must** chain another method like `f{...}` (Fiduccia-Mattheyses). The original pyscotch code had `h{pass=10},` which is invalid.
-
-### Working Examples from Scotch
-
-From `external/scotch/src/libscotch/library_graph_map.c`:
-
-```c
-// Recursive with parameters
-"r{job=t,map=t,poli=S,bal=0.05}"
-
-// Multilevel with chained methods
-"m{vert=120,low=h{pass=10}f{bal=0.05,move=120},asc=b{bnd=f{bal=0.05,move=120}}}"
-```
-
-## Testing Custom Strategies
-
-See `tests/pyscotch_base/test_custom_strategies.py` for examples:
-
-```python
-def test_custom_strategy():
-    strategy = Strategy()
-    # Multilevel with vertex threshold
-    strategy.set_mapping("m{vert=100}")
-
-    partitions = graph.partition(4, strategy)
-    # ...validate results...
-```
-
-## Migration Guide
-
-If you were using the old `Strategies.partition_quality()`:
-
-### Before (Broken)
-```python
-strategy = Strategies.partition_quality()
-# This tried to use: "m{vert=100,low=h{pass=10},...}"  # INVALID SYNTAX
-```
-
-### After (Fixed)
-```python
-strategy = Strategies.partition_quality()
-# Now returns: Strategy() without set_mapping() - uses Scotch's adaptive defaults
-```
-
-**Result:** Better quality partitions because Scotch's internal heuristics are more sophisticated than any hardcoded string.
+`set_recursive_bisection()` uses the genuine `RECURSIVE` flag. There are no
+`set_multilevel()` / `set_nested_dissection()` counterparts: Scotch's default
+*is* multilevel / nested-dissection-based and the `SCOTCH_strat*Build` API
+has no flag to select them explicitly, so those helpers (which 7.0.0 shipped
+broken, passing the bare `"m"` / `"n"` strings) could only ever alias the
+default build — they were removed rather than kept as misleading no-ops.
+Spell "default" as a plain `Strategy()`. (The CLI keeps `-s multilevel` /
+`-s nested` as documented synonyms of `default`: there the word names the
+algorithm the user gets, which really is multilevel / nested dissection.)
 
 ## References
 
-- Scotch strategy source: `external/scotch/src/libscotch/library_graph_map.c`
-- Scotch documentation: `external/scotch/doc/scotch_user7.0.pdf`
-- Test examples: `external/scotch/src/check/test_scotch_graph_map.c`
-- PyScotch tests: `tests/pyscotch_base/test_custom_strategies.py`
-
-## Summary
-
-| Approach | When to Use | Example |
-|----------|-------------|---------|
-| **None/default** | Most users (recommended) | `graph.partition(4)` |
-| **Simple strings** | Basic control over method | `strategy.set_mapping("r")` |
-| **Complex strings** | Advanced tuning (experts only) | `strategy.set_mapping("m{vert=120,...}")` |
-
-**Recommendation:** Start with defaults. Only use custom strategies if profiling shows a need and you understand Scotch's strategy language.
+- `pyscotch/strategy.py` — implementation and docstrings
+- `QUESTIONS_FOR_SCOTCH_TEAM.md` — open upstream questions (empty string,
+  bare method codes, `SCOTCH_stratFree`)
+- `external/scotch/src/libscotch/library_graph_map.c` — implicit default
+  build; `parser_yy.y` — the grammar's empty production
+- `tests/pyscotch_base/test_strategy_requests.py`,
+  `test_strategy_defaults.py` — behavioural pins for everything above

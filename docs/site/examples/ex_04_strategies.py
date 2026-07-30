@@ -20,12 +20,13 @@ def make_grid(n):
 with make_grid(10) as graph:
     vertnbr, _ = graph.size()
 
-    # Quality preset: Scotch adaptive defaults, optimized for partition quality
+    # Quality preset: built via SCOTCH_stratGraphMapBuild with the QUALITY
+    # flag — quality privileged over speed
     random_reset()
     with Strategies.partition_quality() as strat:
         parts_q = graph.partition(nparts=8, strategy=strat)
 
-    # Fast preset: same defaults, balanced for speed
+    # Fast preset: the SPEED flag — speed privileged over quality
     random_reset()
     with Strategies.partition_fast() as strat:
         parts_f = graph.partition(nparts=8, strategy=strat)
