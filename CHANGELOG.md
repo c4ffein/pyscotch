@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Fail-fast strategy-string checking
+- `Strategy(string)` now probes the string under all three sequential-graph
+  grammars (mapping, ordering, overlap) at construction: strings that parse
+  under none raise `ValueError` immediately, and so do *hollow* strings —
+  ones that parse but leave strategy-valued slots as do-nothing dummies (bare
+  `"m"`, or `"r{job=t,map=t,poli=S,bal=0.05}"` which omits `sep=`). Hollow
+  slots are detected by round-tripping through `SCOTCH_stratSave`, which
+  serializes them as empty parameters — the library itself is the detector.
+  `""` keeps its documented verbatim pass-through. Wrong-grammar use errors
+  now name the grammars that DO accept the string ("valid under the ORDERING
+  grammar only").
+
+### Added - Typed strategy-grammar builder (`pyscotch.strategy_grammar`)
+- Compose strategy strings as typed trees — `Mapping.Multilevel(low=
+  Mapping.Recursive(sep=Seq(Bipart.Gg(), Bipart.Fm())), asc=Mapping.Fm())` —
+  rendering to plain Scotch grammar strings (`str(tree)`). Strategy-valued
+  parameters are *required* arguments, so stratdummy slots are
+  unrepresentable; numeric/case parameters render only when set, so Scotch's
+  own defaults always apply. Four namespaces mirror the `*_st.c` method
+  tables (`Mapping`, `Bipart`, `Ordering`, `Separation`, 29 methods, named
+  after upstream's routine suffixes), plus `Seq`/`Select` combinators and the
+  `Raw` escape hatch. `tree.validate()` parses with the live library and
+  returns the canonical form; a drift-guard test renders every method against
+  the live parser so upstream grammar changes turn the suite red.
+
+### Added - Differential testing against Scotch's own tools
+- `tests/pyscotch_base/test_differential_gpart.py`: under deterministic
+  settings, PyScotch's partition of a graph is **byte-identical to `gpart`'s
+  mapping file** (opt-in via `PYSCOTCH_GPART`). First run caught a real bug —
+  see Fixed below.
+- `Graph.load(filename, baseval=0)` gained the `baseval` parameter with
+  `SCOTCH_graphLoad`'s exact semantics: `-1` preserves the file's own vertex
+  numbering base like the C tools do (default `0` still rebases).
+
+### Fixed
+- `Graph.save_mapping` now labels vertices with the graph's base value, as
+  `gpart`/`gmap` do; a mapping saved for a based graph previously used
+  0-based labels and could not be paired with its graph by Scotch tools.
+
 ### Changed - Strategy semantics: None is the default, strings are verbatim
 - **The default strategy is spelled `None` (or a fresh `Strategy()`, or
   `reset()`); every string — `""` included — is passed to Scotch verbatim.**
