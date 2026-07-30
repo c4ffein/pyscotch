@@ -2,6 +2,9 @@
 Strategy class for PT-Scotch operations.
 """
 
+import os
+import re
+import tempfile
 from contextlib import contextmanager
 from ctypes import byref, c_char_p
 from enum import IntFlag
@@ -61,6 +64,87 @@ def _ephemeral_strat():
         lib.SCOTCH_stratExit(byref(strat))
 
 
+# A strategy-valued parameter serialized EMPTY by SCOTCH_stratSave (e.g.
+# "sep=}" or "asc=,") is a stratdummy slot: the strategy parses and runs but
+# that stage does nothing (one-part partitions, identity orderings).
+_HOLLOW_SLOT_RE = re.compile(r"[a-z]+=(?=[,}])")
+
+
+@contextmanager
+def _quiet_stderr():
+    """Silence C-level stderr writes during grammar probes.
+
+    Probing a string under the grammar it was NOT meant for makes Scotch's
+    parser print an error; that is expected probe noise, not a diagnostic.
+    fd-level redirection covers builds without the error-capture shim.
+    """
+    saved = os.dup(2)
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    try:
+        os.dup2(devnull, 2)
+        yield
+    finally:
+        os.dup2(saved, 2)
+        os.close(devnull)
+        os.close(saved)
+
+
+def _saved_form(stratdat) -> str:
+    """Serialize a parsed strategy back to its canonical string (stratSave)."""
+    from .graph import c_fopen
+
+    fd, path = tempfile.mkstemp(suffix=".strat")
+    os.close(fd)
+    try:
+        with c_fopen(path, "w") as fp:
+            lib.SCOTCH_stratSave(byref(stratdat), fp)
+        with open(path) as fh:
+            return fh.read()
+    finally:
+        os.unlink(path)
+
+
+def _probe_graph_string(string: str) -> dict:
+    """Classify a strategy string under each sequential-graph grammar.
+
+    Returns {"mapping": s, "ordering": s, "overlap": s} with s in {"ok",
+    "hollow", "invalid"}. "hollow" means the string parses but at least one
+    strategy-valued slot is a do-nothing dummy — detected by round-tripping
+    through SCOTCH_stratSave (public API; the library itself serializes dummy
+    slots as empty parameters).
+    """
+    result = {}
+    probes = (
+        ("mapping", lib.SCOTCH_stratGraphMap),
+        ("ordering", lib.SCOTCH_stratGraphOrder),
+        ("overlap", lib.SCOTCH_stratGraphPartOvl),
+    )
+    for family, parse in probes:
+        with _ephemeral_strat() as strat:
+            with _quiet_stderr():
+                rc = parse(byref(strat), c_char_p(string.encode("utf-8")))
+            if rc != 0:
+                result[family] = "invalid"
+                continue
+            saved = _saved_form(strat)
+            hollow = not saved.strip() or _HOLLOW_SLOT_RE.search(saved)
+            result[family] = "hollow" if hollow else "ok"
+    return result
+
+
+def _grammar_hint(probe, family: str) -> str:
+    """Suffix for a parse-failure error: which OTHER grammars accept the string."""
+    if probe is None:
+        return ""
+    others = [f for f, status in probe.items() if f != family and status == "ok"]
+    if not others:
+        return ""
+    return (
+        f" (the string is valid under the {'/'.join(f.upper() for f in others)} "
+        f"grammar{'s' if len(others) > 1 else ''} only — not for this operation)"
+    )
+
+
 class Strategy:
     """
     Represents a strategy for graph operations (partitioning, ordering, etc.).
@@ -117,8 +201,30 @@ class Strategy:
         # _strat_data; False means _strat_data is still empty.
         self._configured = False
         self._strategy_string = strategy_string
+        # Probe result for a constructor string ({"mapping": ..., "ordering":
+        # ...}); None when no string was given (or for "", see below).
+        self._probe = None
         if strategy_string is not None:  # None means "Scotch's default"
             self._pending = ("string", strategy_string)
+            if strategy_string != "":
+                # Fail on the dumbest errors NOW rather than at first use.
+                # "" is exempt: its verbatim do-nothing pass-through is a
+                # documented, tested semantic (see the docstring above).
+                self._probe = _probe_graph_string(strategy_string)
+                if all(v == "invalid" for v in self._probe.values()):
+                    raise ValueError(
+                        f"Invalid strategy string {strategy_string!r}: it parses "
+                        "under none of the mapping, ordering, or overlap grammars."
+                    )
+                if "ok" not in self._probe.values():
+                    raise ValueError(
+                        f"Strategy string {strategy_string!r} parses but is hollow: "
+                        "every strategy-valued parameter left implicit is a "
+                        "do-nothing dummy, so it would silently produce one-part "
+                        "partitions / identity orderings. Spell out the "
+                        "sub-strategies (e.g. \"r{sep=gf}\"), or use the flag "
+                        "API (request_mapping/request_ordering)."
+                    )
 
     @property
     def _strat(self):
@@ -594,12 +700,20 @@ class Strategy:
             # The pending string is re-parsed per call and never cleared, so
             # a bad string re-raises on EVERY use instead of silently running
             # the default strategy.
+            if self._probe is not None and self._probe.get("mapping") == "hollow":
+                raise ValueError(
+                    f"Strategy string {self._pending[1]!r} is hollow under the "
+                    "mapping grammar (do-nothing dummy slots): it would silently "
+                    "produce a one-part partition. Spell out the sub-strategies "
+                    "or use request_mapping()."
+                )
             with _ephemeral_strat() as strat:
                 ret = lib.SCOTCH_stratGraphMap(
                     byref(strat), c_char_p(self._pending[1].encode("utf-8"))
                 )
                 if ret != 0:
-                    raise lib.scotch_error("Failed to set mapping strategy", ret)
+                    hint = _grammar_hint(self._probe, "mapping")
+                    raise lib.scotch_error("Failed to set mapping strategy" + hint, ret)
                 yield strat
         elif kind == "map_flags":
             _, flags, balance, _pin = self._pending
@@ -640,12 +754,20 @@ class Strategy:
         kind = self._pending[0]
         if kind == "string":
             # See _materialized_mapping: a bad string re-raises on every use.
+            if self._probe is not None and self._probe.get("ordering") == "hollow":
+                raise ValueError(
+                    f"Strategy string {self._pending[1]!r} is hollow under the "
+                    "ordering grammar (do-nothing dummy slots): it would silently "
+                    "return the identity permutation. Spell out the "
+                    "sub-strategies or use request_ordering()."
+                )
             with _ephemeral_strat() as strat:
                 ret = lib.SCOTCH_stratGraphOrder(
                     byref(strat), c_char_p(self._pending[1].encode("utf-8"))
                 )
                 if ret != 0:
-                    raise lib.scotch_error("Failed to set ordering strategy", ret)
+                    hint = _grammar_hint(self._probe, "ordering")
+                    raise lib.scotch_error("Failed to set ordering strategy" + hint, ret)
                 yield strat
         elif kind == "order_flags":
             _, flags, levels, balance = self._pending
@@ -685,13 +807,20 @@ class Strategy:
         kind = self._pending[0]
         if kind == "string":
             # See _materialized_mapping: a bad string re-raises on every use.
+            if self._probe is not None and self._probe.get("overlap") == "hollow":
+                raise ValueError(
+                    f"Strategy string {self._pending[1]!r} is hollow under the "
+                    "overlap grammar (do-nothing dummy slots). Spell out the "
+                    "sub-strategies or use request_overlap()."
+                )
             with _ephemeral_strat() as strat:
                 ret = lib.SCOTCH_stratGraphPartOvl(
                     byref(strat), c_char_p(self._pending[1].encode("utf-8"))
                 )
                 if ret != 0:
+                    hint = _grammar_hint(self._probe, "overlap")
                     raise lib.scotch_error(
-                        "Failed to set overlap partitioning strategy", ret
+                        "Failed to set overlap partitioning strategy" + hint, ret
                     )
                 yield strat
         elif kind == "map_flags":

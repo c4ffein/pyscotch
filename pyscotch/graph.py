@@ -216,7 +216,7 @@ class Graph:
     @scotch_binding(
         "SCOTCH_graphLoad", "int SCOTCH_graphLoad(SCOTCH_Graph *, FILE *, SCOTCH_Num, SCOTCH_Num)"
     )
-    def load(self, filename: Union[str, Path]) -> None:
+    def load(self, filename: Union[str, Path], baseval: int = 0) -> None:
         """
         Load a graph from a file in Scotch graph format.
 
@@ -224,6 +224,12 @@ class Graph:
 
         Args:
             filename: Path to the graph file (.grf format)
+            baseval: Vertex numbering base, with SCOTCH_graphLoad's exact
+                semantics: 0 (the default) rebases the graph to 0-based
+                indexing regardless of the file's base — the Python-friendly
+                behaviour; -1 preserves the file's own base, like Scotch's C
+                tools (gpart, gord) do — required for mapping files that must
+                pair byte-for-byte with a based graph.
 
         Raises:
             FileNotFoundError: If the file doesn't exist
@@ -235,12 +241,10 @@ class Graph:
             raise FileNotFoundError(f"Graph file not found: {filename}")
 
         # Use our compat layer - guarantees ABI compatibility with Scotch
-        # Note: baseval=0 forces 0-based indexing regardless of file content.
-        # This is intentional — the Python API consistently uses 0-based indices.
-        # Use -1 to preserve the file's original base value if needed.
         with c_fopen(str(filename), "r") as file_ptr:
-            baseval = lib.SCOTCH_Num(0)
-            ret = lib.SCOTCH_graphLoad(byref(self._graph), file_ptr, baseval, 0)
+            ret = lib.SCOTCH_graphLoad(
+                byref(self._graph), file_ptr, lib.SCOTCH_Num(baseval), 0
+            )
 
             if ret != 0:
                 raise lib.scotch_error(f"Failed to load graph from {filename}", ret)
@@ -1097,17 +1101,39 @@ class Graph:
     @internal_api
     def save_mapping(self, filename: Union[str, Path], mapping: np.ndarray) -> None:
         """
-        Save a mapping/partition to a file.
+        Save a mapping/partition to a file, in Scotch's mapping format.
+
+        Vertices are labelled with the graph's own base value (baseval), like
+        Scotch's `gpart`/`gmap` do — a mapping written for a base-1 graph
+        numbers its vertices from 1, so downstream Scotch tools can pair the
+        file with the graph it belongs to. (Verified byte-identical to gpart
+        output for the same partition.)
 
         Args:
             filename: Output file path
             mapping: Partition array to save
         """
+        baseval = lib.SCOTCH_Num()
+        vertnbr = lib.SCOTCH_Num()
+        edgenbr = lib.SCOTCH_Num()
+        nullp = POINTER(lib.SCOTCH_Num)()
+        lib.SCOTCH_graphData(
+            byref(self._graph),
+            byref(baseval),
+            byref(vertnbr),
+            byref(nullp),
+            byref(nullp),
+            byref(nullp),
+            byref(nullp),
+            byref(edgenbr),
+            byref(nullp),
+            byref(nullp),
+        )
         filename = Path(filename)
         with open(filename, "w") as f:
             f.write(f"{len(mapping)}\n")
             for i, part in enumerate(mapping):
-                f.write(f"{i}\t{part}\n")
+                f.write(f"{i + baseval.value}\t{part}\n")
 
     @staticmethod
     @highlevel_api(scotch_functions=["SCOTCH_graphInit", "SCOTCH_graphBuild"])
