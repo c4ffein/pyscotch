@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed - Strategy semantics: None is the default, strings are verbatim
+- **The default strategy is spelled `None` (or a fresh `Strategy()`, or
+  `reset()`); every string — `""` included — is passed to Scotch verbatim.**
+  All five string setters (`set_mapping`, `set_ordering`,
+  `set_overlap_partitioning`, `set_dgraph_mapping`, `set_dgraph_ordering`)
+  and the `Strategy(strategy_string)` constructor now accept `None` as
+  "Scotch's default". `""` is no longer intercepted: at the C level it parses
+  into a do-nothing strategy (mapping leaves every vertex unassigned at -1,
+  ordering returns the identity permutation), and PyScotch now reproduces
+  that behaviour exactly — same string, same meaning as C Scotch.
+- `Strategies.DEFAULT_PARTITION` / `Strategies.DEFAULT_ORDER` are now `None`
+  (previously `""`).
+- `Graph.partition_overlap` pre-fills its output with -1: a do-nothing
+  overlap strategy (e.g. `""`) at the C level returns without writing the
+  output array at all, which would otherwise surface uninitialized memory
+  that can look like a valid partition.
+- Fixed: released 7.0.0 routed its *default* strategy paths through
+  `SCOTCH_stratGraphMap("")`, shipping a partitioner that returned all -1;
+  defaults now go through untouched strategies, which Scotch fills with its
+  real adaptive default.
+- Removed stale `SCOTCH_randomReset` from the advertised C functions of
+  `Graph.partition` / `Graph.color` (neither touches the PRNG; the policy is
+  no implicit resets anywhere — call `pyscotch.random_reset()` yourself).
+
+### Removed - `Strategy.set_multilevel()` / `set_nested_dissection()`
+- **`Strategy.set_multilevel()` and `Strategy.set_nested_dissection()` are
+  gone.** Scotch's default strategy *is* multilevel (and its default ordering
+  *is* nested-dissection based); the `SCOTCH_strat*Build` API has no flag to
+  select either explicitly, so the only honest implementation was an alias of
+  the default build — a method that implies a selection mechanism upstream
+  does not have. In released 7.0.0 they were worse than useless: they passed
+  the bare `"m"` / `"n"` strategy strings, whose implicit sub-strategies are
+  do-nothing dummies (every vertex in one part / identity permutation), so no
+  working usage exists to stay compatible with. Migration: use a plain
+  `Strategy()` — that IS multilevel / nested dissection — or
+  `request_mapping(...)` / `request_ordering(...)` with `StrategyFlags` to
+  tune it. `set_recursive_bisection()` stays: `SCOTCH_STRATRECURSIVE` is a
+  genuine upstream selector.
+- The CLI keeps `-s multilevel` (partition) and `-s nested` (order) as
+  documented **synonyms of `default`**: at the command line the word names
+  the algorithm you get — and you really do get a multilevel partition /
+  nested-dissection ordering — rather than a distinct selection mechanism.
+
 ## [7.0.0] - 2026-07-13
 
 ### Changed - Versioning scheme
