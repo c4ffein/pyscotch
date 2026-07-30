@@ -32,7 +32,7 @@
      "level": "direct binding",
      "level_css": "binding",
      "name": "load",
-     "signature": "(filename: str | pathlib.Path) -> None",
+     "signature": "(filename: str | pathlib.Path, baseval: int = 0) -> None",
      "summary": "Load a graph from a file in Scotch graph format."
     },
     {
@@ -314,14 +314,16 @@
      "summary": "Load a partition/mapping table from a file."
     },
     {
-     "c_functions": [],
+     "c_functions": [
+      "SCOTCH_graphData"
+     ],
      "c_label": "Calls",
      "is_property": false,
      "level": "pure python",
      "level_css": "python",
      "name": "save_mapping",
      "signature": "(filename: str | pathlib.Path, mapping: numpy.ndarray) -> None",
-     "summary": "Save a mapping/partition to a file."
+     "summary": "Save a mapping/partition to a file, in Scotch's mapping format."
     },
     {
      "c_functions": [
