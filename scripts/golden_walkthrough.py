@@ -84,6 +84,7 @@ def normalize(text: str, work: Path) -> str:
     text = re.sub(r"(?m)^(  Platform\s+).*$", r"\g<1><PLATFORM>", text)
     text = re.sub(r"(?m)^(  Python\s+)\d+\.\d+\.\d+\S*$", r"\g<1><PYTHON>", text)
     text = re.sub(r"(?m)^(  mpi4py\s+)\d+\.\d+(\.\d+)?\S*$", r"\g<1><MPI4PY>", text)
+    text = re.sub(r"(?m)^(  MPI library\s+).*$", r"\g<1><MPILIB>", text)
     return text
 
 

@@ -57,6 +57,8 @@ demo_both_versions.py
 *.map
 *.ord
 *.part.*
+# ...but golden-master expected outputs must be committed:
+!tests/golden/*
 
 # OS
 .DS_Store
