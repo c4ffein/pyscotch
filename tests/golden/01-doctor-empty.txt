@@ -1,6 +1,6 @@
 PyScotch environment report
 ========================================
-  PyScotch version       7.0.0
+  PyScotch version       <VERSION>
   Python                 <PYTHON>
   Platform               <PLATFORM>
 

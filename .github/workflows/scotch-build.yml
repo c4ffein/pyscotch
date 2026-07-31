@@ -11,9 +11,13 @@ name: Build Scotch from CLI (end-to-end)
 #
 # Note: it fetches from gitlab.inria.fr and relies on the pinned checksums in
 # pyscotch/scotch_build.py — if GitLab regenerates an archive, bump the pin
-# there (the CLI's --sha256 is the manual override).
+# there (the CLI's --sha256 is the manual override). The weekly run exists for
+# exactly that drift: it catches a regenerated/moved upstream archive even when
+# none of our own files changed.
 
 on:
+  schedule:
+    - cron: "30 6 * * 1"  # Mondays 06:30 UTC — upstream-tarball drift watchdog
   push:
     branches: [main]
     paths:
@@ -138,7 +142,34 @@ jobs:
           nm -D "$PYSCOTCH_HOME/builds/7.0.12-64-seq/lib64/libscotch.so" \
             | grep -qw "SCOTCH_meshBuildElem_64" \
             || { echo "::error::quickfixed 7.0.12 lacks a defined SCOTCH_meshBuildElem_64"; exit 1; }
-          python -c "from pyscotch import scotch_version as v; assert v()==(7,0,12), v(); print('quickfixed 7.0.12 loads ->', v())"
+          # Not just load: actually compute through the quickfixed library.
+          python - <<'PY'
+          import numpy as np
+          from pyscotch import Graph, scotch_version
+          assert scotch_version() == (7, 0, 12), scotch_version()
+          g = Graph()
+          g.build(np.array([0, 2, 4, 6, 8, 10, 12]),
+                  np.array([1, 5, 0, 2, 1, 3, 2, 4, 3, 5, 4, 0]))
+          part = g.partition(2)
+          assert set(part.tolist()) == {0, 1}, part
+          print("quickfixed 7.0.12 partitions OK:", scotch_version())
+          PY
+
+      - name: Quickfixed 7.0.12 also builds parallel and drives Dgraph
+        working-directory: ${{ runner.temp }}
+        run: |
+          # The quickfix must survive the parallel compile too (it touches the
+          # rename tables, and PT-Scotch compiles more of the tree), and the
+          # result must actually work under mpirun — reuses the same Dgraph
+          # smoke the 7.0.11 parallel build ran.
+          out="$(pyscotch scotch build 7.0.12 --parallel --use 2>&1)"
+          echo "$out"
+          echo "$out" | grep -q "Applied quickfix" \
+            || { echo "::error::parallel 7.0.12 built without applying the bundled quickfix"; exit 1; }
+          PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 \
+            python -c "from pyscotch import scotch_version as v; assert v()==(7,0,12), v()"
+          PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 \
+            mpirun --oversubscribe -n 2 python dgraph_smoke.py
 
       - name: --pristine 7.0.12 must fail cleanly with the right diagnosis
         working-directory: ${{ runner.temp }}

@@ -82,6 +82,10 @@ def normalize(text: str, work: Path) -> str:
     for p in {str(work), str(work.resolve())}:
         text = text.replace(p, "<WORK>")
     text = re.sub(r"(?m)^(  Platform\s+).*$", r"\g<1><PLATFORM>", text)
+    # PyScotch's own version differs between the dev tree (unstamped) and a
+    # tag-stamped published sdist; the walkthrough must validate both.
+    text = re.sub(r"(?m)^(  PyScotch version\s+)\S+$", r"\g<1><VERSION>", text)
+    text = re.sub(r"(?m)^(  pyscotch version : )\S+$", r"\g<1><VERSION>", text)
     text = re.sub(r"(?m)^(  Python\s+)\d+\.\d+\.\d+\S*$", r"\g<1><PYTHON>", text)
     text = re.sub(r"(?m)^(  mpi4py\s+)\d+\.\d+(\.\d+)?\S*$", r"\g<1><MPI4PY>", text)
     text = re.sub(r"(?m)^(  MPI library\s+).*$", r"\g<1><MPILIB>", text)

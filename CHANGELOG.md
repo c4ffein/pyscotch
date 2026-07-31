@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.2] - 2026-07-31
+
+Verification-hardening release: no library code changes, but the release
+pipeline now proves much more before and after publishing.
+
+### Added - CI verification coverage
+- New `Verify published PyPI release` workflow (manual dispatch): the literal
+  end-user journey with **no repo checkout** — `pip install pyscotch` from the
+  real index, partition/order through the bundled wheel libraries, CLI smoke,
+  then `pyscotch scotch build 7.0.12 --parallel` from the upstream tarball and
+  a PT-Scotch `Dgraph` run under `mpirun`.
+- `Build Scotch from CLI (end-to-end)` now runs weekly (upstream-tarball
+  drift watchdog: catches a regenerated/moved GitLab archive even when no
+  PyScotch file changed), actually *partitions* through the quickfixed 7.0.12
+  build instead of only loading it, and additionally builds 7.0.12
+  `--parallel` and drives `Dgraph` under `mpirun` through it.
+- Install/wheel smoke tests now also exercise the `pyscotch` console script
+  (`doctor` + `partition` on a saved graph): broken entry-point wiring in a
+  wheel previously passed every import-based check.
+
+### Fixed
+- The golden-master walkthrough normalizes PyScotch's own version to
+  `<VERSION>`, so the goldens validate both the dev tree (unstamped) and a
+  tag-stamped published sdist; previously a published sdist failed the byte
+  comparison on version lines alone.
+
 ## [7.0.1] - 2026-07-30
 
 ### Added - Fail-fast strategy-string checking

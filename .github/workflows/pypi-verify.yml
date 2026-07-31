@@ -1,0 +1,104 @@
+name: Verify published PyPI release
+
+# The literal end-user journey, from the REAL index: `pip install pyscotch`
+# (no repo checkout anywhere — every byte comes from PyPI or gitlab.inria.fr),
+# then partition through the bundled wheel libraries, exercise the CLI, build
+# a custom Scotch from the upstream tarball with `pyscotch scotch build
+# --parallel`, and drive PT-Scotch under mpirun through it.
+#
+# This is the post-publish counterpart of verify-packages.yml (which gates the
+# artifacts BUILT FROM the tag, before/around publication): run it manually
+# after a release lands on PyPI, giving the index a few minutes to propagate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "pyscotch version on PyPI (empty = latest)"
+        required: false
+        default: ""
+
+permissions: {}
+
+jobs:
+  from-pypi:
+    runs-on: ubuntu-latest
+    steps:
+      # Deliberately NO actions/checkout: a user has none of this repo.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build toolchain (flex >= 2.6.4, bison, zlib, MPI)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flex bison zlib1g-dev libopenmpi-dev openmpi-bin
+          flex --version
+
+      - name: pip install pyscotch from PyPI
+        run: |
+          spec="pyscotch"
+          if [ -n "${{ inputs.version }}" ]; then spec="pyscotch==${{ inputs.version }}"; fi
+          python -m pip install --upgrade pip
+          pip install "$spec" numpy mpi4py
+          pip show pyscotch | head -2
+          echo "PYSCOTCH_HOME=$RUNNER_TEMP/pshome" >> "$GITHUB_ENV"
+          echo "PYSCOTCH_MPI_OVERSUBSCRIBE=1" >> "$GITHUB_ENV"
+
+      - name: Bundled wheel libraries — API + CLI smoke
+        working-directory: ${{ runner.temp }}
+        run: |
+          PYSCOTCH_PARALLEL=0 python - <<'PY'
+          import pyscotch
+          import numpy as np
+          from pyscotch import Graph
+
+          lib_dir = str(pyscotch.libscotch._lib_dir)
+          assert "_libs" in lib_dir, f"expected the wheel's bundled libs, got {lib_dir}"
+          g = Graph()
+          g.build(np.array([0, 2, 4, 6, 8, 10, 12]),
+                  np.array([1, 5, 0, 2, 1, 3, 2, 4, 3, 5, 4, 0]))
+          part = g.partition(2)
+          assert set(part.tolist()) == {0, 1}, part
+          perm = g.order()[0]
+          assert sorted(perm.tolist()) == list(range(6)), perm
+          g.save("smoke.grf")
+          print("bundled libs OK:", pyscotch.__version__, lib_dir)
+          PY
+          PYSCOTCH_PARALLEL=0 pyscotch doctor
+          PYSCOTCH_PARALLEL=0 pyscotch partition smoke.grf -n 2 -o smoke.map
+          test -s smoke.map
+
+      - name: Build custom Scotch 7.0.12 from the upstream tarball (parallel)
+        working-directory: ${{ runner.temp }}
+        run: |
+          out="$(pyscotch scotch build 7.0.12 --parallel --use 2>&1)"
+          echo "$out"
+          echo "$out" | grep -q "Applied quickfix" \
+            || { echo "::error::7.0.12 built without applying the bundled quickfix"; exit 1; }
+          pyscotch scotch list
+          python -c "from pyscotch import scotch_version as v; assert v()==(7,0,12), v(); print('managed build ->', v())"
+          pyscotch doctor
+
+      - name: Drive PT-Scotch under mpirun through the managed build
+        working-directory: ${{ runner.temp }}
+        run: |
+          cat > dgraph_smoke.py <<'PY'
+          import os
+          os.environ.setdefault("PYSCOTCH_INT_SIZE", "64")
+          os.environ.setdefault("PYSCOTCH_PARALLEL", "1")
+          from mpi4py import MPI
+          from pyscotch import Dgraph, scotch_version
+          comm = MPI.COMM_WORLD
+          dg = Dgraph(comm=comm)
+          dg.build_grid_3d(6, 6, 6)
+          assert dg.check()
+          part = dg.part(3)
+          assert part.min() >= 0 and part.max() < 3
+          dg.exit()
+          comm.Barrier()
+          if comm.Get_rank() == 0:
+              print("parallel from-PyPI build OK:", scotch_version(), "ranks:", comm.Get_size())
+          PY
+          PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 \
+            mpirun --oversubscribe -n 2 python dgraph_smoke.py

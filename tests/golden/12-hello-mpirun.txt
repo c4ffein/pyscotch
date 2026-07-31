@@ -1,7 +1,7 @@
 ==============================================================
 PyScotch hello-world
 ==============================================================
-  pyscotch version : 7.0.0
+  pyscotch version : <VERSION>
   Scotch version   : 7.0.11
   integer width    : 64-bit
   PT-Scotch loaded : True

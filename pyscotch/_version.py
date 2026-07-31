@@ -7,4 +7,4 @@ scripts/apply_release_version.py, so the git tag is the authority for what gets
 published; between releases it holds the next target version.
 """
 
-__version__ = "7.0.0"
+__version__ = "7.0.2"

@@ -9,6 +9,9 @@ directory OUTSIDE the repo so `import pyscotch` resolves to the install:
 """
 
 import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pyscotch
 from pyscotch import Graph
@@ -27,6 +30,17 @@ assert set(int(p) for p in parts) == {0, 1}, f"expected both parts used, got {pa
 # ordering exercises the FILE*-free path too
 perm = graph.order()[0]
 assert sorted(int(p) for p in perm) == list(range(6)), f"bad permutation {perm!r}"
+
+# The `pyscotch` console script must work too — a wheel/sdist with broken
+# entry-point wiring passes every `import pyscotch` check above. Resolve it
+# next to the running interpreter so this works without an activated venv
+# (uv-created envs, `micromamba run`, ...).
+cli = Path(sys.executable).parent / "pyscotch"
+assert cli.is_file(), f"console script not installed next to {sys.executable}"
+subprocess.run([str(cli), "doctor"], check=True)
+graph.save("smoke.grf")
+subprocess.run([str(cli), "partition", "smoke.grf", "-n", "2", "-o", "smoke.map"], check=True)
+assert Path("smoke.map").is_file(), "CLI partition produced no mapping file"
 
 int_size = pyscotch.libscotch.get_scotch_int_size()
 print(

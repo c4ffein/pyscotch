@@ -2,7 +2,7 @@
 ✓ Structure sizes: graph=120, strat=8, arch=96, dgraph=None
 PyScotch environment report
 ========================================
-  PyScotch version       7.0.0
+  PyScotch version       <VERSION>
   Python                 <PYTHON>
   Platform               <PLATFORM>
 
