@@ -1,6 +1,7 @@
 """Tests for the local Scotch build store and helpers (no network / compile)."""
 
 import importlib
+from pathlib import Path
 
 import pytest
 
@@ -128,6 +129,60 @@ class TestLatestVersion:
         expected = f"pyscotch scotch build {sb.latest_version()} "
         assert expected in doctor._scotch_install_hint(False)
         assert expected in doctor._scotch_install_hint(True)
+
+
+class TestSourceTreeManagement:
+    """The submodule-copy machinery: builds never touch the pristine submodule;
+    they compile a disposable, quickfix-patched copy prepared by the same
+    Python patch code `pyscotch scotch build` uses on tarballs."""
+
+    SUBMODULE = Path(__file__).resolve().parents[2] / "external" / "scotch"
+
+    def _submodule_or_skip(self):
+        if not (self.SUBMODULE / "src" / "Makefile").is_file():
+            pytest.skip("scotch submodule not initialized")
+        return self.SUBMODULE
+
+    def test_detect_version_matches_catalog(self):
+        """EQUIVALENCE GUARD: the submodule's version must be in the curated
+        catalog (_KNOWN_VERSIONS) — a submodule bump that outruns the catalog
+        is exactly how the 7.0.12 wheel build broke. Bump the catalog (sha256
+        + patches) together with the submodule."""
+        sub = self._submodule_or_skip()
+        version = sb.detect_source_version(sub)
+        assert version in sb._KNOWN_VERSIONS, (
+            f"submodule is Scotch {version}, which is not in the catalog: add "
+            "its sha256 (and quickfix patches if needed) to scotch_build.py"
+        )
+
+    def test_detect_version_rejects_non_tree(self, tmp_path):
+        with pytest.raises(sb.BuildError, match="Not a Scotch source tree"):
+            sb.detect_source_version(tmp_path)
+
+    def test_prepare_patches_copy_and_leaves_source_pristine(self, tmp_path, capsys):
+        sub = self._submodule_or_skip()
+        version = sb.detect_source_version(sub)
+        if not sb.patches_for(version):
+            pytest.skip(f"Scotch {version} needs no quickfixes; nothing to observe")
+
+        dest = tmp_path / "copy"
+        sb.prepare_source_tree(dest, source=sub)
+        copy_header = (dest / "src" / "libscotch" / "module.h").read_text()
+        sub_header = (sub / "src" / "libscotch" / "module.h").read_text()
+        assert "SCOTCH_meshBuildElem" in copy_header, "copy was not patched"
+        assert "SCOTCH_meshBuildElem" not in sub_header, (
+            "the pristine submodule was modified — prepare must never touch it"
+        )
+
+        # Second prepare: stamp fast-path, no re-copy.
+        capsys.readouterr()
+        sb.prepare_source_tree(dest, source=sub)
+        assert "up to date" in capsys.readouterr().out
+
+        # Direct re-patch of the copy: idempotent, detected as applied.
+        capsys.readouterr()
+        sb.apply_patches(dest)
+        assert "already applied" in capsys.readouterr().out
 
 
 class TestPreflightAndInc:

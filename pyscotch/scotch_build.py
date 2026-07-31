@@ -390,15 +390,53 @@ def _run_make(src: Path, target: str, cflags: str, log: list):
         raise BuildError(msg)
 
 
-def _apply_patches(srcroot: Path, version: str):
-    """Apply the bundled quickfix patches for `version`. Returns [names]."""
+def detect_source_version(srcroot) -> str:
+    """Read the Scotch version out of a source tree (src/Makefile's
+    VERSION/RELEASE/PATCHLEVEL — the same values Scotch stamps into its own
+    build). Single source of truth so nobody hardcodes versions when patching
+    or preparing a tree."""
+    import re
+
+    makefile = Path(srcroot) / "src" / "Makefile"
+    if not makefile.is_file():
+        raise BuildError(f"Not a Scotch source tree (no src/Makefile): {srcroot}")
+    text = makefile.read_text()
+    parts = {}
+    for key in ("VERSION", "RELEASE", "PATCHLEVEL"):
+        m = re.search(rf"(?m)^{key}\s*=\s*(\d+)", text)
+        if m is None:
+            raise BuildError(f"Could not read {key} from {makefile}")
+        parts[key] = m.group(1)
+    return f"{parts['VERSION']}.{parts['RELEASE']}.{parts['PATCHLEVEL']}"
+
+
+def apply_patches(srcroot, version=None):
+    """Apply the bundled quickfix patches to a Scotch source tree. Idempotent.
+
+    version=None auto-detects from the tree itself, so the catalog decides
+    which patches apply — a tree that needs none is a no-op. Already-applied
+    patches are detected (reverse dry-run) and skipped, so the same tree can
+    be prepared repeatedly. Returns the list of patch names in effect.
+    """
+    srcroot = Path(srcroot)
+    if version is None:
+        version = detect_source_version(srcroot)
     applied = []
     for fname, reason in patches_for(version):
         pf = _patches_dir() / fname
         if not pf.exists():
             raise BuildError(f"Bundled patch not found in the package: {fname}")
+        probe = subprocess.run(
+            ["patch", "-R", "-p1", "--dry-run", "-f", "-i", str(pf)],
+            cwd=srcroot,
+            capture_output=True,
+        )
+        if probe.returncode == 0:
+            print(f"  Quickfix already applied: {fname}")
+            applied.append(fname)
+            continue
         proc = subprocess.run(
-            ["patch", "-p1", "-i", str(pf)],
+            ["patch", "-p1", "-N", "-i", str(pf)],
             cwd=srcroot,
             capture_output=True,
             text=True,
@@ -412,6 +450,75 @@ def _apply_patches(srcroot: Path, version: str):
         print(f"  Applied quickfix: {fname}\n      ({reason})")
         applied.append(fname)
     return applied
+
+
+# Backwards-compatible internal name (fresh-extract path of build()).
+def _apply_patches(srcroot: Path, version: str):
+    return apply_patches(srcroot, version)
+
+
+def prepare_source_tree(dest, source=None) -> Path:
+    """Copy a Scotch source tree into a disposable directory and quickfix it.
+
+    This is how the repo Makefile (and therefore wheel builds) compile Scotch
+    without ever modifying the git submodule: the submodule stays a pristine,
+    read-only reference; builds happen in the patched copy.
+
+    A stamp file records (version, patch set); when it matches, the existing
+    copy is reused so incremental rebuilds stay fast. Any mismatch — or a
+    deleted stamp — wipes and re-copies. Local edits inside `source` do NOT
+    propagate to an up-to-date copy: delete `dest` (or run `make clean-scotch`)
+    to force a refresh.
+    """
+    source = Path(source) if source is not None else _repo_submodule_dir()
+    dest = Path(dest)
+    version = detect_source_version(source)
+    patch_names = [fname for fname, _ in patches_for(version)]
+    stamp_value = f"{version}:{','.join(patch_names)}"
+    stamp = dest / ".pyscotch-prepared"
+    if stamp.is_file() and stamp.read_text().strip() == stamp_value:
+        print(f"  Patched source copy up to date (Scotch {version}): {dest}")
+        return dest
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(source, dest, ignore=shutil.ignore_patterns(".git"))
+    apply_patches(dest, version)
+    stamp.write_text(stamp_value + "\n")
+    print(f"  Prepared patched Scotch {version} source copy: {dest}")
+    return dest
+
+
+def _repo_submodule_dir() -> Path:
+    sub = Path(__file__).resolve().parents[1] / "external" / "scotch"
+    if not (sub / "src" / "Makefile").is_file():
+        raise BuildError(
+            f"Scotch submodule not found at {sub} — run "
+            "`git submodule update --init --recursive` first."
+        )
+    return sub
+
+
+def cmd_patch(args):
+    """CLI: apply the bundled quickfixes to an existing source tree."""
+    try:
+        names = apply_patches(args.srcdir)
+        if not names:
+            version = detect_source_version(args.srcdir)
+            print(f"  No quickfixes needed for Scotch {version}.")
+    except BuildError as e:
+        print(f"\nError: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def cmd_prepare(args):
+    """CLI: copy + quickfix a source tree into a disposable build dir."""
+    try:
+        prepare_source_tree(args.dest, source=args.source)
+    except BuildError as e:
+        print(f"\nError: {e}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def _build_libs(src: Path, bits: int, parallel: bool, cc: str, mpicc: str) -> Path:

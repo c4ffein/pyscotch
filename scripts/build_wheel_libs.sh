@@ -99,6 +99,22 @@ fi
 # ---------------------------------------------------------------------------
 # 2. Build sequential-only Scotch (both int sizes) + compat layer
 # ---------------------------------------------------------------------------
+# Pick a Python >= 3.8 for the source-prepare step (`pyscotch scotch prepare`
+# via check-submodule): the manylinux system python3 can be 3.6, too old for
+# the package's lazy-import machinery. cibuildwheel containers always ship
+# modern interpreters under /opt/python.
+if [ -z "${PYTHON:-}" ]; then
+    for cand in python3 /opt/python/cp312-cp312/bin/python /opt/python/cp3*/bin/python; do
+        if "$cand" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' >/dev/null 2>&1; then
+            PYTHON="$cand"
+            break
+        fi
+    done
+fi
+[ -n "${PYTHON:-}" ] || { echo "No Python >= 3.8 found for source preparation" >&2; exit 1; }
+export PYTHON
+echo "Using $PYTHON for source preparation"
+
 make build-seq-only
 
 # ---------------------------------------------------------------------------

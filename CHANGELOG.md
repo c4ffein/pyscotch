@@ -42,6 +42,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   numbering base like the C tools do (default `0` still rebases).
 
 ### Fixed
+- **Wheel builds of Scotch 7.0.12 failed** (the submodule's rename-table bug,
+  hard error on modern GCC — and a silently missing public symbol on older
+  GCC). Builds now compile Scotch in a disposable, quickfix-patched copy
+  (`build/scotch-src`) prepared by `pyscotch scotch prepare`; the git
+  submodule is never modified. New CLI: `pyscotch scotch patch <srcdir>`
+  (apply the bundled quickfixes to any Scotch tree, version auto-detected,
+  idempotent) and `pyscotch scotch prepare --dest DIR`. One patch catalog,
+  one applier, shared by tarball builds, dev builds and wheels. A new
+  equivalence-guard test fails if the submodule is ever bumped past the
+  catalog again.
 - `Graph.save_mapping` now labels vertices with the graph's base value, as
   `gpart`/`gmap` do; a mapping saved for a based graph previously used
   0-based labels and could not be paired with its graph by Scotch tools.

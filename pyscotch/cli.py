@@ -176,6 +176,10 @@ def scotch_manage(args):
         return scotch_build.cmd_list(args)
     if args.scotch_command == "patches":
         return scotch_build.cmd_patches(args)
+    if args.scotch_command == "patch":
+        return scotch_build.cmd_patch(args)
+    if args.scotch_command == "prepare":
+        return scotch_build.cmd_prepare(args)
     if args.scotch_command == "use":
         return scotch_build.cmd_use(args)
     if args.scotch_command == "rm":
@@ -305,6 +309,24 @@ def main():
     sl.set_defaults()
 
     scotch_sub.add_parser("patches", help="List bundled Scotch build quickfix patches")
+
+    spp = scotch_sub.add_parser(
+        "patch",
+        help="Apply the bundled quickfix patches to a Scotch source tree "
+        "(version auto-detected from the tree; idempotent)",
+    )
+    spp.add_argument("srcdir", help="Path to a Scotch source tree (contains src/Makefile)")
+
+    spr = scotch_sub.add_parser(
+        "prepare",
+        help="Copy a Scotch source tree into a disposable build directory and "
+        "apply the quickfixes there — the original (e.g. the git submodule) "
+        "is never modified",
+    )
+    spr.add_argument(
+        "--source", default=None, help="Source tree (default: the repo's scotch submodule)"
+    )
+    spr.add_argument("--dest", required=True, help="Destination directory for the patched copy")
 
     su = scotch_sub.add_parser("use", help="Set the default local Scotch build")
     su.add_argument("key", help="Build key, e.g. 7.0.11-64-par")

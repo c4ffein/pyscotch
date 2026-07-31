@@ -1,9 +1,22 @@
 # Makefile for building PT-Scotch and PyScotch
 
-# Directories
-SCOTCH_DIR = external/scotch
+# Directories.
+#
+# DECISION (2026-07-31): builds never touch the git submodule. The submodule
+# (SCOTCH_SUBMODULE) is a pristine, read-only reference — tests read its
+# check/ data, the differential tier builds gpart from it, and docs/QUESTIONS
+# line references point into it. All compilation happens in a disposable,
+# quickfix-patched COPY (SCOTCH_DIR, under build/), prepared by
+# `pyscotch scotch prepare` — the same Python patch machinery that
+# `pyscotch scotch build` uses on release tarballs: one catalog, one applier.
+# Wheels build from this copy too, so shipped artifacts come from exactly the
+# tree CI tested. User machines use the GitLab release tarball instead
+# (`pyscotch scotch build`); both sources are maintained deliberately.
+SCOTCH_SUBMODULE = external/scotch
+SCOTCH_DIR = build/scotch-src
 SCOTCH_SRC = $(SCOTCH_DIR)/src
 BUILDS_DIR = scotch-builds
+PYTHON ?= python3
 
 # Compiler settings
 CC = gcc
@@ -146,19 +159,23 @@ build-seq-64: check-submodule
 	@cp -f $(SCOTCH_DIR)/include/*.h $(BUILDS_DIR)/inc64/
 	@echo "✓ Sequential 64-bit build complete: scotch-builds/{lib64,inc64}/"
 
-# Check if scotch submodule exists and apply patches
+# Ensure the submodule exists, then prepare the disposable patched copy that
+# builds compile in (see the Directories comment above). Version detection,
+# patch selection and idempotency all live in pyscotch/scotch_build.py —
+# one implementation shared with `pyscotch scotch build`.
 check-submodule:
-	@if [ ! -d "$(SCOTCH_DIR)" ] || [ ! -f "$(SCOTCH_DIR)/README.md" ]; then \
+	@if [ ! -d "$(SCOTCH_SUBMODULE)" ] || [ ! -f "$(SCOTCH_SUBMODULE)/README.md" ]; then \
 		echo "Scotch submodule not initialized. Initializing..."; \
 		git submodule update --init --recursive; \
 		echo "✓ Submodule initialized"; \
 	fi
+	@$(PYTHON) -m pyscotch.cli scotch prepare --source $(SCOTCH_SUBMODULE) --dest $(SCOTCH_DIR)
 	@if [ ! -f "$(SCOTCH_SRC)/Makefile.inc" ]; then \
 		echo "Creating default Makefile.inc..."; \
 		cp patches/Makefile.inc.default $(SCOTCH_SRC)/Makefile.inc; \
 		echo "✓ Makefile.inc created"; \
 	fi
-	@echo "✓ Submodule ready"
+	@echo "✓ Patched source copy ready"
 
 # Install Python package
 install:
@@ -203,11 +220,10 @@ clean:
 	find . -type f -name "*.pyc" -delete
 	find . -type f -name "*.pyo" -delete
 
-# Clean Scotch builds
+# Clean Scotch builds (removes the disposable source copy too; the pristine
+# submodule is never touched)
 clean-scotch:
-	@if [ -f "$(SCOTCH_SRC)/Makefile" ]; then \
-		cd $(SCOTCH_SRC) && $(MAKE) realclean; \
-	fi
+	rm -rf $(SCOTCH_DIR)
 	rm -rf $(BUILDS_DIR)
 	rm -rf lib lib32 lib64 include include32 include64
 
