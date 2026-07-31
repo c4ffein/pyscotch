@@ -4,9 +4,49 @@
 **WARNING: this is a vibe-engineering experiment - you probably shouldn't use this!**
 ---
 
-Python ctypes wrapper for the [PT-Scotch](https://www.labri.fr/perso/pelegrin/scotch/) graph partitioning library.
+Python ctypes wrapper for the [PT-Scotch](https://www.labri.fr/perso/pelegrin/scotch/) graph partitioning library: graph/mesh partitioning, sparse matrix ordering, coloring, and distributed (MPI) graph operations.
 
-PyScotch provides a Pythonic interface to Scotch's graph/mesh partitioning, sparse matrix ordering, and distributed graph operations — without requiring mpi4py or Cython.
+> **📖 If you want to *use* PyScotch, start at the documentation site:
+> [c4ffein.github.io/pyscotch](https://c4ffein.github.io/pyscotch)** — tutorials
+> covering installation, every workflow, parallel/MPI usage, and
+> reproducibility, with runnable (CI-tested) examples.
+> This README is the developer-facing map of the repository.
+
+## Installation (short version)
+
+```bash
+pip install pyscotch          # wheels bundle sequential Scotch, 32- and 64-bit ints
+pip install "pyscotch[interop]"   # + scipy/networkx conversion helpers
+```
+
+Wheels can't ship MPI. For PT-Scotch (`Dgraph`), compile a parallel Scotch
+through the CLI — no root, checksum-pinned source from upstream, with any
+needed build quickfixes applied automatically:
+
+```bash
+pip install "pyscotch[parallel]"              # + mpi4py
+pyscotch scotch build --parallel --use
+PYSCOTCH_PARALLEL=1 pyscotch doctor           # verify the full parallel stack
+```
+
+When anything misbehaves, `pyscotch doctor` reports which Scotch loaded (and
+from where), its capabilities, and the exact command that fixes what's
+missing. Details, system/conda Scotch, and troubleshooting: see
+[Installing PyScotch](https://c4ffein.github.io/pyscotch).
+
+## Quick Taste
+
+```python
+from pyscotch import Graph
+
+graph = Graph.from_edges([(0, 1), (1, 2), (2, 3), (3, 0)])
+parts = graph.partition(2)          # numpy array of part indices
+permtab, peritab = graph.order()    # nested-dissection ordering
+```
+
+There's also a CLI: `pyscotch partition/order/check/info`, `pyscotch doctor`,
+and `pyscotch scotch build/list/use/rm/patches` for managing local Scotch
+builds.
 
 ## Features
 
@@ -15,20 +55,33 @@ PyScotch provides a Pythonic interface to Scotch's graph/mesh partitioning, spar
 - **Sparse matrix ordering** — nested dissection for reduced fill-in
 - **Graph coloring** — greedy heuristic coloring
 - **Distributed graph operations** — coarsening, growing, band extraction, redistribution, induced subgraphs
-- **Multi-variant builds** — 32/64-bit integer support with `_32`/`_64` symbol suffixes
-- **No mpi4py dependency** — custom lightweight MPI ctypes wrapper
-- **Property-based testing** — Hypothesis tests for stronger validation than Scotch's own C tests
+- **Safe strategy strings** — `Strategy(string)` is validated against the live library's own parsers at construction (Scotch's grammar accepts silently-do-nothing strings; PyScotch refuses them), plus a typed builder (`pyscotch.strategy_grammar`) that makes the degenerate forms unrepresentable
+- **Reproducibility, Scotch's way** — explicit `random_reset()`/`random_seed()` mirroring the C API, no implicit PRNG resets; under deterministic settings PyScotch's partitions are byte-identical to Scotch's own `gpart`
+- **Managed Scotch builds** — `pyscotch scotch build` downloads, patches (when upstream needs it), compiles, and selects local libraries; wheels, system, conda, and dev builds coexist
+- **Multi-variant loading** — 32/64-bit integer builds with `_32`/`_64` symbol suffixes, sequential and parallel
+- **No hard mpi4py dependency** — bundled lightweight MPI ctypes wrapper (mpi4py supported and recommended for real MPI apps)
 
-## Installation
+## Configuration
 
-### Prerequisites
+Environment variables, read at import time:
 
-- Python 3.7+
-- GCC or Clang
-- An MPI implementation (OpenMPI or MPICH) for distributed operations
-- Make, CMake, Git
+| Variable | Values | Default | Description |
+|----------|--------|---------|-------------|
+| `PYSCOTCH_INT_SIZE` | `32`, `64` | `64` | Size of `SCOTCH_Num` integers |
+| `PYSCOTCH_PARALLEL` | `0`, `1` | `0` | Load PT-Scotch (parallel) or Scotch (sequential) |
+| `PYSCOTCH_LIB_DIR` | path | unset | Explicit directory containing the Scotch libraries |
+| `PYSCOTCH_SYSTEM` | `0`, `1` | `0` | Force the system-installed Scotch (distro/conda packages) |
 
-### Setup
+Library discovery order on `import pyscotch`:
+
+1. `PYSCOTCH_SYSTEM=1` — skip straight to the system Scotch
+2. `PYSCOTCH_LIB_DIR` — explicit override
+3. The managed build selected with `pyscotch scotch use` (under `~/.local/share/pyscotch`, override with `PYSCOTCH_HOME`)
+4. Libraries bundled inside the installed wheel (`pyscotch/_libs/`)
+5. `scotch-builds/` next to the repo (development layout)
+6. Fallback: system-installed Scotch (dlopen by soname; unsuffixed symbols, single width — verified via `SCOTCH_numSizeof()`, with a mismatch refused at load)
+
+## Development Setup
 
 ```bash
 git clone https://github.com/c4ffein/pyscotch.git
@@ -38,162 +91,74 @@ make build-all
 uv pip install -e ".[dev]"
 ```
 
-> The submodule requires access to `gitlab.inria.fr`. If it fails, check your authentication.
+Prerequisites: GCC or Clang, Make, flex ≥ 2.6.4, bison, zlib headers, and an
+MPI implementation (OpenMPI or MPICH) for the parallel variants.
 
-### What `build-all` does
+> The Scotch submodule lives on `gitlab.inria.fr`; if the submodule step
+> fails, check that your environment can reach that host. Builds never
+> compile the submodule in place — `make` prepares a disposable, quickfix-
+> patched copy under `build/scotch-src/` (via `pyscotch scotch prepare`), so
+> the submodule stays pristine.
 
-Builds 4 Scotch library variants into `scotch-builds/`:
+`make build-all` compiles 4 Scotch variants into `scotch-builds/`:
 
 | Directory | Contents |
 |-----------|----------|
-| `lib32/` | Sequential + parallel libraries, 32-bit `SCOTCH_Num` |
-| `lib64/` | Sequential + parallel libraries, 64-bit `SCOTCH_Num` |
-| `inc32/` | Headers for 32-bit variant |
-| `inc64/` | Headers for 64-bit variant |
+| `lib32/`, `lib64/` | Sequential + parallel libraries, 32/64-bit `SCOTCH_Num` |
+| `inc32/`, `inc64/` | Matching headers |
 
-Plus a `libpyscotch_compat` shared library that handles FILE\* ABI compatibility between Python's C runtime and Scotch's.
-
-## Quick Start
-
-### Graph Partitioning
-
-```python
-from pyscotch import Graph, Strategies
-
-graph = Graph.from_edges([(0,1), (1,2), (2,3), (3,0)], num_vertices=4)
-strategy = Strategies.partition_quality()
-parts = graph.partition(4, strategy)  # numpy array of part indices
-print(parts)  # e.g. [0 1 2 3]
-```
-
-### Graph Coloring
-
-```python
-from pyscotch import Graph
-
-graph = Graph.from_edges([(0,1), (1,2), (2,0)], num_vertices=3)
-colors, num_colors = graph.color()
-print(f"{num_colors} colors: {colors}")  # 3 colors: [0, 1, 2]
-```
-
-### Sparse Matrix Ordering
-
-```python
-from pyscotch import Graph, Strategies
-
-graph = Graph()
-graph.load("matrix.grf")
-strategy = Strategies.order_quality()
-permtab, peritab = graph.order(strategy)  # permutation + inverse permutation
-print(permtab)
-```
-
-### Distributed Graph (MPI)
-
-```python
-from pyscotch import Dgraph
-from pyscotch.mpi import mpi
-
-mpi.init()
-
-dgraph = Dgraph()
-dgraph.load("graph.grf")
-
-coarse, mult = dgraph.coarsen(coarrat=0.8)
-if mult is not None:
-    print("Coarsened successfully")
-    coarse.exit()
-
-dgraph.exit()
-mpi.finalize()
-```
-
-## Configuration
-
-PyScotch selects which Scotch variant to load via environment variables:
-
-| Variable | Values | Default | Description |
-|----------|--------|---------|-------------|
-| `PYSCOTCH_INT_SIZE` | `32`, `64` | `64` | Size of `SCOTCH_Num` integers |
-| `PYSCOTCH_PARALLEL` | `0`, `1` | `0` | Load PT-Scotch (parallel) or Scotch (sequential) |
-| `PYSCOTCH_LIB_DIR` | path | unset | Explicit directory containing the Scotch libraries |
-| `PYSCOTCH_SYSTEM` | `0`, `1` | `0` | Force the system-installed Scotch (distro/conda packages) |
-
-```bash
-# Run with 32-bit sequential Scotch
-PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=0 python my_script.py
-```
-
-Library discovery order: `PYSCOTCH_LIB_DIR` → libraries bundled in the
-installed wheel → `scotch-builds/` (development layout) → system-installed
-Scotch. System packages (e.g. `apt install libscotch-dev`,
-`conda install scotch`) ship unsuffixed symbols and a single integer width;
-PyScotch detects this, verifies the width via `SCOTCH_numSizeof()`, and
-refuses to load under a mismatched `PYSCOTCH_INT_SIZE`.
+plus `libpyscotch_compat`, a small C shim giving Scotch `FILE*`s opened by
+the same C runtime it was compiled against.
 
 ## Testing
 
 ```bash
-# Default: 64-bit parallel, no hypothesis
-make test
-
-# Full suite including hypothesis
-make test-full
-
-# All 4 variants with hypothesis (32/64 x seq/parallel)
-make test-quadrant
+make test           # default: 64-bit parallel, no hypothesis
+make test-full      # full suite including hypothesis
+make test-quadrant  # all 4 variants (32/64 × seq/par) with hypothesis
 ```
 
-Test categories:
-
-| Directory | What |
-|-----------|------|
-| `tests/scotch_ports/` | Direct ports of Scotch's C tests |
-| `tests/scotch_ports_mpi/` | MPI test ports (run via mpirun) |
-| `tests/pyscotch_base/` | PyScotch-specific tests (API completeness, int sizes, symbol prefixes) |
-| `tests/hypothesis/` | Property-based tests — stronger than Scotch's own C tests |
+| Tier | What it proves |
+|------|----------------|
+| `tests/scotch_ports/`, `tests/scotch_ports_mpi/` | Direct ports of Scotch's C tests (MPI ones run via mpirun) |
+| `tests/pyscotch_base/` | PyScotch-specific: API completeness, int sizes, symbol prefixes, strategy structure |
+| `tests/hypothesis/` | Property-based tests — stronger validation than Scotch's own C tests |
 | `tests/pyscotch_integration/` | End-to-end orchestrated workflows |
+| `tests/golden/` + `scripts/golden_walkthrough.py` | Golden master: the full sdist user journey, byte-for-byte |
+| `tests/pyscotch_base/test_differential_gpart.py` | Differential: byte-identity with Scotch's own `gpart` (opt-in via `PYSCOTCH_GPART`) |
+| `docs/site/examples/` | Every doc example runs as a test |
 
-## API Overview
-
-### Sequential
-
-| Class | Key Methods |
-|-------|-------------|
-| `Graph` | `build()`, `load()`, `save()`, `partition()`, `order()`, `color()`, `induce_list()`, `induce_part()`, `stat()`, `base()`, `from_edges()`, `from_scipy_sparse()`, `to_scipy_sparse()`, `from_networkx()`, `to_networkx()` |
-| `Mesh` | `build()`, `load()`, `save()`, `check()`, `to_graph()`, `partition()` |
-| `Architecture` | `complete()`, `complete_weighted()`, `complete_graph()`, `name()`, `size()` |
-| `Strategy` | `set_mapping()`, `set_ordering()`, `set_overlap_partitioning()`, `request_mapping()`, `request_ordering()`, `reset()`, `built_for_mapping()`, `built_for_ordering()`, `built_for_overlap()` (default strategy: pass `None` or a fresh `Strategy()`) |
-| `Strategies` | `partition_quality()`, `partition_fast()`, `order_quality()`, `order_fast()` |
-| `scotch_version()` | Returns `(major, minor, patch)` |
-
-### Distributed (MPI)
-
-| Class | Key Methods |
-|-------|-------------|
-| `Dgraph` | `build()`, `build_grid_3d()`, `load()`, `save()`, `check()`, `stat()`, `coarsen()`, `ghst()`, `grow()`, `band()`, `redist()`, `induce_part()`, `part()`, `map()`, `map_compute()`, `map_save()`, `map_view()`, `order()`, `order_init()`/`order_compute()`/`order_perm()`/`order_exit()`, `order_save()`, `gather()`, `scatter()`, `free()` |
+CI additionally builds Scotch from the upstream tarball through the CLI
+(pre-release, from the repo: `scotch-build.yml`) and re-runs the same journey
+against the published package (post-release, from PyPI: `pypi-verify.yml`).
 
 ## Project Structure
 
 ```
 pyscotch/
   __init__.py          # Public API exports
-  libscotch.py         # ctypes bindings, library loading, type definitions
+  libscotch.py         # ctypes bindings, library discovery/loading, type definitions
   graph.py             # Sequential graph operations
   dgraph.py            # Distributed graph operations (MPI)
   mesh.py              # Mesh operations
-  strategy.py          # Strategy/preset management
+  strategy.py          # Strategy management + construction-time string validation
+  strategy_grammar.py  # Typed builder for strategy strings
   arch.py              # Target architecture definitions
   mapping.py           # Mapping result container
   ordering.py          # Ordering result container
+  context.py           # SCOTCH_Context (per-context options, private PRNG streams)
   mpi.py               # Minimal MPI wrapper (OpenMPI, MPICH, Intel MPI)
+  doctor.py            # `pyscotch doctor` environment diagnostics
+  scotch_build.py      # `pyscotch scotch` — download/patch/compile/manage Scotch builds
+  _store.py            # Managed-build store (~/.local/share/pyscotch)
+  _patches/            # Bundled quickfix patches for upstream releases
   api_decorators.py    # @scotch_binding / @highlevel_api tracking
   cli.py               # Command-line interface
   native/
     file_compat.c      # FILE* ABI compatibility layer
+docs/site/             # Homegrown docs generator → c4ffein.github.io/pyscotch
 external/
-  scotch/              # Scotch submodule (gitlab.inria.fr)
-scotchpy/              # Official Scotch Python bindings (reference only, not a dependency)
+  scotch/              # Scotch submodule (gitlab.inria.fr) — pristine, never built in place
 ```
 
 ## How It Works
@@ -203,6 +168,7 @@ PyScotch uses ctypes to call Scotch's C functions directly. Key design decisions
 - **Dynamic struct sizing** via `SCOTCH_*Sizeof()` — never hardcodes structure sizes
 - **Symbol suffixes** (`_32`/`_64`) via `SCOTCH_NAME_SUFFIX` — allows loading multiple variants
 - **FILE\* compatibility layer** — a small C shim (`libpyscotch_compat`) that opens files with the same C runtime Scotch was compiled against, avoiding ABI mismatches
+- **Scotch stays the semantic authority** — strategy strings, PRNG behavior, and defaults are Scotch's own; PyScotch validates and surfaces, never reinterprets
 - **`@scotch_binding` decorators** — track which C functions each Python method wraps, enabling automated API completeness checks
 
 ## Versioning
@@ -210,7 +176,7 @@ PyScotch uses ctypes to call Scotch's C functions directly. Key design decisions
 PyScotch versions are `X.Y.z`, where **`X.Y` mirrors the Scotch series it is
 built and tested against** (e.g. PyScotch `7.0.*` supports Scotch 7.0.x) and
 **`z` counts PyScotch's own releases** within that series. Pin accordingly,
-e.g. `pyscotch~=7.0.0`. Use `pyscotch.scotch_version()` to check the Scotch
+e.g. `pyscotch~=7.0.2`. Use `pyscotch.scotch_version()` to check the Scotch
 actually loaded at runtime.
 
 ## License

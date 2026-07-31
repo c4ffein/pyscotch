@@ -44,21 +44,44 @@ A few rules worth knowing before writing your own strategies:
 - **The default is spelled `None`** — pass no strategy, a fresh
   `Strategy()`, or call `strategy.reset()`. The string setters
   (`set_mapping`, `set_ordering`, ...) also accept `None` as a synonym.
-- **Strategy strings are passed to Scotch verbatim** — a string means
-  exactly what it means in C Scotch. That includes two traps inherited
-  from the string grammar: the empty string `""` is a real *do-nothing*
-  strategy (partitioning leaves every vertex unassigned at `-1`, ordering
-  returns the identity permutation), and bare method codes such as `"r"`,
-  `"m"`, `"n"`, `"c"` parse successfully but run with do-nothing internals
-  (every vertex in one part / no reordering). Even parameterized strings
-  that omit a sub-strategy (e.g. `sep=`) degenerate silently — when
-  hand-writing strings, verify the output, or prefer the flag-based API.
+- **Strategy strings are validated at construction.** In C Scotch, the
+  string grammar has silent traps: bare method codes such as `"r"`, `"m"`,
+  `"n"`, `"c"` parse successfully but run with do-nothing internals (every
+  vertex in one part / no reordering), and parameterized strings that omit
+  a sub-strategy (e.g. `sep=`) degenerate the same way. `Strategy(string)`
+  probes the string against the library's own parsers under all three
+  sequential-graph grammars (mapping, ordering, overlap) and raises
+  `ValueError` immediately for strings that parse nowhere or are *hollow*
+  like the above. Strings that pass are then handed to Scotch verbatim —
+  no reinterpretation — and using a valid string with the wrong operation
+  (an ordering-only string for `partition()`, say) fails at use with a
+  message naming the grammars that do accept it.
+- **The one documented exception is `""`**: the empty string stays a real,
+  verbatim do-nothing strategy (partitioning leaves every vertex
+  unassigned at `-1`, ordering returns the identity permutation).
 - **The flag-based API is complete by construction**:
   `strategy.request_mapping(StrategyFlags.QUALITY)`,
   `request_ordering(...)`, and the `Strategies.partition_quality()` /
   `partition_fast()` / `order_quality()` / `order_fast()` presets build
   real strategies through `SCOTCH_stratGraphMapBuild` /
   `OrderBuild`.
+
+### Composing Strategy Strings: the Typed Builder
+
+For non-trivial strategies, `pyscotch.strategy_grammar` composes the string
+for you as a typed tree — strategy-valued parameters are *required*
+constructor arguments, so the do-nothing-slot trap is unrepresentable, and
+numeric parameters render only when you set them, so Scotch's own defaults
+always apply. `str(tree)` is a plain Scotch grammar string; Scotch stays the
+sole semantic authority:
+
+{% example "ex_04_strategy_grammar.py" %}
+
+Four namespaces mirror upstream's method tables — `Mapping`, `Bipart`,
+`Ordering`, `Separation`, named after the `*_st.c` routine suffixes
+(`Mapping.Ml` = `kgraphMapMl`, aliased `Mapping.Multilevel`) — plus the
+`Seq`/`Select` combinators (juxtaposition and the grammar's best-of `|`
+operator) and a `Raw` escape hatch for constructs the builder doesn't model.
 
 ## 3. Graph Coloring
 
