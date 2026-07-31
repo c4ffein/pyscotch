@@ -1,10 +1,15 @@
 name: Build Scotch from CLI (end-to-end)
 
-# Exercises the FULL `pyscotch scotch build` path in a clean runner — the real
-# wheel/sdist user scenario: no submodule, no scotch-builds/, no bundled libs.
-# It downloads Scotch from GitLab, compiles it, selects it, and then actually
-# loads + partitions through the resulting library (sequential AND parallel),
-# and asserts the known-bad 7.0.12 fails cleanly with the right diagnosis.
+# THE REPO-SIDE CHECK: installs pyscotch from this checkout (`pip install .`)
+# and exercises the FULL `pyscotch scotch build` path in a clean runner — the
+# real wheel/sdist user scenario: no submodule, no scotch-builds/, no bundled
+# libs. It downloads Scotch from GitLab, compiles it, selects it, and then
+# actually loads + partitions through the resulting library (sequential AND
+# parallel), and asserts the known-bad 7.0.12 fails cleanly with the right
+# diagnosis. Its post-publish twin is pypi-verify.yml, which runs the same
+# journey but installs pyscotch from the real PyPI index with no checkout —
+# this one gates the code before release, that one certifies the published
+# package after.
 #
 # This is the automated counterpart to the unit tests in
 # tests/pyscotch_base/test_scotch_build.py (which cover the logic offline).

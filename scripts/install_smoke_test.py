@@ -37,7 +37,12 @@ assert sorted(int(p) for p in perm) == list(range(6)), f"bad permutation {perm!r
 # (uv-created envs, `micromamba run`, ...).
 cli = Path(sys.executable).parent / "pyscotch"
 assert cli.is_file(), f"console script not installed next to {sys.executable}"
-subprocess.run([str(cli), "doctor"], check=True)
+# doctor exits 1 when it finds problems — legitimate on an EXTERNAL Scotch
+# (e.g. Ubuntu 24.04 ships 7.0.4, correctly reported as lacking
+# SCOTCH_Context). This is an install-method-agnostic smoke: only require
+# that the entry point runs and reports; anything above 1 is a crash.
+rc = subprocess.run([str(cli), "doctor"]).returncode
+assert rc in (0, 1), f"doctor crashed: exit {rc}"
 graph.save("smoke.grf")
 subprocess.run([str(cli), "partition", "smoke.grf", "-n", "2", "-o", "smoke.map"], check=True)
 assert Path("smoke.map").is_file(), "CLI partition produced no mapping file"

@@ -1,14 +1,20 @@
 name: Verify published PyPI release
 
-# The literal end-user journey, from the REAL index: `pip install pyscotch`
-# (no repo checkout anywhere — every byte comes from PyPI or gitlab.inria.fr),
-# then partition through the bundled wheel libraries, exercise the CLI, build
-# a custom Scotch from the upstream tarball with `pyscotch scotch build
-# --parallel`, and drive PT-Scotch under mpirun through it.
+# THE PYPI-SIDE CHECK: the literal end-user journey, from the REAL index —
+# `pip install pyscotch` (no repo checkout anywhere; every byte comes from
+# PyPI or gitlab.inria.fr), then partition through the bundled wheel
+# libraries, exercise the CLI, build a custom Scotch from the upstream tarball
+# with `pyscotch scotch build --parallel`, and drive PT-Scotch under mpirun
+# through it.
 #
-# This is the post-publish counterpart of verify-packages.yml (which gates the
-# artifacts BUILT FROM the tag, before/around publication): run it manually
-# after a release lands on PyPI, giving the index a few minutes to propagate.
+# Pre-publish twins, for orientation:
+#   - scotch-build.yml runs the same tarball-build journey but installs
+#     pyscotch FROM THE REPO checkout — it gates the code before release;
+#     this workflow certifies the published package after.
+#   - verify-packages.yml gates the wheel/sdist artifacts BUILT FROM the tag,
+#     before/around publication.
+# Run this one manually after a release lands on PyPI, giving the index a few
+# minutes to propagate.
 
 on:
   workflow_dispatch:
