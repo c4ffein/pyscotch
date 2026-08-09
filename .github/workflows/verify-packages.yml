@@ -24,11 +24,11 @@ jobs:
     name: Build wheel + sdist
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -60,7 +60,7 @@ jobs:
       matrix:
         method: [pip-wheel, uv-wheel, pip-sdist-system, conda-scotch-sdist]
     steps:
-      - uses: actions/checkout@v4  # for scripts/install_smoke_test.py only
+      - uses: actions/checkout@v5  # for scripts/install_smoke_test.py only
 
       - uses: actions/download-artifact@v4
         with:

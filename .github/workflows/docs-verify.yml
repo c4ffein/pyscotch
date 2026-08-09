@@ -30,12 +30,12 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # gitlab.inria.fr is public https; anonymous clone works in CI
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           # gen_api.py requires >=3.14: type annotations (Optional/Union)
           # stringify differently on older Pythons, so the committed

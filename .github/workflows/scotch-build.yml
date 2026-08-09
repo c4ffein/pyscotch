@@ -78,10 +78,10 @@ jobs:
           - scotch: "7.0.11"
             quickfix: "no"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         # No submodules: build-scotch downloads its own Scotch source.
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 

@@ -24,7 +24,7 @@ jobs:
           - arch: aarch64
             runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # gitlab.inria.fr is public https, anonymous clone works in CI
           submodules: recursive
@@ -73,9 +73,9 @@ jobs:
       # Checkout only provides the smoke-test script; the wheel is installed
       # and run from $RUNNER_TEMP, outside the repo checkout, so imports can
       # only resolve to the installed wheel.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -102,9 +102,9 @@ jobs:
     steps:
       # No submodules: the sdist must be buildable without them (users clone
       # the scotch submodule themselves per the README).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 

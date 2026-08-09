@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Deliberately NO actions/checkout: a user has none of this repo.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -89,7 +89,7 @@ jobs:
             quickfix: "yes"  # rename-table regression; must be auto-patched
     steps:
       # Deliberately NO actions/checkout: a user has none of this repo.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
