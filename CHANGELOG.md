@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.3] - 2026-08-09
+
+Scotch 7.0.13 release: catalog, submodule and bundled wheel libraries all move
+to the new upstream version — the first release where the newest Scotch builds
+pristine, with no PyScotch quickfix.
+
+### Added - Scotch 7.0.13
+- `pyscotch scotch build` knows 7.0.13 (sha256-pinned GitLab tarball);
+  `latest_version()` — and therefore the no-argument `build` default — now
+  resolves to 7.0.13. **No quickfix patch is needed**: upstream merged exactly
+  the fix our bundled 7.0.12 patch carried (`SCOTCH_memFree` and
+  `SCOTCH_meshBuildElem` registered in the rename table, `module.h`), so
+  7.0.13 is also the new `latest_pristine_version()`. The 7.0.12 catalog
+  entry and its quickfix are kept for reproducible older builds.
+- `external/scotch` submodule bumped to v7.0.13; wheels bundle 7.0.13
+  sequential libraries. Full suite green against 7.0.13 in all four
+  int-size/variant quadrants (64/32-bit x sequential/parallel).
+
+### Changed
+- `Verify published PyPI release` workflow now builds a **matrix of
+  catalogued Scotch versions** in parallel jobs, each with its quickfix
+  expectation pinned: 7.0.12 must be auto-patched, 7.0.13 must build
+  pristine. Adding a future release (7.0.14, ...) to the certification is a
+  one-line matrix entry. The bundled-wheel API/CLI smoke moved to its own
+  lighter job (no MPI toolchain needed there).
+- Its repo-side twin `Build Scotch from CLI (end-to-end)` is matrixed the
+  same way (7.0.11, 7.0.12, 7.0.13 in parallel jobs — the weekly tarball
+  drift watchdog now covers every catalogued version at once, where it
+  previously never exercised the newest release). Version-specific checks
+  ride on matrix fields: the exported-symbol check (`symbol`) and the
+  `--pristine`-must-fail-with-this-diagnosis negative test (`pristine_grep`)
+  run only where they apply.
+
+### Notes
+- Analysis of a PT-Scotch `dorderPerm` debug-build bug reported via PETSc
+  (untyped `DORDERCBLKNONE` leaf placeholders + a non-collective debug check;
+  latent for years, surfaced by 7.0.13's CMake `SCOTCH_DEBUG_ALL` propagation
+  fix) is documented in `QUESTIONS_FOR_SCOTCH_TEAM.md`. PyScotch is not
+  affected: `order_compute()` raises on failure, so `order_perm()` never runs
+  on a failed ordering — and wheels ship the sequential library only.
+
 ## [7.0.2] - 2026-07-31
 
 Verification-hardening release: no library code changes, but the release

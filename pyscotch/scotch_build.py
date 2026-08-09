@@ -33,11 +33,13 @@ from . import _store
 
 # ---------------------------------------------------------------------------
 # Known upstream releases (GitLab archive tarballs). Checksums recorded
-# 2026-07-15; override with --sha256 for other versions/patches or if GitLab
-# regenerates an archive. --url overrides the source entirely.
+# 2026-07-15 (7.0.13: 2026-08-08); override with --sha256 for other versions/
+# patches or if GitLab regenerates an archive. --url overrides the source
+# entirely.
 # ---------------------------------------------------------------------------
 _GITLAB = "https://gitlab.inria.fr/scotch/scotch/-/archive/v{v}/scotch-v{v}.tar.gz"
 _KNOWN_VERSIONS = {
+    "7.0.13": "6457d1f177fce9c07324b8c57ad1086402b0e61bd9ecf5c30b2b481944ea8fe7",
     "7.0.12": "870bf681e7e40b6b01c3890dbe7b27da2617660f1722541919a865a6729dcbf2",
     "7.0.11": "ce1ea6e16ca36ae91426a360f639c8f575fccebc0116fbcb381f164c5e862768",
     "7.0.10": "8327725a08cdd4fc7575e291251883b4f93f75b07a54bc58f89f50dcbba7b244",
@@ -68,7 +70,7 @@ _PATCHES = {
         (
             "scotch-7.0.12-rename-all-fix.patch",
             "register SCOTCH_meshBuildElem & SCOTCH_memFree in the RENAME_ALL "
-            "table (upstream omission; breaks suffixed builds)",
+            "table (upstream omission; breaks suffixed builds; fixed upstream in 7.0.13)",
         ),
     ],
 }

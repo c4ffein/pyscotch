@@ -6,8 +6,9 @@ full source build. Pick the one that matches your needs:
 | You want | Use |
 |----------|-----|
 | Graph partitioning, ordering, coloring, meshes | **pip / uv wheels** (easiest) |
-| Distributed operations with MPI (PT-Scotch) | **Build from source** |
+| Distributed operations with MPI (PT-Scotch) | **pip / uv wheels + `pyscotch scotch build --parallel`** |
 | Your distro's or conda's Scotch package | **System-installed Scotch** |
+| Hacking on PyScotch (or Scotch) itself | **Build from source** |
 
 ## 1. Installing with pip or uv
 
@@ -31,13 +32,27 @@ If you want the scipy/networkx conversion helpers
 pip install "pyscotch[interop]"
 ```
 
-**What wheels can't do:** MPI. An MPI implementation cannot be bundled in a
-wheel, so PT-Scotch (`PYSCOTCH_PARALLEL=1` and the `Dgraph` class) is not
-included. For distributed operations, build from source.
+**What wheels can't do:** bundle MPI. An MPI implementation cannot ship
+inside a wheel, so PT-Scotch (`PYSCOTCH_PARALLEL=1` and the `Dgraph` class)
+is not included. But you do **not** need a source checkout for it: install
+your MPI and build toolchain, then let PyScotch compile PT-Scotch for you —
+
+```bash
+sudo apt install build-essential flex bison zlib1g-dev libopenmpi-dev  # or your distro's equivalents
+pip install "pyscotch[parallel]"                # pulls mpi4py
+pyscotch scotch build --parallel --use          # download, compile, select
+```
+
+That is the recommended PT-Scotch path; section 5 below covers the `scotch`
+command in detail (checksums, preflight, managing several builds). A full
+source build (next section) is only needed for working on PyScotch itself.
 
 ## 2. Building from Source
 
-The full experience, including PT-Scotch/MPI. You'll need:
+The development setup — for contributing to PyScotch, testing against a
+modified Scotch, or working from a clone. (If you just want PT-Scotch as a
+user, the `pyscotch scotch build --parallel` path above is simpler.) You'll
+need:
 
 - GCC or Clang, Make
 - flex and bison (Scotch's parsers)
@@ -145,7 +160,7 @@ the bundled wheel libraries:
 
 ```bash
 pyscotch scotch build --parallel --use          # download, compile, select
-pyscotch scotch build 7.0.10 --sequential       # or pin a specific version
+pyscotch scotch build 7.0.12 --sequential       # or pin a specific version
 pyscotch scotch list                            # what's installed (\* = default)
 pyscotch scotch use 7.0.11-64-seq               # switch the default
 pyscotch scotch rm 7.0.11-64-par                # delete a build
@@ -158,10 +173,10 @@ preflight checks the toolchain first — C compiler, `make`, **flex ≥ 2.6.4**
 than failing halfway. With neither `--sequential` nor `--parallel`, it asks.
 
 **Quickfix patches.** Some upstream releases don't compile under PyScotch's
-suffixed build (e.g. Scotch 7.0.12 omits `SCOTCH_meshBuildElem` from its
-symbol-rename table). PyScotch bundles small fixes and applies them
-automatically, so those versions just build; such builds are marked
-`[quickfix]` in `list`. `pyscotch scotch patches` shows the catalog, and
+suffixed build (e.g. Scotch 7.0.12 omitted `SCOTCH_meshBuildElem` from its
+symbol-rename table — fixed upstream in 7.0.13). PyScotch bundles small fixes
+and applies them automatically, so those versions just build; such builds are
+marked `[quickfix]` in `list`. `pyscotch scotch patches` shows the catalog, and
 `--pristine` builds the untouched upstream source (which may then fail).
 
 ## Configuration
@@ -192,7 +207,7 @@ When you `import pyscotch`, the libraries are located in this order:
 ```python
 import pyscotch
 
-print(pyscotch.scotch_version())  # e.g. (7, 0, 11)
+print(pyscotch.scotch_version())  # e.g. (7, 0, 13)
 ```
 
 If that prints a version tuple, you're set. The next page walks through
