@@ -3,7 +3,7 @@
   "declared": 179,
   "direct": 105,
   "exposed": 121,
-  "helpers": 23,
+  "helpers": 24,
   "python": 17,
   "undecorated": 0
  },
@@ -120,6 +120,20 @@
      "name": "partition",
      "signature": "(nparts: int, strategy=None) -> numpy.ndarray",
      "summary": "Partition the graph into a specified number of parts."
+    },
+    {
+     "c_functions": [
+      "SCOTCH_graphMapInit",
+      "SCOTCH_graphMapCompute",
+      "SCOTCH_graphMapExit"
+     ],
+     "c_label": "Wraps",
+     "is_property": false,
+     "level": "high-level helper",
+     "level_css": "helper",
+     "name": "map",
+     "signature": "(arch, strategy=None) -> numpy.ndarray",
+     "summary": "Map the graph onto a target architecture."
     },
     {
      "c_functions": [

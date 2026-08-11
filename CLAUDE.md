@@ -16,6 +16,26 @@
 - YOU ARE NOT SUPPOSED TO BE POSITIVE WHEN SOMETHING FAILS.
 - IF YOU CAN'T FIX SOMETHING, YOU JUST STOP AND ASK THE USER TO LOOK INTO IT.
 
+## Generated docs API catalog (committed) — regenerate on any public-API change
+- `docs/site/api_data.json` is generated from the live API and **committed**.
+  If you add/remove/rename a public method, change a signature, or edit a
+  method's one-line summary, you MUST regenerate it — else the "Verify docs
+  API data" CI job fails on the stale file. This is easy to forget because the
+  code change works fine; only CI catches it.
+- Regenerate with **`make docs-api`** (not a bare `python docs/site/gen_api.py
+  --dump`). The catalog embeds the loaded Scotch version and the set of
+  available *parallel* symbols, so it is environment-sensitive: it must be
+  generated with Python >= 3.14 (the uv `.venv`, which has the deps — a bare
+  `python3.14` does not), a **fresh 64-bit build**, and `PYSCOTCH_PARALLEL=1`.
+  `make docs-api` pins exactly that (mirroring CI); a hand-run against a stray
+  `~/.local` build or with `PYSCOTCH_PARALLEL=0` produces a wrong file (wrong
+  version / undercounted symbols) that is still stale in CI.
+- **Always GENERATE the file — never hand-edit it to match CI's failure diff.**
+  Faking the artifact is exactly the dust-under-the-rug this repo forbids
+  (even when the diff looks obviously right). If you genuinely cannot run
+  `make docs-api` (no 3.14 env, no MPI build), STOP and ask the user to run it
+  and commit the result — do not guess or patch the JSON by hand.
+
 ## Scotch API Knowledge
 
 ### Random State Management

@@ -17,6 +17,10 @@ SCOTCH_DIR = build/scotch-src
 SCOTCH_SRC = $(SCOTCH_DIR)/src
 BUILDS_DIR = scotch-builds
 PYTHON ?= python3
+# gen_api.py (docs-api) needs Python >= 3.14 WITH pyscotch+numpy importable —
+# on this project that is the uv-managed .venv, not a bare python3. Prefer it
+# when present; override with DOCS_PYTHON=... for a different 3.14 interpreter.
+DOCS_PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,$(PYTHON))
 
 # Compiler settings
 CC = gcc
@@ -35,7 +39,7 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 # Targets
-.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 build-reference-tools clean clean-scotch install test test-full test-quadrant test-differential help
+.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 build-reference-tools clean clean-scotch install test test-full test-quadrant test-differential docs-api help
 
 help:
 	@echo "PyScotch Build System"
@@ -60,6 +64,7 @@ help:
 	@echo "  make test-quadrant   - Run all 4 variants (32/64 × seq/parallel) with hypothesis"
 	@echo "  make build-reference-tools - Build Scotch's own CLI tools (gpart, gord, gmap; dgpart, dgord) as differential oracles"
 	@echo "  make test-differential     - Byte-compare PyScotch against those tools (needs build-reference-tools)"
+	@echo "  make docs-api              - Regenerate docs/site/api_data.json after a public-API change (mirrors CI)"
 	@echo "  make clean           - Clean Python build artifacts"
 	@echo "  make clean-scotch    - Clean all Scotch builds"
 	@echo "  make check-submodule - Gets Scotch as a submodule"
@@ -179,6 +184,21 @@ build-reference-tools: check-submodule
 	@cp -f $(SCOTCH_DIR)/bin/dgpart $(SCOTCH_DIR)/bin/dgord $(BUILDS_DIR)/bin/ 2>/dev/null || true
 	@cp -f $(SCOTCH_DIR)/lib/lib*ptscotch*.$(SHARED_EXT) $(BUILDS_DIR)/bin/ 2>/dev/null || true
 	@echo "✓ Reference tools ready: $(BUILDS_DIR)/bin/ (gpart, gord, gmap; dgpart, dgord if MPI)"
+
+# Regenerate the committed docs API catalog (docs/site/api_data.json). Run this
+# whenever you add/remove/rename a public method, change a signature, or edit a
+# method's one-line summary — otherwise the "Verify docs API data" CI job fails.
+# This MUST match that job's environment or it produces a stale-in-CI file: the
+# catalog embeds the loaded Scotch version and the set of available (parallel)
+# symbols, so it needs a fresh 64-bit build (not a stray ~/.local one — hence
+# the pinned PYSCOTCH_LIB_DIR) built WITH parallel, and Python >= 3.14 (older
+# stringifies annotations differently; gen_api.py errors out if so).
+docs-api: build-64
+	PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 \
+	PYSCOTCH_LIB_DIR=$(CURDIR)/$(BUILDS_DIR)/lib64 \
+	LD_LIBRARY_PATH=$(CURDIR)/$(BUILDS_DIR)/lib64:$$LD_LIBRARY_PATH \
+	$(DOCS_PYTHON) docs/site/gen_api.py --dump
+	@echo "✓ Regenerated docs/site/api_data.json — commit it alongside the API change."
 
 # Differential tier: byte-compare PyScotch's outputs against gpart/gord/gmap
 # (and dgpart/dgord under mpirun) driving the same library (requires
