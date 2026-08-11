@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.4] - 2026-08-11
+
+Small additive release: a public sequential mapping entry point, and the
+byte-identity differential tier broadened to ordering, mapping, and the
+distributed tools. No library-code or Scotch-version changes.
+
+### Added
+- **`Graph.map(arch, strategy=None)`**: public sequential mapping onto an
+  arbitrary target architecture (hypercube, mesh, real machine topology, …).
+  Partitioning is the special case of mapping onto a complete graph; this
+  generalizes it, mirroring Scotch's `gmap`. Previously only `partition()` and
+  the distributed `Dgraph.map()` were public — the sequential mapping plumbing
+  existed but had no entry point.
+- Differential test tier extended to prove **byte-identity with Scotch's own
+  CLI tools** under deterministic settings: `gord` (ordering) and `gmap`
+  (mapping) sequentially, and — under `mpirun` — `dgpart`/`dgord` (distributed
+  partition and ordering). Built and run via `make build-reference-tools` +
+  `make test-differential`; CI fails loudly if any reference tool is missing.
+
+### Notes
+- Reproducing `dgpart`/`dgord` byte-for-byte from the distributed API requires
+  seeding the PRNG **per process** — `random_proc(rank)`, the CLI tools' first
+  PRNG action — not just `random_reset()`. Without it, weighted or large graphs
+  compute a different (still valid) distributed result. See the fold-dup note in
+  `QUESTIONS_FOR_SCOTCH_TEAM.md`.
+
 ## [7.0.3] - 2026-08-09
 
 Scotch 7.0.13 release: catalog, submodule and bundled wheel libraries all move

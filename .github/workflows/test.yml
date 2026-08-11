@@ -92,6 +92,26 @@ jobs:
       run: |
         make test-quadrant
 
+    - name: Build upstream reference tools (gpart, gord, gmap; dgpart, dgord)
+      run: |
+        make build-reference-tools
+
+    - name: Verify reference tools built (sequential AND parallel)
+      # build-reference-tools is intentionally lenient about ptscotch (no-MPI dev boxes),
+      # which would let a real ptscotch build failure downgrade the parallel
+      # differential to a silent skip. CI has MPI, so require every tool: a
+      # missing binary fails here, loudly, instead of quietly skipping.
+      run: |
+        for tool in gpart gord gmap dgpart dgord; do
+          test -f scotch-builds/bin/$tool || { echo "✗ scotch-builds/bin/$tool missing (build failed)"; exit 1; }
+        done
+        test -f scotch-builds/bin/libptscotch.so || { echo "✗ libptscotch.so missing next to the parallel tools"; exit 1; }
+        echo "✓ All reference tools present (gpart, gord, gmap, dgpart, dgord)"
+
+    - name: Run differential tier (byte-compare against gpart/gord/gmap; dgpart/dgord)
+      run: |
+        make test-differential
+
     - name: Test summary
       if: always()
       run: |

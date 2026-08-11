@@ -549,6 +549,78 @@ class Graph:
 
         return parttab
 
+    @highlevel_api(
+        scotch_functions=[
+            "SCOTCH_graphMapInit",
+            "SCOTCH_graphMapCompute",
+            "SCOTCH_graphMapExit",
+        ]
+    )
+    def map(self, arch, strategy=None) -> np.ndarray:
+        """
+        Map the graph onto a target architecture.
+
+        Partitioning (:meth:`partition`) is the special case of mapping onto a
+        complete graph of ``nparts`` vertices; this generalizes it to any
+        target architecture (a hypercube, a mesh, a real machine topology, …),
+        exactly what Scotch's ``gmap`` tool does. The result assigns each vertex
+        a terminal number of ``arch``.
+
+        Args:
+            arch: Target :class:`~pyscotch.arch.Architecture` to map onto.
+            strategy: Mapping strategy (optional; ``None`` = Scotch default).
+
+        Returns:
+            Array of terminal-number assignments, one per vertex.
+
+        Raises:
+            RuntimeError: If mapping fails.
+
+        Note:
+            Scotch's PRNG state carries across calls; for reproducible results
+            call ``pyscotch.random_reset()`` before this operation.
+        """
+        from .strategy import Strategy
+
+        vertnbr, _ = self.size()
+        nparts = arch.size()  # target part count, for the per-call strategy build
+
+        parttab = np.zeros(vertnbr, dtype=lib.get_scotch_dtype())
+        parttab_c = parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+        # A fresh Strategy is Scotch's default (what `gmap` runs given no -s);
+        # deferred requests are built per call against the target part count.
+        if strategy is None:
+            strategy = Strategy()
+
+        with strategy._materialized_mapping(nparts) as stratdat:
+            # 3-step Init -> Compute -> Exit, same as partition() and gmap.
+            mappdat = lib.SCOTCH_Mapping()
+
+            ret = lib.SCOTCH_graphMapInit(
+                byref(self._graph),
+                byref(mappdat),
+                byref(arch._arch),
+                parttab_c,
+            )
+            if ret != 0:
+                raise lib.scotch_error("Failed to initialize mapping", ret)
+
+            ret = lib.SCOTCH_graphMapCompute(
+                byref(self._graph),
+                byref(mappdat),
+                byref(stratdat),
+            )
+
+            lib.SCOTCH_graphMapExit(byref(self._graph), byref(mappdat))
+
+        if ret != 0:
+            raise lib.scotch_error(
+                f"Failed to map graph ({vertnbr} vertices) onto {nparts}-part architecture", ret
+            )
+
+        return parttab
+
     @scotch_binding(
         "SCOTCH_graphOrder",
         "int SCOTCH_graphOrder(const SCOTCH_Graph *, const SCOTCH_Strat *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *)",

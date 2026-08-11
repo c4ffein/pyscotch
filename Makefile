@@ -35,7 +35,7 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 # Targets
-.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 clean clean-scotch install test test-full test-quadrant help
+.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 build-reference-tools clean clean-scotch install test test-full test-quadrant test-differential help
 
 help:
 	@echo "PyScotch Build System"
@@ -58,6 +58,8 @@ help:
 	@echo "  make test            - Run tests (64-bit parallel, skips hypothesis)"
 	@echo "  make test-full       - Run full test suite including hypothesis"
 	@echo "  make test-quadrant   - Run all 4 variants (32/64 × seq/parallel) with hypothesis"
+	@echo "  make build-reference-tools - Build Scotch's own CLI tools (gpart, gord, gmap; dgpart, dgord) as differential oracles"
+	@echo "  make test-differential     - Byte-compare PyScotch against those tools (needs build-reference-tools)"
 	@echo "  make clean           - Clean Python build artifacts"
 	@echo "  make clean-scotch    - Clean all Scotch builds"
 	@echo "  make check-submodule - Gets Scotch as a submodule"
@@ -158,6 +160,47 @@ build-seq-64: check-submodule
 	@cp -f $(SCOTCH_DIR)/lib/libscotch.$(SHARED_EXT) $(SCOTCH_DIR)/lib/libscotcherr*.$(SHARED_EXT) $(BUILDS_DIR)/lib64/
 	@cp -f $(SCOTCH_DIR)/include/*.h $(BUILDS_DIR)/inc64/
 	@echo "✓ Sequential 64-bit build complete: scotch-builds/{lib64,inc64}/"
+
+# Upstream's reference CLI tools (gpart, gord, gmap; dgpart, dgord) for the differential tier
+# (tests/pyscotch_base/test_differential.py), built from the same
+# prepared source copy as the libraries but with the stock (unsuffixed)
+# Makefile.inc flags — the tools must drive libscotch exactly as released.
+# The binaries dynamically link the unsuffixed libscotch.so, so it is copied
+# next to them; run them with LD_LIBRARY_PATH pointing there.
+build-reference-tools: check-submodule
+	@echo "Building upstream reference tools (gpart, gord, gmap; dgpart, dgord if MPI)..."
+	@cd $(SCOTCH_SRC) && $(MAKE) realclean
+	@cd $(SCOTCH_SRC) && $(MAKE) scotch
+	@mkdir -p $(BUILDS_DIR)/bin
+	@cp -f $(SCOTCH_DIR)/bin/gpart $(SCOTCH_DIR)/bin/gord $(SCOTCH_DIR)/bin/gmap $(BUILDS_DIR)/bin/
+	@cp -f $(SCOTCH_DIR)/lib/lib*scotch*.$(SHARED_EXT) $(BUILDS_DIR)/bin/
+	@echo "Building parallel reference tools (dgpart, dgord)..."
+	@cd $(SCOTCH_SRC) && $(MAKE) ptscotch || echo "⚠ ptscotch build failed (no MPI?) — parallel differential tier will skip"
+	@cp -f $(SCOTCH_DIR)/bin/dgpart $(SCOTCH_DIR)/bin/dgord $(BUILDS_DIR)/bin/ 2>/dev/null || true
+	@cp -f $(SCOTCH_DIR)/lib/lib*ptscotch*.$(SHARED_EXT) $(BUILDS_DIR)/bin/ 2>/dev/null || true
+	@echo "✓ Reference tools ready: $(BUILDS_DIR)/bin/ (gpart, gord, gmap; dgpart, dgord if MPI)"
+
+# Differential tier: byte-compare PyScotch's outputs against gpart/gord/gmap
+# (and dgpart/dgord under mpirun) driving the same library (requires
+# build-reference-tools; the parallel tier also needs the suffixed lib32 from build-all).
+# 32-bit on purpose: it matches the stock Makefile.inc int size the reference
+# binaries were built with. The deterministic knobs must be set before the
+# pytest session starts — the tests skip (never silently pass) when a binary,
+# the parallel lib dir, or mpirun is missing.
+test-differential:
+	PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=0 \
+	SCOTCH_PTHREAD_NUMBER=1 SCOTCH_DETERMINISTIC=1 \
+	PYSCOTCH_GPART=$(CURDIR)/$(BUILDS_DIR)/bin/gpart \
+	PYSCOTCH_GORD=$(CURDIR)/$(BUILDS_DIR)/bin/gord \
+	PYSCOTCH_GMAP=$(CURDIR)/$(BUILDS_DIR)/bin/gmap \
+	PYSCOTCH_DGPART=$(CURDIR)/$(BUILDS_DIR)/bin/dgpart \
+	PYSCOTCH_DGORD=$(CURDIR)/$(BUILDS_DIR)/bin/dgord \
+	PYSCOTCH_PAR_LIB_DIR=$(CURDIR)/$(BUILDS_DIR)/lib32 \
+	PYSCOTCH_PAR_INT_SIZE=32 \
+	PYSCOTCH_MPI_OVERSUBSCRIBE=1 \
+	LD_LIBRARY_PATH=$(CURDIR)/$(BUILDS_DIR)/bin:$$LD_LIBRARY_PATH \
+	pytest tests/pyscotch_base/test_differential.py \
+	       tests/scotch_ports_mpi/test_differential_parallel.py -v
 
 # Ensure the submodule exists, then prepare the disposable patched copy that
 # builds compile in (see the Directories comment above). Version detection,

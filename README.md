@@ -125,7 +125,7 @@ make test-quadrant  # all 4 variants (32/64 × seq/par) with hypothesis
 | `tests/hypothesis/` | Property-based tests — stronger validation than Scotch's own C tests |
 | `tests/pyscotch_integration/` | End-to-end orchestrated workflows |
 | `tests/golden/` + `scripts/golden_walkthrough.py` | Golden master: the full sdist user journey, byte-for-byte |
-| `tests/pyscotch_base/test_differential_gpart.py` | Differential: byte-identity with Scotch's own `gpart` (opt-in via `PYSCOTCH_GPART`) |
+| `tests/pyscotch_base/test_differential.py` + `tests/scotch_ports_mpi/test_differential_parallel.py` | Differential: byte-identity with Scotch's own `gpart`/`gord`/`gmap` (and `dgpart`/`dgord` under mpirun); opt-in via `PYSCOTCH_G*`/`PYSCOTCH_DG*`, all wired by `make test-differential` |
 | `docs/site/examples/` | Every doc example runs as a test |
 
 CI additionally builds Scotch from the upstream tarball through the CLI
