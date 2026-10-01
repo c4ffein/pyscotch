@@ -77,6 +77,40 @@ def _resolve_comm(comm):
     )
 
 
+def _scotch_input(array):
+    """A read-only input array as Scotch wants it: C-contiguous, Scotch dtype.
+
+    Returns ``(array, pointer)``. The array is the caller's own when it already
+    qualifies, otherwise a converted copy -- and the returned array MUST stay
+    referenced for as long as Scotch may read through the pointer (for the
+    duration of the call, or for the life of the Dgraph in build()'s case).
+    """
+    arr = np.ascontiguousarray(array, dtype=lib.get_scotch_dtype())
+    return arr, arr.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+
+def _scotch_inout(array, name: str):
+    """Pointer to an array Scotch writes INTO in place.
+
+    Converting such an array would hand Scotch a temporary copy and the
+    caller's array would never receive the results, so it must already be a
+    C-contiguous numpy array of the Scotch dtype -- anything else is refused.
+    """
+    dtype = lib.get_scotch_dtype()
+    if (
+        not isinstance(array, np.ndarray)
+        or array.dtype != dtype
+        or not array.flags.c_contiguous
+    ):
+        got = f"dtype {array.dtype}" if isinstance(array, np.ndarray) else type(array).__name__
+        raise TypeError(
+            f"{name} is written in place by Scotch and must be a C-contiguous numpy "
+            f"array of dtype {dtype.__name__} (got {got}); allocate it with "
+            "numpy.zeros(n, dtype=pyscotch.get_scotch_dtype())."
+        )
+    return array.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+
+
 class Dgraph:
     """
     Distributed graph for PT-Scotch parallel partitioning and ordering.
@@ -143,6 +177,10 @@ class Dgraph:
         # Initialize distributed graph
         self._dgraph = lib.SCOTCH_Dgraph()
         self._exit_called = False
+        # Arrays handed to SCOTCH_dgraphBuild, which keeps pointers into them
+        # (it does not copy): they live here for as long as the graph does.
+        self._build_arrays = ()
+        self._queue_work = None  # grow()/band() breadth-first queue, see _queue_work_array
         ret = lib.SCOTCH_dgraphInit(byref(self._dgraph), self._comm)
         if ret != 0:
             raise lib.scotch_error("SCOTCH_dgraphInit failed", ret)
@@ -164,6 +202,10 @@ class Dgraph:
         if hasattr(self, "_dgraph") and not self._exit_called:
             lib.SCOTCH_dgraphExit(byref(self._dgraph))
             self._exit_called = True
+            # Scotch no longer holds pointers into anything: release the
+            # input arrays retained by build() and the grow/band work array.
+            self._build_arrays = ()
+            self._queue_work = None
 
     @scotch_binding(
         "SCOTCH_dgraphBuild",
@@ -201,10 +243,20 @@ class Dgraph:
             The distributed graph uses CSR format like sequential graphs, but
             each process only holds its local portion. Ghost vertices/edges
             may reference vertices on other processes.
+
+            SCOTCH_dgraphBuild does not copy these arrays: the graph keeps
+            pointers into them for its whole life. Arrays that are not already
+            C-contiguous with the Scotch integer dtype are converted, and the
+            Dgraph keeps a reference to whatever it handed to Scotch, so the
+            caller need not keep its own arrays alive. edgegsttab is the one
+            exception: Scotch fills it in place (ghst()), so it must already
+            have the Scotch dtype.
         """
-        # Ensure correct dtype
-        vertloctab, vertloctab_c = lib.to_scotch_array(vertloctab)
-        edgeloctab, edgeloctab_c = lib.to_scotch_array(edgeloctab)
+        # SCOTCH_dgraphBuild keeps POINTERS into these arrays (dgraph_build.c
+        # stores vertloctax/edgeloctax straight from the arguments), so any
+        # converted copy must outlive this call: everything goes on self.
+        vertloctab, vertloctab_c = _scotch_input(vertloctab)
+        edgeloctab, edgeloctab_c = _scotch_input(edgeloctab)
 
         # Calculate sizes
         vertlocnbr = len(vertloctab) - 1  # Number of local vertices
@@ -212,12 +264,20 @@ class Dgraph:
         edgelocnbr = len(edgeloctab)  # Number of local edges
         edgelocsiz = edgelocnbr  # Size of edge array
 
-        # Handle optional arrays
-        vendloctab, vendloctab_ptr = lib.to_scotch_array_optional(vendloctab)
-        veloloctab, veloloctab_ptr = lib.to_scotch_array_optional(veloloctab)
-        vlblloctab, vlblloctab_ptr = lib.to_scotch_array_optional(vlblloctab)
-        edgegsttab, edgegsttab_ptr = lib.to_scotch_array_optional(edgegsttab)
-        edloloctab, edloloctab_ptr = lib.to_scotch_array_optional(edloloctab)
+        # Optional read-only arrays (converted if needed, then retained)
+        def optional(array):
+            return (None, None) if array is None else _scotch_input(array)
+
+        vendloctab, vendloctab_ptr = optional(vendloctab)
+        veloloctab, veloloctab_ptr = optional(veloloctab)
+        vlblloctab, vlblloctab_ptr = optional(vlblloctab)
+        edloloctab, edloloctab_ptr = optional(edloloctab)
+        # edgegsttab is filled IN PLACE by Scotch (dgraphGhst): never convert it
+        edgegsttab_ptr = None if edgegsttab is None else _scotch_inout(edgegsttab, "edgegsttab")
+
+        self._build_arrays = (
+            vertloctab, edgeloctab, vendloctab, veloloctab, vlblloctab, edgegsttab, edloloctab
+        )
 
         # Build the distributed graph
         ret = lib.SCOTCH_dgraphBuild(
@@ -601,7 +661,9 @@ class Dgraph:
 
         Args:
             seedlocnbr: Number of seed vertices on this process
-            seedloctab: Array of seed vertex indices (local numbering)
+            seedloctab: Array of seed vertex indices (local numbering); only
+                       its first seedlocnbr entries are read, and it is left
+                       untouched (see the Note on the C-level work array).
             distmax: Maximum distance to grow from seeds
             partgsttab: Partition array (includes ghost vertices!)
                        Modified in-place. Must be initialized with seed
@@ -618,6 +680,12 @@ class Dgraph:
             - Must call ghst() before calling this method
             - partgsttab must be sized for ghost vertices (vertgstnbr)
             - Seeds must be marked in partgsttab before calling
+            - At the C level, SCOTCH_dgraphGrow re-uses the seed array as
+              its breadth-first queue (dgraph_band_grow.c: "array of
+              frontier vertices, re-used as queue array"), so it must hold
+              vertlocnbr entries and its contents are clobbered. PyScotch
+              copies the seeds into a private work array of that size, so
+              any array of at least seedlocnbr entries is safe here.
 
         Example:
             >>> dgraph.ghst()
@@ -627,12 +695,14 @@ class Dgraph:
             >>> partgsttab[1] = 1  # Mark second seed as partition 1
             >>> dgraph.grow(2, seedloctab, 4, partgsttab)
         """
+        seedloctab_c = self._queue_work_array(seedloctab, seedlocnbr, "seedloctab")
+        partgsttab_c = _scotch_inout(partgsttab, "partgsttab")  # results land here in place
         ret = lib.SCOTCH_dgraphGrow(
             byref(self._dgraph),
             lib.SCOTCH_Num(seedlocnbr),
-            seedloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            seedloctab_c,
             lib.SCOTCH_Num(distmax),
-            partgsttab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            partgsttab_c,
         )
         if ret != 0:
             raise lib.scotch_error("Failed to grow graph", ret)
@@ -654,7 +724,9 @@ class Dgraph:
 
         Args:
             fronlocnbr: Number of frontier vertices on this process
-            fronloctab: Array of frontier vertex indices (local numbering)
+            fronloctab: Array of frontier vertex indices (local numbering);
+                       only its first fronlocnbr entries are read, and it is
+                       left untouched (see the Note on the C-level work array)
             distmax: Maximum distance from frontier to include
             bandgrafdat: Output band graph (must be initialized)
 
@@ -667,6 +739,11 @@ class Dgraph:
         Note:
             - Band graph will have vertex labels (vlblloctab)
             - Vertices in band graph reference original graph indices
+            - At the C level, SCOTCH_dgraphBand re-uses the frontier array as
+              its breadth-first queue (it must hold vertlocnbr entries and is
+              clobbered). PyScotch copies the frontier into a private work
+              array of that size, so any array of at least fronlocnbr
+              entries is safe here.
 
         Example:
             >>> fronloctab = np.array([baseval], dtype=np.int64)
@@ -675,10 +752,11 @@ class Dgraph:
             >>> dgraph.band(fronlocnbr, fronloctab, 4, bandgrafdat)
             >>> # bandgrafdat now contains vertices within distance 4 of frontier
         """
+        fronloctab_c = self._queue_work_array(fronloctab, fronlocnbr, "fronloctab")
         ret = lib.SCOTCH_dgraphBand(
             byref(self._dgraph),
             lib.SCOTCH_Num(fronlocnbr),
-            fronloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            fronloctab_c,
             lib.SCOTCH_Num(distmax),
             byref(bandgrafdat._dgraph),
         )
@@ -729,14 +807,16 @@ class Dgraph:
             >>> dstgrafdat = Dgraph()
             >>> srcgrafdat.redist(partloctab, dstgrafdat=dstgrafdat)
         """
-        # Handle None permgsttab by passing NULL pointer
-        permgsttab_ptr = (
-            None if permgsttab is None else permgsttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+        # Both arrays are const inputs of SCOTCH_dgraphRedist: read during the
+        # call only, so a call-scoped conversion is enough.
+        partloctab, partloctab_c = _scotch_input(partloctab)
+        permgsttab, permgsttab_ptr = (
+            (None, None) if permgsttab is None else _scotch_input(permgsttab)
         )
 
         ret = lib.SCOTCH_dgraphRedist(
             byref(self._dgraph),
-            partloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            partloctab_c,
             permgsttab_ptr,
             lib.SCOTCH_Num(vertlocdlt),
             lib.SCOTCH_Num(edgelocdlt),
@@ -785,9 +865,10 @@ class Dgraph:
             >>> indgrafdat = Dgraph()
             >>> orggrafdat.induce_part(orgpartloctab, 1, indvertlocnbr, indgrafdat)
         """
+        orgpartloctab, orgpartloctab_c = _scotch_input(orgpartloctab)  # read during the call
         ret = lib.SCOTCH_dgraphInducePart(
             byref(self._dgraph),
-            orgpartloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
+            orgpartloctab_c,
             lib.SCOTCH_Num(partval),
             lib.SCOTCH_Num(indvertlocnbr),
             byref(indgrafdat._dgraph),
@@ -809,6 +890,7 @@ class Dgraph:
         build() or load()), like a freshly initialized structure.
         """
         lib.SCOTCH_dgraphFree(byref(self._dgraph))
+        self._build_arrays = ()
 
     @scotch_binding(
         "SCOTCH_dgraphBuildGrid3D",
@@ -986,6 +1068,29 @@ class Dgraph:
     def _vertlocnbr(self) -> int:
         """Number of local vertices on this process."""
         return self.data(want_vertlocnbr=True)["vertlocnbr"]
+
+    @internal_api
+    def _queue_work_array(self, vertices, count: int, name: str):
+        """Pointer to a private copy of ``vertices[:count]`` in a work array
+        of vertlocnbr entries.
+
+        SCOTCH_dgraphGrow / SCOTCH_dgraphBand re-use the seed (frontier)
+        array they are given as their breadth-first queue (dgraph_band_grow.c),
+        enqueueing up to every local vertex into it: handing them the
+        caller's array is a heap overflow unless it already has vertlocnbr
+        entries, and clobbers its contents either way. The work array is
+        kept on the instance so it outlives the ctypes pointer until the
+        next call.
+        """
+        vertices = np.ascontiguousarray(vertices, dtype=lib.get_scotch_dtype())
+        if count < 0 or count > len(vertices):
+            raise ValueError(
+                f"{name} has {len(vertices)} entries but {count} were declared"
+            )
+        work = np.zeros(max(self._vertlocnbr(), count), dtype=lib.get_scotch_dtype())
+        work[:count] = vertices[:count]
+        self._queue_work = work
+        return work.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
     @internal_api
     def _comm_rank(self) -> int:

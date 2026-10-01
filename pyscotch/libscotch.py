@@ -1025,12 +1025,14 @@ def get_scotch_dtype():
 
 
 def to_scotch_array(array, copy=False):
-    """Convert a numpy array to the correct Scotch dtype and return (array, ctypes_ptr).
+    """Convert an array to a C-contiguous Scotch-dtype array and return (array, ctypes_ptr).
 
-    The returned array must be kept alive for the pointer to remain valid.
+    The returned array must be kept alive for the pointer to remain valid. It
+    is the caller's own object only when that already qualified; a strided
+    view or a different integer width yields a copy.
     """
-    arr = np.asarray(array, dtype=get_scotch_dtype())
-    if copy:
+    arr = np.ascontiguousarray(array, dtype=get_scotch_dtype())
+    if copy and arr is array:
         arr = arr.copy()
     return arr, arr.ctypes.data_as(POINTER(SCOTCH_Num))
 

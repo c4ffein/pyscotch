@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 import pytest
 
+from pyscotch import libscotch as lib
+
 # Directory containing MPI scripts
 SCRIPT_DIR = Path(__file__).parent / "mpi_scripts"
 
@@ -29,9 +31,16 @@ def _mpirun_cmd(num_processes: int) -> list[str]:
 
 
 def _get_ptscotch_env() -> dict:
-    """Get environment variables for PT-Scotch (64-bit, parallel)."""
+    """Environment for the PT-Scotch (parallel) child processes.
+
+    The child runs the SAME integer width as this test session: the
+    PYSCOTCH_INT_SIZE the session was started with, or -- when it was not set
+    -- whatever width the parent process actually loaded. (This used to be
+    hard-coded to 64, so the "32-bit parallel" leg of `make test-quadrant`
+    silently ran every MPI script against the 64-bit library.)
+    """
     env = os.environ.copy()
-    env["PYSCOTCH_INT_SIZE"] = "64"
+    env.setdefault("PYSCOTCH_INT_SIZE", str(lib.get_scotch_int_size()))
     env["PYSCOTCH_PARALLEL"] = "1"
     return env
 
@@ -328,3 +337,22 @@ class TestDgraphMpi4pyInterop:
 
         assert returncode == 0, f"MPI script failed with return code {returncode}"
         assert "PASS" in stdout, "Expected PASS message in output"
+
+
+class TestDgraphArrayLifetime:
+    """Input arrays must outlive build(), and any integer width must be safe."""
+
+    def test_dgraph_array_lifetime(self):
+        """SCOTCH_dgraphBuild keeps pointers into its input arrays: the copies
+        PyScotch makes to convert their dtype must live as long as the Dgraph.
+        The read-only inputs of grow/band/redist/induce_part accept any width;
+        grow's in-place output array must be refused if it needs conversion."""
+        returncode, stdout, stderr = run_mpi_script("dgraph_array_lifetime.py", num_processes=2)
+
+        if stdout:
+            print("STDOUT:", stdout)
+        if stderr:
+            print("STDERR:", stderr)
+
+        assert returncode == 0, f"Script failed with return code {returncode}"
+        assert "PASS" in stdout

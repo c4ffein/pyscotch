@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **`Dgraph.build` handed Scotch pointers into freed memory.** `SCOTCH_dgraphBuild`
+  does not copy its input arrays (it stores the pointers for the life of the
+  graph), and the copies PyScotch made to convert their dtype were dropped when
+  `build()` returned. Any input needing a conversion (a Python list, or int32
+  arrays on a 64-bit build) left the distributed graph reading garbage once the
+  heap was reused; `check()` flipped to false and every later operation ran on
+  corrupt data. The Dgraph now keeps a reference to every array it handed to
+  Scotch, like the sequential `Graph.build` always did. `grow`, `band`,
+  `redist` and `induce_part` now also accept arrays of any integer width
+  (converted for the duration of the call); `grow`'s in-place output array
+  `partgsttab` (and `build`'s `edgegsttab`) must already have the Scotch dtype
+  and is refused with a `TypeError` otherwise, since a converted copy would
+  silently swallow the results. Pinned by
+  `tests/scotch_ports_mpi/mpi_scripts/dgraph_array_lifetime.py`.
+- **`Dgraph.grow` / `Dgraph.band` overflowed short seed arrays.** At the C
+  level `SCOTCH_dgraphGrow` and `SCOTCH_dgraphBand` re-use the seed (frontier)
+  array as their breadth-first queue, so it must hold `vertlocnbr` entries and
+  its contents are clobbered (PT-Scotch manual; `dgraph_band_grow.c`). The
+  wrappers passed the caller's array straight through without saying so; a
+  seed array shorter than that corrupted the heap (found as a
+  layout-dependent crash in `MPI_Finalize`). Both now copy the seeds into a
+  private, correctly sized work array, so any array of at least
+  `seedlocnbr` / `fronlocnbr` entries is safe and the caller's array is left
+  untouched.
+- `tests/pyscotch_base/test_context.py::test_bind_graph` now closes its
+  Context. Binding a graph starts Scotch's thread pool, which pins the calling
+  thread to one core and only unpins it in `SCOTCH_contextExit`; the leaked
+  Context left the whole pytest process, and every `mpirun` it spawned
+  afterwards, confined to a single CPU.
+- **`Graph.from_edges(edge_weights=...)` could never be used**: it passed one
+  weight per input edge where Scotch needs one load per arc, so the length
+  check always raised. Each weight is now applied to both arcs of its edge.
+  `vertex_weights` accepts numpy arrays (the old truthiness test raised on
+  them). Self-loops and duplicate edges (in either direction) are now rejected
+  with a `ValueError` instead of silently building a graph whose own
+  `check()` fails, matching `from_scipy_sparse` / `from_networkx`; negative
+  vertex indices are rejected too, and any iterable of pairs (a set, a
+  generator) is accepted.
+- `libscotch.to_scotch_array` now also guarantees C-contiguity: a strided view
+  used to hand Scotch a pointer into interleaved memory.
+- The MPI test orchestrator (`tests/scotch_ports_mpi/test_dgraph.py`)
+  hard-coded `PYSCOTCH_INT_SIZE=64` for its child processes, so the "32-bit
+  parallel" quadrant of `make test-quadrant` ran every MPI script against the
+  64-bit library. Children now follow the quadrant under test.
+
 ## [7.0.4] - 2026-08-11
 
 Small additive release: a public sequential mapping entry point, and the

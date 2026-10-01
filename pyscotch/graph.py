@@ -143,6 +143,47 @@ def _coerce_edge_weights(values, what: str = "edge weights") -> Optional[np.ndar
     return out
 
 
+def _coerce_vertex_weights(values, what: str = "vertex weights") -> np.ndarray:
+    """
+    Validate vertex load values and convert them to a Scotch vertex load array.
+
+    Scotch vertex loads (velotab) must be non-negative integers -- unlike edge
+    loads, zero is allowed (graph_check.c only rejects negative loads).
+    Floating point values are accepted only when they are integral.
+
+    Raises:
+        ValueError: If any load is non-numeric, non-integral, negative, or
+            does not fit in the Scotch integer type.
+    """
+    arr = np.asarray(values)
+    if arr.dtype == np.bool_:
+        arr = arr.astype(np.int8)
+    if arr.dtype.kind == "O":
+        try:
+            arr = arr.astype(np.float64)
+        except (TypeError, ValueError):
+            raise ValueError(f"{what} must be numeric (non-negative integers)") from None
+    if arr.dtype.kind == "f":
+        if not np.all(np.isfinite(arr)):
+            raise ValueError(f"{what} must be finite (no NaN or infinity)")
+        if np.any(arr != np.floor(arr)):
+            raise ValueError(
+                f"{what} must be integers (integral floats such as 2.0 are accepted)"
+            )
+    elif arr.dtype.kind not in "iu":
+        raise ValueError(
+            f"{what} must be numeric (non-negative integers), got dtype {arr.dtype}"
+        )
+    if arr.size and np.any(arr < 0):
+        raise ValueError(f"{what} must be non-negative, found minimum value {arr.min()}")
+    out = arr.astype(lib.get_scotch_dtype())
+    if not np.array_equal(out, arr):
+        raise ValueError(
+            f"{what} do not fit in the Scotch integer type ({lib.get_scotch_dtype().__name__})"
+        )
+    return out
+
+
 @contextmanager
 def _scotch_mapping(graph_ptr, arch_ptr, parttab_c):
     """Context manager for SCOTCH_graphMapInit / SCOTCH_graphMapExit."""
@@ -1219,29 +1260,60 @@ class Graph:
         Create a graph from a list of edges.
 
         Args:
-            edges: List of (source, target) tuples
+            edges: Iterable of (source, target) pairs, one per undirected
+                edge, in either direction. Scotch graphs are simple: a
+                self-loop or an edge listed twice (in any direction) is an
+                error, as it is in from_scipy_sparse / from_networkx.
             num_vertices: Number of vertices (auto-detected if None)
-            vertex_weights: Optional list of vertex weights
-            edge_weights: Optional list of edge weights
+            vertex_weights: Optional vertex loads, one per vertex
+                (non-negative integers; integral floats such as 2.0 are
+                accepted)
+            edge_weights: Optional edge loads, one per entry of ``edges``
+                (strictly positive integers; integral floats accepted). Each
+                weight is applied to both arcs of its edge, the Scotch
+                representation of an undirected weighted edge.
 
         Returns:
             New Graph instance
 
         Raises:
-            ValueError: If edges list is empty or inputs are invalid
+            ValueError: If edges is empty, an edge is a self-loop, an edge is
+                duplicated, a vertex index is negative or >= num_vertices, or
+                a weight array has the wrong length or invalid values
         """
+        edges = [tuple(e) for e in edges]  # one pass over any iterable (set, generator, ...)
         if not edges:
             raise ValueError("edges list cannot be empty")
+        for e in edges:
+            if len(e) != 2:
+                raise ValueError(f"each edge must be a (source, target) pair, got {e!r}")
 
-        if num_vertices is None:
-            num_vertices = max(max(e) for e in edges) + 1
-
-        # Validate vertex indices
+        min_vertex = min(min(e) for e in edges)
+        if min_vertex < 0:
+            raise ValueError(f"Edge contains negative vertex index {min_vertex}")
         max_vertex = max(max(e) for e in edges)
+        if num_vertices is None:
+            num_vertices = max_vertex + 1
         if max_vertex >= num_vertices:
             raise ValueError(
                 f"Edge contains vertex {max_vertex} but num_vertices is {num_vertices}"
             )
+
+        # Scotch graphs are simple and undirected: refuse what graph.check()
+        # would reject, rather than build a broken graph
+        seen = set()
+        for u, v in edges:
+            if u == v:
+                raise ValueError(
+                    f"edge ({u}, {v}) is a self-loop; Scotch graphs cannot contain self-loops"
+                )
+            key = (u, v) if u < v else (v, u)
+            if key in seen:
+                raise ValueError(
+                    f"duplicate edge ({u}, {v}): Scotch graphs are simple, so each undirected "
+                    "edge must be listed once (in either direction)"
+                )
+            seen.add(key)
 
         # Validate weights if provided
         if vertex_weights is not None and len(vertex_weights) != num_vertices:
@@ -1249,36 +1321,41 @@ class Graph:
                 f"vertex_weights length ({len(vertex_weights)}) must match "
                 f"num_vertices ({num_vertices})"
             )
+        if edge_weights is not None and len(edge_weights) != len(edges):
+            raise ValueError(
+                f"edge_weights length ({len(edge_weights)}) must match number of edges "
+                f"({len(edges)})"
+            )
 
-        # Build adjacency structure
+        scotch_dtype = lib.get_scotch_dtype()
+
+        # One weight per edge in, one load per ARC out (an undirected edge is
+        # stored as two arcs, each carrying the edge's load)
+        loads = None
+        if edge_weights is not None:
+            loads = _coerce_edge_weights(edge_weights, what="edge_weights")  # None: all 1
+
+        # Build adjacency structure, carrying the arc loads along
         adj = [[] for _ in range(num_vertices)]
         for i, (u, v) in enumerate(edges):
-            adj[u].append(v)
-            if u != v:  # Avoid duplicate for self-loops
-                adj[v].append(u)
+            w = None if loads is None else int(loads[i])
+            adj[u].append((v, w))
+            adj[v].append((u, w))
 
-        # Create verttab and edgetab using the correct dtype for the loaded Scotch variant
-        scotch_dtype = lib.get_scotch_dtype()
         verttab = np.zeros(num_vertices + 1, dtype=scotch_dtype)
-        edge_count = 0
-        for i, neighbors in enumerate(adj):
-            verttab[i] = edge_count
-            edge_count += len(neighbors)
-        verttab[num_vertices] = edge_count
+        np.cumsum([len(neighbors) for neighbors in adj], out=verttab[1:])
+        edgetab = np.array([v for neighbors in adj for v, _ in neighbors], dtype=scotch_dtype)
+        edlotab_np = (
+            None
+            if loads is None
+            else np.array([w for neighbors in adj for _, w in neighbors], dtype=scotch_dtype)
+        )
 
-        edgetab = np.zeros(edge_count, dtype=scotch_dtype)
-        idx = 0
-        for neighbors in adj:
-            for n in neighbors:
-                edgetab[idx] = n
-                idx += 1
+        velotab_np = None
+        if vertex_weights is not None:
+            velotab_np = _coerce_vertex_weights(vertex_weights)
 
-        # Create graph
         graph = Graph()
-
-        velotab_np = np.array(vertex_weights, dtype=scotch_dtype) if vertex_weights else None
-        edlotab_np = np.array(edge_weights, dtype=scotch_dtype) if edge_weights else None
-
         graph.build(verttab, edgetab, velotab_np, edlotab_np, baseval=0)
 
         return graph

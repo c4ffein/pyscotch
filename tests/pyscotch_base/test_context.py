@@ -2,6 +2,8 @@
 Tests for Context class.
 """
 
+import os
+
 import numpy as np
 import pytest
 
@@ -27,9 +29,26 @@ class TestContext:
         ctx.random_reset()
 
     def test_bind_graph(self, hexagon_graph):
-        ctx = Context()
-        bound = ctx.bind_graph(hexagon_graph)
-        assert bound.size() == hexagon_graph.size()
+        # Closed explicitly: binding starts Scotch's thread pool, which pins
+        # the CALLING thread to one core (common_thread.c threadCreate) and
+        # only unpins it in SCOTCH_contextExit. A leaked Context leaves the
+        # whole pytest process -- and every mpirun it spawns afterwards --
+        # confined to a single CPU.
+        with Context() as ctx:
+            bound = ctx.bind_graph(hexagon_graph)
+            assert bound.size() == hexagon_graph.size()
+
+    @pytest.mark.skipif(not hasattr(os, "sched_getaffinity"), reason="no CPU affinity API")
+    def test_closed_context_gives_the_cpus_back(self, grid_4x4_graph):
+        """Whatever the thread pool does to the calling thread's CPU affinity
+        while a Context is alive, closing it must restore the process to the
+        CPU set it had before -- the leak that confined whole test sessions,
+        and every mpirun they spawned, to one core."""
+        before = os.sched_getaffinity(0)
+        with Context() as ctx:
+            parts = ctx.bind_graph(grid_4x4_graph).partition(4)
+        assert len(parts) == 16
+        assert os.sched_getaffinity(0) == before
 
 
 class TestContextOptions:
