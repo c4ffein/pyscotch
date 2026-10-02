@@ -3,9 +3,9 @@
 Everything discovered while hardening PyScotch (signature verification, test
 expansion, Scotch 7.0.12 validation). Two categories: bugs that were **ours**
 (fixed the same day) and issues in **upstream Scotch** (reported in
-[QUESTIONS_FOR_SCOTCH_TEAM_2.md](QUESTIONS_FOR_SCOTCH_TEAM_2.md)).
+[QUESTIONS_FOR_SCOTCH_TEAM.md](QUESTIONS_FOR_SCOTCH_TEAM.md)).
 
-## Upstream Scotch — see QUESTIONS_FOR_SCOTCH_TEAM_2.md for full write-ups
+## Upstream Scotch — see QUESTIONS_FOR_SCOTCH_TEAM.md for full write-ups
 
 | # | Issue | Severity | Status |
 |---|-------|----------|--------|

@@ -283,7 +283,7 @@ pipeline now proves much more before and after publishing.
 - `Dgraph.data()` MPI communicator buffer widened to `c_void_p` — was a 4-byte buffer receiving an 8-byte OpenMPI handle (memory corruption)
 - `SCOTCH_memFree` resolved despite upstream exporting it unsuffixed
 
-### Upstream (reported in docs/QUESTIONS_FOR_SCOTCH_TEAM_2.md)
+### Upstream (reported in docs/QUESTIONS_FOR_SCOTCH_TEAM.md)
 - Scotch 7.0.12 does not build with `SCOTCH_RENAME_ALL` (`SCOTCH_meshBuildElem` missing from module.h) — verified fix in `patches/scotch-7.0.12-rename-all-fix.patch`; full suite passes on patched 7.0.12
 - `SCOTCH_memFree` missing from the module.h rename table (7.0.11 and 7.0.12)
 - `SCOTCH_contextOptionSetNum` switches on the option value instead of the option index

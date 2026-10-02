@@ -230,7 +230,7 @@ class TestColoringProperties:
 
         This is the fundamental invariant of graph coloring.
 
-        This test caught an upstream Scotch bug (see docs/QUESTIONS_FOR_SCOTCH_TEAM_2.md),
+        This test caught an upstream Scotch bug (see docs/COLORING_BUG_RESOLUTION.md),
         fixed in Scotch v7.0.11 (commit e0a90c7).
         """
         num_vertices, edges = graph_data

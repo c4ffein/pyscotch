@@ -403,6 +403,174 @@ inconsistent inputs; `tests/pyscotch_base/test_array_conversion.py::
 TestStridedViewsOnPublicPaths::test_order_check_only_inspects_peritab` pins
 the current behaviour so we notice if it changes.
 
+## SCOTCH_contextOptionSetNum switches on the option *value* instead of the option *index* (7.0.11, still in 7.0.16)
+
+**Status (7.0.16 audit):** unchanged — `library_context.c:306` still reads `switch (optival)`.
+
+*Added: 2026-07-12, found while writing behavioral tests for context options*
+
+In `library_context.c` (v7.0.11), `SCOTCH_contextOptionSetNum()` contains:
+
+```c
+switch (optival) {                                /* <-- should be optinum? */
+  case CONTEXTOPTIONNUMRANDOMFIXEDSEED :
+    if (optitmp != 0)
+      optitmp = 1;                                /* Only two values available */
+    break;
+  case CONTEXTOPTIONNUMDETERMINISTIC :
+    if (optitmp != 0) {
+      optitmp = 1;
+      o = contextValuesSetInt ((Context *) libcontptr, CONTEXTOPTIONNUMRANDOMFIXEDSEED, 1);
+    }
+    break;
+  default :
+    errorPrint (STRINGIFY (SCOTCH_contextOptionSetNum) ": invalid option name");
+    return (1);
+}
+```
+
+The `switch` is on `optival` (the value being set) rather than on `optinum`
+(the option index). Since `CONTEXTOPTIONNUMDETERMINISTIC == 0` and
+`CONTEXTOPTIONNUMRANDOMFIXEDSEED == 1`, the dispatch accidentally "works" for
+values 0 and 1, but the observable consequences are:
+
+1. **The documented cascade never happens.** Setting
+   `SCOTCH_OPTIONNUMDETERMINISTIC` to 1 is supposed to also force
+   `SCOTCH_OPTIONNUMRANDOMFIXEDSEED` to 1 ("If deterministic behavior wanted,
+   use fixed random seed"), but the value 1 lands in the
+   `CONTEXTOPTIONNUMRANDOMFIXEDSEED` case, which only clamps. Reproduction:
+
+   ```python
+   ctx = Context()
+   ctx.option_set(1, 0)   # RANDOMFIXEDSEED off
+   ctx.option_set(0, 1)   # DETERMINISTIC on
+   ctx.option_get(1)      # -> 0, expected 1 per the code's intent
+   ```
+
+2. **Values >= 2 are rejected instead of clamped.** The `if (optitmp != 0)
+   optitmp = 1;` clamping code is unreachable for any value other than 0/1:
+   e.g. `SCOTCH_contextOptionSetNum(ctx, SCOTCH_OPTIONNUMDETERMINISTIC, 2)`
+   falls into `default:` and fails with "invalid option name" even though the
+   option name is valid.
+
+3. **Invalid option indices are only caught late.** E.g. option index 99 with
+   value 1 is dispatched as if it were a fixed-seed update, and only fails in
+   `contextValuesSetInt()`'s bounds check.
+
+Our tests only assert the 0/1 round-trip behavior, which is identical whether
+or not the `switch` is fixed; we did not encode the cascade or the clamping
+in tests since both look unintended in their current form.
+
+### Question
+
+Should this be `switch (optinum)`? If so, is the cascading of
+DETERMINISTIC=1 into RANDOMFIXEDSEED=1 the intended long-term semantics
+(i.e., should PyScotch expose/emulate it)?
+
+## Public functions declared in scotch.h but documented in neither user manual (7.0.11, still in 7.0.16)
+
+**Status (7.0.16 audit):** unchanged — the 7.0.14–7.0.16 manual edits only add notes on the diffusion methods.
+
+*Added: 2026-07-13, found while generating deep links from the PyScotch API
+reference into the user manuals (function → page map extracted from the PDFs'
+own bookmarks).*
+
+Of the 149 public functions PyScotch binds, 8 appear in `scotch.h` /
+`ptscotch.h` (v7.0.11) but in neither `scotch_user7.0.pdf` nor
+`ptscotch_user7.0.pdf`:
+
+- `SCOTCH_archBuild` (the manual documents `SCOTCH_archBuild0`/`archBuild2`,
+  but not the plain `archBuild` also exported)
+- `SCOTCH_archVar`
+- `SCOTCH_graphGeomLoadMmkt` / `SCOTCH_graphGeomSaveMmkt` (Matrix Market
+  geometry I/O; the other Geom formats are documented)
+- `SCOTCH_graphOrderList`
+- `SCOTCH_graphPartOvlView`
+- `SCOTCH_randomSave` / `SCOTCH_randomLoad`
+
+Is the omission intentional (semi-private API)? If so, a note in the headers
+would help binding authors; if not, this list may help complete the manuals.
+
+## Rename-table sweep: SCOTCH_contextAlloc is still missing from module.h (7.0.11, still in 7.0.16)
+
+**Status (7.0.16 audit):** `SCOTCH_memFree` and `SCOTCH_meshBuildElem` were added to the table in 7.0.13 (see "Resolved upstream" below); `SCOTCH_contextAlloc` and the three `SCOTCH_error*` names are still absent from `module.h` in 7.0.16.
+
+*Added: 2026-07-13, from a mechanical sweep of library.h vs module.h*
+
+Cross-checking every public function in `library.h` against `module.h`'s
+`SCOTCH_NAME_PUBLIC` rename table (v7.0.11 and v7.0.12) finds 5 absentees:
+`SCOTCH_memFree` (reported above), `SCOTCH_meshBuildElem` (7.0.12, reported
+above), **`SCOTCH_contextAlloc`** (exports unsuffixed while e.g.
+`SCOTCH_graphAlloc_64` is correctly suffixed — verified with `nm`), and
+`SCOTCH_errorPrint`/`SCOTCH_errorPrintW`/`SCOTCH_errorProg` (possibly
+intentional, since the error library is shared between suffixed variants —
+if so, a comment in module.h would make that explicit).
+
+The sweep is a 15-line script; happy to contribute it as a CI check upstream
+so this bug class cannot recur.
+
+## libscotch.so under-declares its shared-library dependencies (no NEEDED for libz/libm/libpthread) (7.0.11, still in 7.0.16)
+
+**Status (7.0.16 audit):** unchanged — a 7.0.16 `libscotch.so` built from the stock `Makefile.inc` still records `NEEDED = libc.so.6` only (the CMake side moved to imported `ZLIB::ZLIB` targets, which does not affect the Makefile build).
+
+*Added: 2026-07-14, found while building self-contained binary wheels.*
+
+`libscotch.so` calls into zlib (`gzread`, `gzclose`, …), libm, and libpthread,
+but its dynamic section records `NEEDED = libc.so.6` only — the other
+dependencies are undeclared:
+
+```
+$ nm -D scotch-builds/lib64/libscotch.so | grep -E ' U (gz|pthread_create|sqrt)'
+                 U gzclose
+                 U gzread
+                 U pthread_create@...
+$ readelf -d scotch-builds/lib64/libscotch.so | grep NEEDED
+ 0x0000000000000001 (NEEDED)  Shared library: [libc.so.6]     # libz/libm/libpthread absent
+```
+
+Root cause is in `src/Makefile.inc`: the shared object is created with
+`AR = gcc`, `ARFLAGS = -shared -o` (i.e. `gcc -shared -o libscotch.so *.o`),
+while `LDFLAGS = -lz -lm -lrt -pthread ...` is applied only when linking the
+command-line executables. So the libraries never make it into the `.so`'s own
+`NEEDED` list.
+
+This is invisible in normal use — Scotch's executables supply the libraries at
+their final link, and most distro packages re-link the shared object with
+proper `NEEDED` — so it has clearly never caused a problem in practice. It only
+surfaces when the *bare, as-built* `.so` is loaded standalone (e.g. `dlopen`'d
+by a language binding) under eager binding: the manylinux toolchain links with
+`-z now`, so the loader resolves every symbol up front and the import fails with
+
+```
+libscotch.so: undefined symbol: gzclose
+```
+
+Under the more common lazy binding it "works" until the first compressed-file
+operation, which makes it a latent trap rather than an immediate error.
+
+### Suggested fix (upstream)
+
+Link the shared object with its libraries, or — cleaner — build it with
+`-Wl,--no-undefined`, which makes the linker **reject** an under-declared shared
+object at build time instead of silently shipping one. Either way the `.so`
+becomes self-describing and every downstream that loads it directly benefits.
+
+### Question
+
+Is the shared library intentionally built to defer its library resolution to
+the executable link, or would recording the real `NEEDED` entries (and/or adding
+`-Wl,--no-undefined` as a guardrail) be a welcome change? We're happy to send a
+small Makefile.inc patch if useful.
+
+### What PyScotch does meanwhile
+
+Two independent, self-sufficient layers (see
+`scripts/build_wheel_libs.sh` step 3b and `pyscotch/libscotch.py`
+`_preload_dependencies`): we stamp the honest `NEEDED` entries onto the bundled
+wheel library with `patchelf`, and we also preload the dependency by runtime
+soname (`libz.so.1`) before Scotch loads — the latter also covers an
+under-linked *system* Scotch, which we cannot re-link.
+
 ## Suggestions (not defects)
 
 ### Best-of-N attempts: no numeric repeat construct in the strategy grammar?
@@ -416,3 +584,25 @@ node, or a method parameter à la METIS `NCUTS`) ever considered? It would
 compose better with generated strategies and avoid very long strings for
 large N — and make the technique discoverable, since today nothing in the
 grammar hints that `s|s` is meaningful with identical branches.
+
+## Resolved upstream
+
+Kept for the record; each was fixed in the stated release.
+
+- **`SCOTCH_graphColor` produced invalid colorings on sparse graphs** (found
+  2025-12-05 by `tests/hypothesis/test_graph_properties.py`) — fixed in 7.0.11,
+  commit `e0a90c7`. Full story, original report, reproduction and source
+  analysis: [COLORING_BUG_RESOLUTION.md](COLORING_BUG_RESOLUTION.md).
+- **`SCOTCH_memFree` exported unsuffixed under `SCOTCH_RENAME_ALL`** (7.0.11,
+  7.0.12): the suffixed `scotch.h` declared `SCOTCH_memFree_64` while the
+  library exported plain `SCOTCH_memFree`, because the name was missing from
+  `module.h`'s `SCOTCH_NAME_PUBLIC` rename table — a link failure for any C
+  program built against the suffixed header. Fixed in 7.0.13. PyScotch still
+  special-cases the unsuffixed symbol so older builds keep working.
+- **7.0.12 did not build with `SCOTCH_RENAME_ALL`**: the new
+  `SCOTCH_meshBuildElem` (commit `2285ed4`) had no rename-table entry, so
+  `library_mesh_f.c:233` hit an implicit declaration error. Same root cause as
+  `memFree`; fixed in 7.0.13. PyScotch's managed builder still applies
+  `pyscotch/_patches/scotch-7.0.12-rename-all-fix.patch` to 7.0.12 automatically.
+- **`dorderPerm` debug-mode early return / untyped leaf column blocks** —
+  fixed in 7.0.14 (see that section above; two follow-ups remain open).
