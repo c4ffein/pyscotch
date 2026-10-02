@@ -124,7 +124,7 @@ class TestStridedViewsOnPublicPaths:
         7.0.13) validates peritab as a permutation and the column-block tree,
         but never compares permtab against it. A permtab that is NOT the
         inverse of peritab therefore passes. Documented in
-        QUESTIONS_FOR_SCOTCH_TEAM.md; this test fails the day upstream
+        docs/QUESTIONS_FOR_SCOTCH_TEAM.md; this test fails the day upstream
         tightens the check, so we notice."""
         permtab, peritab = hexagon_graph.order()
         inconsistent = permtab.copy()

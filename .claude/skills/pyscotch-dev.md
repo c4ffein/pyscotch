@@ -59,7 +59,7 @@ with c_fopen("graph.grf", "r") as fp:
 
 - **Never modify tests to make them pass.** Fix the implementation instead.
 - When porting C tests, maximize similarity with the original.
-- If a test seems incomplete, add notes to `QUESTIONS_FOR_SCOTCH_TEAM.md`.
+- If a test seems incomplete, add notes to `docs/QUESTIONS_FOR_SCOTCH_TEAM.md`.
 - Scotch's C tests often only check return codes — our tests should verify output validity too.
 - Call `random_reset()` in tests for deterministic results.
 - Doc examples in `docs/site/examples/` are also tested via pytest.
