@@ -21,13 +21,16 @@ name: Build Scotch from CLI (end-to-end)
 #
 # Note: it fetches from gitlab.inria.fr and relies on the pinned checksums in
 # pyscotch/scotch_build.py — if GitLab regenerates an archive, bump the pin
-# there (the CLI's --sha256 is the manual override). The weekly run exists for
-# exactly that drift: it catches a regenerated/moved upstream archive even when
-# none of our own files changed — now for every catalogued version at once.
+# there (the CLI's --sha256 is the manual override). Two schedules watch for
+# that drift: every 6 hours the cheap `tarball-drift` job downloads each
+# catalogued archive and compares its sha256 to the pin (seconds, no
+# toolchain); Mondays the full build matrix also runs, so a toolchain change
+# on ubuntu-latest is caught weekly even when none of our own files changed.
 
 on:
   schedule:
-    - cron: "30 6 * * 1"  # Mondays 06:30 UTC — upstream-tarball drift watchdog
+    - cron: "0 */6 * * *"  # every 6 hours — tarball-drift job only (cheap)
+    - cron: "30 6 * * 1"   # Mondays 06:30 UTC — drift job + full build matrix
   push:
     branches: [main]
     paths:
@@ -51,9 +54,51 @@ permissions:
   contents: read
 
 jobs:
+  tarball-drift:
+    name: "Upstream tarball checksums still match the catalog"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Download every catalogued archive and compare sha256 to the pin
+        # Reads the catalog straight from the checkout (stdlib only; the
+        # package's lazy import loads no Scotch). A mismatch means GitLab
+        # regenerated or moved an archive: bump the pin in scotch_build.py.
+        run: |
+          python - <<'PY'
+          import hashlib, sys, urllib.request
+          sys.path.insert(0, ".")
+          from pyscotch.scotch_build import _GITLAB, _KNOWN_VERSIONS
+          bad = 0
+          for version, pinned in sorted(_KNOWN_VERSIONS.items()):
+              url = _GITLAB.format(v=version)
+              try:
+                  with urllib.request.urlopen(url, timeout=120) as r:
+                      got = hashlib.sha256(r.read()).hexdigest()
+              except Exception as e:
+                  print(f"::error::{version}: download failed: {e}")
+                  bad += 1
+                  continue
+              if got == pinned:
+                  print(f"{version}: ok ({got})")
+              else:
+                  print(f"::error::{version}: checksum drift — pinned {pinned}, got {got} ({url})")
+                  bad += 1
+          sys.exit(1 if bad else 0)
+          PY
+
   build-scotch:
     name: "Scotch ${{ matrix.scotch }} (quickfix: ${{ matrix.quickfix }})"
     runs-on: ubuntu-latest
+    # The full build matrix is heavy (toolchain + MPI install, two Scotch
+    # compiles, mpirun). On a schedule it runs only for the Monday cron; the
+    # 6-hourly cron fires the tarball-drift job alone.
+    if: github.event_name != 'schedule' || github.event.schedule == '30 6 * * 1'
     strategy:
       fail-fast: false
       matrix:
