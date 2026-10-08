@@ -43,7 +43,7 @@ LEVELS = {
 # together, or the page numbers drift.
 _MAP_PATH = SITE_DIR / "scotch_manual_pages.json"
 MANUAL_PAGES = json.loads(_MAP_PATH.read_text()) if _MAP_PATH.exists() else {}
-SCOTCH_DOC_TAG = "v7.0.11"
+SCOTCH_DOC_TAG = "v7.0.16"
 _MANUAL_URL = "https://gitlab.inria.fr/scotch/scotch/-/raw/{tag}/doc/{pdf}?inline=true"
 
 

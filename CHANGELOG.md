@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Scotch pin bumped from 7.0.13 to 7.0.16.** Submodule at v7.0.16; the
+  build catalog (`pyscotch scotch build`) gains 7.0.14, 7.0.15 and 7.0.16
+  with sha256 pins, all verified to compile pristine (no quickfix) under the
+  strict implicit-declaration flag, sequential and parallel. The scotch-build
+  and pypi-verify CI matrices gain one row per new version. Manual deep links
+  in the API reference now point at the v7.0.16 PDFs, with the page map
+  regenerated (66 functions had moved page; `SCOTCH_meshBuildElem` is now
+  documented). Golden files and `docs/site/api_data.json` regenerated; the
+  install hints now recommend 7.0.16.
+- **Partition results can differ from 7.0.13.** Upstream changed the default
+  mapping strategy to use diffusion more (commit `ecd6ccb`). PyScotch still
+  drives the library exactly as `gpart`/`gord`/`gmap`/`dgpart`/`dgord` do:
+  the differential tier is byte-identical against the 7.0.16 reference tools
+  in both the sequential and parallel legs.
+
+### Fixed
+- `tests/pyscotch_integration/test_orchestrator.py` handed its MPI children a
+  hard-coded 64-bit width, so a 32-bit session with `PYSCOTCH_LIB_DIR` pinned
+  to a 32-bit directory failed the distributed-coarsening workflow with
+  "exports neither SCOTCH_graphInit_64 nor SCOTCH_graphInit". It now follows
+  the session width like the MPI port orchestrator already did.
+- `make test-differential` now pins `PYSCOTCH_LIB_DIR` to the fresh
+  `scotch-builds/lib32`, so a stale wheel-layout `pyscotch/_libs/lib32` can no
+  longer shadow it and silently compare two different Scotch versions.
+
+### Known
+- `TestRandom::test_random_proc_decorrelates_and_roundtrips` is flaky on
+  7.0.16 (roughly one run in five) with the default thread count. This is an
+  upstream regression: 7.0.16 made the greedy graph-growing bipartitioner
+  multi-threaded (commit `7a934a8`) with a seeding race between threads and
+  no deterministic-mode guard, so threaded partitioning is no longer
+  reproducible even with `SCOTCH_DETERMINISTIC=1` or a
+  `-DSCOTCH_DETERMINISTIC` build; 7.0.13 to 7.0.15 honour the flag, and a
+  7.0.16 rebuilt with `-DBGRAPHBIPARTGGNOTHREAD` is deterministic again.
+  Root-cause analysis, repro and a tested three-part fix
+  (`patches/scotch-7.0.16-bgraph-bipart-gg-determinism.patch`, proposed
+  upstream, NOT applied by `pyscotch scotch build`) are in
+  `docs/QUESTIONS_FOR_SCOTCH_TEAM.md`; the test is deliberately left as is.
+
 ## [7.0.5] - 2026-10-02
 
 Bug-fix release: memory-safety fixes in the distributed-graph wrappers and a

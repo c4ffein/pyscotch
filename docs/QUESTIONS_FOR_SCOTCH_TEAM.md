@@ -98,6 +98,13 @@ from user code.
 
 ## Per-context SCOTCH_OPTIONNUMDETERMINISTIC does not make partitioning deterministic (env var does)
 
+**Status (7.0.16 audit, 2026-10-08):** the "env var does" half is version-bound:
+`context.c` only started reading `SCOTCH_DETERMINISTIC` from the environment
+in 7.0.10 (`envGetInt` in `contextOptionsInit`; 7.0.0-7.0.9 have only the
+compile-time default), it holds through 7.0.15, and 7.0.16's multi-threaded
+`bgraphBipartGg()` breaks it — see the 2026-10-08 entry further down. The explicit-context
+question itself is unchanged.
+
 Setting the deterministic option on an explicit context does not produce
 deterministic partitioning under threads, while the `SCOTCH_DETERMINISTIC=1`
 environment variable does. Observed on 7.0.11/7.0.12 (64-bit, threaded build,
@@ -570,6 +577,287 @@ Two independent, self-sufficient layers (see
 wheel library with `patchelf`, and we also preload the dependency by runtime
 soname (`libz.so.1`) before Scotch loads — the latter also covers an
 under-linked *system* Scotch, which we cannot re-link.
+
+## 7.0.16: multi-threaded bgraphBipartGg() is not deterministic and ignores SCOTCH_DETERMINISTIC, so the default strategy lost reproducibility under threads (regression in 7.0.16; 7.0.13-7.0.15 fine)
+
+*Added: 2026-10-08, found while bumping PyScotch's Scotch pin from 7.0.13 to 7.0.16*
+
+Between v7.0.15 and v7.0.16, commit `7a934a8` (2026-09-17, "Make
+bgraphBipartGg() multi-threaded") made the greedy graph-growing
+bipartitioning method (`h` in strategy strings) run its passes on all
+threads of the context. Since then, threaded partitioning with the default
+strategy gives different results from one process to the next, and neither
+`SCOTCH_DETERMINISTIC=1` in the environment (honoured by `context.c` via
+`envGetInt` since 7.0.10) nor a library compiled with `-DSCOTCH_DETERMINISTIC`
+(CMake level `FULL`) restores reproducibility. 7.0.13, 7.0.14 and 7.0.15 are
+deterministic with the variable set, so this is a 7.0.16 regression. (Commit
+`ecd6ccb`, the new default strategy string, is *not* the cause: it only
+raised `h{pass=10}` to `h{pass=20}` and moved the FM stage inside the
+diffusion alternative; see the rendered defaults at the end.)
+
+### Root cause (read from `bgraph_bipart_gg.c` at v7.0.16, confirmed by experiment)
+
+In the thread routine `bgraphBipartGg2()`, thread 0 keeps using the
+context's shared generator, while every other thread seeds a private one
+from it:
+
+```c
+  if (thrdnum == 0) {                             /* If root process      */
+    parttax = grafptr->parttax;
+    contptr = grafptr->contptr;                   /* Use provided context */
+  }
+  else {
+    parttax = thrdptr->parttab - grafptr->s.baseval;
+    intRandSpawn (grafptr->contptr->randptr, thrdnum, &randdat); /* Create fake local context */
+    ...
+  }
+  for (passnum = 0; passnum < passptr->passnbr; passnum ++) {
+    ...
+    vexxptr = vexxtax + (grafptr->s.baseval + contextIntRandVal (contptr, grafptr->s.vertnbr)); /* Randomly select first root vertex */
+```
+
+and `intRandSpawn()` (`common_integer.c`) seeds the new generator from the
+*current state word* of the old one:
+
+```c
+  seedval = roldptr->statdat.randtab[0];          /* Get value from state of old generator */
+  intRandSeed (rnewptr, (INT) seedval);
+```
+
+Thread 0 starts drawing from (and therefore mutating) `randtab[0]` as soon as
+it enters its first pass, while threads 1..n-1 are still being scheduled and
+read `randtab[0]` whenever they get there. The seed each worker thread ends
+up with thus depends on how many root vertices thread 0 has already drawn,
+i.e. on OS scheduling. The comment above `intRandInit()` already warns that
+the generator "is not really thread-safe". Everything downstream is
+deterministic (the "find best thread" loop in `bgraphBipartGg()` breaks ties
+by thread index), so the symptom is a different *initial* bipartition at the
+coarsest level, hence a different final cut, in a fraction of runs.
+
+Two aggravating factors:
+
+- Unlike `graphMatchInit()`, which checks `CONTEXTOPTIONNUMDETERMINISTIC`
+  and falls back to the sequential matching when it is set, `bgraphBipartGg()`
+  never reads the option. The only files that do are `graph_match.c`,
+  `dgraph_band_grow.c` and `dgraph_match_sync_ptop.c`, so the "automatically
+  prevent itself from using multi-threaded versions of some algorithms"
+  promise in INSTALL.txt §3.9 does not cover this new threaded method.
+- `h` is reached even by strategies that do not name it: `bgraphBipartFm()`
+  calls `bgraphBipartGg()` with `passnbr = 4` whenever it is handed a graph
+  with no frontier (`bgraph_bipart_fm.c:310`), and `bgraphBipartEx()` does
+  the same for a fully imbalanced graph (`bgraph_bipart_ex.c:112`).
+
+### Evidence
+
+All rows: 8-core Linux box, one fresh process per run, `SCOTCH_randomReset`
+before the call, stock `Makefile.inc` flags (`-DCOMMON_RANDOM_FIXED_SEED
+-DSCOTCH_PTHREAD`), `SCOTCH_graphPart` through ctypes, 4 parts. "Distinct"
+counts partitions up to a relabelling of the parts.
+
+| library | strategy | setting | runs | distinct |
+|---------|----------|---------|------|----------|
+| 7.0.16 | `r{job=t,map=t,poli=S,sep=m{vert=120,low=h{pass=20},asc=f{bal=0.01,move=120}}}` (`h`, no diffusion) | `SCOTCH_DETERMINISTIC=1` | 24 | **5** |
+| 7.0.15 | same | same | 24 | 1 |
+| 7.0.16 | same | `SCOTCH_PTHREAD_NUMBER=1` | 12 | 1 |
+| 7.0.16 | `...low=f{...},asc=b{bnd=((d{pass=40}f{...})\|f{...}),org=f{...}}` (diffusion, no `h` named) | `SCOTCH_DETERMINISTIC=1` | 40 | 2 (via the FM fallback above) |
+| 7.0.15 | same | same | 40 | 1 |
+| 7.0.16 rebuilt with **`-DBGRAPHBIPARTGGNOTHREAD`** | same | same | 40 | 1 |
+| 7.0.16 rebuilt with `-DBGRAPHBIPARTGGNOTHREAD` | default | `SCOTCH_DETERMINISTIC=1` | 40 | 1 |
+| 7.0.16 rebuilt with `-DBGRAPHBIPARTGGNOTHREAD` | default, 64-vertex ring | none | 40 | 1 |
+
+So disabling only the new threading in `bgraphBipartGg()` makes 7.0.16 fully
+reproducible again, with every other threaded method still enabled.
+
+The headline numbers with the default strategy on `m16x16_b100000_v.grf`:
+
+| library | setting | runs | distinct partitions |
+|---------|---------|------|---------------------|
+| 7.0.12 | none | 24 | 6 |
+| 7.0.12 | `SCOTCH_DETERMINISTIC=1` | 24 | 1 |
+| 7.0.13 | `SCOTCH_DETERMINISTIC=1` | 24 | 1 |
+| 7.0.14 | `SCOTCH_DETERMINISTIC=1` | 24 | 1 |
+| 7.0.15 | `SCOTCH_DETERMINISTIC=1` | 24 | 1 |
+| **7.0.16** | `SCOTCH_DETERMINISTIC=1` | 40 | **7** |
+| 7.0.16 | `SCOTCH_DETERMINISTIC=1`, `gpart` binary | 40 | 6 |
+| 7.0.16 | none, `gpart` binary | 40 | 8 |
+| 7.0.16 built with `-DSCOTCH_DETERMINISTIC` | none | 24 | 5 |
+| 7.0.16 | `SCOTCH_PTHREAD_NUMBER=1` | 24 | 1 |
+
+Smallest case we found: a 64-vertex ring into 4 parts, where the cut is
+always the same and only the part labels differ (two labelings, the minority
+one in roughly 1 run in 10; 40 runs collapse to a single partition after
+relabelling). On m16x16 the cuts themselves differ.
+
+### Reproduction (no PyScotch needed)
+
+```sh
+# 7.0.16 build, threads enabled
+for i in $(seq 1 40); do
+  SCOTCH_DETERMINISTIC=1 gpart 4 src/check/data/m16x16_b100000_v.grf out.map && md5sum out.map
+done | sort | uniq -c
+# 7.0.16: several distinct checksums. 7.0.15 or SCOTCH_PTHREAD_NUMBER=1: one.
+```
+
+### Question / proposed fix (tested)
+
+Did you notice this when multi-threading `bgraphBipartGg()`? The patch
+below (`patches/scotch-7.0.16-bgraph-bipart-gg-determinism.patch` in the
+PyScotch repository, `patch -p1` against the v7.0.16 tarball) makes three
+changes, each needed on its own:
+
+1. **Seed the worker generators race-free.** The per-thread `IntRandContext`
+   moves into `BgraphBipartGgThread`, and the driver spawns all of them from
+   the shared generator *before* `contextThreadLaunch()`, so no thread reads
+   the generator state while thread 0 is already drawing from it.
+2. **Honour the deterministic option**, the way `graphMatchInit()` does: when
+   `CONTEXTOPTIONNUMDETERMINISTIC` is set, the passes run on one thread
+   (the thread routine accepts a NULL descriptor for that direct call).
+3. **Keep the best pass, not the last improving one.** The threaded rewrite
+   compares each pass against `grafptr->commload` / `compload0dlt`, which
+   still hold the *input* partition until the cross-thread reduction writes
+   the result back, so any pass better than the input overwrites a better
+   earlier pass of the same thread. 7.0.15 compared against the same fields
+   but updated them after every saved pass. The patch compares against the
+   thread's own recorded best instead. This one is a quality regression
+   independent of threads: with (1) and (2) alone, deterministic mode gave a
+   cut of 43 on m16x16 where 7.0.15 gives 35, because a single thread then
+   runs all 20 passes through the broken comparison.
+
+Measured with the patch applied to v7.0.16 (same setup as above, m16x16, 4
+parts, edge cut of the result in parentheses):
+
+| setting | runs | distinct | cut |
+|---------|------|----------|-----|
+| `SCOTCH_DETERMINISTIC=1`, 8 threads | 12 | 1 | 34 |
+| `SCOTCH_DETERMINISTIC=1`, 4 threads | 3 | 1 | 34 (identical partition) |
+| `SCOTCH_DETERMINISTIC=1`, 2 threads | 3 | 1 | 34 (identical partition) |
+| `SCOTCH_PTHREAD_NUMBER=1` | 3 | 1 | 34 (identical partition) |
+| no option, 8 threads | 24 | 5 | 34-35 |
+| 64-vertex ring, no option, 8 threads | 40 | 1 | - |
+| *for comparison: 7.0.15, `SCOTCH_DETERMINISTIC=1`, 8 threads* | 24 | 1 | 35 |
+| *for comparison: 7.0.16 unpatched, `SCOTCH_DETERMINISTIC=1`, 8 threads* | 40 | 7 | 35-43 |
+
+So with the patch, deterministic mode is reproducible again and, as a bonus,
+independent of the thread count (on 7.0.15 the 1-thread result differed from
+the 2/4/8-thread one, see the older entry above); the cut is at least as
+good as 7.0.15's in every mode; and PyScotch's `random_proc` round-trip test
+passes 12/12. The non-deterministic default mode still varies with the
+thread count and between runs, as documented, but no worse than 7.0.15
+(5 distinct cuts in 24 runs, all 34-35, versus 7.0.15's 6 distinct, 34-37).
+
+```diff
+--- a/src/libscotch/bgraph_bipart_gg.h
++++ b/src/libscotch/bgraph_bipart_gg.h
+@@ -97,6 +97,7 @@
+   Gnum                      cmloval;              /*+ Communication load value +*/
+   Gnum                      cpl0dlt;              /*+ Computation imbalance    +*/
+   GraphPart *               parttab;              /*+ Local part array         +*/
++  IntRandContext            randdat;              /*+ Private random generator, seeded before launch +*/
+ } BgraphBipartGgThread;
+ 
+ /*+ The loop routine parameter
+--- a/src/libscotch/bgraph_bipart_gg.c
++++ b/src/libscotch/bgraph_bipart_gg.c
+@@ -72,6 +72,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "gain.h"
+ #include "fibo.h"
+ #include "graph.h"
+@@ -124,7 +125,6 @@
+ {
+   Context                 contdat;                /* Local context, only used for its random section */
+   Context *               contptr;                /* Pointer to active local context                 */
+-  IntRandContext          randdat;                /* Local random context                            */
+   BgraphBipartGgTabl      tabldat;                /* Gain table                                      */
+   BgraphBipartGgVertex *  vexxtax;                /* Extended vertex array [norestrict]              */
+   BgraphBipartGgVertex *  vexxptr;                /* Pointer to current vertex to swap [norestrict]  */
+@@ -135,7 +135,7 @@
+   INT                     passnum;
+   
+ #ifndef BGRAPHBIPARTGGNOTHREAD
+-  const int                     thrdnum = threadNum (descptr);
++  const int                     thrdnum = (descptr != NULL) ? threadNum (descptr) : 0; /* NULL descriptor: single-threaded call */
+ #else /* BGRAPHBIPARTGGNOTHREAD */
+   const int                     thrdnum = 0;
+ #endif /* BGRAPHBIPARTGGNOTHREAD */
+@@ -173,9 +173,8 @@
+     contptr = grafptr->contptr;                   /* Use provided context */
+   }
+   else {
+-    parttax = thrdptr->parttab - grafptr->s.baseval; /* Use local array                       */
+-    intRandSpawn (grafptr->contptr->randptr, thrdnum, &randdat); /* Create fake local context */
+-    contdat.randptr = &randdat;
++    parttax = thrdptr->parttab - grafptr->s.baseval; /* Use local array                                  */
++    contdat.randptr = &thrdptr->randdat;          /* Use private generator, seeded by the caller before launch */
+     contptr = &contdat;
+   }
+ 
+@@ -266,10 +265,10 @@
+       }
+     } while (vexxptr != NULL);
+ 
+-    if ((passnum == 0) ||                         /* If first try                  */
+-        ( (grafptr->commload >  cmloval) ||       /* Or if better solution reached */
+-         ((grafptr->commload == cmloval) &&
+-          (abs (grafptr->compload0dlt) > abs (cpl0dlt))))) {
++    if ((passnum == 0) ||                         /* If first try                                            */
++        ( (thrdptr->cmloval >  cmloval) ||        /* Or if better than the best pass recorded by this thread */
++         ((thrdptr->cmloval == cmloval) &&        /* (grafptr->commload is the INPUT partition's load and is  */
++          (abs (thrdptr->cpl0dlt) > abs (cpl0dlt))))) { /* only updated after the reduction)                  */
+       Gnum                vertnum;
+ 
+       thrdptr->cmloval = cmloval;                 /* Record current solution */
+@@ -305,7 +304,8 @@
+   int                   o;
+ 
+ #ifndef BGRAPHBIPARTGGNOTHREAD
+-  const int                   thrdnbr = contextThreadNbr (grafptr->contptr);
++  INT                         deteval;            /* Flag set if deterministic behavior wanted */
++  int                         thrdnbr;
+ #else /* BGRAPHBIPARTGGNOTHREAD */
+   const int                   thrdnbr = 1;
+ #endif /* BGRAPHBIPARTGGNOTHREAD */
+@@ -317,6 +317,11 @@
+   const Gnum * restrict const veextax = grafptr->veextax;
+   const Gnum                  dodival = grafptr->domndist;
+ 
++#ifndef BGRAPHBIPARTGGNOTHREAD
++  contextValuesGetInt (grafptr->contptr, CONTEXTOPTIONNUMDETERMINISTIC, &deteval);
++  thrdnbr = (deteval != 0) ? 1 : contextThreadNbr (grafptr->contptr); /* Deterministic behavior wanted: run on one thread, like graphMatchInit() */
++#endif /* BGRAPHBIPARTGGNOTHREAD */
++
+   if (memAllocGroup ((void **) (void *)           /* Allocate shared data */
+                      &passdat.thrdtab, (size_t) (thrdnbr            * sizeof (BgraphBipartGgThread)),
+                      &passdat.cmg0tax, (size_t) (grafptr->s.vertnbr * sizeof (Gnum)), NULL) == NULL) {
+@@ -356,7 +361,12 @@
+   }
+ 
+ #ifndef BGRAPHBIPARTGGNOTHREAD
+-  contextThreadLaunch (grafptr->contptr, (ThreadFunc) bgraphBipartGg2, (void *) &passdat);
++  for (thrdnum = 1; thrdnum < thrdnbr; thrdnum ++) /* Seed worker generators from the shared one BEFORE any thread draws from it */
++    intRandSpawn (grafptr->contptr->randptr, thrdnum, &passdat.thrdtab[thrdnum].randdat);
++  if (thrdnbr > 1)
++    contextThreadLaunch (grafptr->contptr, (ThreadFunc) bgraphBipartGg2, (void *) &passdat);
++  else
++    bgraphBipartGg2 (NULL, &passdat);
+ #else /* BGRAPHBIPARTGGNOTHREAD */
+   bgraphBipartGg2 (NULL, &passdat);
+ #endif /* BGRAPHBIPARTGGNOTHREAD */
+```
+
+### Rendered default mapping strategies (4 parts, `SCOTCH_STRATDEFAULT`, via `SCOTCH_stratSave`)
+
+7.0.15:
+```
+m{asc=b{width=3,bnd=d{pass=40,dif=1,rem=0}f{move=80,pass=-1,bal=0.01},org=f{move=80,pass=-1,bal=0.01}},low=r{job=t,bal=0.01,map=t,poli=S,sep=(m{asc=b{bnd=(d{pass=40,type=b}|)f{move=120,pass=-1,bal=0.01,type=b},org=f{move=120,pass=-1,bal=0.01,type=b},width=3},low=h{pass=10}f{move=120,pass=-1,bal=0.01,type=b},vert=120,rat=0.8}|m{...same...})},vert=10000,rat=0.8,type=h}
+```
+7.0.16:
+```
+m{asc=b{width=3,bnd=d{pass=40,dif=1,rem=0}f{move=80,pass=-1,bal=0.01},org=f{move=80,pass=-1,bal=0.01}},low=r{job=t,bal=0.01,map=t,poli=S,sep=(m{asc=b{bnd=(d{pass=40,type=b}f{move=120,pass=-1,bal=0.01,type=b}|f{move=120,pass=-1,bal=0.01,type=b}),org=f{move=120,pass=-1,bal=0.01,type=b},width=3},low=h{pass=20}f{move=120,pass=-1,bal=0.01,type=b},vert=120,rat=0.8}|m{...same...})},vert=10000,rat=0.8,type=h}
+```
 
 ## Suggestions (not defects)
 

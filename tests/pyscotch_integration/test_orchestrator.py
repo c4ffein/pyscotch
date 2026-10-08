@@ -17,9 +17,19 @@ MPI_OVERSUBSCRIBE = os.environ.get("PYSCOTCH_MPI_OVERSUBSCRIBE", "0") == "1"
 
 
 def _get_ptscotch_env() -> dict:
-    """Get environment variables for PT-Scotch (64-bit, parallel)."""
+    """Environment for the PT-Scotch (parallel) child processes.
+
+    The child runs the SAME integer width as this test session: the
+    PYSCOTCH_INT_SIZE the session was started with, or -- when it was not set
+    -- whatever width the parent process actually loaded. (This used to be
+    hard-coded to 64, so a 32-bit session with PYSCOTCH_LIB_DIR pinned to a
+    32-bit directory handed the child a library of the wrong width; same fix
+    as tests/scotch_ports_mpi/test_dgraph.py.)
+    """
+    from pyscotch import libscotch as lib
+
     env = os.environ.copy()
-    env["PYSCOTCH_INT_SIZE"] = "64"
+    env.setdefault("PYSCOTCH_INT_SIZE", str(lib.get_scotch_int_size()))
     env["PYSCOTCH_PARALLEL"] = "1"
     return env
 

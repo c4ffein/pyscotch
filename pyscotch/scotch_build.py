@@ -33,12 +33,15 @@ from . import _store
 
 # ---------------------------------------------------------------------------
 # Known upstream releases (GitLab archive tarballs). Checksums recorded
-# 2026-07-15 (7.0.13: 2026-08-08); override with --sha256 for other versions/
-# patches or if GitLab regenerates an archive. --url overrides the source
-# entirely.
+# 2026-07-15 (7.0.13: 2026-08-08; 7.0.14-7.0.16: 2026-10-08); override with
+# --sha256 for other versions/patches or if GitLab regenerates an archive.
+# --url overrides the source entirely.
 # ---------------------------------------------------------------------------
 _GITLAB = "https://gitlab.inria.fr/scotch/scotch/-/archive/v{v}/scotch-v{v}.tar.gz"
 _KNOWN_VERSIONS = {
+    "7.0.16": "76557a986c2bbcc08a122e21113f77266e08b584bc2d2d3a0dede39572d1af78",
+    "7.0.15": "5f8b558caa30eb5455fd896b763ad911822281c402e76b4afcd17c64eebc2898",
+    "7.0.14": "35e9d27edba28497876be3c338ff2ac5fa2835a3f15ce8196085f3cb669491b1",
     "7.0.13": "6457d1f177fce9c07324b8c57ad1086402b0e61bd9ecf5c30b2b481944ea8fe7",
     "7.0.12": "870bf681e7e40b6b01c3890dbe7b27da2617660f1722541919a865a6729dcbf2",
     "7.0.11": "ce1ea6e16ca36ae91426a360f639c8f575fccebc0116fbcb381f164c5e862768",

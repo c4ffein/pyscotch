@@ -114,6 +114,12 @@ jobs:
           #                   make libscotch.so export
           #   pristine_grep   if set, `--pristine` must FAIL and its output
           #                   must contain this string (the diagnosis)
+          - scotch: "7.0.16"
+            quickfix: "no"   # verified pristine 2026-10-08 (strict implicit-decl build, seq + par)
+          - scotch: "7.0.15"
+            quickfix: "no"
+          - scotch: "7.0.14"
+            quickfix: "no"
           - scotch: "7.0.13"
             quickfix: "no"   # first release with our rename-table fix merged upstream
           - scotch: "7.0.12"

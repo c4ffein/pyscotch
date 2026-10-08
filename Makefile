@@ -204,11 +204,14 @@ docs-api: build-64
 # (and dgpart/dgord under mpirun) driving the same library (requires
 # build-reference-tools; the parallel tier also needs the suffixed lib32 from build-all).
 # 32-bit on purpose: it matches the stock Makefile.inc int size the reference
-# binaries were built with. The deterministic knobs must be set before the
+# binaries were built with. PYSCOTCH_LIB_DIR is pinned to the fresh lib32 so a
+# stray wheel-layout pyscotch/_libs/lib32 (older Scotch) cannot shadow it and
+# make the tier compare two different Scotch versions. The deterministic knobs must be set before the
 # pytest session starts — the tests skip (never silently pass) when a binary,
 # the parallel lib dir, or mpirun is missing.
 test-differential:
 	PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=0 \
+	PYSCOTCH_LIB_DIR=$(CURDIR)/$(BUILDS_DIR)/lib32 \
 	SCOTCH_PTHREAD_NUMBER=1 SCOTCH_DETERMINISTIC=1 \
 	PYSCOTCH_GPART=$(CURDIR)/$(BUILDS_DIR)/bin/gpart \
 	PYSCOTCH_GORD=$(CURDIR)/$(BUILDS_DIR)/bin/gord \

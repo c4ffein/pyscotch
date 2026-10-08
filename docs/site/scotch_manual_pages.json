@@ -76,7 +76,7 @@
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_archInit": {
-  "page": 82,
+  "page": 83,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_archLoad": {
@@ -92,7 +92,7 @@
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_archMesh3": {
-  "page": 89,
+  "page": 90,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_archMeshX": {
@@ -116,7 +116,7 @@
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_archSub": {
-  "page": 90,
+  "page": 91,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_archTleaf": {
@@ -148,47 +148,47 @@
   "pdf": "ptscotch_user7.0.pdf"
  },
  "SCOTCH_contextBindGraph": {
-  "page": 178,
+  "page": 179,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextBindMesh": {
-  "page": 178,
+  "page": 180,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextExit": {
-  "page": 171,
+  "page": 173,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextInit": {
-  "page": 170,
+  "page": 172,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextOptionGetNum": {
-  "page": 172,
+  "page": 173,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextOptionSetNum": {
-  "page": 172,
+  "page": 174,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextRandomClone": {
-  "page": 173,
+  "page": 174,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextRandomReset": {
-  "page": 173,
+  "page": 175,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextRandomSeed": {
-  "page": 174,
+  "page": 175,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextSizeof": {
-  "page": 174,
+  "page": 176,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextThreadImport1": {
-  "page": 174,
+  "page": 176,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextThreadImport2": {
@@ -196,7 +196,7 @@
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_contextThreadSpawn": {
-  "page": 176,
+  "page": 178,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_dgraphAlloc": {
@@ -452,23 +452,23 @@
   "pdf": "ptscotch_user7.0.pdf"
  },
  "SCOTCH_geomAlloc": {
-  "page": 158,
+  "page": 159,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_geomData": {
-  "page": 158,
+  "page": 160,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_geomExit": {
-  "page": 159,
+  "page": 161,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_geomInit": {
-  "page": 159,
+  "page": 161,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_geomSizeof": {
-  "page": 160,
+  "page": 161,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_graphAlloc": {
@@ -524,23 +524,23 @@
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_graphGeomLoadChac": {
-  "page": 160,
+  "page": 162,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_graphGeomLoadHabo": {
-  "page": 161,
+  "page": 162,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_graphGeomLoadScot": {
-  "page": 162,
+  "page": 163,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_graphGeomSaveChac": {
-  "page": 162,
+  "page": 164,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_graphGeomSaveScot": {
-  "page": 163,
+  "page": 164,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_graphInduceList": {
@@ -696,11 +696,11 @@
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_mapAlloc": {
-  "page": 165,
+  "page": 167,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_mapSizeof": {
-  "page": 166,
+  "page": 167,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_memCur": {
@@ -708,7 +708,7 @@
   "pdf": "ptscotch_user7.0.pdf"
  },
  "SCOTCH_memFree": {
-  "page": 179,
+  "page": 181,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_memMax": {
@@ -723,104 +723,108 @@
   "page": 136,
   "pdf": "scotch_user7.0.pdf"
  },
- "SCOTCH_meshCheck": {
+ "SCOTCH_meshBuildElem": {
   "page": 138,
+  "pdf": "scotch_user7.0.pdf"
+ },
+ "SCOTCH_meshCheck": {
+  "page": 139,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_meshData": {
-  "page": 138,
+  "page": 140,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_meshExit": {
-  "page": 140,
+  "page": 141,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_meshGeomLoadHabo": {
-  "page": 163,
-  "pdf": "scotch_user7.0.pdf"
- },
- "SCOTCH_meshGeomLoadScot": {
-  "page": 164,
-  "pdf": "scotch_user7.0.pdf"
- },
- "SCOTCH_meshGeomSaveScot": {
   "page": 165,
   "pdf": "scotch_user7.0.pdf"
  },
+ "SCOTCH_meshGeomLoadScot": {
+  "page": 165,
+  "pdf": "scotch_user7.0.pdf"
+ },
+ "SCOTCH_meshGeomSaveScot": {
+  "page": 166,
+  "pdf": "scotch_user7.0.pdf"
+ },
  "SCOTCH_meshGraph": {
-  "page": 140,
+  "page": 141,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_meshGraphDual": {
-  "page": 141,
+  "page": 142,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_meshInit": {
-  "page": 141,
+  "page": 143,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_meshLoad": {
-  "page": 142,
+  "page": 143,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_meshOrder": {
-  "page": 145,
+  "page": 146,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_meshOrderCheck": {
-  "page": 146,
+  "page": 147,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_meshOrderCompute": {
-  "page": 146,
-  "pdf": "scotch_user7.0.pdf"
- },
- "SCOTCH_meshOrderExit": {
-  "page": 147,
-  "pdf": "scotch_user7.0.pdf"
- },
- "SCOTCH_meshOrderInit": {
-  "page": 147,
-  "pdf": "scotch_user7.0.pdf"
- },
- "SCOTCH_meshOrderSave": {
   "page": 148,
   "pdf": "scotch_user7.0.pdf"
  },
- "SCOTCH_meshOrderSaveMap": {
+ "SCOTCH_meshOrderExit": {
+  "page": 148,
+  "pdf": "scotch_user7.0.pdf"
+ },
+ "SCOTCH_meshOrderInit": {
   "page": 149,
+  "pdf": "scotch_user7.0.pdf"
+ },
+ "SCOTCH_meshOrderSave": {
+  "page": 149,
+  "pdf": "scotch_user7.0.pdf"
+ },
+ "SCOTCH_meshOrderSaveMap": {
+  "page": 150,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_meshOrderSaveTree": {
-  "page": 149,
+  "page": 151,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_meshSave": {
-  "page": 142,
-  "pdf": "scotch_user7.0.pdf"
- },
- "SCOTCH_meshSize": {
-  "page": 143,
-  "pdf": "scotch_user7.0.pdf"
- },
- "SCOTCH_meshSizeof": {
-  "page": 143,
-  "pdf": "scotch_user7.0.pdf"
- },
- "SCOTCH_meshStat": {
   "page": 144,
   "pdf": "scotch_user7.0.pdf"
  },
+ "SCOTCH_meshSize": {
+  "page": 144,
+  "pdf": "scotch_user7.0.pdf"
+ },
+ "SCOTCH_meshSizeof": {
+  "page": 145,
+  "pdf": "scotch_user7.0.pdf"
+ },
+ "SCOTCH_meshStat": {
+  "page": 145,
+  "pdf": "scotch_user7.0.pdf"
+ },
  "SCOTCH_numSizeof": {
-  "page": 181,
+  "page": 182,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_orderAlloc": {
-  "page": 166,
+  "page": 167,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_orderSizeof": {
-  "page": 166,
+  "page": 168,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_randomProc": {
@@ -840,7 +844,7 @@
   "pdf": "ptscotch_user7.0.pdf"
  },
  "SCOTCH_stratAlloc": {
-  "page": 150,
+  "page": 151,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_stratDgraphClusterBuild": {
@@ -868,35 +872,35 @@
   "pdf": "ptscotch_user7.0.pdf"
  },
  "SCOTCH_stratGraphBipart": {
-  "page": 152,
+  "page": 153,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_stratGraphClusterBuild": {
-  "page": 153,
+  "page": 154,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_stratGraphMap": {
-  "page": 153,
+  "page": 155,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_stratGraphMapBuild": {
-  "page": 154,
+  "page": 155,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_stratGraphOrder": {
-  "page": 155,
+  "page": 157,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_stratGraphOrderBuild": {
-  "page": 156,
+  "page": 157,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_stratGraphPartOvl": {
-  "page": 154,
+  "page": 156,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_stratGraphPartOvlBuild": {
-  "page": 155,
+  "page": 156,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_stratInit": {
@@ -904,11 +908,11 @@
   "pdf": "ptscotch_user7.0.pdf"
  },
  "SCOTCH_stratMeshOrder": {
-  "page": 157,
+  "page": 158,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_stratMeshOrderBuild": {
-  "page": 157,
+  "page": 158,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_stratSave": {
@@ -916,11 +920,11 @@
   "pdf": "ptscotch_user7.0.pdf"
  },
  "SCOTCH_stratSizeof": {
-  "page": 152,
+  "page": 153,
   "pdf": "scotch_user7.0.pdf"
  },
  "SCOTCH_version": {
-  "page": 181,
+  "page": 183,
   "pdf": "scotch_user7.0.pdf"
  }
 }

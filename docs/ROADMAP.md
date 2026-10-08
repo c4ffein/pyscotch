@@ -1,7 +1,7 @@
 # PyScotch Roadmap
 
-**PyScotch:** 7.0.5 (2026-10-02). **Scotch pin:** 7.0.13 (7.0.16 verified
-compatible on 64-bit). **Last updated:** 2026-10-08.
+**PyScotch:** 7.0.5 (2026-10-02), unreleased changes on main. **Scotch
+pin:** 7.0.16. **Last updated:** 2026-10-08.
 
 This file lists only what is *not* done. What is implemented is documented by
 the generated API reference (`docs/site/api_data.json`, published at
@@ -29,6 +29,13 @@ upstream findings in [QUESTIONS_FOR_SCOTCH_TEAM.md](QUESTIONS_FOR_SCOTCH_TEAM.md
 - **Static-analysis reports.** Twelve subsystem reports in
   `docs/scotch-analysis/` were never triaged into the questions file nor
   reproduced against a built library.
+- **7.0.16 threaded `bgraphBipartGg()` is not deterministic.** Upstream
+  regression (seeding race, no deterministic-mode guard, last-not-best pass);
+  the `random_proc` round-trip test is flaky on 7.0.16 and is left red on
+  purpose. A tested fix is proposed upstream
+  (`patches/scotch-7.0.16-bgraph-bipart-gg-determinism.patch`); whether to
+  ship it as a PyScotch quickfix is open. See the 2026-10-08 entry in the
+  questions file.
 
 ## Binding gaps
 
@@ -50,8 +57,6 @@ Functions declared in the Scotch headers with no binding in `libscotch.py`:
 
 ## Testing
 
-- Scotch 7.0.16 was only verified on 64-bit. 32-bit and the differential
-  reference tools were not run against it.
 - No stress tests, memory-leak tests, or error-recovery tests.
 - No CI builds the parallel conda recipe or its openmpi / mpich variants. The
   package-verify job is sequential-only; the only proof is a local run from
@@ -62,11 +67,6 @@ Functions declared in the Scotch headers with no binding in `libscotch.py`:
 
 - **conda-forge:** recipe exists under `packaging/conda/`, nothing published.
   The install page still says "coming soon".
-- **Scotch bump 7.0.13 to 7.0.16:** compatibility verified, bump not done. It
-  touches the version catalog in `scotch_build.py`, the submodule, the
-  scotch-build and pypi-verify CI matrices, `make docs-api`, and the golden
-  files. Note the default mapping strategy changed upstream in 7.0.16, so
-  partition results can differ.
 - **Wheels** are Linux only (x86_64, aarch64). No macOS, no Windows.
 - **README** still opens with the "vibe-engineering experiment, you probably
   shouldn't use this" warning. Removing it is the stated goal before
