@@ -1,12 +1,13 @@
 """Mesh operations: load, convert to graph, partition."""
+
 from pathlib import Path
-from pyscotch import Mesh, Mapping, random_reset
+
+from pyscotch import Mapping, Mesh, random_reset
 
 # Load a mesh from Scotch's test data
 mesh_path = Path("external/scotch/src/check/data/small2.msh")
 assert mesh_path.exists(), (
-    f"Mesh file not found: {mesh_path}. "
-    "Run 'git submodule update --init --recursive' to fetch test data."
+    f"Mesh file not found: {mesh_path}. Run 'git submodule update --init --recursive' to fetch test data."
 )
 
 with Mesh() as mesh:

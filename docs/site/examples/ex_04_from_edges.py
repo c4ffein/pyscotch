@@ -1,4 +1,5 @@
 """Create a graph from an edge list."""
+
 from pyscotch import Graph
 
 # A pentagon: 0-1-2-3-4-0

@@ -1,6 +1,6 @@
 """Compare partitioning strategies on different graph sizes."""
-import numpy as np
-from pyscotch import Graph, Strategies, Mapping, random_reset
+
+from pyscotch import Graph, Mapping, Strategies, random_reset
 
 
 def make_grid(n):

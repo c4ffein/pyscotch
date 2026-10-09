@@ -1,7 +1,8 @@
 """Full workflow: create, save, load, partition, save mapping."""
+
 import tempfile
 from pathlib import Path
-import numpy as np
+
 from pyscotch import Graph, Mapping, random_reset
 
 edges = [(i, i + 1) for i in range(19)]  # path graph with 20 vertices

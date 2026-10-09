@@ -1,5 +1,7 @@
 """Build a triangle graph and inspect it."""
+
 import numpy as np
+
 from pyscotch import Graph
 
 # CSR representation of a triangle: 0-1, 0-2, 1-2

@@ -1,5 +1,7 @@
 """Compute a fill-reducing ordering."""
+
 import numpy as np
+
 from pyscotch import Graph, Ordering, Strategies, random_reset
 
 # Build a 4x4 grid graph

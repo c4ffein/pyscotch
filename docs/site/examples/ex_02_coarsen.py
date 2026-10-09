@@ -1,5 +1,5 @@
 """Demonstrate graph coarsening."""
-import numpy as np
+
 from pyscotch import Graph, random_reset
 
 # Build a 4x4 grid graph (16 vertices)

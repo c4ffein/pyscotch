@@ -1,5 +1,7 @@
 """Demonstrate context manager usage for safe resource cleanup."""
+
 import numpy as np
+
 from pyscotch import Graph, Strategy
 
 # All Scotch objects support `with` for automatic cleanup

@@ -1,4 +1,5 @@
 """Compose a strategy with the typed grammar builder instead of a raw string."""
+
 from pyscotch import Graph, Mapping as MappingResult, Strategy
 from pyscotch.strategy_grammar import Bipart, Mapping, Seq
 

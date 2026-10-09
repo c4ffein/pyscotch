@@ -1,5 +1,5 @@
 """Basic graph partitioning into k parts."""
-import numpy as np
+
 from pyscotch import Graph, Mapping, random_reset
 
 # 3x3 grid graph (9 vertices)
@@ -23,5 +23,6 @@ with Graph.from_edges(edges, num_vertices=9) as graph:
 
     # Each partition should have 3 vertices (perfect balance for 9/3)
     assert mapping.num_partitions() == 3
-    assert all(s == 3 for s in mapping.get_partition_sizes()), \
+    assert all(s == 3 for s in mapping.get_partition_sizes()), (
         f"Expected perfect balance, got {mapping.get_partition_sizes()}"
+    )

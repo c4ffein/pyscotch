@@ -1,8 +1,10 @@
 """Quick tour of the main PyScotch API."""
-import numpy as np
+
 from pyscotch import (
-    Graph, Mesh, Architecture, Strategy, Strategies,
-    Mapping, Ordering, scotch_version, random_reset,
+    Architecture,
+    Graph,
+    random_reset,
+    scotch_version,
 )
 
 # Check Scotch version

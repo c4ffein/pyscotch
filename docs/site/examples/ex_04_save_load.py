@@ -1,6 +1,8 @@
 """Save and load a graph file."""
+
 import tempfile
 from pathlib import Path
+
 from pyscotch import Graph
 
 edges = [(0, 1), (1, 2), (2, 3), (3, 0)]

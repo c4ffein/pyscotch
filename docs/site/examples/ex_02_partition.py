@@ -1,5 +1,7 @@
 """Partition a graph into balanced parts."""
+
 import numpy as np
+
 from pyscotch import Graph, Mapping, Strategies, random_reset
 
 # Build a 4x4 grid graph

@@ -1,5 +1,7 @@
 """Build a graph from CSR arrays."""
+
 import numpy as np
+
 from pyscotch import Graph
 
 # Star graph: vertex 0 connected to 1,2,3,4
