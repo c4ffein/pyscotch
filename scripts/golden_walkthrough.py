@@ -210,9 +210,7 @@ def main():
     # A stale sdist silently validates OLD code — the walkthrough tests the
     # tarball, not the working tree. Refuse rather than prove the wrong thing.
     newest_src = max(
-        p.stat().st_mtime
-        for p in (REPO / "pyscotch").rglob("*")
-        if p.is_file() and "__pycache__" not in p.parts
+        p.stat().st_mtime for p in (REPO / "pyscotch").rglob("*") if p.is_file() and "__pycache__" not in p.parts
     )
     if sdist.stat().st_mtime < newest_src:
         sys.exit(

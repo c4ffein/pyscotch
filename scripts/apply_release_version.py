@@ -29,10 +29,7 @@ def main(argv):
     version = tag[1:] if tag.startswith("v") else tag
 
     if not _VERSION_RE.match(version):
-        print(
-            f"apply_release_version: '{ref}' is not a release version tag; "
-            "leaving pyscotch/_version.py unchanged"
-        )
+        print(f"apply_release_version: '{ref}' is not a release version tag; leaving pyscotch/_version.py unchanged")
         return 0
 
     path = Path(__file__).resolve().parent.parent / "pyscotch" / "_version.py"
@@ -40,8 +37,7 @@ def main(argv):
     new_text, n = _VERSION_LINE_RE.subn(f'__version__ = "{version}"', text)
     if n != 1:
         print(
-            f"apply_release_version: expected exactly one __version__ line in "
-            f"{path}, found {n}",
+            f"apply_release_version: expected exactly one __version__ line in {path}, found {n}",
             file=sys.stderr,
         )
         return 1

@@ -8,7 +8,6 @@ directory OUTSIDE the repo so `import pyscotch` resolves to the install:
     PYSCOTCH_PARALLEL=0 python install_smoke_test.py
 """
 
-import os
 import subprocess
 import sys
 from pathlib import Path
