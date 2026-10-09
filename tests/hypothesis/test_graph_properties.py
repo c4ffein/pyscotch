@@ -8,17 +8,14 @@ These tests verify fundamental invariants that must hold for ANY valid graph:
 """
 
 import pytest
-import numpy as np
-from hypothesis import given, settings, assume, HealthCheck
-from hypothesis import strategies as st
+from hypothesis import HealthCheck, assume, given, settings, strategies as st
 
 from pyscotch import Graph
-from pyscotch import libscotch as lib
-
 
 # =============================================================================
 # Strategies for generating valid graphs
 # =============================================================================
+
 
 @st.composite
 def valid_edges(draw, num_vertices):
@@ -109,6 +106,7 @@ def connected_graph(draw, min_vertices=2, max_vertices=15):
 # Property Tests
 # =============================================================================
 
+
 class TestOrderingProperties:
     """Property tests for Graph.order() - the ordering must be a valid bijection."""
 
@@ -134,8 +132,7 @@ class TestOrderingProperties:
 
         # Property: inverse[permutation[i]] == i
         for i in range(num_vertices):
-            assert inverse[permutation[i]] == i, \
-                f"inverse[permutation[{i}]] = {inverse[permutation[i]]} != {i}"
+            assert inverse[permutation[i]] == i, f"inverse[permutation[{i}]] = {inverse[permutation[i]]} != {i}"
 
     @given(graph_data=connected_graph(min_vertices=2, max_vertices=20))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
@@ -152,8 +149,7 @@ class TestOrderingProperties:
 
         # Property: permutation[inverse[i]] == i
         for i in range(num_vertices):
-            assert permutation[inverse[i]] == i, \
-                f"permutation[inverse[{i}]] = {permutation[inverse[i]]} != {i}"
+            assert permutation[inverse[i]] == i, f"permutation[inverse[{i}]] = {permutation[inverse[i]]} != {i}"
 
     @given(graph_data=connected_graph(min_vertices=2, max_vertices=20))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
@@ -171,19 +167,18 @@ class TestOrderingProperties:
         # Both should be permutations of [0, n-1]
         expected = set(range(num_vertices))
 
-        assert set(permutation) == expected, \
+        assert set(permutation) == expected, (
             f"permutation is not a valid permutation: {sorted(set(permutation))} != {sorted(expected)}"
-        assert set(inverse) == expected, \
+        )
+        assert set(inverse) == expected, (
             f"inverse is not a valid permutation: {sorted(set(inverse))} != {sorted(expected)}"
+        )
 
 
 class TestPartitionProperties:
     """Property tests for Graph.partition() - partition validity invariants."""
 
-    @given(
-        graph_data=simple_graph(min_vertices=3, max_vertices=20),
-        nparts=st.integers(min_value=1, max_value=5)
-    )
+    @given(graph_data=simple_graph(min_vertices=3, max_vertices=20), nparts=st.integers(min_value=1, max_value=5))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_partition_covers_all_vertices(self, graph_data, nparts):
         """
@@ -195,13 +190,9 @@ class TestPartitionProperties:
         graph = Graph.from_edges(edges, num_vertices=num_vertices)
         partition = graph.partition(nparts=nparts)
 
-        assert len(partition) == num_vertices, \
-            f"Partition length {len(partition)} != num_vertices {num_vertices}"
+        assert len(partition) == num_vertices, f"Partition length {len(partition)} != num_vertices {num_vertices}"
 
-    @given(
-        graph_data=simple_graph(min_vertices=3, max_vertices=20),
-        nparts=st.integers(min_value=1, max_value=5)
-    )
+    @given(graph_data=simple_graph(min_vertices=3, max_vertices=20), nparts=st.integers(min_value=1, max_value=5))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_partition_values_in_valid_range(self, graph_data, nparts):
         """
@@ -213,10 +204,8 @@ class TestPartitionProperties:
         graph = Graph.from_edges(edges, num_vertices=num_vertices)
         partition = graph.partition(nparts=nparts)
 
-        assert partition.min() >= 0, \
-            f"Partition contains negative value: {partition.min()}"
-        assert partition.max() < nparts, \
-            f"Partition value {partition.max()} >= nparts {nparts}"
+        assert partition.min() >= 0, f"Partition contains negative value: {partition.min()}"
+        assert partition.max() < nparts, f"Partition value {partition.max()} >= nparts {nparts}"
 
 
 class TestColoringProperties:
@@ -240,8 +229,7 @@ class TestColoringProperties:
 
         # Verify the fundamental coloring property
         for u, v in edges:
-            assert coloring[u] != coloring[v], \
-                f"Adjacent vertices {u} and {v} have same color {coloring[u]}"
+            assert coloring[u] != coloring[v], f"Adjacent vertices {u} and {v} have same color {coloring[u]}"
 
     @given(graph_data=simple_graph(min_vertices=2, max_vertices=20))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
@@ -258,10 +246,8 @@ class TestColoringProperties:
         assert num_colors > 0, "num_colors must be positive"
 
         # All color values must be valid
-        assert coloring.min() >= 0, \
-            f"Coloring contains negative value: {coloring.min()}"
-        assert coloring.max() < num_colors, \
-            f"Color value {coloring.max()} >= num_colors {num_colors}"
+        assert coloring.min() >= 0, f"Coloring contains negative value: {coloring.min()}"
+        assert coloring.max() < num_colors, f"Color value {coloring.max()} >= num_colors {num_colors}"
 
     @given(graph_data=simple_graph(min_vertices=2, max_vertices=20))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
@@ -274,8 +260,7 @@ class TestColoringProperties:
 
         coloring, _ = graph.color()
 
-        assert len(coloring) == num_vertices, \
-            f"Coloring length {len(coloring)} != num_vertices {num_vertices}"
+        assert len(coloring) == num_vertices, f"Coloring length {len(coloring)} != num_vertices {num_vertices}"
 
 
 class TestGraphCheckProperty:
@@ -290,8 +275,7 @@ class TestGraphCheckProperty:
         num_vertices, edges = graph_data
         graph = Graph.from_edges(edges, num_vertices=num_vertices)
 
-        assert graph.check(), \
-            f"Graph.check() failed for graph with {num_vertices} vertices and {len(edges)} edges"
+        assert graph.check(), f"Graph.check() failed for graph with {num_vertices} vertices and {len(edges)} edges"
 
     @given(graph_data=connected_graph(min_vertices=2, max_vertices=30))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
@@ -302,13 +286,13 @@ class TestGraphCheckProperty:
         num_vertices, edges = graph_data
         graph = Graph.from_edges(edges, num_vertices=num_vertices)
 
-        assert graph.check(), \
-            f"Connected graph check() failed for {num_vertices} vertices"
+        assert graph.check(), f"Connected graph check() failed for {num_vertices} vertices"
 
 
 # =============================================================================
 # Weighted graphs through from_edges
 # =============================================================================
+
 
 @st.composite
 def weighted_graph(draw, min_vertices=2, max_vertices=20, min_vertex_weight=0):
@@ -319,9 +303,7 @@ def weighted_graph(draw, min_vertices=2, max_vertices=20, min_vertex_weight=0):
     """
     num_vertices, edges = draw(simple_graph(min_vertices, max_vertices))
     edge_weights = draw(st.lists(st.integers(1, 1000), min_size=len(edges), max_size=len(edges)))
-    vertex_weights = draw(
-        st.lists(st.integers(min_vertex_weight, 1000), min_size=num_vertices, max_size=num_vertices)
-    )
+    vertex_weights = draw(st.lists(st.integers(min_vertex_weight, 1000), min_size=num_vertices, max_size=num_vertices))
     return num_vertices, edges, vertex_weights, edge_weights
 
 

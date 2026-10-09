@@ -23,11 +23,10 @@ input.
 
 import numpy as np
 import pytest
-from hypothesis import HealthCheck, given, settings
-from hypothesis import strategies as st
+from hypothesis import HealthCheck, given, settings, strategies as st
 
 from pyscotch import Graph
-from pyscotch.strategy import Strategies, Strategy
+from pyscotch.strategy import Strategies
 
 REPEATS = 3  # threaded runs per example: each one samples a new schedule
 
@@ -115,9 +114,9 @@ def test_build_grid_degree_distribution():
     degrees = np.diff(verttab)
     counts = dict(zip(*np.unique(degrees, return_counts=True)))
     assert counts == {
-        2: 4,                                       # corners
-        3: 2 * (width - 2) + 2 * (height - 2),      # non-corner border
-        4: (width - 2) * (height - 2),              # interior
+        2: 4,  # corners
+        3: 2 * (width - 2) + 2 * (height - 2),  # non-corner border
+        4: (width - 2) * (height - 2),  # interior
     }, f"degree distribution {counts}"
 
 
@@ -145,8 +144,7 @@ def assert_partition_properties(part, nvert, nparts, label):
     assert (counts > 0).all(), f"{label}: empty parts, sizes={counts.tolist()}"
     bound = int(np.ceil(nvert / nparts) * 1.10) + 1
     assert counts.max() <= bound, (
-        f"{label}: imbalanced beyond calibrated bound ({counts.max()} > {bound}), "
-        f"sizes={counts.tolist()}"
+        f"{label}: imbalanced beyond calibrated bound ({counts.max()} > {bound}), sizes={counts.tolist()}"
     )
 
 
@@ -232,9 +230,7 @@ def test_big_grid_stress(strat_name, factory, nparts):
     for repeat in range(5):
         g = make_graph(verttab, edgetab)
         part = g.partition(nparts, factory())
-        assert_partition_properties(
-            part, 48 * 48, nparts, f"48x48 nparts={nparts} strat={strat_name} run={repeat}"
-        )
+        assert_partition_properties(part, 48 * 48, nparts, f"48x48 nparts={nparts} strat={strat_name} run={repeat}")
 
 
 def test_big_grid_ordering_actually_reorders():
