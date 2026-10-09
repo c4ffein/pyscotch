@@ -13,11 +13,11 @@ This directory contains configuration files for building Scotch.
 - Compression support (zlib)
 - Thread support (pthread)
 
-**Auto-applied**: Automatically copied to `external/scotch/src/Makefile.inc` during `make check-submodule` if it doesn't exist.
+**Auto-applied**: Automatically copied to `external/scotch/src/Makefile.inc` during `make check-submodule` (into the disposable patched copy) if it doesn't exist.
 
 ## Patch classes
 
-Bundled patches (shipped in `pyscotch/_patches/`, applied by `pyscotch
+Bundled patches (shipped in this directory (`pyscotch/_scotch_patches/`), applied by `pyscotch
 scotch build` and catalogued in `pyscotch/scotch_build.py`) come in two
 classes with different rules:
 

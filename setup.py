@@ -121,7 +121,7 @@ setup(
         "pyscotch": [
             "py.typed",
             "native/*.c",
-            "_patches/*.patch",  # bundled Scotch build fixes (pyscotch scotch build)
+            "_scotch_patches/*.patch",  # bundled Scotch patches (pyscotch scotch build)
             "_libs/lib32/*.so",
             "_libs/lib64/*.so",
         ],

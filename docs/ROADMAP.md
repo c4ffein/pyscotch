@@ -1,7 +1,7 @@
 # PyScotch Roadmap
 
 **PyScotch:** 7.0.5 (2026-10-02), unreleased changes on main. **Scotch
-pin:** 7.0.16. **Last updated:** 2026-10-08.
+pin:** 7.0.15 (7.0.16 catalogued but skipped). **Last updated:** 2026-10-09.
 
 This file lists only what is *not* done. What is implemented is documented by
 the generated API reference (`docs/site/api_data.json`, published at
@@ -31,10 +31,13 @@ upstream findings in [QUESTIONS_FOR_SCOTCH_TEAM.md](QUESTIONS_FOR_SCOTCH_TEAM.md
   reproduced against a built library.
 - **7.0.16 threaded `bgraphBipartGg()` is not deterministic.** Upstream
   regression (seeding race, no deterministic-mode guard, last-not-best pass);
-  the `random_proc` round-trip test is flaky on 7.0.16 and is left red on
-  purpose. A tested fix is proposed upstream
-  (`patches/scotch-7.0.16-bgraph-bipart-gg-determinism.patch`); whether to
-  ship it as a PyScotch quickfix is open. See the 2026-10-08 entry in the
+  the shipped pin therefore stays on 7.0.15 (7.0.16 is in
+  `_SKIPPED_VERSIONS`), where the `random_proc` round-trip test is green
+  again (5/5 on 2026-10-09). The tested fix ships as a confirmed-only
+  *behavioral* patch (`pyscotch/_scotch_patches/scotch-7.0.16-bgraph-bipart-gg-
+  determinism.patch`, never auto-applied); the `release-watch` CI job
+  mails when 7.0.17 drops, and `make test-reproducibility` is the gate
+  the pin must pass to move. See the 2026-10-08 entry in the
   questions file.
 
 ## Binding gaps

@@ -151,7 +151,7 @@ pyscotch/
   doctor.py            # `pyscotch doctor` environment diagnostics
   scotch_build.py      # `pyscotch scotch` — download/patch/compile/manage Scotch builds
   _store.py            # Managed-build store (~/.local/share/pyscotch)
-  _patches/            # Bundled quickfix patches for upstream releases
+  _scotch_patches/     # Bundled Scotch patches (quickfix + behavioral) and build config
   api_decorators.py    # @scotch_binding / @highlevel_api tracking
   cli.py               # Command-line interface
   native/
