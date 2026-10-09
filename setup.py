@@ -2,9 +2,10 @@
 Setup script for PyScotch.
 """
 
-from setuptools import setup, find_packages
-from setuptools.dist import Distribution
 from pathlib import Path
+
+from setuptools import find_packages, setup
+from setuptools.dist import Distribution
 
 # Read README for long description
 readme_file = Path(__file__).parent / "README.md"
