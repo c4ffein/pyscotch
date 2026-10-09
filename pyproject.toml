@@ -76,9 +76,11 @@ extend-exclude = [
 ]
 
 [tool.ruff.format]
-# Teaching code: docs examples and the demo runbook are display copy whose
-# layout (aligned inline comments) is deliberate. Lint still applies to them.
-exclude = ["docs/site/examples/*", "demo/*"]
+# Teaching code: the docs examples are display copy whose layout (aligned
+# inline comments) is deliberate. Lint still applies to them. Same for the
+# Python fences inside markdown (ruff >= 0.16 formats those too): every code
+# block in our docs is display copy, so *.md stays hand-laid-out.
+exclude = ["docs/site/examples/*", "**/*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
