@@ -382,6 +382,57 @@ article pre code {
     color: #d32f2f;
 }
 
+/* Download link in every example header; pushed to the right edge. */
+.example-dl {
+    margin-left: auto;
+    font-size: 0.72rem;
+    color: var(--fg-muted);
+    text-decoration: none;
+    border: 1px solid var(--code-border);
+    border-radius: 4px;
+    padding: 0.1rem 0.5rem;
+    transition: color var(--transition), border-color var(--transition);
+}
+
+.example-dl:hover {
+    color: var(--sidebar-accent);
+    border-color: var(--sidebar-accent);
+}
+
+/* Collapsed-by-default examples ({% example "..." collapsed %}): a native
+   <details>, no JS. The summary reuses the header styling. */
+details.example > summary.example-header {
+    cursor: pointer;
+    list-style: none;           /* hide the default triangle marker */
+    border-bottom: none;        /* no rule under the header while closed */
+}
+
+details.example[open] > summary.example-header {
+    border-bottom: 1px solid var(--code-border);
+}
+
+details.example > summary.example-header::-webkit-details-marker {
+    display: none;
+}
+
+details.example > summary.example-header::before {
+    border-radius: 0;           /* square = folded, dot = regular example */
+}
+
+details.example[open] > summary.example-header::before {
+    border-radius: 50%;
+}
+
+.example-expand {
+    font-size: 0.72rem;
+    font-weight: 400;
+    opacity: 0.7;
+}
+
+details.example[open] .example-expand {
+    display: none;
+}
+
 /* ─── Diagrams ────────────────────────────────────── */
 
 figure.diagram {
