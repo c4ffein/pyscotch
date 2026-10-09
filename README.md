@@ -40,8 +40,8 @@ missing. Details, system/conda Scotch, and troubleshooting: see
 from pyscotch import Graph
 
 graph = Graph.from_edges([(0, 1), (1, 2), (2, 3), (3, 0)])
-parts = graph.partition(2)          # numpy array of part indices
-permtab, peritab = graph.order()    # nested-dissection ordering
+parts = graph.partition(2)  # numpy array of part indices
+permtab, peritab = graph.order()  # nested-dissection ordering
 ```
 
 There's also a CLI: `pyscotch partition/order/check/info`, `pyscotch doctor`,

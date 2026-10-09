@@ -7,16 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Reproducibility stress harness** (`make test-reproducibility`,
+  `tests/pyscotch_base/test_reproducibility.py`, opt-in via
+  `PYSCOTCH_REPRO=1`): the same operation runs N times in fresh processes
+  under deterministic settings and must yield exactly one distinct result —
+  across thread counts, the `h` strategy, and `Dgraph` under mpirun. A
+  failure is a true statement about the loaded library: pristine 7.0.16
+  fails (upstream `7a934a8` made `bgraphBipartGg()` nondeterministic under
+  threads), 7.0.13–7.0.15 pass. The scotch-build CI matrix runs it per
+  version, with 7.0.16 pinned `fail-expected` as an upstream-fixed watchdog.
+- **Behavioral patches — a second, confirmed-only patch class.** Unlike
+  quickfixes (build-unblocking, auto-applied), a behavioral patch changes the
+  library's *results* and is never applied silently: `pyscotch scotch build`
+  asks per patch ("We strongly recommend this patch: …", default yes, with a
+  per-patch no-confirmation-needed escape in the catalog), non-interactive
+  builds skip it with a note, and `--auto-allow-behavioral-patches`
+  pre-approves (CI). First entry:
+  `scotch-7.0.16-bgraph-bipart-gg-determinism.patch`, restoring
+  reproducibility and best-pass selection in the threaded
+  `bgraphBipartGg()`; with it, the reproducibility harness passes on 7.0.16.
+  Builds carry a `[behavioral fix]` marker in `pyscotch scotch list`;
+  `--pristine` still skips everything; wheels and the repo's own builds stay
+  pristine upstream behavior.
+
 ### Changed
-- **Scotch pin bumped from 7.0.13 to 7.0.16.** Submodule at v7.0.16; the
-  build catalog (`pyscotch scotch build`) gains 7.0.14, 7.0.15 and 7.0.16
-  with sha256 pins, all verified to compile pristine (no quickfix) under the
-  strict implicit-declaration flag, sequential and parallel. The scotch-build
-  and pypi-verify CI matrices gain one row per new version. Manual deep links
-  in the API reference now point at the v7.0.16 PDFs, with the page map
-  regenerated (66 functions had moved page; `SCOTCH_meshBuildElem` is now
-  documented). Golden files and `docs/site/api_data.json` regenerated; the
-  install hints now recommend 7.0.16.
+- **Scotch pin bumped from 7.0.13 to 7.0.15 — 7.0.16 is catalogued but
+  SKIPPED.** The build catalog (`pyscotch scotch build`) gains 7.0.14, 7.0.15
+  and 7.0.16 with sha256 pins, all verified to compile pristine (no quickfix)
+  under the strict implicit-declaration flag, sequential and parallel. But
+  7.0.16 fails the new reproducibility harness (upstream `7a934a8`, see
+  Added), so the shipped build — submodule, wheels, docs API data — stays on
+  7.0.15, the newest release that passes it: the harness is now the gate a
+  release must clear before the pin moves. A new `_SKIPPED_VERSIONS` catalog
+  records the skip with its reason; `latest_version()` (the build default
+  and every install hint) ignores skipped releases, `pyscotch scotch build`
+  with no version says why the newer one was skipped, and 7.0.16 remains
+  buildable explicitly with its behavioral patch offered. A 6-hourly
+  `release-watch` CI job compares GitLab's tags with the catalog, the skip
+  list and the pin: a skipped release being upstream's newest is green (on
+  purpose); a release the catalog doesn't know, or a pin behind the newest
+  non-skipped release, fails the run — and GitHub mails the failure, so the
+  day 7.0.17 drops is the day you hear about it. The scotch-build and
+  pypi-verify CI matrices gain one row per new version. Manual deep links in
+  the API reference point at the v7.0.16 PDFs (the manuals, unaffected by
+  the regression), with the page map regenerated (66 functions had moved
+  page; `SCOTCH_meshBuildElem` is now documented). Golden files and
+  `docs/site/api_data.json` regenerated; the install hints recommend 7.0.15.
 - **Partition results can differ from 7.0.13.** Upstream changed the default
   mapping strategy to use diffusion more (commit `ecd6ccb`). PyScotch still
   drives the library exactly as `gpart`/`gord`/`gmap`/`dgpart`/`dgord` do:

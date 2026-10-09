@@ -41,7 +41,7 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 # Targets
-.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 build-reference-tools clean clean-scotch install test test-full test-quadrant test-differential docs-api help lint-check format-check format
+.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 build-reference-tools clean clean-scotch install test test-full test-quadrant test-differential test-reproducibility docs-api help lint-check format-check format
 
 help:
 	@echo "PyScotch Build System"
@@ -67,6 +67,7 @@ help:
 	@echo "  make build-reference-tools - Build Scotch's own CLI tools (gpart, gord, gmap; dgpart, dgord) as differential oracles"
 	@echo "  make test-differential     - Byte-compare PyScotch against those tools (needs build-reference-tools)"
 	@echo "  make docs-api              - Regenerate docs/site/api_data.json after a public-API change (mirrors CI)"
+	@echo "  make test-reproducibility  - N fresh-process runs per config must agree (PYSCOTCH_REPRO_RUNS=12)"
 	@echo "  make lint-check            - ruff check (what CI runs)"
 	@echo "  make format-check          - ruff format --check (what CI runs)"
 	@echo "  make format                - Apply ruff formatting + safe lint fixes"
@@ -265,6 +266,17 @@ install:
 	pip install -e .
 
 # Run tests (64-bit parallel by default, skip slow hypothesis tests)
+# Reproducibility stress harness: N fresh-process runs per config must yield
+# exactly one distinct result (see tests/pyscotch_base/test_reproducibility.py).
+# Audits the dev build by default; point PYSCOTCH_LIB_DIR elsewhere to audit a
+# different library (a FAILURE is a true statement about that library —
+# pristine 7.0.16 fails until upstream fixes 7a934a8).
+test-reproducibility:
+	PYSCOTCH_REPRO=1 PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0 \
+	PYSCOTCH_LIB_DIR=$${PYSCOTCH_LIB_DIR:-$(CURDIR)/$(BUILDS_DIR)/lib64} \
+	PYSCOTCH_MPI_OVERSUBSCRIBE=1 \
+	pytest tests/pyscotch_base/test_reproducibility.py -v
+
 test:
 	PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/ -v --ignore=tests/hypothesis/
 

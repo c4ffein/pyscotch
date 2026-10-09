@@ -4,7 +4,6 @@
 include README.md
 include LICENSE
 include CHANGELOG.md
-include CONTRIBUTING.md
 include Makefile
 include pyproject.toml
 include pyscotch/py.typed
@@ -12,7 +11,6 @@ recursive-include pyscotch/native *.c
 recursive-include patches *
 recursive-include scripts *.sh
 recursive-include tests *.py *.md
-recursive-include examples *.py
 
 # Never ship binaries or build trees in the sdist. Note: this does not affect
 # binary wheels — the pyscotch/_libs/*.so files are included in wheels via the
