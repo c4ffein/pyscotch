@@ -10,16 +10,15 @@ This validates a complete end-to-end distributed workflow:
 
 Run with: mpirun -np 3 python distributed_coarsening_workflow.py
 """
+
 import sys
-import os
 from pathlib import Path
 
 # Add pyscotch to path for testing
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from pyscotch import libscotch as lib
+from pyscotch.dgraph import COARSEN_NONE, Dgraph
 from pyscotch.mpi import mpi
-from pyscotch.dgraph import Dgraph, COARSEN_NONE
 
 
 def main():
@@ -28,7 +27,6 @@ def main():
         # Initialize MPI
         mpi.init()
         rank = mpi.comm_rank()
-        size = mpi.comm_size()
 
         graph_file = Path("external/scotch/src/check/data/bump.grf")
 
@@ -57,15 +55,11 @@ def main():
             return 1
 
         # Get original graph data
-        orig_data = grafdat.data(
-            want_vertglbnbr=True,
-            want_vertlocnbr=True,
-            want_edgeglbnbr=True
-        )
+        orig_data = grafdat.data(want_vertglbnbr=True, want_vertlocnbr=True, want_edgeglbnbr=True)
 
-        orig_vertglbnbr = orig_data['vertglbnbr']
-        orig_vertlocnbr = orig_data['vertlocnbr']
-        orig_edgeglbnbr = orig_data['edgeglbnbr']
+        orig_vertglbnbr = orig_data["vertglbnbr"]
+        orig_vertlocnbr = orig_data["vertlocnbr"]
+        orig_edgeglbnbr = orig_data["edgeglbnbr"]
 
         if rank == 0:
             print(f"  Original: {orig_vertglbnbr} vertices (global), {orig_edgeglbnbr} edges")
@@ -77,8 +71,10 @@ def main():
         # number of vertices may not shrink if no local matching succeeds)
         coarvertlocmax = grafdat.coarsen_vert_loc_max(COARSEN_NONE)
         if coarvertlocmax != orig_vertlocnbr:
-            print(f"ERROR on rank {rank}: coarsen_vert_loc_max returned "
-                  f"{coarvertlocmax}, expected {orig_vertlocnbr} local vertices")
+            print(
+                f"ERROR on rank {rank}: coarsen_vert_loc_max returned "
+                f"{coarvertlocmax}, expected {orig_vertlocnbr} local vertices"
+            )
             grafdat.exit()
             mpi.finalize()
             return 1
@@ -91,10 +87,11 @@ def main():
                 print("  Graph could not be coarsened (already optimal)")
         else:
             # The bound announced before coarsening must hold afterwards
-            coar_vertlocnbr = coargrafdat.data(want_vertlocnbr=True)['vertlocnbr']
+            coar_vertlocnbr = coargrafdat.data(want_vertlocnbr=True)["vertlocnbr"]
             if coar_vertlocnbr > coarvertlocmax:
-                print(f"ERROR on rank {rank}: Invalid local multinode array size "
-                      f"({coar_vertlocnbr} > {coarvertlocmax})")
+                print(
+                    f"ERROR on rank {rank}: Invalid local multinode array size ({coar_vertlocnbr} > {coarvertlocmax})"
+                )
                 grafdat.exit()
                 coargrafdat.exit()
                 mpi.finalize()
@@ -111,7 +108,7 @@ def main():
 
             # Get coarse graph data
             coar_data = coargrafdat.data(want_vertglbnbr=True, want_vertlocnbr=True)
-            coar_vertglbnbr = coar_data['vertglbnbr']
+            coar_vertglbnbr = coar_data["vertglbnbr"]
 
             if rank == 0:
                 ratio = float(coar_vertglbnbr) / float(orig_vertglbnbr)
@@ -130,7 +127,7 @@ def main():
         grafdat.load(graph_file, baseval=-1, flagval=0)
 
         level0_data = grafdat.data(want_vertglbnbr=True)
-        level0_vertices = level0_data['vertglbnbr']
+        level0_vertices = level0_data["vertglbnbr"]
 
         # Level 1
         coar1grafdat, mult1 = grafdat.coarsen(coarrat=0.8, foldval=COARSEN_NONE)
@@ -145,7 +142,7 @@ def main():
                 return 1
 
             coar1_data = coar1grafdat.data(want_vertglbnbr=True)
-            level1_vertices = coar1_data['vertglbnbr']
+            level1_vertices = coar1_data["vertglbnbr"]
 
             # Level 2
             coar2grafdat, mult2 = coar1grafdat.coarsen(coarrat=0.8, foldval=COARSEN_NONE)
@@ -161,7 +158,7 @@ def main():
                     return 1
 
                 coar2_data = coar2grafdat.data(want_vertglbnbr=True)
-                level2_vertices = coar2_data['vertglbnbr']
+                level2_vertices = coar2_data["vertglbnbr"]
 
                 if rank == 0:
                     print(f"  Level 0: {level0_vertices} vertices")
@@ -193,15 +190,15 @@ def main():
         grafdat.load(graph_file, baseval=-1, flagval=0)
 
         orig_data = grafdat.data(want_vertglbnbr=True, want_edgeglbnbr=True)
-        orig_vertices = orig_data['vertglbnbr']
-        orig_edges = orig_data['edgeglbnbr']
+        orig_vertices = orig_data["vertglbnbr"]
+        orig_edges = orig_data["edgeglbnbr"]
 
         coargrafdat, multloctab = grafdat.coarsen(coarrat=0.8, foldval=COARSEN_NONE)
 
         if multloctab is not None:
             coar_data = coargrafdat.data(want_vertglbnbr=True, want_edgeglbnbr=True)
-            coar_vertices = coar_data['vertglbnbr']
-            coar_edges = coar_data['edgeglbnbr']
+            coar_vertices = coar_data["vertglbnbr"]
+            coar_edges = coar_data["edgeglbnbr"]
 
             # Edge/vertex ratio shouldn't explode
             orig_ratio = orig_edges / orig_vertices if orig_vertices > 0 else 0
@@ -231,9 +228,10 @@ def main():
         return 0
 
     except Exception as e:
-        rank = mpi.comm_rank() if mpi.is_initialized() else '?'
+        rank = mpi.comm_rank() if mpi.is_initialized() else "?"
         print(f"ERROR on rank {rank}: {e}")
         import traceback
+
         traceback.print_exc()
         if mpi.is_initialized():
             mpi.finalize()
