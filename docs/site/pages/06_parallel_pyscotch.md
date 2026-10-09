@@ -85,13 +85,17 @@ share one MPI runtime. Without mpi4py, the bundled zero-dependency
 `pyscotch.mpi.init()` before creating a `Dgraph`.
 
 A complete, runnable tour — sequential and parallel in one script, with clean
-messages when a piece is missing — lives in `examples/hello_pyscotch.py`:
+messages when a piece is missing — is `hello_pyscotch.py` (grab it with the
+download button; its byte-exact output is locked in PyScotch's golden-master
+CI, sequential *and* under mpirun):
 
 ```bash
-python examples/hello_pyscotch.py                                        # sequential
+python hello_pyscotch.py                                        # sequential
 PYSCOTCH_PARALLEL=1 PYSCOTCH_INT_SIZE=64 mpirun -n 2 \
-    python examples/hello_pyscotch.py                                    # parallel
+    python hello_pyscotch.py                                    # parallel
 ```
+
+{% example "hello_pyscotch.py" collapsed %}
 
 ## When it goes wrong
 
