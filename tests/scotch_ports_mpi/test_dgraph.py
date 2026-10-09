@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+
 import pytest
 
 from pyscotch import libscotch as lib
@@ -134,9 +135,7 @@ class TestDgraphCheck:
 
         cmd = _mpirun_cmd(2) + [sys.executable, str(script_path), str(graph_path)]
 
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env()
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env())
 
         # Print output for debugging
         if result.stdout:
@@ -160,9 +159,7 @@ class TestDgraphCoarsen:
         # Use 3 processes as in the original Scotch test
         cmd = _mpirun_cmd(3) + [sys.executable, str(script_path), str(graph_path)]
 
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env()
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env())
 
         # Print output for debugging
         if result.stdout:
@@ -181,9 +178,7 @@ class TestDgraphCoarsen:
 
         cmd = _mpirun_cmd(3) + [sys.executable, str(script_path), str(graph_path)]
 
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env()
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env())
 
         # Print output for debugging
         if result.stdout:
@@ -202,9 +197,7 @@ class TestDgraphCoarsen:
 
         cmd = _mpirun_cmd(3) + [sys.executable, str(script_path), str(graph_path)]
 
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env()
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=_get_ptscotch_env())
 
         # Print output for debugging
         if result.stdout:
@@ -224,9 +217,7 @@ def _run_script(script_name: str, num_processes: int, *args) -> None:
     cmd = _mpirun_cmd(num_processes) + [sys.executable, str(script_path)]
     cmd.extend(str(arg) for arg in args)
 
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=60, env=_get_ptscotch_env()
-    )
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=_get_ptscotch_env())
 
     # Print output for debugging
     if result.stdout:
@@ -323,9 +314,7 @@ def _mpi4py_available() -> bool:
 class TestDgraphMpi4pyInterop:
     """Driving a Dgraph from an mpi4py communicator (the `parallel` extra)."""
 
-    @pytest.mark.skipif(
-        not _mpi4py_available(), reason="mpi4py not installed (pip install pyscotch[parallel])"
-    )
+    @pytest.mark.skipif(not _mpi4py_available(), reason="mpi4py not installed (pip install pyscotch[parallel])")
     def test_dgraph_mpi4py_interop(self):
         """COMM_WORLD, coarsen propagation, and a Split() subset comm."""
         returncode, stdout, stderr = run_mpi_script("dgraph_mpi4py_interop.py", num_processes=4)

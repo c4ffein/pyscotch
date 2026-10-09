@@ -4,11 +4,11 @@ Integration Test Orchestrator
 Runs all integration workflow scripts in isolated subprocesses to prevent
 segfaults or other crashes from affecting the test suite.
 """
+
 import os
 import subprocess
 import sys
 from pathlib import Path
-import pytest
 
 # CI environments may have fewer CPU slots than requested MPI processes.
 # Set PYSCOTCH_MPI_OVERSUBSCRIBE=1 to add --oversubscribe flag.
@@ -69,7 +69,7 @@ def run_workflow_script(script_name: str, num_processes: int = 1, timeout: int =
         text=True,
         timeout=timeout,
         cwd=Path(__file__).parent.parent.parent,  # Run from repo root
-        env=env
+        env=env,
     )
 
     return result.returncode, result.stdout, result.stderr
@@ -90,8 +90,7 @@ class TestSequentialPartitioningWorkflow:
 
         # Check that the script succeeded
         assert returncode == 0, f"Sequential partitioning workflow failed with exit code {returncode}"
-        assert "PASS" in stdout or "passed" in stdout.lower(), \
-            "Expected success indicator in output"
+        assert "PASS" in stdout or "passed" in stdout.lower(), "Expected success indicator in output"
 
 
 class TestMeshPartitioningWorkflow:
@@ -109,8 +108,7 @@ class TestMeshPartitioningWorkflow:
 
         # Check that the script succeeded
         assert returncode == 0, f"Mesh partitioning workflow failed with exit code {returncode}"
-        assert "PASS" in stdout or "passed" in stdout.lower(), \
-            "Expected success indicator in output"
+        assert "PASS" in stdout or "passed" in stdout.lower(), "Expected success indicator in output"
 
 
 class TestDistributedCoarseningWorkflow:

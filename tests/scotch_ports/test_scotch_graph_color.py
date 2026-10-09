@@ -5,12 +5,9 @@ Tests the SCOTCH_graphColor() routine for graph coloring.
 The C test just verifies the function succeeds and prints a histogram.
 """
 
-import pytest
 import numpy as np
-from pathlib import Path
 
 from pyscotch import Graph
-from pyscotch import libscotch as lib
 
 
 class TestGraphColor:
@@ -115,6 +112,8 @@ class TestGraphColor:
         not optimal). Upstream Scotch commit e0a90c7 fixed a bug where
         neighbors colored in the same pass could receive the same color.
         """
+        # Grid-3x3's layout is data: one line of row edges, one of column edges.
+        # fmt: off
         test_cases = [
             ("Triangle", [(0, 1), (1, 2), (2, 0)], 3),
             ("Path-5", [(0, 1), (1, 2), (2, 3), (3, 4)], 5),
@@ -126,6 +125,7 @@ class TestGraphColor:
                 (0, 3), (3, 6), (1, 4), (4, 7), (2, 5), (5, 8),  # cols
             ], 9),
         ]
+        # fmt: on
 
         for name, edges, num_vertices in test_cases:
             graph = Graph.from_edges(edges, num_vertices=num_vertices)
@@ -133,6 +133,4 @@ class TestGraphColor:
 
             # Check every edge: endpoints must have different colors
             for u, v in edges:
-                assert colotab[u] != colotab[v], (
-                    f"{name}: vertices {u} and {v} have same color {colotab[u]}"
-                )
+                assert colotab[u] != colotab[v], f"{name}: vertices {u} and {v} have same color {colotab[u]}"

@@ -11,14 +11,12 @@ This test verifies the save/load roundtrip works correctly with both 32-bit
 and 64-bit Scotch variants.
 """
 
-import pytest
-import tempfile
 import os
-from pathlib import Path
+import tempfile
+
 import numpy as np
 
-from pyscotch import Graph
-from pyscotch import libscotch as lib
+from pyscotch import Graph, libscotch as lib
 
 
 class TestScotchGraphDump:
@@ -40,7 +38,7 @@ class TestScotchGraphDump:
         assert e1 == 6  # Each edge counted twice (undirected)
 
         # Save to temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.grf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".grf", delete=False) as f:
             temp_file = f.name
 
         try:
@@ -93,7 +91,7 @@ class TestScotchGraphDump:
         assert e1 == 6
 
         # Save and load
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.grf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".grf", delete=False) as f:
             temp_file = f.name
 
         try:
@@ -116,6 +114,8 @@ class TestScotchGraphDump:
         """Test save/load with a larger, more complex graph."""
         # Set variant for this test
         # Create a 3x3 grid graph
+        # Grouped by grid row/column.
+        # fmt: off
         edges = [
             # Row 0
             (0, 1), (1, 2),
@@ -128,6 +128,7 @@ class TestScotchGraphDump:
             (1, 4), (4, 7),
             (2, 5), (5, 8),
         ]
+        # fmt: on
         graph1 = Graph.from_edges(edges, num_vertices=9)
 
         v1, e1 = graph1.size()
@@ -135,7 +136,7 @@ class TestScotchGraphDump:
         assert e1 == 24  # 12 edges * 2 (undirected)
 
         # Save and load
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.grf', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".grf", delete=False) as f:
             temp_file = f.name
 
         try:

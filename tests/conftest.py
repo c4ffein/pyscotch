@@ -18,8 +18,8 @@ Or use the Makefile targets:
 """
 
 import os
-import pytest
 
+import pytest
 
 # Read configuration from environment
 SCOTCH_INT_SIZE = int(os.environ.get("PYSCOTCH_INT_SIZE", "32"))
@@ -28,9 +28,7 @@ SCOTCH_PARALLEL = os.environ.get("PYSCOTCH_PARALLEL", "0") == "1"
 
 def pytest_configure(config):
     """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "parallel: mark test as requiring parallel (PT-Scotch) variant"
-    )
+    config.addinivalue_line("markers", "parallel: mark test as requiring parallel (PT-Scotch) variant")
 
 
 @pytest.fixture(scope="session")

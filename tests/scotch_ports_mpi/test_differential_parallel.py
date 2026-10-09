@@ -89,8 +89,7 @@ def _run(cmd, env):
     proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if proc.returncode != 0:
         raise AssertionError(
-            f"command failed ({proc.returncode}): {' '.join(cmd)}\n"
-            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+            f"command failed ({proc.returncode}): {' '.join(cmd)}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
         )
 
 
@@ -119,8 +118,7 @@ class TestDistributedPartitionMatchesDgpart:
             child_env,
         )
         assert ours.read_bytes() == theirs.read_bytes(), (
-            "pyscotch and dgpart disagree — PyScotch no longer drives PT-Scotch "
-            "like the reference tool"
+            "pyscotch and dgpart disagree — PyScotch no longer drives PT-Scotch like the reference tool"
         )
 
 
@@ -143,11 +141,9 @@ class TestDistributedOrderingMatchesDgord:
 
         _run(_mpirun_prefix(2) + [dgord, str(graph), str(theirs)], _ref_env(dgord))
         _run(
-            _mpirun_prefix(2)
-            + [sys.executable, str(MPI_SCRIPTS / "differential_dgord.py"), str(graph), str(ours)],
+            _mpirun_prefix(2) + [sys.executable, str(MPI_SCRIPTS / "differential_dgord.py"), str(graph), str(ours)],
             child_env,
         )
         assert ours.read_bytes() == theirs.read_bytes(), (
-            "pyscotch and dgord disagree — PyScotch no longer drives PT-Scotch "
-            "like the reference tool"
+            "pyscotch and dgord disagree — PyScotch no longer drives PT-Scotch like the reference tool"
         )

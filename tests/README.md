@@ -144,10 +144,15 @@ mpi.finalize()
 def test_dgraph_check_real_bump():
     """Pytest spawns mpirun subprocess."""
     result = subprocess.run(
-        ["mpirun", "-np", "2", "python",
-         "tests/mpi_scripts/dgraph_check_real.py",
-         "external/scotch/src/check/data/bump.grf"],
-        capture_output=True
+        [
+            "mpirun",
+            "-np",
+            "2",
+            "python",
+            "tests/mpi_scripts/dgraph_check_real.py",
+            "external/scotch/src/check/data/bump.grf",
+        ],
+        capture_output=True,
     )
     assert result.returncode == 0
 ```

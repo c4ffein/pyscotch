@@ -4,8 +4,10 @@ Orchestrated Integration Test: Mesh Partitioning Workflow
 
 Runs as a standalone script for subprocess isolation.
 """
+
 import sys
 from pathlib import Path
+
 import numpy as np
 
 from pyscotch import Mesh
@@ -76,6 +78,7 @@ def main():
     except Exception as e:
         print(f"ERROR: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 
