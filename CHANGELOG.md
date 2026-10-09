@@ -23,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the differential tier is byte-identical against the 7.0.16 reference tools
   in both the sequential and parallel legs.
 
+- **Lint and format moved to ruff** (same conventions as c4ffein/keras-tinygrad:
+  120-column lines, rules E/F/W/I, imports sorted with `pyscotch` as
+  first-party). `make format` applies it, `make lint-check` /
+  `make format-check` are what the new CI lint job runs. black and flake8
+  are gone from the dev extras. One-off reformat of the whole tree; no
+  behaviour change intended (unused imports and dead assignments dropped,
+  three bare `except:` in `pyscotch/mpi.py` narrowed to `except Exception:`).
+
 ### Fixed
 - `tests/pyscotch_integration/test_orchestrator.py` handed its MPI children a
   hard-coded 64-bit width, so a 32-bit session with `PYSCOTCH_LIB_DIR` pinned

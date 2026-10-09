@@ -49,8 +49,8 @@ make clean-scotch
 - Follow PEP 8 guidelines
 - Use type hints where possible
 - Maximum line length: 100 characters
-- Use Black for formatting: `black pyscotch/`
-- Run flake8 for linting: `flake8 pyscotch/`
+- Format and lint with ruff (config in `pyproject.toml`, 120-column lines): `make format`
+- CI runs `make lint-check` and `make format-check`; both must be clean
 
 ## Testing
 
