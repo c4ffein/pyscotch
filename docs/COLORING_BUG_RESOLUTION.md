@@ -145,8 +145,7 @@ def test_coloring_no_adjacent_same_color(self, graph_data):
     coloring, num_colors = graph.color()
 
     for u, v in edges:
-        assert coloring[u] != coloring[v], \
-            f"Adjacent vertices {u} and {v} have same color {coloring[u]}"
+        assert coloring[u] != coloring[v], f"Adjacent vertices {u} and {v} have same color {coloring[u]}"
 ```
 
 ### Source Code Analysis
@@ -186,8 +185,7 @@ There may be a logic issue where:
 Test marked as `xfail` (expected failure) in PyScotch:
 ```python
 @pytest.mark.xfail(reason="Upstream Scotch bug with sparse graphs - see docs/QUESTIONS_FOR_SCOTCH_TEAM_2.md")
-def test_coloring_no_adjacent_same_color(self, graph_data):
-    ...
+def test_coloring_no_adjacent_same_color(self, graph_data): ...
 ```
 
 When this is fixed upstream, the test will become `XPASS` and we'll know to remove the marker.

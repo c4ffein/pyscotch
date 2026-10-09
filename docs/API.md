@@ -27,6 +27,7 @@ graph = Graph.from_edges(edges, num_vertices=3)
 
 # Build from arrays
 import numpy as np
+
 verttab = np.array([0, 2, 4, 6])  # Vertex starts
 edgetab = np.array([1, 2, 0, 2, 0, 1])  # Edge targets
 graph = Graph()
@@ -328,9 +329,9 @@ Simple format:
 
 ## Examples
 
-See the `examples/` directory for complete examples:
-- `simple_partition.py` - Basic graph partitioning
-- `graph_ordering.py` - Graph ordering for sparse matrices
+Runnable, CI-tested examples live in `docs/site/examples/` and are published
+(with download buttons) on the documentation site:
+<https://c4ffein.github.io/pyscotch>
 
 ## Error Handling
 
