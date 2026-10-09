@@ -6,8 +6,10 @@ This example demonstrates how to compute an ordering of a graph,
 which can be used to reduce fill-in during sparse matrix factorization.
 """
 
-from pyscotch import Graph, Strategy, StrategyFlags, Ordering
 import numpy as np
+
+from pyscotch import Graph, Ordering, Strategy, StrategyFlags
+
 
 # Create a grid graph (5x5)
 def create_grid_graph(n):
@@ -23,6 +25,7 @@ def create_grid_graph(n):
             if i < n - 1:
                 edges.append((node, node + n))
     return edges
+
 
 print("Creating 5x5 grid graph...")
 edges = create_grid_graph(5)

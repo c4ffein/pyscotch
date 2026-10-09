@@ -16,15 +16,14 @@ Example:
 """
 
 import sys
-import os
 from pathlib import Path
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pyscotch import libscotch as lib
+from pyscotch.dgraph import COARSEN_NONE, Dgraph
 from pyscotch.mpi import mpi
-from pyscotch.dgraph import Dgraph, COARSEN_NONE, COARSEN_FOLD
 
 
 def distributed_coarsening_example(graph_file: Path):
@@ -40,7 +39,7 @@ def distributed_coarsening_example(graph_file: Path):
         lib.set_active_variant(64, parallel=True)
 
         if rank == 0:
-            print(f"=== Distributed Graph Coarsening Example ===")
+            print("=== Distributed Graph Coarsening Example ===")
             print(f"Processes: {size}")
             print(f"Graph file: {graph_file}")
             print()
@@ -57,22 +56,17 @@ def distributed_coarsening_example(graph_file: Path):
 
         # Get original graph data
         orig_data = grafdat.data(
-            want_baseval=True,
-            want_vertglbnbr=True,
-            want_vertlocnbr=True,
-            want_edgeglbnbr=True,
-            want_edgelocnbr=True
+            want_baseval=True, want_vertglbnbr=True, want_vertlocnbr=True, want_edgeglbnbr=True, want_edgelocnbr=True
         )
 
-        baseval = orig_data['baseval']
-        orig_vertglbnbr = orig_data['vertglbnbr']
-        orig_vertlocnbr = orig_data['vertlocnbr']
-        orig_edgeglbnbr = orig_data['edgeglbnbr']
-        orig_edgelocnbr = orig_data['edgelocnbr']
+        orig_vertglbnbr = orig_data["vertglbnbr"]
+        orig_vertlocnbr = orig_data["vertlocnbr"]
+        orig_edgeglbnbr = orig_data["edgeglbnbr"]
+        orig_edgelocnbr = orig_data["edgelocnbr"]
 
         # Print original graph stats (rank 0 only)
         if rank == 0:
-            print(f"\n[2] Original Graph Statistics:")
+            print("\n[2] Original Graph Statistics:")
             print(f"    Global vertices: {orig_vertglbnbr}")
             print(f"    Global edges: {orig_edgeglbnbr}")
             print()
@@ -82,14 +76,10 @@ def distributed_coarsening_example(graph_file: Path):
         mpi.barrier()
 
         if rank == 0:
-            print(f"\n[3] Performing coarsening (ratio=0.8, COARSEN_NONE)...")
+            print("\n[3] Performing coarsening (ratio=0.8, COARSEN_NONE)...")
 
         # Perform coarsening
-        coargrafdat, multloctab = grafdat.coarsen(
-            coarrat=0.8,
-            foldval=COARSEN_NONE,
-            flags=0
-        )
+        coargrafdat, multloctab = grafdat.coarsen(coarrat=0.8, foldval=COARSEN_NONE, flags=0)
 
         if multloctab is None:
             if rank == 0:
@@ -110,19 +100,15 @@ def distributed_coarsening_example(graph_file: Path):
             print("    ✓ Coarse graph validated")
 
         # Get coarse graph data
-        coar_data = coargrafdat.data(
-            want_vertglbnbr=True,
-            want_vertlocnbr=True,
-            want_edgeglbnbr=True
-        )
+        coar_data = coargrafdat.data(want_vertglbnbr=True, want_vertlocnbr=True, want_edgeglbnbr=True)
 
-        coar_vertglbnbr = coar_data['vertglbnbr']
-        coar_vertlocnbr = coar_data['vertlocnbr']
-        coar_edgeglbnbr = coar_data['edgeglbnbr']
+        coar_vertglbnbr = coar_data["vertglbnbr"]
+        coar_vertlocnbr = coar_data["vertlocnbr"]
+        coar_edgeglbnbr = coar_data["edgeglbnbr"]
 
         # Print coarse graph stats
         if rank == 0:
-            print(f"\n[4] Coarse Graph Statistics:")
+            print("\n[4] Coarse Graph Statistics:")
             print(f"    Global vertices: {coar_vertglbnbr}")
             print(f"    Global edges: {coar_edgeglbnbr}")
             ratio = float(coar_vertglbnbr) / float(orig_vertglbnbr)
@@ -135,13 +121,9 @@ def distributed_coarsening_example(graph_file: Path):
 
         # Try additional coarsening level
         if rank == 0:
-            print(f"\n[5] Attempting second coarsening level...")
+            print("\n[5] Attempting second coarsening level...")
 
-        coar2grafdat, multloctab2 = coargrafdat.coarsen(
-            coarrat=0.8,
-            foldval=COARSEN_NONE,
-            flags=0
-        )
+        coar2grafdat, multloctab2 = coargrafdat.coarsen(coarrat=0.8, foldval=COARSEN_NONE, flags=0)
 
         if multloctab2 is None:
             if rank == 0:
@@ -151,10 +133,7 @@ def distributed_coarsening_example(graph_file: Path):
                 print("    ✓ Second level coarsening successful")
 
             # Get level 2 stats
-            coar2_data = coar2grafdat.data(
-                want_vertglbnbr=True,
-                want_edgeglbnbr=True
-            )
+            coar2_data = coar2grafdat.data(want_vertglbnbr=True, want_edgeglbnbr=True)
 
             if rank == 0:
                 print(f"    Level 2 vertices: {coar2_data['vertglbnbr']}")
@@ -168,7 +147,7 @@ def distributed_coarsening_example(graph_file: Path):
         grafdat.exit()
 
         if rank == 0:
-            print(f"\n✓ Distributed coarsening example completed successfully!\n")
+            print("\n✓ Distributed coarsening example completed successfully!\n")
 
         mpi.finalize()
         return 0
@@ -176,6 +155,7 @@ def distributed_coarsening_example(graph_file: Path):
     except Exception as e:
         print(f"ERROR on rank {rank}: {e}")
         import traceback
+
         traceback.print_exc()
         if mpi.is_initialized():
             mpi.finalize()
@@ -186,7 +166,7 @@ def main():
     if len(sys.argv) != 2:
         if mpi.is_initialized() and mpi.comm_rank() == 0:
             print(f"Usage: mpirun -np <num_procs> {sys.argv[0]} <graph_file>")
-            print(f"\nExample:")
+            print("\nExample:")
             print(f"  mpirun -np 3 {sys.argv[0]} ../external/scotch/src/check/data/bump.grf")
         return 1
 

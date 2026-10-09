@@ -8,14 +8,17 @@ This example demonstrates how to:
 3. Analyze the partition quality
 """
 
-from pyscotch import Graph, Strategy, Mapping
+from pyscotch import Graph, Mapping
 
 # Create a simple graph from edges
 # This creates a small ring graph: 0-1-2-3-4-5-0
+# First line is the ring itself, second the cross-chords.
+# fmt: off
 edges = [
     (0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0),
     (0, 2), (1, 3), (2, 4), (3, 5), (4, 0), (5, 1),
 ]
+# fmt: on
 
 print("Creating graph from edges...")
 graph = Graph.from_edges(edges, num_vertices=6)
@@ -44,7 +47,8 @@ for i in range(nparts):
 
 # Try with quality strategy
 print("\nPartitioning into 3 parts with quality strategy...")
-from pyscotch import Strategies
+from pyscotch import Strategies  # noqa: E402  (tutorial script: imports where the story needs them)
+
 strategy = Strategies.partition_quality()
 partitions = graph.partition(3, strategy)
 

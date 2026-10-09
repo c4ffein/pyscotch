@@ -54,6 +54,7 @@ def partition_mesh(mesh_file: Path, num_parts: int):
 
     # Count elements in each partition
     import numpy as np
+
     part_sizes = np.bincount(parttab, minlength=num_parts)
     print(f"Partition sizes: {part_sizes}")
 
@@ -93,7 +94,7 @@ def partition_mesh(mesh_file: Path, num_parts: int):
 def main():
     if len(sys.argv) != 3:
         print(f"Usage: {sys.argv[0]} <mesh_file> <num_parts>")
-        print(f"\nExample:")
+        print("\nExample:")
         print(f"  {sys.argv[0]} ../external/scotch/src/check/data/cube_8.msh 4")
         return 1
 
