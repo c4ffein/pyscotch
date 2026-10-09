@@ -222,7 +222,7 @@ def manual_entry(c_function):
         return None
     manual = "PT-Scotch" if "ptscotch" in entry["pdf"] else "Scotch"
     url = _MANUAL_URL.format(tag=SCOTCH_DOC_TAG, pdf=entry["pdf"])
-    return f'{url}#page={entry["page"]}', f'{manual} user manual, page {entry["page"]}'
+    return f"{url}#page={entry['page']}", f"{manual} user manual, page {entry['page']}"
 
 
 def manual_link(c_function):
@@ -233,8 +233,7 @@ def manual_link(c_function):
         return f"<code>{escaped}</code>"
     href, hover = entry
     return (
-        f'<a class="api-c-link" href="{href}" target="_blank" rel="noopener" '
-        f'title="{hover}"><code>{escaped}</code></a>'
+        f'<a class="api-c-link" href="{href}" target="_blank" rel="noopener" title="{hover}"><code>{escaped}</code></a>'
     )
 
 
@@ -283,10 +282,7 @@ def render_entry(e):
     shown = e["name"] if e["is_property"] else format_signature(e["name"], e["signature"])
     tooltip = html.escape(badge_tooltip(e))
 
-    badges = (
-        f'<span class="api-badge api-badge-{e["level_css"]}" title="{tooltip}">'
-        f'{e["level"]}</span>'
-    )
+    badges = f'<span class="api-badge api-badge-{e["level_css"]}" title="{tooltip}">{e["level"]}</span>'
     if e["is_property"]:
         badges = '<span class="api-badge api-badge-property">property</span>' + badges
 
@@ -344,7 +340,7 @@ def render_html(data):
     for section in sections:
         out.append(f'<h2 id="{section["slug"]}">{html.escape(section["name"])}</h2>')
         if section["doc"]:
-            out.append(f'<p>{section["doc"]}</p>')
+            out.append(f"<p>{section['doc']}</p>")
         for e in section["entries"]:
             out.append(render_entry(e))
     return "\n".join(out)

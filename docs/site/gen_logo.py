@@ -31,15 +31,15 @@ def graph_motif(cx, cy, scale=1.0):
     shear = 2 * s
 
     red_nodes = [
-        (cx - 12 * s + shear, cy - 10 * s),   # 0: top-left
-        (cx + 12 * s + shear, cy - 10 * s),   # 1: top-right
-        (cx - 12 * s,         cy + 0 * s),     # 2: middle-left
+        (cx - 12 * s + shear, cy - 10 * s),  # 0: top-left
+        (cx + 12 * s + shear, cy - 10 * s),  # 1: top-right
+        (cx - 12 * s, cy + 0 * s),  # 2: middle-left
     ]
 
     dark_nodes = [
-        (cx + 12 * s,         cy + 0 * s),     # 3: middle-right
-        (cx - 12 * s - shear, cy + 10 * s),    # 4: bottom-left
-        (cx + 12 * s - shear, cy + 10 * s),    # 5: bottom-right
+        (cx + 12 * s, cy + 0 * s),  # 3: middle-right
+        (cx - 12 * s - shear, cy + 10 * s),  # 4: bottom-left
+        (cx + 12 * s - shear, cy + 10 * s),  # 5: bottom-right
     ]
 
     nodes = [
@@ -86,9 +86,7 @@ def graph_motif(cx, cy, scale=1.0):
     # Draw nodes
     r = NODE_R * s
     for x, y, color in nodes:
-        parts.append(
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="{color}" />'
-        )
+        parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="{color}" />')
 
     return "\n    ".join(parts)
 
@@ -130,10 +128,10 @@ def generate_logo():
 def generate_favicon():
     """Generate a small favicon-style SVG — just the graph motif."""
     motif = graph_motif(cx=16, cy=16, scale=1.1)
-    return f'''<?xml version="1.0" encoding="UTF-8"?>
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
   <g>{motif}</g>
-</svg>'''
+</svg>"""
 
 
 if __name__ == "__main__":
