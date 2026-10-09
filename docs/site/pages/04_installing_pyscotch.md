@@ -179,6 +179,17 @@ and applies them automatically, so those versions just build; such builds are
 marked `[quickfix]` in `list`. `pyscotch scotch patches` shows the catalog, and
 `--pristine` builds the untouched upstream source (which may then fail).
 
+**Behavioral patches.** A second class of bundled patch changes the library's
+*results*, not just whether it compiles — e.g. the fix restoring
+reproducibility in Scotch 7.0.16's multi-threaded `bgraphBipartGg()` (an
+upstream regression, reported upstream). These are never applied silently:
+the build asks for confirmation per patch ("We strongly recommend this
+patch: …", default yes), non-interactive builds skip them with a note, and
+`--auto-allow-behavioral-patches` pre-approves them for scripts and CI. Such
+builds are marked `[behavioral fix]` in `list`; `--pristine` skips them like
+everything else. Each behavioral patch is temporary, documented in
+`QUESTIONS_FOR_SCOTCH_TEAM.md`, and retired when upstream ships the fix.
+
 ## Configuration
 
 PyScotch selects which Scotch variant to load via environment variables,
