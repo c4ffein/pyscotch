@@ -17,10 +17,11 @@ Example:
     >>> partitions = graph.partition(nparts=4)
 """
 
-from ._version import __version__  # single source of truth (CI stamps it from the tag)
-from .api_decorators import scotch_binding  # Scotch-free at import
-from . import mpi  # Scotch-free at import (ctypes-only MPI wrapper)
 from ctypes import byref
+
+from . import mpi  # Scotch-free at import (ctypes-only MPI wrapper)
+from ._version import __version__ as __version__  # single source of truth (CI stamps it from the tag)
+from .api_decorators import scotch_binding  # Scotch-free at import
 
 # Lazy attribute access (PEP 562). Importing any of these submodules loads the
 # Scotch shared libraries, so we defer them to first use. This keeps a bare
@@ -73,6 +74,7 @@ def scotch_version() -> tuple:
         Tuple of (major, minor, patch) version numbers
     """
     from ctypes import c_int
+
     from . import libscotch as lib
 
     major = c_int()

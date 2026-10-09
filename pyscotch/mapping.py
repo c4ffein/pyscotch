@@ -2,9 +2,10 @@
 Mapping class for PT-Scotch mapping operations.
 """
 
-import numpy as np
 from pathlib import Path
 from typing import Union
+
+import numpy as np
 
 from .api_decorators import internal_api
 

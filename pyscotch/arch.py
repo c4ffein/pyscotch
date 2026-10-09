@@ -2,11 +2,12 @@
 Architecture class for PT-Scotch target architectures.
 """
 
-import numpy as np
-from ctypes import byref, POINTER
+from ctypes import byref
 
-from .api_decorators import scotch_binding, highlevel_api
+import numpy as np
+
 from . import libscotch as lib
+from .api_decorators import highlevel_api, scotch_binding
 
 
 class Architecture:
@@ -81,9 +82,7 @@ class Architecture:
         if ret != 0:
             raise lib.scotch_error("Failed to create complete architecture", ret)
 
-    @scotch_binding(
-        "SCOTCH_archCmpltw", "int SCOTCH_archCmpltw(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num *)"
-    )
+    @scotch_binding("SCOTCH_archCmpltw", "int SCOTCH_archCmpltw(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num *)")
     def complete_weighted(self, size: int, weights: np.ndarray) -> None:
         """
         Set up a weighted complete graph architecture.
@@ -110,9 +109,7 @@ class Architecture:
         if ret != 0:
             raise lib.scotch_error("Failed to create hypercube architecture", ret)
 
-    @scotch_binding(
-        "SCOTCH_archMesh2", "int SCOTCH_archMesh2(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num)"
-    )
+    @scotch_binding("SCOTCH_archMesh2", "int SCOTCH_archMesh2(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num)")
     def mesh2d(self, dim_x: int, dim_y: int) -> None:
         """Set up a 2D mesh architecture."""
         ret = lib.SCOTCH_archMesh2(byref(self._arch), lib.SCOTCH_Num(dim_x), lib.SCOTCH_Num(dim_y))
@@ -131,9 +128,7 @@ class Architecture:
         if ret != 0:
             raise lib.scotch_error("Failed to create 3D mesh architecture", ret)
 
-    @scotch_binding(
-        "SCOTCH_archTorus2", "int SCOTCH_archTorus2(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num)"
-    )
+    @scotch_binding("SCOTCH_archTorus2", "int SCOTCH_archTorus2(SCOTCH_Arch *, SCOTCH_Num, SCOTCH_Num)")
     def torus2d(self, dim_x: int, dim_y: int) -> None:
         """Set up a 2D torus architecture."""
         ret = lib.SCOTCH_archTorus2(byref(self._arch), lib.SCOTCH_Num(dim_x), lib.SCOTCH_Num(dim_y))
@@ -198,9 +193,7 @@ class Architecture:
             vertex_list: Array of domain indices to include
         """
         vlist, vlist_c = lib.to_scotch_array(vertex_list)
-        ret = lib.SCOTCH_archSub(
-            byref(self._arch), byref(parent._arch), lib.SCOTCH_Num(len(vlist)), vlist_c
-        )
+        ret = lib.SCOTCH_archSub(byref(self._arch), byref(parent._arch), lib.SCOTCH_Num(len(vlist)), vlist_c)
         if ret != 0:
             raise lib.scotch_error("Failed to create sub-architecture", ret)
 

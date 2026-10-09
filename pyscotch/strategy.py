@@ -10,8 +10,8 @@ from ctypes import byref, c_char_p
 from enum import IntFlag
 from typing import Optional
 
-from .api_decorators import scotch_binding, highlevel_api, internal_api
 from . import libscotch as lib
+from .api_decorators import highlevel_api, internal_api, scotch_binding
 
 
 class StrategyFlags(IntFlag):
@@ -222,7 +222,7 @@ class Strategy:
                         "every strategy-valued parameter left implicit is a "
                         "do-nothing dummy, so it would silently produce one-part "
                         "partitions / identity orderings. Spell out the "
-                        "sub-strategies (e.g. \"r{sep=gf}\"), or use the flag "
+                        'sub-strategies (e.g. "r{sep=gf}"), or use the flag '
                         "API (request_mapping/request_ordering)."
                     )
 
@@ -236,11 +236,7 @@ class Strategy:
         """
         if self._pending is not None:
             kind = self._pending[0]
-            what = (
-                f"the strategy string {self._pending[1]!r}"
-                if kind == "string"
-                else "a flag-based build request"
-            )
+            what = f"the strategy string {self._pending[1]!r}" if kind == "string" else "a flag-based build request"
             raise RuntimeError(
                 f"This Strategy carries {what} that the current operation does "
                 "not know how to build. Configure the strategy explicitly with "
@@ -272,9 +268,7 @@ class Strategy:
             lib.SCOTCH_stratExit(byref(self._strat_data))
             self._initialized = False
 
-    @scotch_binding(
-        "SCOTCH_stratGraphMap", "int SCOTCH_stratGraphMap(SCOTCH_Strat *, const char *)"
-    )
+    @scotch_binding("SCOTCH_stratGraphMap", "int SCOTCH_stratGraphMap(SCOTCH_Strat *, const char *)")
     def set_mapping(self, strategy_string: Optional[str]) -> None:
         """
         Set a mapping/partitioning strategy from a string.
@@ -304,18 +298,14 @@ class Strategy:
         if strategy_string is None:
             self.reset()
             return
-        ret = lib.SCOTCH_stratGraphMap(
-            byref(self._strat_data), c_char_p(strategy_string.encode("utf-8"))
-        )
+        ret = lib.SCOTCH_stratGraphMap(byref(self._strat_data), c_char_p(strategy_string.encode("utf-8")))
         if ret != 0:
             raise lib.scotch_error("Failed to set mapping strategy", ret)
         self._pending = None
         self._configured = True
         self._strategy_string = strategy_string
 
-    @scotch_binding(
-        "SCOTCH_stratGraphOrder", "int SCOTCH_stratGraphOrder(SCOTCH_Strat *, const char *)"
-    )
+    @scotch_binding("SCOTCH_stratGraphOrder", "int SCOTCH_stratGraphOrder(SCOTCH_Strat *, const char *)")
     def set_ordering(self, strategy_string: Optional[str]) -> None:
         """
         Set an ordering strategy from a string.
@@ -344,9 +334,7 @@ class Strategy:
         if strategy_string is None:
             self.reset()
             return
-        ret = lib.SCOTCH_stratGraphOrder(
-            byref(self._strat_data), c_char_p(strategy_string.encode("utf-8"))
-        )
+        ret = lib.SCOTCH_stratGraphOrder(byref(self._strat_data), c_char_p(strategy_string.encode("utf-8")))
         if ret != 0:
             raise lib.scotch_error("Failed to set ordering strategy", ret)
         self._pending = None
@@ -377,18 +365,14 @@ class Strategy:
         if strategy_string is None:
             self.reset()
             return
-        ret = lib.SCOTCH_stratGraphPartOvl(
-            byref(self._strat_data), c_char_p(strategy_string.encode("utf-8"))
-        )
+        ret = lib.SCOTCH_stratGraphPartOvl(byref(self._strat_data), c_char_p(strategy_string.encode("utf-8")))
         if ret != 0:
             raise lib.scotch_error("Failed to set overlap partitioning strategy", ret)
         self._pending = None
         self._configured = True
         self._strategy_string = strategy_string
 
-    @scotch_binding(
-        "SCOTCH_stratDgraphMap", "int SCOTCH_stratDgraphMap(SCOTCH_Strat *, const char *)"
-    )
+    @scotch_binding("SCOTCH_stratDgraphMap", "int SCOTCH_stratDgraphMap(SCOTCH_Strat *, const char *)")
     def set_dgraph_mapping(self, strategy_string: Optional[str]) -> None:
         """
         Set a parallel (PT-Scotch) mapping/partitioning strategy from a string.
@@ -413,18 +397,14 @@ class Strategy:
         if strategy_string is None:
             self.reset()
             return
-        ret = lib.SCOTCH_stratDgraphMap(
-            byref(self._strat_data), c_char_p(strategy_string.encode("utf-8"))
-        )
+        ret = lib.SCOTCH_stratDgraphMap(byref(self._strat_data), c_char_p(strategy_string.encode("utf-8")))
         if ret != 0:
             raise lib.scotch_error("Failed to set parallel mapping strategy", ret)
         self._pending = None
         self._configured = True
         self._strategy_string = strategy_string
 
-    @scotch_binding(
-        "SCOTCH_stratDgraphOrder", "int SCOTCH_stratDgraphOrder(SCOTCH_Strat *, const char *)"
-    )
+    @scotch_binding("SCOTCH_stratDgraphOrder", "int SCOTCH_stratDgraphOrder(SCOTCH_Strat *, const char *)")
     def set_dgraph_ordering(self, strategy_string: Optional[str]) -> None:
         """
         Set a parallel (PT-Scotch) ordering strategy from a string.
@@ -448,9 +428,7 @@ class Strategy:
         if strategy_string is None:
             self.reset()
             return
-        ret = lib.SCOTCH_stratDgraphOrder(
-            byref(self._strat_data), c_char_p(strategy_string.encode("utf-8"))
-        )
+        ret = lib.SCOTCH_stratDgraphOrder(byref(self._strat_data), c_char_p(strategy_string.encode("utf-8")))
         if ret != 0:
             raise lib.scotch_error("Failed to set parallel ordering strategy", ret)
         self._pending = None
@@ -461,9 +439,7 @@ class Strategy:
         "SCOTCH_stratDgraphMapBuild",
         "int SCOTCH_stratDgraphMapBuild(SCOTCH_Strat *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, double)",
     )
-    def build_dgraph_mapping(
-        self, flagval: int, procnbr: int, partnbr: int, kbalval: float
-    ) -> None:
+    def build_dgraph_mapping(self, flagval: int, procnbr: int, partnbr: int, kbalval: float) -> None:
         """
         Build a parallel mapping strategy from high-level parameters.
 
@@ -493,9 +469,7 @@ class Strategy:
         "SCOTCH_stratDgraphClusterBuild",
         "int SCOTCH_stratDgraphClusterBuild(SCOTCH_Strat *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, double, double)",
     )
-    def build_dgraph_clustering(
-        self, flagval: int, procnbr: int, pwgtval: int, densval: float, bbalval: float
-    ) -> None:
+    def build_dgraph_clustering(self, flagval: int, procnbr: int, pwgtval: int, densval: float, bbalval: float) -> None:
         """
         Build a parallel clustering strategy from high-level parameters.
 
@@ -527,9 +501,7 @@ class Strategy:
         "SCOTCH_stratDgraphOrderBuild",
         "int SCOTCH_stratDgraphOrderBuild(SCOTCH_Strat *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, double)",
     )
-    def build_dgraph_ordering(
-        self, flagval: int, procnbr: int, levlnbr: int, balrat: float
-    ) -> None:
+    def build_dgraph_ordering(self, flagval: int, procnbr: int, levlnbr: int, balrat: float) -> None:
         """
         Build a parallel ordering strategy from high-level parameters.
 
@@ -708,9 +680,7 @@ class Strategy:
                     "or use request_mapping()."
                 )
             with _ephemeral_strat() as strat:
-                ret = lib.SCOTCH_stratGraphMap(
-                    byref(strat), c_char_p(self._pending[1].encode("utf-8"))
-                )
+                ret = lib.SCOTCH_stratGraphMap(byref(strat), c_char_p(self._pending[1].encode("utf-8")))
                 if ret != 0:
                     hint = _grammar_hint(self._probe, "mapping")
                     raise lib.scotch_error("Failed to set mapping strategy" + hint, ret)
@@ -728,9 +698,7 @@ class Strategy:
                     float(balance),
                 )
                 if ret != 0:
-                    raise lib.scotch_error(
-                        f"Failed to build mapping strategy (flags={flags:#x})", ret
-                    )
+                    raise lib.scotch_error(f"Failed to build mapping strategy (flags={flags:#x})", ret)
                 yield strat
         else:
             raise RuntimeError(
@@ -762,9 +730,7 @@ class Strategy:
                     "sub-strategies or use request_ordering()."
                 )
             with _ephemeral_strat() as strat:
-                ret = lib.SCOTCH_stratGraphOrder(
-                    byref(strat), c_char_p(self._pending[1].encode("utf-8"))
-                )
+                ret = lib.SCOTCH_stratGraphOrder(byref(strat), c_char_p(self._pending[1].encode("utf-8")))
                 if ret != 0:
                     hint = _grammar_hint(self._probe, "ordering")
                     raise lib.scotch_error("Failed to set ordering strategy" + hint, ret)
@@ -781,14 +747,11 @@ class Strategy:
                     float(balance),
                 )
                 if ret != 0:
-                    raise lib.scotch_error(
-                        f"Failed to build ordering strategy (flags={flags:#x})", ret
-                    )
+                    raise lib.scotch_error(f"Failed to build ordering strategy (flags={flags:#x})", ret)
                 yield strat
         else:
             raise RuntimeError(
-                "This Strategy holds a mapping request (request_mapping); "
-                "it cannot be used for ordering."
+                "This Strategy holds a mapping request (request_mapping); it cannot be used for ordering."
             )
 
     @contextmanager
@@ -814,14 +777,10 @@ class Strategy:
                     "sub-strategies or use request_overlap()."
                 )
             with _ephemeral_strat() as strat:
-                ret = lib.SCOTCH_stratGraphPartOvl(
-                    byref(strat), c_char_p(self._pending[1].encode("utf-8"))
-                )
+                ret = lib.SCOTCH_stratGraphPartOvl(byref(strat), c_char_p(self._pending[1].encode("utf-8")))
                 if ret != 0:
                     hint = _grammar_hint(self._probe, "overlap")
-                    raise lib.scotch_error(
-                        "Failed to set overlap partitioning strategy" + hint, ret
-                    )
+                    raise lib.scotch_error("Failed to set overlap partitioning strategy" + hint, ret)
                 yield strat
         elif kind == "map_flags":
             _, flags, balance, _pin = self._pending
@@ -836,9 +795,7 @@ class Strategy:
                     float(balance),
                 )
                 if ret != 0:
-                    raise lib.scotch_error(
-                        f"Failed to build overlap partitioning strategy (flags={flags:#x})", ret
-                    )
+                    raise lib.scotch_error(f"Failed to build overlap partitioning strategy (flags={flags:#x})", ret)
                 yield strat
         else:
             raise RuntimeError(
@@ -937,14 +894,10 @@ class BuiltStrategy:
                 "inside the with-block of the built_for_* call that created it."
             )
         if family != self._family:
-            raise RuntimeError(
-                f"This strategy was materialized for {self._family}; "
-                f"it cannot be used for {family}."
-            )
+            raise RuntimeError(f"This strategy was materialized for {self._family}; it cannot be used for {family}.")
         if nparts is not None and int(nparts) != self._nparts:
             raise ValueError(
-                f"This strategy was materialized for nparts={self._nparts}; "
-                f"it cannot be used with {nparts} parts."
+                f"This strategy was materialized for nparts={self._nparts}; it cannot be used with {nparts} parts."
             )
 
     @contextmanager

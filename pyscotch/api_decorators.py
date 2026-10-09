@@ -24,8 +24,7 @@ Example usage:
         # Internal validation logic
 """
 
-from functools import wraps
-from typing import Callable, Optional, List
+from typing import Callable, List, Optional
 
 # Global registries for tracking decorated functions
 _SCOTCH_BINDINGS = {}  # Maps C function name -> Python function
@@ -66,7 +65,7 @@ def scotch_binding(c_function: str, c_signature: Optional[str] = None):
         _SCOTCH_BINDINGS[c_function] = func
 
         # Augment docstring with API information
-        api_doc = f"\n    **API Level**: Direct Scotch binding\n"
+        api_doc = "\n    **API Level**: Direct Scotch binding\n"
         api_doc += f"    **Maps to**: `{c_function}`\n"
         if c_signature:
             api_doc += f"    **C Signature**: `{c_signature}`\n"
@@ -116,7 +115,7 @@ def highlevel_api(scotch_functions: Optional[List[str]] = None):
         _HIGHLEVEL_HELPERS.add(func.__name__)
 
         # Augment docstring with API information
-        api_doc = f"\n    **API Level**: High-level helper (Pythonic wrapper)\n"
+        api_doc = "\n    **API Level**: High-level helper (Pythonic wrapper)\n"
         if scotch_functions:
             funcs = ", ".join(f"`{f}`" for f in scotch_functions)
             api_doc += f"    **Wraps**: {funcs}\n"
@@ -163,10 +162,9 @@ def internal_api(func: Callable) -> Callable:
     _INTERNAL_HELPERS.add(func.__name__)
 
     # Augment docstring with API information
-    api_doc = "\n    **API Level**: Internal implementation (not public API)\n"
-
     # TODO: Docstring modification causes segfaults in some cleanup scenarios
     # Temp fix by not defining this
+    # api_doc = "\n    **API Level**: Internal implementation (not public API)\n"
     # if func.__doc__:
     #     # Insert API info after the first line (summary line)
     #     lines = func.__doc__.split('\n')

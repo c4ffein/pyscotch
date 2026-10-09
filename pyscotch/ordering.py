@@ -2,9 +2,10 @@
 Ordering class for PT-Scotch ordering operations.
 """
 
-import numpy as np
 from pathlib import Path
-from typing import Union, Tuple, Optional
+from typing import Optional, Union
+
+import numpy as np
 
 from .api_decorators import internal_api
 

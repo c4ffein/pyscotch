@@ -47,6 +47,8 @@ _KNOWN_VERSIONS = {
     "7.0.11": "ce1ea6e16ca36ae91426a360f639c8f575fccebc0116fbcb381f164c5e862768",
     "7.0.10": "8327725a08cdd4fc7575e291251883b4f93f75b07a54bc58f89f50dcbba7b244",
 }
+
+
 def _version_key(version: str):
     return tuple(int(part) for part in version.split("."))
 
@@ -62,6 +64,7 @@ def latest_pristine_version() -> str:
     """The newest catalog version that builds without any quickfix patch —
     what to suggest as a fallback when a patched build went wrong."""
     return max((v for v in _KNOWN_VERSIONS if not _PATCHES.get(v)), key=_version_key)
+
 
 # Bundled "quickfix" patches, applied live to the extracted source before
 # building (unless --pristine). Keyed by exact version; each entry is
@@ -196,7 +199,7 @@ def _find_cc():
 
 def preflight(parallel: bool, need_patch: bool = False):
     """Return a list[Check]. `.ok` False on any entry means do not build."""
-    from .doctor import _scotch_install_hint, _mpi_install_hint, _distro_family
+    from .doctor import _distro_family, _mpi_install_hint
 
     fam = _distro_family()
     checks = []
@@ -214,9 +217,7 @@ def preflight(parallel: bool, need_patch: bool = False):
         )
     )
     make = shutil.which("make")
-    checks.append(
-        Check("make", bool(make), make or "not found", "install make (build-essential / gcc make)")
-    )
+    checks.append(Check("make", bool(make), make or "not found", "install make (build-essential / gcc make)"))
 
     flex_ok, flex_ver = _flex_version_ok()
     checks.append(
@@ -235,9 +236,7 @@ def preflight(parallel: bool, need_patch: bool = False):
             "bison",
             bool(bison),
             bison or "not found",
-            {"debian": "sudo apt install bison", "fedora": "sudo dnf install bison"}.get(
-                fam, "install bison"
-            ),
+            {"debian": "sudo apt install bison", "fedora": "sudo dnf install bison"}.get(fam, "install bison"),
         )
     )
 
@@ -254,9 +253,7 @@ def preflight(parallel: bool, need_patch: bool = False):
 
     if parallel:
         mpicc = shutil.which("mpicc")
-        checks.append(
-            Check("mpicc (for PT-Scotch)", bool(mpicc), mpicc or "not found", _mpi_install_hint())
-        )
+        checks.append(Check("mpicc (for PT-Scotch)", bool(mpicc), mpicc or "not found", _mpi_install_hint()))
 
     if need_patch:
         patch = shutil.which("patch")
@@ -496,10 +493,7 @@ def prepare_source_tree(dest, source=None) -> Path:
 def _repo_submodule_dir() -> Path:
     sub = Path(__file__).resolve().parents[1] / "external" / "scotch"
     if not (sub / "src" / "Makefile").is_file():
-        raise BuildError(
-            f"Scotch submodule not found at {sub} — run "
-            "`git submodule update --init --recursive` first."
-        )
+        raise BuildError(f"Scotch submodule not found at {sub} — run `git submodule update --init --recursive` first.")
     return sub
 
 
@@ -692,7 +686,7 @@ def cmd_list(args):
         fix = "  [quickfix]" if _store.read_patches(k) else ""
         print(f" {mark} {k:<20} {info['bits']}-bit {variant:<10} {_store.build_lib_dir(k)}{fix}")
     if default:
-        print(f"\n* = default (loaded when its width/variant matches the run).")
+        print("\n* = default (loaded when its width/variant matches the run).")
     else:
         print("\nNo default set. `pyscotch scotch use <key>` to pick one.")
     return 0
@@ -730,7 +724,7 @@ def cmd_rm(args):
         return 1
     if _store.get_default_key() == args.key:
         _store.clear_default()
-        print(f"(was the default; default cleared)")
+        print("(was the default; default cleared)")
     shutil.rmtree(d)
     print(f"Removed {args.key}.")
     return 0

@@ -13,11 +13,11 @@ import ctypes
 import ctypes.util
 import os
 import sys
-
-import numpy as np
-from ctypes import c_int, c_long, c_double, c_char_p, c_void_p, POINTER, Structure, byref
+from ctypes import POINTER, Structure, byref, c_char_p, c_double, c_int, c_long, c_void_p
 from pathlib import Path
 from typing import Optional
+
+import numpy as np
 
 from .api_decorators import internal_api
 
@@ -184,9 +184,7 @@ def _load_system_libraries():
 
     par = None
     if _PARALLEL:
-        par = _dlopen_system(
-            "ptscotch", ["libptscotch.so", "libptscotch.so.7", "libptscotch-7.0.so"]
-        )
+        par = _dlopen_system("ptscotch", ["libptscotch.so", "libptscotch.so.7", "libptscotch-7.0.so"])
         if par is None:
             raise FileNotFoundError(
                 "No system PT-Scotch library found (PYSCOTCH_PARALLEL=1). "
@@ -377,10 +375,7 @@ def _get_func(name: str):
     # PT-Scotch functions are in the parallel library
     if name.lower().startswith(_PARALLEL_FUNC_PREFIXES):
         if not _lib_parallel:
-            raise AttributeError(
-                f"{name} requires PT-Scotch (parallel variant). "
-                f"Set PYSCOTCH_PARALLEL=1 to enable."
-            )
+            raise AttributeError(f"{name} requires PT-Scotch (parallel variant). Set PYSCOTCH_PARALLEL=1 to enable.")
         handle = _lib_parallel
     else:
         # All other SCOTCH_* functions are in the sequential library
@@ -499,7 +494,6 @@ def _bind_functions():
     OrderingPtr = POINTER(SCOTCH_Ordering)
     GeomPtr = POINTER(SCOTCH_Geom)
     NumPtr = POINTER(SCOTCH_Num)
-    IdxPtr = POINTER(SCOTCH_Idx)
 
     bindings = {}
 

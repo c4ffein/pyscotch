@@ -2,10 +2,10 @@
 Geometry class for Scotch geometric operations.
 """
 
-from ctypes import byref, POINTER, c_double
+from ctypes import POINTER, byref, c_double
 
-from .api_decorators import scotch_binding
 from . import libscotch as lib
+from .api_decorators import scotch_binding
 
 
 class Geometry:
@@ -38,9 +38,7 @@ class Geometry:
             lib.SCOTCH_geomExit(byref(self._geom))
             self._initialized = False
 
-    @scotch_binding(
-        "SCOTCH_geomData", "void SCOTCH_geomData(const SCOTCH_Geom *, SCOTCH_Num *, double **)"
-    )
+    @scotch_binding("SCOTCH_geomData", "void SCOTCH_geomData(const SCOTCH_Geom *, SCOTCH_Num *, double **)")
     def data(self):
         """
         Get the geometry data.

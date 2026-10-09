@@ -75,8 +75,7 @@ def _backend_info(lib, problems):
         problems.append(
             (
                 "SCOTCH_Context unavailable (Scotch < 7.0.5)",
-                "Use the bundled wheel or conda Scotch, or upgrade the system "
-                "Scotch to >= 7.0.5.",
+                "Use the bundled wheel or conda Scotch, or upgrade the system Scotch to >= 7.0.5.",
             )
         )
 

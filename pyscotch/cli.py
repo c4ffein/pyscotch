@@ -16,8 +16,8 @@ import sys
 def partition_graph(args):
     """Partition a graph."""
     from .graph import Graph
-    from .strategy import Strategy, Strategies
     from .mapping import Mapping
+    from .strategy import Strategies, Strategy
 
     print(f"Loading graph from {args.input}...")
     graph = Graph()
@@ -50,7 +50,7 @@ def partition_graph(args):
     # Print statistics
     mapping = Mapping(partitions)
     sizes = mapping.get_partition_sizes()
-    print(f"\nPartition statistics:")
+    print("\nPartition statistics:")
     print(f"  Number of parts: {mapping.num_partitions()}")
     print(f"  Balance: {mapping.balance():.3f}")
     print(f"  Min size: {sizes.min()}")
@@ -63,8 +63,8 @@ def partition_graph(args):
 def order_graph(args):
     """Order a graph."""
     from .graph import Graph
-    from .strategy import Strategy, Strategies
     from .ordering import Ordering
+    from .strategy import Strategies, Strategy
 
     print(f"Loading graph from {args.input}...")
     graph = Graph()
@@ -83,7 +83,7 @@ def order_graph(args):
         # nested-dissection based): a fresh Strategy IS Scotch's default
         strategy = Strategy()
 
-    print(f"Computing ordering...")
+    print("Computing ordering...")
     permutation, inverse = graph.order(strategy)
 
     # Save results
@@ -97,9 +97,9 @@ def order_graph(args):
 
 def partition_mesh(args):
     """Partition a mesh."""
-    from .mesh import Mesh
-    from .strategy import Strategy, Strategies
     from .mapping import Mapping
+    from .mesh import Mesh
+    from .strategy import Strategies, Strategy
 
     print(f"Loading mesh from {args.input}...")
     mesh = Mesh()
@@ -129,7 +129,7 @@ def partition_mesh(args):
     # Print statistics
     mapping = Mapping(partitions)
     sizes = mapping.get_partition_sizes()
-    print(f"\nPartition statistics:")
+    print("\nPartition statistics:")
     print(f"  Number of parts: {mapping.num_partitions()}")
     print(f"  Balance: {mapping.balance():.3f}")
     print(f"  Min size: {sizes.min()}")
@@ -198,15 +198,15 @@ def info_graph(args):
     graph.load(args.input)
 
     vertnbr, edgenbr = graph.size()
-    print(f"\nGraph Information:")
+    print("\nGraph Information:")
     print(f"  Vertices: {vertnbr}")
     print(f"  Edges: {edgenbr}")
     print(f"  Average degree: {edgenbr / vertnbr:.2f}")
 
     if graph.check():
-        print(f"  Status: Valid")
+        print("  Status: Valid")
     else:
-        print(f"  Status: INVALID")
+        print("  Status: INVALID")
 
 
 def main():
@@ -221,23 +221,16 @@ def main():
     # Graph partition command
     partition_parser = subparsers.add_parser("partition", help="Partition a graph or mesh")
     partition_parser.add_argument("input", help="Input graph/mesh file")
-    partition_parser.add_argument(
-        "-n", "--nparts", type=int, required=True, help="Number of partitions"
-    )
-    partition_parser.add_argument(
-        "-o", "--output", help="Output file (default: <input>.part.<nparts>)"
-    )
+    partition_parser.add_argument("-n", "--nparts", type=int, required=True, help="Number of partitions")
+    partition_parser.add_argument("-o", "--output", help="Output file (default: <input>.part.<nparts>)")
     partition_parser.add_argument(
         "-s",
         "--strategy",
         choices=["default", "quality", "fast", "multilevel", "recursive"],
         default="default",
-        help="Partitioning strategy (multilevel is a synonym of default: "
-        "Scotch's default IS multilevel)",
+        help="Partitioning strategy (multilevel is a synonym of default: Scotch's default IS multilevel)",
     )
-    partition_parser.add_argument(
-        "-t", "--type", choices=["graph", "mesh"], default="graph", help="Input file type"
-    )
+    partition_parser.add_argument("-t", "--type", choices=["graph", "mesh"], default="graph", help="Input file type")
     partition_parser.set_defaults(
         func=lambda args: partition_mesh(args) if args.type == "mesh" else partition_graph(args)
     )
@@ -251,8 +244,7 @@ def main():
         "--strategy",
         choices=["default", "quality", "fast", "nested"],
         default="default",
-        help="Ordering strategy (nested is a synonym of default: Scotch's "
-        "default ordering IS nested-dissection based)",
+        help="Ordering strategy (nested is a synonym of default: Scotch's default ordering IS nested-dissection based)",
     )
     order_parser.set_defaults(func=order_graph)
 
@@ -267,18 +259,12 @@ def main():
     info_parser.set_defaults(func=info_graph)
 
     # Doctor command
-    doctor_parser = subparsers.add_parser(
-        "doctor", help="Diagnose the PyScotch/Scotch environment and suggest fixes"
-    )
-    doctor_parser.add_argument(
-        "--json", action="store_true", help="Emit the report as JSON for scripts"
-    )
+    doctor_parser = subparsers.add_parser("doctor", help="Diagnose the PyScotch/Scotch environment and suggest fixes")
+    doctor_parser.add_argument("--json", action="store_true", help="Emit the report as JSON for scripts")
     doctor_parser.set_defaults(func=doctor)
 
     # Scotch management: download/compile/select local Scotch builds
-    scotch_parser = subparsers.add_parser(
-        "scotch", help="Download, build and manage local Scotch libraries"
-    )
+    scotch_parser = subparsers.add_parser("scotch", help="Download, build and manage local Scotch libraries")
     scotch_sub = scotch_parser.add_subparsers(dest="scotch_command", title="scotch commands")
     scotch_parser.set_defaults(func=scotch_manage, _scotch_parser=scotch_parser)
 
@@ -289,9 +275,7 @@ def main():
         default=None,
         help="Scotch version (default: the latest known release)",
     )
-    sb.add_argument(
-        "-i", "--int-size", choices=["32", "64"], default="64", help="Integer width (default: 64)"
-    )
+    sb.add_argument("-i", "--int-size", choices=["32", "64"], default="64", help="Integer width (default: 64)")
     mode = sb.add_mutually_exclusive_group()
     mode.add_argument("--parallel", action="store_true", help="Also build PT-Scotch (needs MPI)")
     mode.add_argument("--sequential", action="store_true", help="Sequential only (no MPI)")
@@ -323,9 +307,7 @@ def main():
         "apply the quickfixes there — the original (e.g. the git submodule) "
         "is never modified",
     )
-    spr.add_argument(
-        "--source", default=None, help="Source tree (default: the repo's scotch submodule)"
-    )
+    spr.add_argument("--source", default=None, help="Source tree (default: the repo's scotch submodule)")
     spr.add_argument("--dest", required=True, help="Destination directory for the patched copy")
 
     su = scotch_sub.add_parser("use", help="Set the default local Scotch build")

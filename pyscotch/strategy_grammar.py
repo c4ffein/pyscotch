@@ -32,7 +32,7 @@ not modelled — use ``Raw`` for those subtrees.
 
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Optional
 
 # Grammar families. A method's strategy-valued slots name the family their
 # children must belong to; Raw/Seq/Select adapt to any family.
@@ -79,20 +79,19 @@ class Node:
             node = Ordering.Nd(sep=self, ole=Ordering.Si(), ose=Ordering.Si())
         elif self.family is None:
             raise ValueError(
-                "This node adapts to any grammar family; validate it inside a "
-                "typed tree (or via Strategy(str(tree)))."
+                "This node adapts to any grammar family; validate it inside a typed tree (or via Strategy(str(tree)))."
             )
         probe = _probe_graph_string(node.render())
         target = node.family
         status = probe.get(target)
         if status != "ok":
             raise ValueError(
-                f"Rendered strategy {node.render()!r} is {status} under the "
-                f"{target} grammar (probe: {probe})."
+                f"Rendered strategy {node.render()!r} is {status} under the {target} grammar (probe: {probe})."
             )
-        from .strategy import _ephemeral_strat, _saved_form
-        from . import libscotch as lib
         from ctypes import byref, c_char_p
+
+        from . import libscotch as lib
+        from .strategy import _ephemeral_strat, _saved_form
 
         parser = {
             MAPPING: lib.SCOTCH_stratGraphMap,
@@ -183,10 +182,7 @@ def _method(family_tag, letter, name, strat_slots, value_params, doc, alias=None
             if not isinstance(child, Node):
                 raise TypeError(f"{name}({slot}=...) takes a strategy node, got {type(child)}")
             if child.family is not None and child_family is not None and child.family != child_family:
-                raise TypeError(
-                    f"{name}({slot}=...) takes a {child_family} strategy, "
-                    f"got a {child.family} one"
-                )
+                raise TypeError(f"{name}({slot}=...) takes a {child_family} strategy, got a {child.family} one")
             self._children[slot] = child
         for param, typ in value_params.items():
             if param in kwargs:
@@ -245,20 +241,41 @@ Mapping = _build_namespace(
     "Mapping",
     MAPPING,
     [
-        ("b", "Bd", {"bnd": MAPPING, "org": MAPPING}, {"width": _NUM},
-         "Band method: applies bnd= to a band around the frontier, org= elsewhere.", ["Band"]),
-        ("c", "Cp", {}, {},
-         "Copy the current partition (no parameters).", ["Copy"]),
-        ("d", "Df", {}, {"pass": _NUM, "dif": _DBL, "rem": _DBL},
-         "Diffusion method.", ["Diffusion"]),
-        ("x", "Ex", {}, {"bal": _DBL},
-         "Exactifier: enforce load balance.", ["Exactify"]),
-        ("f", "Fm", {}, {"move": _NUM, "pass": _NUM, "bal": _DBL},
-         "Fiduccia-Mattheyses refinement.", ["FiducciaMattheyses"]),
-        ("m", "Ml", {"low": MAPPING, "asc": MAPPING}, {"vert": _NUM, "rat": _DBL, "type": _CASE},
-         "Multilevel framework: low= at the coarsest level, asc= while uncoarsening.", ["Multilevel"]),
-        ("r", "Rb", {"sep": BIPART}, {"bal": _DBL, "job": _CASE, "map": _CASE, "poli": _CASE},
-         "Recursive bipartitioning; sep= is a BIPARTITIONING strategy.", ["Recursive"]),
+        (
+            "b",
+            "Bd",
+            {"bnd": MAPPING, "org": MAPPING},
+            {"width": _NUM},
+            "Band method: applies bnd= to a band around the frontier, org= elsewhere.",
+            ["Band"],
+        ),
+        ("c", "Cp", {}, {}, "Copy the current partition (no parameters).", ["Copy"]),
+        ("d", "Df", {}, {"pass": _NUM, "dif": _DBL, "rem": _DBL}, "Diffusion method.", ["Diffusion"]),
+        ("x", "Ex", {}, {"bal": _DBL}, "Exactifier: enforce load balance.", ["Exactify"]),
+        (
+            "f",
+            "Fm",
+            {},
+            {"move": _NUM, "pass": _NUM, "bal": _DBL},
+            "Fiduccia-Mattheyses refinement.",
+            ["FiducciaMattheyses"],
+        ),
+        (
+            "m",
+            "Ml",
+            {"low": MAPPING, "asc": MAPPING},
+            {"vert": _NUM, "rat": _DBL, "type": _CASE},
+            "Multilevel framework: low= at the coarsest level, asc= while uncoarsening.",
+            ["Multilevel"],
+        ),
+        (
+            "r",
+            "Rb",
+            {"sep": BIPART},
+            {"bal": _DBL, "job": _CASE, "map": _CASE, "poli": _CASE},
+            "Recursive bipartitioning; sep= is a BIPARTITIONING strategy.",
+            ["Recursive"],
+        ),
     ],
 )
 
@@ -269,13 +286,25 @@ Bipart = _build_namespace(
         ("b", "Bd", {"bnd": BIPART, "org": BIPART}, {"width": _NUM}, "Band method.", ["Band"]),
         ("d", "Df", {}, {"pass": _NUM, "type": _CASE}, "Diffusion method.", ["Diffusion"]),
         ("x", "Ex", {}, {}, "Exactifier.", ["Exactify"]),
-        ("f", "Fm", {}, {"move": _NUM, "pass": _NUM, "bal": _DBL, "type": _CASE},
-         "Fiduccia-Mattheyses refinement.", ["FiducciaMattheyses"]),
+        (
+            "f",
+            "Fm",
+            {},
+            {"move": _NUM, "pass": _NUM, "bal": _DBL, "type": _CASE},
+            "Fiduccia-Mattheyses refinement.",
+            ["FiducciaMattheyses"],
+        ),
         ("a", "Ga", {}, {"pass": _NUM, "pop": _NUM}, "Genetic algorithm.", ["Genetic"]),
         ("h", "Gg", {}, {"pass": _NUM}, "Greedy graph growing.", ["GreedyGrowing"]),
         ("g", "Gp", {}, {"pass": _NUM}, "Gibbs-Poole-Stockmeyer growing.", []),
-        ("m", "Ml", {"low": BIPART, "asc": BIPART}, {"vert": _NUM, "rat": _DBL},
-         "Multilevel bipartitioning framework.", ["Multilevel"]),
+        (
+            "m",
+            "Ml",
+            {"low": BIPART, "asc": BIPART},
+            {"vert": _NUM, "rat": _DBL},
+            "Multilevel bipartitioning framework.",
+            ["Multilevel"],
+        ),
         ("z", "Zr", {}, {}, "Zero method: assign everything to part 0.", ["Zero"]),
     ],
 )
@@ -284,23 +313,42 @@ Ordering = _build_namespace(
     "Ordering",
     ORDERING,
     [
-        ("b", "Bl", {"strat": ORDERING}, {"cmin": _NUM},
-         "Block splitting post-processing of strat=.", ["Blocks"]),
-        ("o", "Cc", {"strat": ORDERING}, {},
-         "Order connected components separately with strat=.", ["Components"]),
-        ("c", "Cp", {"cpr": ORDERING, "unc": ORDERING}, {"rat": _DBL},
-         "Compression: cpr= orders the compressed graph, unc= the uncompressed.", ["Compress"]),
+        ("b", "Bl", {"strat": ORDERING}, {"cmin": _NUM}, "Block splitting post-processing of strat=.", ["Blocks"]),
+        ("o", "Cc", {"strat": ORDERING}, {}, "Order connected components separately with strat=.", ["Components"]),
+        (
+            "c",
+            "Cp",
+            {"cpr": ORDERING, "unc": ORDERING},
+            {"rat": _DBL},
+            "Compression: cpr= orders the compressed graph, unc= the uncompressed.",
+            ["Compress"],
+        ),
         ("g", "Gp", {}, {"pass": _NUM}, "Gibbs-Poole-Stockmeyer.", []),
-        ("d", "Hd", {}, {"cmin": _NUM, "cmax": _NUM, "frat": _DBL},
-         "Halo approximate minimum degree.", ["HaloMinDegree"]),
-        ("f", "Hf", {}, {"cmin": _NUM, "cmax": _NUM, "frat": _DBL},
-         "Halo approximate minimum fill.", ["HaloMinFill"]),
-        ("k", "Kp", {"strat": MAPPING}, {"siz": _NUM},
-         "Block ordering from a k-way partition computed by strat= "
-         "(a MAPPING strategy — established empirically).", []),
-        ("n", "Nd", {"sep": SEPARATION, "ole": ORDERING, "ose": ORDERING}, {},
-         "Nested dissection: sep= is a SEPARATION strategy; ole=/ose= order "
-         "the leaves / the separators.", ["NestedDissection"]),
+        (
+            "d",
+            "Hd",
+            {},
+            {"cmin": _NUM, "cmax": _NUM, "frat": _DBL},
+            "Halo approximate minimum degree.",
+            ["HaloMinDegree"],
+        ),
+        ("f", "Hf", {}, {"cmin": _NUM, "cmax": _NUM, "frat": _DBL}, "Halo approximate minimum fill.", ["HaloMinFill"]),
+        (
+            "k",
+            "Kp",
+            {"strat": MAPPING},
+            {"siz": _NUM},
+            "Block ordering from a k-way partition computed by strat= (a MAPPING strategy — established empirically).",
+            [],
+        ),
+        (
+            "n",
+            "Nd",
+            {"sep": SEPARATION, "ole": ORDERING, "ose": ORDERING},
+            {},
+            "Nested dissection: sep= is a SEPARATION strategy; ole=/ose= order the leaves / the separators.",
+            ["NestedDissection"],
+        ),
         ("s", "Si", {}, {}, "Simple: the natural order (identity).", ["Simple"]),
     ],
 )
@@ -310,16 +358,34 @@ Separation = _build_namespace(
     SEPARATION,
     [
         ("b", "Bd", {"bnd": SEPARATION, "org": SEPARATION}, {"width": _NUM}, "Band method.", ["Band"]),
-        ("e", "Es", {"strat": BIPART}, {"type": _CASE},
-         "Edge separation: derive a vertex separator from a BIPARTITIONING "
-         "strategy (established empirically: bipart-only methods parse in "
-         "this slot, separation-only ones do not).", []),
-        ("f", "Fm", {}, {"move": _NUM, "pass": _NUM, "bal": _DBL},
-         "Fiduccia-Mattheyses refinement.", ["FiducciaMattheyses"]),
+        (
+            "e",
+            "Es",
+            {"strat": BIPART},
+            {"type": _CASE},
+            "Edge separation: derive a vertex separator from a BIPARTITIONING "
+            "strategy (established empirically: bipart-only methods parse in "
+            "this slot, separation-only ones do not).",
+            [],
+        ),
+        (
+            "f",
+            "Fm",
+            {},
+            {"move": _NUM, "pass": _NUM, "bal": _DBL},
+            "Fiduccia-Mattheyses refinement.",
+            ["FiducciaMattheyses"],
+        ),
         ("h", "Gg", {}, {"pass": _NUM}, "Greedy graph growing.", ["GreedyGrowing"]),
         ("g", "Gp", {}, {"pass": _NUM}, "Gibbs-Poole-Stockmeyer growing.", []),
-        ("m", "Ml", {"low": SEPARATION, "asc": SEPARATION}, {"vert": _NUM, "rat": _DBL, "type": _CASE},
-         "Multilevel separation framework.", ["Multilevel"]),
+        (
+            "m",
+            "Ml",
+            {"low": SEPARATION, "asc": SEPARATION},
+            {"vert": _NUM, "rat": _DBL, "type": _CASE},
+            "Multilevel separation framework.",
+            ["Multilevel"],
+        ),
         ("v", "Vw", {}, {}, "Vertex-weighted greedy.", []),
         ("z", "Zr", {}, {}, "Zero method: empty separator.", ["Zero"]),
     ],

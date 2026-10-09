@@ -5,29 +5,47 @@ This module provides a Pythonic interface to PT-Scotch's distributed graph
 operations, which use MPI for parallel processing.
 """
 
-import numpy as np
-from contextlib import contextmanager
-from pathlib import Path
 import ctypes
-from ctypes import byref, POINTER, c_int
+from contextlib import contextmanager
+from ctypes import POINTER, byref
+from pathlib import Path
 from typing import Optional, Tuple
 
+import numpy as np
+
+from pyscotch import libscotch as lib
+from pyscotch.api_decorators import highlevel_api, internal_api, scotch_binding
+from pyscotch.graph import c_fopen
 from pyscotch.libscotch import (
-    SCOTCH_COARSENNONE as COARSEN_NONE,
     SCOTCH_COARSENFOLD as COARSEN_FOLD,
     SCOTCH_COARSENFOLDDUP as COARSEN_FOLDDUP,
     SCOTCH_COARSENNOMERGE as COARSEN_NOMERGE,
+    SCOTCH_COARSENNONE as COARSEN_NONE,
+    SCOTCH_DGRAPHBUILDGRID3DEDGELOAD as GRID3D_EDGELOAD,
     SCOTCH_DGRAPHBUILDGRID3DGRID as GRID3D_GRID,
-    SCOTCH_DGRAPHBUILDGRID3DTORUS as GRID3D_TORUS,
     SCOTCH_DGRAPHBUILDGRID3DNGB6 as GRID3D_NGB6,
     SCOTCH_DGRAPHBUILDGRID3DNGB26 as GRID3D_NGB26,
+    SCOTCH_DGRAPHBUILDGRID3DTORUS as GRID3D_TORUS,
     SCOTCH_DGRAPHBUILDGRID3DVERTLOAD as GRID3D_VERTLOAD,
-    SCOTCH_DGRAPHBUILDGRID3DEDGELOAD as GRID3D_EDGELOAD,
 )
-from pyscotch import libscotch as lib
-from pyscotch.api_decorators import scotch_binding, highlevel_api, internal_api
 from pyscotch.mpi import mpi
-from pyscotch.graph import c_fopen
+
+# Public surface of this module: the friendly aliases above are re-exports
+# (``from pyscotch.dgraph import COARSEN_FOLD`` is how the tests and examples
+# spell them), so they must stay even though this file never uses them.
+__all__ = [
+    "Dgraph",
+    "COARSEN_NONE",
+    "COARSEN_FOLD",
+    "COARSEN_FOLDDUP",
+    "COARSEN_NOMERGE",
+    "GRID3D_GRID",
+    "GRID3D_TORUS",
+    "GRID3D_NGB6",
+    "GRID3D_NGB26",
+    "GRID3D_VERTLOAD",
+    "GRID3D_EDGELOAD",
+]
 
 
 def _resolve_comm(comm):
@@ -97,11 +115,7 @@ def _scotch_inout(array, name: str):
     C-contiguous numpy array of the Scotch dtype -- anything else is refused.
     """
     dtype = lib.get_scotch_dtype()
-    if (
-        not isinstance(array, np.ndarray)
-        or array.dtype != dtype
-        or not array.flags.c_contiguous
-    ):
+    if not isinstance(array, np.ndarray) or array.dtype != dtype or not array.flags.c_contiguous:
         got = f"dtype {array.dtype}" if isinstance(array, np.ndarray) else type(array).__name__
         raise TypeError(
             f"{name} is written in place by Scotch and must be a C-contiguous numpy "
@@ -209,7 +223,7 @@ class Dgraph:
 
     @scotch_binding(
         "SCOTCH_dgraphBuild",
-        "int SCOTCH_dgraphBuild(SCOTCH_Dgraph *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *)",
+        "int SCOTCH_dgraphBuild(SCOTCH_Dgraph *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *)",  # noqa: E501  (C prototype kept on one line: the signature verifier parses it)
     )
     def build(
         self,
@@ -275,9 +289,7 @@ class Dgraph:
         # edgegsttab is filled IN PLACE by Scotch (dgraphGhst): never convert it
         edgegsttab_ptr = None if edgegsttab is None else _scotch_inout(edgegsttab, "edgegsttab")
 
-        self._build_arrays = (
-            vertloctab, edgeloctab, vendloctab, veloloctab, vlblloctab, edgegsttab, edloloctab
-        )
+        self._build_arrays = (vertloctab, edgeloctab, vendloctab, veloloctab, vlblloctab, edgegsttab, edloloctab)
 
         # Build the distributed graph
         ret = lib.SCOTCH_dgraphBuild(
@@ -587,9 +599,7 @@ class Dgraph:
 
         # Create coarse graph on the same communicator (pass the mpi4py object
         # through when we have one, so the child keeps rank queries mpi4py-based)
-        coarse_graph = Dgraph(
-            comm=self._mpi4py_comm if self._mpi4py_comm is not None else self._comm
-        )
+        coarse_graph = Dgraph(comm=self._mpi4py_comm if self._mpi4py_comm is not None else self._comm)
 
         # Perform coarsening
         ret = lib.SCOTCH_dgraphCoarsen(
@@ -649,9 +659,7 @@ class Dgraph:
         "SCOTCH_dgraphGrow",
         "int SCOTCH_dgraphGrow(SCOTCH_Dgraph *, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num *)",
     )
-    def grow(
-        self, seedlocnbr: int, seedloctab: np.ndarray, distmax: int, partgsttab: np.ndarray
-    ) -> int:
+    def grow(self, seedlocnbr: int, seedloctab: np.ndarray, distmax: int, partgsttab: np.ndarray) -> int:
         """
         Grow subgraphs from seed vertices to create partitions.
 
@@ -712,9 +720,7 @@ class Dgraph:
         "SCOTCH_dgraphBand",
         "int SCOTCH_dgraphBand(SCOTCH_Dgraph *, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Dgraph *)",
     )
-    def band(
-        self, fronlocnbr: int, fronloctab: np.ndarray, distmax: int, bandgrafdat: "Dgraph"
-    ) -> int:
+    def band(self, fronlocnbr: int, fronloctab: np.ndarray, distmax: int, bandgrafdat: "Dgraph") -> int:
         """
         Extract a band graph containing vertices within distance from frontier.
 
@@ -766,7 +772,7 @@ class Dgraph:
 
     @scotch_binding(
         "SCOTCH_dgraphRedist",
-        "int SCOTCH_dgraphRedist(SCOTCH_Dgraph *, const SCOTCH_Num *, const SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Dgraph *)",
+        "int SCOTCH_dgraphRedist(SCOTCH_Dgraph *, const SCOTCH_Num *, const SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Dgraph *)",  # noqa: E501  (C prototype kept on one line: the signature verifier parses it)
     )
     def redist(
         self,
@@ -810,9 +816,7 @@ class Dgraph:
         # Both arrays are const inputs of SCOTCH_dgraphRedist: read during the
         # call only, so a call-scoped conversion is enough.
         partloctab, partloctab_c = _scotch_input(partloctab)
-        permgsttab, permgsttab_ptr = (
-            (None, None) if permgsttab is None else _scotch_input(permgsttab)
-        )
+        permgsttab, permgsttab_ptr = (None, None) if permgsttab is None else _scotch_input(permgsttab)
 
         ret = lib.SCOTCH_dgraphRedist(
             byref(self._dgraph),
@@ -830,9 +834,7 @@ class Dgraph:
         "SCOTCH_dgraphInducePart",
         "int SCOTCH_dgraphInducePart(SCOTCH_Dgraph *, const SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Dgraph *)",
     )
-    def induce_part(
-        self, orgpartloctab: np.ndarray, partval: int, indvertlocnbr: int, indgrafdat: "Dgraph"
-    ) -> int:
+    def induce_part(self, orgpartloctab: np.ndarray, partval: int, indvertlocnbr: int, indgrafdat: "Dgraph") -> int:
         """
         Extract induced subgraph for vertices in a specific partition.
 
@@ -894,7 +896,7 @@ class Dgraph:
 
     @scotch_binding(
         "SCOTCH_dgraphBuildGrid3D",
-        "int SCOTCH_dgraphBuildGrid3D(SCOTCH_Dgraph *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num)",
+        "int SCOTCH_dgraphBuildGrid3D(SCOTCH_Dgraph *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num)",  # noqa: E501  (C prototype kept on one line: the signature verifier parses it)
     )
     def build_grid_3d(
         self,
@@ -1002,9 +1004,7 @@ class Dgraph:
     # Centralized <-> distributed conversion
     # =========================================================================
 
-    @scotch_binding(
-        "SCOTCH_dgraphGather", "int SCOTCH_dgraphGather(const SCOTCH_Dgraph *, SCOTCH_Graph *)"
-    )
+    @scotch_binding("SCOTCH_dgraphGather", "int SCOTCH_dgraphGather(const SCOTCH_Dgraph *, SCOTCH_Graph *)")
     def gather(self, graph=None):
         """
         Gather the distributed graph into a centralized (sequential) Graph.
@@ -1032,9 +1032,7 @@ class Dgraph:
             raise lib.scotch_error("Failed to gather distributed graph", ret)
         return graph
 
-    @scotch_binding(
-        "SCOTCH_dgraphScatter", "int SCOTCH_dgraphScatter(SCOTCH_Dgraph *, const SCOTCH_Graph *)"
-    )
+    @scotch_binding("SCOTCH_dgraphScatter", "int SCOTCH_dgraphScatter(SCOTCH_Dgraph *, const SCOTCH_Graph *)")
     def scatter(self, graph=None) -> None:
         """
         Scatter a centralized (sequential) Graph into this distributed graph.
@@ -1084,9 +1082,7 @@ class Dgraph:
         """
         vertices = np.ascontiguousarray(vertices, dtype=lib.get_scotch_dtype())
         if count < 0 or count > len(vertices):
-            raise ValueError(
-                f"{name} has {len(vertices)} entries but {count} were declared"
-            )
+            raise ValueError(f"{name} has {len(vertices)} entries but {count} were declared")
         work = np.zeros(max(self._vertlocnbr(), count), dtype=lib.get_scotch_dtype())
         work[:count] = vertices[:count]
         self._queue_work = work
@@ -1122,9 +1118,7 @@ class Dgraph:
     def _scotch_dmapping(self, arch, partloctab_c):
         """Context manager for SCOTCH_dgraphMapInit / SCOTCH_dgraphMapExit."""
         dmapdat = lib.SCOTCH_Dmapping()
-        ret = lib.SCOTCH_dgraphMapInit(
-            byref(self._dgraph), byref(dmapdat), byref(arch._arch), partloctab_c
-        )
+        ret = lib.SCOTCH_dgraphMapInit(byref(self._dgraph), byref(dmapdat), byref(arch._arch), partloctab_c)
         if ret != 0:
             raise lib.scotch_error("SCOTCH_dgraphMapInit failed", ret)
         try:
@@ -1173,9 +1167,7 @@ class Dgraph:
             partloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
         )
         if ret != 0:
-            raise lib.scotch_error(
-                f"Failed to partition distributed graph into {nparts} parts", ret
-            )
+            raise lib.scotch_error(f"Failed to partition distributed graph into {nparts} parts", ret)
 
         return partloctab
 
@@ -1248,9 +1240,7 @@ class Dgraph:
         partloctab_c = partloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
         with self._scotch_dmapping(arch, partloctab_c) as dmapdat:
-            ret = lib.SCOTCH_dgraphMapCompute(
-                byref(self._dgraph), byref(dmapdat), byref(strategy._strat)
-            )
+            ret = lib.SCOTCH_dgraphMapCompute(byref(self._dgraph), byref(dmapdat), byref(strategy._strat))
             if ret != 0:
                 raise lib.scotch_error("Failed to compute distributed mapping", ret)
 
@@ -1284,9 +1274,7 @@ class Dgraph:
         partloctab_c = partloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
         with self._scotch_dmapping(arch, partloctab_c) as dmapdat:
-            ret = lib.SCOTCH_dgraphMapCompute(
-                byref(self._dgraph), byref(dmapdat), byref(strategy._strat)
-            )
+            ret = lib.SCOTCH_dgraphMapCompute(byref(self._dgraph), byref(dmapdat), byref(strategy._strat))
             if ret != 0:
                 raise lib.scotch_error("Failed to compute distributed mapping", ret)
             with self._root_fopen(filepath, "w") as file_ptr:
@@ -1323,17 +1311,13 @@ class Dgraph:
         partloctab_c = partloctab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
         with self._scotch_dmapping(arch, partloctab_c) as dmapdat:
-            ret = lib.SCOTCH_dgraphMapCompute(
-                byref(self._dgraph), byref(dmapdat), byref(strategy._strat)
-            )
+            ret = lib.SCOTCH_dgraphMapCompute(byref(self._dgraph), byref(dmapdat), byref(strategy._strat))
             if ret != 0:
                 raise lib.scotch_error("Failed to compute distributed mapping", ret)
             with self._root_fopen(filepath, "w") as file_ptr:
                 ret = lib.SCOTCH_dgraphMapView(byref(self._dgraph), byref(dmapdat), file_ptr)
             if ret != 0:
-                raise lib.scotch_error(
-                    f"Failed to write distributed mapping view to {filepath}", ret
-                )
+                raise lib.scotch_error(f"Failed to write distributed mapping view to {filepath}", ret)
 
         return partloctab
 
@@ -1391,15 +1375,13 @@ class Dgraph:
         if strategy is None:
             strategy = Strategy()
 
-        ret = lib.SCOTCH_dgraphOrderCompute(
-            byref(self._dgraph), byref(dordering), byref(strategy._strat)
-        )
+        ret = lib.SCOTCH_dgraphOrderCompute(byref(self._dgraph), byref(dordering), byref(strategy._strat))
         if ret != 0:
             raise lib.scotch_error("Failed to compute distributed ordering", ret)
 
     @scotch_binding(
         "SCOTCH_dgraphOrderComputeList",
-        "int SCOTCH_dgraphOrderComputeList(SCOTCH_Dgraph *, SCOTCH_Dordering *, SCOTCH_Num, const SCOTCH_Num *, SCOTCH_Strat *)",
+        "int SCOTCH_dgraphOrderComputeList(SCOTCH_Dgraph *, SCOTCH_Dordering *, SCOTCH_Num, const SCOTCH_Num *, SCOTCH_Strat *)",  # noqa: E501  (C prototype kept on one line: the signature verifier parses it)
     )
     def order_compute_list(
         self,
@@ -1562,7 +1544,7 @@ class Dgraph:
 
     @scotch_binding(
         "SCOTCH_dgraphCorderInit",
-        "int SCOTCH_dgraphCorderInit(const SCOTCH_Dgraph *, SCOTCH_Ordering *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *)",
+        "int SCOTCH_dgraphCorderInit(const SCOTCH_Dgraph *, SCOTCH_Ordering *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *)",  # noqa: E501  (C prototype kept on one line: the signature verifier parses it)
     )
     def corder_init(
         self,
@@ -1591,10 +1573,7 @@ class Dgraph:
             if array is None:
                 return None
             if array.dtype != lib.get_scotch_dtype() or not array.flags["C_CONTIGUOUS"]:
-                raise ValueError(
-                    f"{name} must be a C-contiguous array of dtype "
-                    f"{lib.get_scotch_dtype().__name__}"
-                )
+                raise ValueError(f"{name} must be a C-contiguous array of dtype {lib.get_scotch_dtype().__name__}")
             return array.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
         cordering = lib.SCOTCH_Ordering()

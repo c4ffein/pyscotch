@@ -2,16 +2,17 @@
 High-level Graph class for PT-Scotch.
 """
 
-import numpy as np
 import ctypes
 import os
 from contextlib import contextmanager
-from ctypes import byref, c_long, POINTER, cast, c_void_p, CDLL
+from ctypes import CDLL, POINTER, byref
 from pathlib import Path
-from typing import Optional, Union, List, Tuple
+from typing import List, Optional, Tuple, Union
 
-from .api_decorators import scotch_binding, highlevel_api, internal_api
+import numpy as np
+
 from . import libscotch as lib
+from .api_decorators import highlevel_api, internal_api, scotch_binding
 
 
 @contextmanager
@@ -124,9 +125,7 @@ def _coerce_edge_weights(values, what: str = "edge weights") -> Optional[np.ndar
                 "(e.g. numpy.rint(weights * scale))"
             )
     elif arr.dtype.kind not in "iu":
-        raise ValueError(
-            f"{what} must be numeric (strictly positive integers), got dtype {arr.dtype}"
-        )
+        raise ValueError(f"{what} must be numeric (strictly positive integers), got dtype {arr.dtype}")
     if np.any(arr <= 0):
         raise ValueError(
             f"{what} must be strictly positive integers, found minimum value {arr.min()}. "
@@ -135,9 +134,7 @@ def _coerce_edge_weights(values, what: str = "edge weights") -> Optional[np.ndar
         )
     out = arr.astype(lib.get_scotch_dtype())
     if not np.array_equal(out, arr):
-        raise ValueError(
-            f"{what} do not fit in the Scotch integer type ({lib.get_scotch_dtype().__name__})"
-        )
+        raise ValueError(f"{what} do not fit in the Scotch integer type ({lib.get_scotch_dtype().__name__})")
     if np.all(out == 1):
         return None
     return out
@@ -167,20 +164,14 @@ def _coerce_vertex_weights(values, what: str = "vertex weights") -> np.ndarray:
         if not np.all(np.isfinite(arr)):
             raise ValueError(f"{what} must be finite (no NaN or infinity)")
         if np.any(arr != np.floor(arr)):
-            raise ValueError(
-                f"{what} must be integers (integral floats such as 2.0 are accepted)"
-            )
+            raise ValueError(f"{what} must be integers (integral floats such as 2.0 are accepted)")
     elif arr.dtype.kind not in "iu":
-        raise ValueError(
-            f"{what} must be numeric (non-negative integers), got dtype {arr.dtype}"
-        )
+        raise ValueError(f"{what} must be numeric (non-negative integers), got dtype {arr.dtype}")
     if arr.size and np.any(arr < 0):
         raise ValueError(f"{what} must be non-negative, found minimum value {arr.min()}")
     out = arr.astype(lib.get_scotch_dtype())
     if not np.array_equal(out, arr):
-        raise ValueError(
-            f"{what} do not fit in the Scotch integer type ({lib.get_scotch_dtype().__name__})"
-        )
+        raise ValueError(f"{what} do not fit in the Scotch integer type ({lib.get_scotch_dtype().__name__})")
     return out
 
 
@@ -202,9 +193,7 @@ def _scotch_ordering(graph_ptr, permtab_c, peritab_c):
     """Context manager for SCOTCH_graphOrderInit / SCOTCH_graphOrderExit."""
     cblkptr = lib.SCOTCH_Num()
     orddat = lib.SCOTCH_Ordering()
-    ret = lib.SCOTCH_graphOrderInit(
-        byref(graph_ptr), byref(orddat), permtab_c, peritab_c, byref(cblkptr), None, None
-    )
+    ret = lib.SCOTCH_graphOrderInit(byref(graph_ptr), byref(orddat), permtab_c, peritab_c, byref(cblkptr), None, None)
     if ret != 0:
         raise lib.scotch_error("SCOTCH_graphOrderInit failed", ret)
     try:
@@ -254,9 +243,7 @@ class Graph:
             lib.SCOTCH_graphExit(byref(self._graph))
             self._initialized = False
 
-    @scotch_binding(
-        "SCOTCH_graphLoad", "int SCOTCH_graphLoad(SCOTCH_Graph *, FILE *, SCOTCH_Num, SCOTCH_Num)"
-    )
+    @scotch_binding("SCOTCH_graphLoad", "int SCOTCH_graphLoad(SCOTCH_Graph *, FILE *, SCOTCH_Num, SCOTCH_Num)")
     def load(self, filename: Union[str, Path], baseval: int = 0) -> None:
         """
         Load a graph from a file in Scotch graph format.
@@ -283,9 +270,7 @@ class Graph:
 
         # Use our compat layer - guarantees ABI compatibility with Scotch
         with c_fopen(str(filename), "r") as file_ptr:
-            ret = lib.SCOTCH_graphLoad(
-                byref(self._graph), file_ptr, lib.SCOTCH_Num(baseval), 0
-            )
+            ret = lib.SCOTCH_graphLoad(byref(self._graph), file_ptr, lib.SCOTCH_Num(baseval), 0)
 
             if ret != 0:
                 raise lib.scotch_error(f"Failed to load graph from {filename}", ret)
@@ -315,7 +300,7 @@ class Graph:
 
     @scotch_binding(
         "SCOTCH_graphBuild",
-        "int SCOTCH_graphBuild(SCOTCH_Graph *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *)",
+        "int SCOTCH_graphBuild(SCOTCH_Graph *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *)",  # noqa: E501  (C prototype kept on one line: the signature verifier parses it)
     )
     def build(
         self,
@@ -350,15 +335,11 @@ class Graph:
 
         # Validate vertex weights array size if provided
         if velotab is not None and len(velotab) != vertnbr:
-            raise ValueError(
-                f"velotab length ({len(velotab)}) must match number of vertices ({vertnbr})"
-            )
+            raise ValueError(f"velotab length ({len(velotab)}) must match number of vertices ({vertnbr})")
 
         # Validate edge weights array size if provided
         if edlotab is not None and len(edlotab) != edgenbr:
-            raise ValueError(
-                f"edlotab length ({len(edlotab)}) must match number of edges ({edgenbr})"
-            )
+            raise ValueError(f"edlotab length ({len(edlotab)}) must match number of edges ({edgenbr})")
 
         # Store arrays to prevent garbage collection
         # Use dtype matching the compiled Scotch library (detected at import)
@@ -372,16 +353,8 @@ class Graph:
         verttab_c = self._verttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
         edgetab_c = self._edgetab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
-        velotab_c = (
-            self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-            if self._velotab is not None
-            else None
-        )
-        edlotab_c = (
-            self._edlotab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-            if self._edlotab is not None
-            else None
-        )
+        velotab_c = self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._velotab is not None else None
+        edlotab_c = self._edlotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._edlotab is not None else None
 
         # Pass verttab as vendtab to trigger Scotch's (vendtab == verttab) check
         # which automatically uses verttab[i+1] as the end index for vertex i
@@ -399,9 +372,7 @@ class Graph:
         )
 
         if ret != 0:
-            raise lib.scotch_error(
-                f"Failed to build graph with {vertnbr} vertices and {edgenbr} edges", ret
-            )
+            raise lib.scotch_error(f"Failed to build graph with {vertnbr} vertices and {edgenbr} edges", ret)
 
     @scotch_binding("SCOTCH_graphCheck", "int SCOTCH_graphCheck(const SCOTCH_Graph *)")
     def check(self) -> bool:
@@ -537,8 +508,8 @@ class Graph:
         if nparts < 1:
             raise ValueError(f"nparts must be at least 1, got {nparts}")
 
-        from .strategy import Strategy
         from .arch import Architecture
+        from .strategy import Strategy
 
         vertnbr, _ = self.size()
 
@@ -584,9 +555,7 @@ class Graph:
             lib.SCOTCH_graphMapExit(byref(self._graph), byref(mappdat))
 
         if ret != 0:
-            raise lib.scotch_error(
-                f"Failed to compute partition into {nparts} parts ({vertnbr} vertices)", ret
-            )
+            raise lib.scotch_error(f"Failed to compute partition into {nparts} parts ({vertnbr} vertices)", ret)
 
         return parttab
 
@@ -656,15 +625,13 @@ class Graph:
             lib.SCOTCH_graphMapExit(byref(self._graph), byref(mappdat))
 
         if ret != 0:
-            raise lib.scotch_error(
-                f"Failed to map graph ({vertnbr} vertices) onto {nparts}-part architecture", ret
-            )
+            raise lib.scotch_error(f"Failed to map graph ({vertnbr} vertices) onto {nparts}-part architecture", ret)
 
         return parttab
 
     @scotch_binding(
         "SCOTCH_graphOrder",
-        "int SCOTCH_graphOrder(const SCOTCH_Graph *, const SCOTCH_Strat *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *)",
+        "int SCOTCH_graphOrder(const SCOTCH_Graph *, const SCOTCH_Strat *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *)",  # noqa: E501  (C prototype kept on one line: the signature verifier parses it)
     )
     def order(
         self,
@@ -801,7 +768,7 @@ class Graph:
 
     @scotch_binding(
         "SCOTCH_graphInducePart",
-        "int SCOTCH_graphInducePart(const SCOTCH_Graph *, SCOTCH_Num, const SCOTCH_GraphPart2 *, SCOTCH_GraphPart2, SCOTCH_Graph *)",
+        "int SCOTCH_graphInducePart(const SCOTCH_Graph *, SCOTCH_Num, const SCOTCH_GraphPart2 *, SCOTCH_GraphPart2, SCOTCH_Graph *)",  # noqa: E501  (C prototype kept on one line: the signature verifier parses it)
     )
     def induce_part(self, partition: np.ndarray, part_id: int) -> "Graph":
         """
@@ -838,9 +805,7 @@ class Graph:
         )
 
         if ret != 0:
-            raise lib.scotch_error(
-                f"Failed to induce subgraph from partition {part_id} ({indvertnbr} vertices)", ret
-            )
+            raise lib.scotch_error(f"Failed to induce subgraph from partition {part_id} ({indvertnbr} vertices)", ret)
 
         return induced_graph
 
@@ -1155,9 +1120,7 @@ class Graph:
             return ret == 0
 
     @scotch_binding("SCOTCH_graphOrderSave", "int SCOTCH_graphOrderSave(...)")
-    def order_save(
-        self, filename: Union[str, Path], permtab: np.ndarray, peritab: np.ndarray
-    ) -> None:
+    def order_save(self, filename: Union[str, Path], permtab: np.ndarray, peritab: np.ndarray) -> None:
         """
         Save an ordering to a file in Scotch ordering format.
 
@@ -1295,18 +1258,14 @@ class Graph:
         if num_vertices is None:
             num_vertices = max_vertex + 1
         if max_vertex >= num_vertices:
-            raise ValueError(
-                f"Edge contains vertex {max_vertex} but num_vertices is {num_vertices}"
-            )
+            raise ValueError(f"Edge contains vertex {max_vertex} but num_vertices is {num_vertices}")
 
         # Scotch graphs are simple and undirected: refuse what graph.check()
         # would reject, rather than build a broken graph
         seen = set()
         for u, v in edges:
             if u == v:
-                raise ValueError(
-                    f"edge ({u}, {v}) is a self-loop; Scotch graphs cannot contain self-loops"
-                )
+                raise ValueError(f"edge ({u}, {v}) is a self-loop; Scotch graphs cannot contain self-loops")
             key = (u, v) if u < v else (v, u)
             if key in seen:
                 raise ValueError(
@@ -1317,15 +1276,9 @@ class Graph:
 
         # Validate weights if provided
         if vertex_weights is not None and len(vertex_weights) != num_vertices:
-            raise ValueError(
-                f"vertex_weights length ({len(vertex_weights)}) must match "
-                f"num_vertices ({num_vertices})"
-            )
+            raise ValueError(f"vertex_weights length ({len(vertex_weights)}) must match num_vertices ({num_vertices})")
         if edge_weights is not None and len(edge_weights) != len(edges):
-            raise ValueError(
-                f"edge_weights length ({len(edge_weights)}) must match number of edges "
-                f"({len(edges)})"
-            )
+            raise ValueError(f"edge_weights length ({len(edge_weights)}) must match number of edges ({len(edges)})")
 
         scotch_dtype = lib.get_scotch_dtype()
 
@@ -1346,9 +1299,7 @@ class Graph:
         np.cumsum([len(neighbors) for neighbors in adj], out=verttab[1:])
         edgetab = np.array([v for neighbors in adj for v, _ in neighbors], dtype=scotch_dtype)
         edlotab_np = (
-            None
-            if loads is None
-            else np.array([w for neighbors in adj for _, w in neighbors], dtype=scotch_dtype)
+            None if loads is None else np.array([w for neighbors in adj for _, w in neighbors], dtype=scotch_dtype)
         )
 
         velotab_np = None
@@ -1425,9 +1376,7 @@ class Graph:
         if compact:
             sel = slice(0, arcnbr)
         else:
-            sel = np.concatenate(
-                [np.arange(int(verttab[i]) - base, int(vendtab[i]) - base) for i in range(n)]
-            )
+            sel = np.concatenate([np.arange(int(verttab[i]) - base, int(vendtab[i]) - base) for i in range(n)])
         indices = edgebuf[sel].astype(scotch_dtype) - base
         edlotab = edlobuf[sel].astype(scotch_dtype) if edlobuf is not None else None
 
@@ -1533,11 +1482,7 @@ class Graph:
                 "A = A + A.T, or A = A.maximum(A.T) to keep existing weights unchanged"
             )
 
-        edlotab = (
-            _coerce_edge_weights(A.data, what="edge weights (matrix values)")
-            if use_edge_weights
-            else None
-        )
+        edlotab = _coerce_edge_weights(A.data, what="edge weights (matrix values)") if use_edge_weights else None
 
         scotch_dtype = lib.get_scotch_dtype()
         graph = cls()

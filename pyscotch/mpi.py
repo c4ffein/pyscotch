@@ -7,8 +7,8 @@ distributed graph operations.
 
 import ctypes
 import ctypes.util
-from typing import Optional
 import sys
+from typing import Optional
 
 
 class MPI:
@@ -70,7 +70,7 @@ class MPI:
         try:
             comm_ptr = ctypes.c_void_p.in_dll(self._libmpi, "ompi_mpi_comm_world")
             return ctypes.addressof(comm_ptr)
-        except:
+        except Exception:
             pass
 
         # Method 2: Try MPICH - it's often an integer constant
@@ -79,14 +79,14 @@ class MPI:
             # For MPICH, we can try to get it from the library
             # but it's usually just a constant
             return 0x44000000
-        except:
+        except Exception:
             pass
 
         # Method 3: Try Intel MPI
         try:
             comm_ptr = ctypes.c_void_p.in_dll(self._libmpi, "I_MPI_COMM_WORLD")
             return ctypes.addressof(comm_ptr)
-        except:
+        except Exception:
             pass
 
         raise RuntimeError(

@@ -4,8 +4,8 @@ Context class for Scotch threading and option control.
 
 from ctypes import byref
 
-from .api_decorators import scotch_binding
 from . import libscotch as lib
+from .api_decorators import scotch_binding
 
 
 class Context:
@@ -86,9 +86,7 @@ class Context:
         """Reset the context's random state."""
         lib.SCOTCH_contextRandomReset(byref(self._ctx))
 
-    @scotch_binding(
-        "SCOTCH_contextRandomSeed", "void SCOTCH_contextRandomSeed(SCOTCH_Context *, SCOTCH_Num)"
-    )
+    @scotch_binding("SCOTCH_contextRandomSeed", "void SCOTCH_contextRandomSeed(SCOTCH_Context *, SCOTCH_Num)")
     def random_seed(self, seed: int) -> None:
         """Set the context's random seed."""
         lib.SCOTCH_contextRandomSeed(byref(self._ctx), lib.SCOTCH_Num(seed))

@@ -2,13 +2,15 @@
 Mesh class for PT-Scotch mesh operations.
 """
 
-import numpy as np
-from ctypes import byref, POINTER, c_void_p
+from ctypes import POINTER, byref
 from pathlib import Path
-from typing import Union, Optional, Tuple
-from .graph import c_fopen  # Use our FILE* compat layer
-from .api_decorators import scotch_binding, highlevel_api, internal_api
+from typing import Optional, Union
+
+import numpy as np
+
 from . import libscotch as lib
+from .api_decorators import highlevel_api, internal_api, scotch_binding
+from .graph import c_fopen  # Use our FILE* compat layer
 
 
 class Mesh:
@@ -97,7 +99,7 @@ class Mesh:
 
     @scotch_binding(
         "SCOTCH_meshBuild",
-        "int SCOTCH_meshBuild(SCOTCH_Mesh *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num *)",
+        "int SCOTCH_meshBuild(SCOTCH_Mesh *, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num *, SCOTCH_Num, SCOTCH_Num *)",  # noqa: E501  (C prototype kept on one line: the signature verifier parses it)
     )
     def build(
         self,
@@ -138,16 +140,8 @@ class Mesh:
         verttab_c = self._verttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
         edgetab_c = self._edgetab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
 
-        velotab_c = (
-            self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-            if self._velotab is not None
-            else None
-        )
-        vnlotab_c = (
-            self._vnlotab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
-            if self._vnlotab is not None
-            else None
-        )
+        velotab_c = self._velotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._velotab is not None else None
+        vnlotab_c = self._vnlotab.ctypes.data_as(POINTER(lib.SCOTCH_Num)) if self._vnlotab is not None else None
 
         ret = lib.SCOTCH_meshBuild(
             byref(self._mesh),
@@ -219,9 +213,7 @@ class Mesh:
         from .graph import Graph
 
         graph = Graph()
-        ret = lib.SCOTCH_meshGraphDual(
-            byref(self._mesh), byref(graph._graph), lib.SCOTCH_Num(ncomm)
-        )
+        ret = lib.SCOTCH_meshGraphDual(byref(self._mesh), byref(graph._graph), lib.SCOTCH_Num(ncomm))
 
         if ret != 0:
             raise lib.scotch_error("Failed to convert mesh to dual graph", ret)
