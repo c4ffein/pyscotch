@@ -78,7 +78,7 @@ Functions declared in the Scotch headers with no binding in `libscotch.py`:
 
 - No Jupyter tutorials.
 - No page on performance characteristics or wrapper overhead.
-- No co-maintainers. [CONTRIBUTING.md](../CONTRIBUTING.md) does not point here.
+- No co-maintainers. The README's Development section does not point here.
 
 ---
 
