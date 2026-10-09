@@ -11,17 +11,18 @@ ports.
 Run with: mpirun -np 2 python dgraph_grid_stat.py
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
+
 import numpy as np
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from pyscotch import libscotch as lib
-from pyscotch.mpi import mpi
 from pyscotch.dgraph import Dgraph
+from pyscotch.mpi import mpi
 
 
 def main():

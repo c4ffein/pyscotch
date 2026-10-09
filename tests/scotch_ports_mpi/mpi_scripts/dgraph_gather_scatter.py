@@ -11,26 +11,24 @@ other dgraph_*.py ports.
 Run with: mpirun -np 3 python dgraph_gather_scatter.py <graph_file>
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
+
 import numpy as np
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from pyscotch import libscotch as lib
-from pyscotch.mpi import mpi
 from pyscotch.dgraph import Dgraph
 from pyscotch.graph import Graph
+from pyscotch.mpi import mpi
 
 
 def sorted_adjacency(graph):
     """Return (indptr, per-vertex sorted neighbor arrays) for comparison."""
     indptr, indices, _ = graph._csr_arrays()
-    neighbors = [
-        np.sort(indices[int(indptr[i]) : int(indptr[i + 1])]) for i in range(len(indptr) - 1)
-    ]
+    neighbors = [np.sort(indices[int(indptr[i]) : int(indptr[i + 1])]) for i in range(len(indptr) - 1)]
     return indptr, neighbors
 
 
@@ -74,11 +72,11 @@ def main():
         data = grafdat.data(want_vertglbnbr=True, want_edgeglbnbr=True)
         if rank == 0:
             assert data["vertglbnbr"] == vertnbr, (
-                f"vertex count mismatch after scatter: " f"{data['vertglbnbr']} != {vertnbr}"
+                f"vertex count mismatch after scatter: {data['vertglbnbr']} != {vertnbr}"
             )
-            assert (
-                data["edgeglbnbr"] == edgenbr
-            ), f"edge count mismatch after scatter: {data['edgeglbnbr']} != {edgenbr}"
+            assert data["edgeglbnbr"] == edgenbr, (
+                f"edge count mismatch after scatter: {data['edgeglbnbr']} != {edgenbr}"
+            )
 
         # Gather back into a new centralized graph on the root process
         gathered = Graph() if rank == 0 else None
@@ -95,9 +93,7 @@ def main():
             gath_indptr, gath_neighbors = sorted_adjacency(gathered)
             assert np.array_equal(orig_indptr, gath_indptr), "indptr mismatch after roundtrip"
             for vertnum, (orig, gath) in enumerate(zip(orig_neighbors, gath_neighbors)):
-                assert np.array_equal(
-                    orig, gath
-                ), f"adjacency mismatch for vertex {vertnum} after roundtrip"
+                assert np.array_equal(orig, gath), f"adjacency mismatch for vertex {vertnum} after roundtrip"
             gathered.close()
             cgrfdat.close()
 

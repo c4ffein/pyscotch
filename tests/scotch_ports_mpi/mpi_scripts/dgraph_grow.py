@@ -9,17 +9,19 @@ Reference: external/scotch/src/check/test_scotch_dgraph_grow.c
 
 Run with: mpirun -np 3 python dgraph_grow.py <graph_file> <mapping_file>
 """
-import sys
+
 import os
+import sys
 from pathlib import Path
+
 import numpy as np
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from pyscotch import libscotch as lib
-from pyscotch.mpi import mpi
 from pyscotch.dgraph import Dgraph
+from pyscotch.mpi import mpi
 
 
 def main():
@@ -64,22 +66,17 @@ def main():
         # Compute ghost edge array
         # C code: line 66
         if grafdat.ghst() != 0:
-            print(f"ERROR: cannot compute ghost edge array")
+            print("ERROR: cannot compute ghost edge array")
             grafdat.exit()
             mpi.finalize()
             os._exit(1)
 
         # Get graph data (need baseval, vertex counts, ghost count)
-        data = grafdat.data(
-            want_baseval=True,
-            want_vertglbnbr=True,
-            want_vertlocnbr=True,
-            want_vertgstnbr=True
-        )
-        baseval = data['baseval']
-        vertglbnbr = data['vertglbnbr']
-        vertlocnbr = data['vertlocnbr']
-        vertgstnbr = data['vertgstnbr']
+        data = grafdat.data(want_baseval=True, want_vertglbnbr=True, want_vertlocnbr=True, want_vertgstnbr=True)
+        baseval = data["baseval"]
+        vertglbnbr = data["vertglbnbr"]
+        vertlocnbr = data["vertlocnbr"]
+        vertgstnbr = data["vertgstnbr"]
 
         # Allocate seed array (3 seeds per rank)
         seedloctab = np.zeros(vertlocnbr, dtype=lib.get_scotch_dtype())
@@ -91,6 +88,7 @@ def main():
         # C code uses SCOTCH_randomReset() and SCOTCH_randomVal()
         # For now, use Python's random with a fixed seed for determinism
         import random
+
         random.seed(42)  # Deterministic for testing
 
         seedloctab[0] = baseval + random.randint(0, vertlocnbr - 1)
@@ -110,7 +108,7 @@ def main():
         #   distmax=4 - maximum distance to grow
         #   partgsttab - partition array (modified in-place)
         if grafdat.grow(3, seedloctab, 4, partgsttab) != 0:
-            print(f"ERROR: cannot compute grown regions")
+            print("ERROR: cannot compute grown regions")
             grafdat.exit()
             mpi.finalize()
             os._exit(1)
@@ -123,7 +121,7 @@ def main():
 
             if procnum == rank:
                 # Open file (first rank writes, others append)
-                mode = 'w' if procnum == 0 else 'a'
+                mode = "w" if procnum == 0 else "a"
 
                 with open(mapping_file, mode) as f:
                     if procnum == 0:
@@ -155,16 +153,17 @@ def main():
         os._exit(0)
 
     except NotImplementedError as e:
-        rank = mpi.comm_rank() if mpi.is_initialized() else '?'
+        rank = mpi.comm_rank() if mpi.is_initialized() else "?"
         print(f"[Rank {rank}] {e}")
         if mpi.is_initialized():
             mpi.finalize()
         os._exit(1)
 
     except Exception as e:
-        rank = mpi.comm_rank() if mpi.is_initialized() else '?'
+        rank = mpi.comm_rank() if mpi.is_initialized() else "?"
         print(f"ERROR on rank {rank}: {e}")
         import traceback
+
         traceback.print_exc()
         if mpi.is_initialized():
             mpi.finalize()

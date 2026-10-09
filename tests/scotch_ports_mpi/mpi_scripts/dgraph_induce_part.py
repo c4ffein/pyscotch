@@ -9,17 +9,19 @@ Reference: external/scotch/src/check/test_scotch_dgraph_induce.c
 
 Run with: mpirun -np 3 python dgraph_induce_part.py <graph_file>
 """
-import sys
+
 import os
+import sys
 from pathlib import Path
+
 import numpy as np
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from pyscotch import libscotch as lib
-from pyscotch.mpi import mpi
 from pyscotch.dgraph import Dgraph
+from pyscotch.mpi import mpi
 
 
 def main():
@@ -28,7 +30,6 @@ def main():
         # Initialize MPI
         mpi.init()
         rank = mpi.comm_rank()
-        size = mpi.comm_size()
 
         # Check arguments
         # C code: lines 102-105
@@ -67,12 +68,9 @@ def main():
 
         # Get graph data (need baseval and vertex count)
         # C code: line 152
-        data = orggrafdat.data(
-            want_baseval=True,
-            want_vertlocnbr=True
-        )
-        baseval = data['baseval']
-        orgvertlocnbr = data['vertlocnbr']
+        data = orggrafdat.data(want_baseval=True, want_vertlocnbr=True)
+        baseval = data["baseval"]
+        orgvertlocnbr = data["vertlocnbr"]
 
         # Allocate partition and index arrays
         # C code: lines 154-161
@@ -82,6 +80,7 @@ def main():
         # Initialize random generator and create shuffled index list
         # C code: lines 163-175
         import random
+
         random.seed(42)  # Use fixed seed for determinism (replaces SCOTCH_randomReset)
 
         # Fill index list with sequential vertex numbers
@@ -126,7 +125,7 @@ def main():
         #   indvertlocnbr - number of vertices in partition 1 on local rank
         #   indgrafdat - output induced subgraph
         if orggrafdat.induce_part(orgpartloctab, 1, indvertlocnbr, indgrafdat) != 0:
-            print(f"ERROR: cannot induce graph")
+            print("ERROR: cannot induce graph")
             orggrafdat.exit()
             indgrafdat.exit()
             mpi.finalize()
@@ -135,7 +134,7 @@ def main():
         # Check induced graph
         # C code: lines 191-193
         if not indgrafdat.check():
-            print(f"ERROR: invalid induced graph")
+            print("ERROR: invalid induced graph")
             orggrafdat.exit()
             indgrafdat.exit()
             mpi.finalize()
@@ -155,16 +154,17 @@ def main():
         os._exit(0)
 
     except NotImplementedError as e:
-        rank = mpi.comm_rank() if mpi.is_initialized() else '?'
+        rank = mpi.comm_rank() if mpi.is_initialized() else "?"
         print(f"[Rank {rank}] {e}")
         if mpi.is_initialized():
             mpi.finalize()
         os._exit(1)
 
     except Exception as e:
-        rank = mpi.comm_rank() if mpi.is_initialized() else '?'
+        rank = mpi.comm_rank() if mpi.is_initialized() else "?"
         print(f"ERROR on rank {rank}: {e}")
         import traceback
+
         traceback.print_exc()
         if mpi.is_initialized():
             mpi.finalize()

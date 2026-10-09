@@ -3,16 +3,18 @@
 Standalone MPI script to test SCOTCH_dgraphCheck.
 Run with: mpirun -np 2 python dgraph_check.py
 """
+
 import sys
+
 import numpy as np
-from ctypes import byref
 
 # Add parent directory to path
-sys.path.insert(0, '/home/sharl/personal_gits/pyscotch')
+sys.path.insert(0, "/home/sharl/personal_gits/pyscotch")
 
 from pyscotch import libscotch as lib
-from pyscotch.mpi import mpi
 from pyscotch.dgraph import Dgraph
+from pyscotch.mpi import mpi
+
 
 def main():
     """Test dgraph check."""
@@ -47,11 +49,7 @@ def main():
 
         # Build the dgraph
         dgraph = Dgraph()
-        dgraph.build(
-            vertloctab=vertloctab,
-            edgeloctab=edgeloctab,
-            baseval=baseval
-        )
+        dgraph.build(vertloctab=vertloctab, edgeloctab=edgeloctab, baseval=baseval)
 
         # Check the dgraph
         is_valid = dgraph.check()
@@ -62,6 +60,7 @@ def main():
             dgraph.exit()  # Cleanup before MPI finalize
             mpi.finalize()
             import os
+
             os._exit(1)
 
         if rank == 0:
@@ -75,16 +74,19 @@ def main():
 
         # Exit immediately to avoid Python cleanup issues
         import os
+
         os._exit(0)
 
     except Exception as e:
-        rank = mpi.comm_rank() if mpi.is_initialized() else '?'
+        rank = mpi.comm_rank() if mpi.is_initialized() else "?"
         print(f"ERROR on rank {rank}: {e}")
         import traceback
+
         traceback.print_exc()
         if mpi.is_initialized():
             mpi.finalize()
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

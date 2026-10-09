@@ -9,17 +9,19 @@ Reference: external/scotch/src/check/test_scotch_dgraph_redist.c
 
 Run with: mpirun -np 3 python dgraph_redist.py <graph_file>
 """
-import sys
+
 import os
+import sys
 from pathlib import Path
+
 import numpy as np
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from pyscotch import libscotch as lib
-from pyscotch.mpi import mpi
 from pyscotch.dgraph import Dgraph
+from pyscotch.mpi import mpi
 
 
 def main():
@@ -60,7 +62,7 @@ def main():
 
         # Check source graph
         if not srcgrafdat.check():
-            print(f"ERROR: invalid source graph")
+            print("ERROR: invalid source graph")
             srcgrafdat.exit()
             mpi.finalize()
             os._exit(1)
@@ -69,12 +71,8 @@ def main():
         mpi.barrier()
 
         # Get graph data (need vertex counts)
-        data = srcgrafdat.data(
-            want_vertglbnbr=True,
-            want_vertlocnbr=True
-        )
-        vertglbnbr = data['vertglbnbr']
-        vertlocnbr = data['vertlocnbr']
+        data = srcgrafdat.data(want_vertglbnbr=True, want_vertlocnbr=True)
+        vertlocnbr = data["vertlocnbr"]
 
         # Allocate partition array
         # C code: lines 159-162
@@ -94,7 +92,7 @@ def main():
         #   procDstTab=-1 - destination process ID (-1 = use partition from partloctab)
         #   dstgrafdat - output redistributed graph
         if srcgrafdat.redist(partloctab, None, -1, -1, dstgrafdat) != 0:
-            print(f"ERROR: cannot compute redistributed graph")
+            print("ERROR: cannot compute redistributed graph")
             srcgrafdat.exit()
             dstgrafdat.exit()
             mpi.finalize()
@@ -115,16 +113,17 @@ def main():
         os._exit(0)
 
     except NotImplementedError as e:
-        rank = mpi.comm_rank() if mpi.is_initialized() else '?'
+        rank = mpi.comm_rank() if mpi.is_initialized() else "?"
         print(f"[Rank {rank}] {e}")
         if mpi.is_initialized():
             mpi.finalize()
         os._exit(1)
 
     except Exception as e:
-        rank = mpi.comm_rank() if mpi.is_initialized() else '?'
+        rank = mpi.comm_rank() if mpi.is_initialized() else "?"
         print(f"ERROR on rank {rank}: {e}")
         import traceback
+
         traceback.print_exc()
         if mpi.is_initialized():
             mpi.finalize()

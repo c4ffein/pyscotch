@@ -10,18 +10,19 @@ port (per-rank output aggregated through a shared file with barriers).
 Run with: mpirun -np 3 python dgraph_part.py <graph_file> <output_file>
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
+
 import numpy as np
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from pyscotch import libscotch as lib
-from pyscotch.mpi import mpi
-from pyscotch.dgraph import Dgraph
 from pyscotch.arch import Architecture
+from pyscotch.dgraph import Dgraph
+from pyscotch.mpi import mpi
 
 NPARTS = 4
 
@@ -70,8 +71,7 @@ def main():
 
         assert len(partloctab) == vertlocnbr, "partloctab has wrong length"
         assert np.all(partloctab >= 0) and np.all(partloctab < NPARTS), (
-            f"invalid part values on rank {rank}: "
-            f"min={partloctab.min()}, max={partloctab.max()}"
+            f"invalid part values on rank {rank}: min={partloctab.min()}, max={partloctab.max()}"
         )
 
         # --- SCOTCH_dgraphMap onto a complete architecture: same contract ---
@@ -79,24 +79,18 @@ def main():
         archdat.complete(NPARTS)
         maploctab = grafdat.map(archdat)
         assert len(maploctab) == vertlocnbr, "maploctab has wrong length"
-        assert np.all(maploctab >= 0) and np.all(
-            maploctab < NPARTS
-        ), f"invalid mapping values on rank {rank}"
+        assert np.all(maploctab >= 0) and np.all(maploctab < NPARTS), f"invalid mapping values on rank {rank}"
 
         # --- 3-step SCOTCH_dgraphMapInit/MapCompute/MapExit API ---
         maploctab2 = grafdat.map_compute(archdat)
         assert len(maploctab2) == vertlocnbr, "map_compute result has wrong length"
-        assert np.all(maploctab2 >= 0) and np.all(
-            maploctab2 < NPARTS
-        ), f"invalid map_compute values on rank {rank}"
+        assert np.all(maploctab2 >= 0) and np.all(maploctab2 < NPARTS), f"invalid map_compute values on rank {rank}"
 
         # --- SCOTCH_dgraphMapView: mapping statistics written on root ---
         view_file = output_file.with_suffix(".view")
         grafdat.map_view(view_file, archdat)
         if rank == 0:
-            assert (
-                view_file.exists() and view_file.stat().st_size > 0
-            ), "map_view produced no output"
+            assert view_file.exists() and view_file.stat().st_size > 0, "map_view produced no output"
 
         # Aggregate part values through a shared file (barrier-sequenced),
         # then validate globally on rank 0.

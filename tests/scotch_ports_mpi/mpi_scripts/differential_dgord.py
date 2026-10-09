@@ -17,6 +17,7 @@ Usage: mpirun -np N python differential_dgord.py <graph.grf> <out.ord>
 The parallel variant is selected via the environment the launcher sets
 (PYSCOTCH_INT_SIZE, PYSCOTCH_PARALLEL=1, PYSCOTCH_LIB_DIR).
 """
+
 import sys
 from pathlib import Path
 

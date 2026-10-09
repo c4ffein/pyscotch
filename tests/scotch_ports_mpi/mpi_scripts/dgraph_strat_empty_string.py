@@ -18,17 +18,18 @@ collective call.
 Run with: mpirun -np 2 python dgraph_strat_empty_string.py <graph_file> <output_file>
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
+
 import numpy as np
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from pyscotch import libscotch as lib
-from pyscotch.mpi import mpi
 from pyscotch.dgraph import Dgraph
+from pyscotch.mpi import mpi
 from pyscotch.strategy import Strategy
 
 NPARTS = 4
@@ -121,22 +122,15 @@ def main():
         grafdat.order_exit(dorddat)
 
         # Aggregate everything (barrier-sequenced shared files).
-        parts_default = _aggregate(
-            output_file.with_suffix(".dpart"), partloctab_default, rank, size, vertglbnbr
-        )
+        parts_default = _aggregate(output_file.with_suffix(".dpart"), partloctab_default, rank, size, vertglbnbr)
         parts = _aggregate(output_file, partloctab, rank, size, vertglbnbr)
-        perm_default = _aggregate(
-            output_file.with_suffix(".dord"), permloctab0, rank, size, vertglbnbr
-        )
-        perm = _aggregate(
-            output_file.with_suffix(".eord"), permloctab, rank, size, vertglbnbr
-        )
+        perm_default = _aggregate(output_file.with_suffix(".dord"), permloctab0, rank, size, vertglbnbr)
+        perm = _aggregate(output_file.with_suffix(".eord"), permloctab, rank, size, vertglbnbr)
 
         # --- Assertion phase: local checks, then global checks on rank 0 ---
         assert len(partloctab) == vertlocnbr, "partloctab has wrong length"
         assert np.all(partloctab >= 0) and np.all(partloctab < NPARTS), (
-            f"invalid part values on rank {rank}: "
-            f"min={partloctab.min()}, max={partloctab.max()}"
+            f"invalid part values on rank {rank}: min={partloctab.min()}, max={partloctab.max()}"
         )
 
         if rank == 0:
@@ -152,8 +146,7 @@ def main():
             )
 
             assert not np.array_equal(perm_default, np.arange(vertglbnbr)), (
-                "precondition: the default ordering must reorder, "
-                "or this test proves nothing"
+                "precondition: the default ordering must reorder, or this test proves nothing"
             )
             assert np.array_equal(perm, np.arange(vertglbnbr)), (
                 "set_dgraph_ordering('') must return the identity permutation "

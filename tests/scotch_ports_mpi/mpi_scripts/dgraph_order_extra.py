@@ -15,17 +15,18 @@ the dgraph_band.py port structure.
 Run with: mpirun -np 3 python dgraph_order_extra.py <graph_file> <output_file>
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
+
 import numpy as np
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from pyscotch import libscotch as lib
-from pyscotch.mpi import mpi
 from pyscotch.dgraph import Dgraph
+from pyscotch.mpi import mpi
 
 
 def main():

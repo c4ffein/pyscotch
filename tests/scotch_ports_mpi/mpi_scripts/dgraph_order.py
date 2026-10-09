@@ -11,18 +11,19 @@ Run with: mpirun -np 3 python dgraph_order.py <graph_file>
 """
 
 import ctypes
-import sys
 import os
+import sys
 from ctypes import byref, c_int, c_void_p
 from pathlib import Path
+
 import numpy as np
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from pyscotch import libscotch as lib
-from pyscotch.mpi import mpi
 from pyscotch.dgraph import Dgraph
+from pyscotch.mpi import mpi
 from pyscotch.strategy import Strategy
 
 
@@ -212,10 +213,7 @@ def main():
         if perm_gather(grafdat, dorddat, permtab, proclocnum) != 0:
             print("main: error checking ordering (2)")
             os._exit(1)
-        if (
-            proclocnum == 0
-            and perm_check_list(permtab, baseval, listlocnbr, listloctab, listglbnbr) != 0
-        ):
+        if proclocnum == 0 and perm_check_list(permtab, baseval, listlocnbr, listloctab, listglbnbr) != 0:
             print("main: invalid ordering (2)")
             os._exit(1)
 

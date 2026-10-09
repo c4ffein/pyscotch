@@ -3,16 +3,18 @@
 Standalone MPI script to test SCOTCH_dgraphInit.
 Run with: mpirun -np 2 python dgraph_init.py
 """
+
 import sys
 from ctypes import byref
 
 # Add parent directory to path
-sys.path.insert(0, '/home/sharl/personal_gits/pyscotch')
+sys.path.insert(0, "/home/sharl/personal_gits/pyscotch")
 
 from pyscotch import libscotch as lib
+from pyscotch.dgraph import Dgraph
 from pyscotch.libscotch import SCOTCH_Dgraph
 from pyscotch.mpi import mpi
-from pyscotch.dgraph import Dgraph
+
 
 def main():
     """Test dgraph initialization."""
@@ -60,6 +62,7 @@ def main():
         if mpi.is_initialized():
             mpi.finalize()
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -206,11 +206,7 @@ def check_build_owns_its_arrays(rank, size, label, convert):
     pointers = scotch_pointers(dgraph)
     for name in expected:
         arr = retained[name]
-        if (
-            not isinstance(arr, np.ndarray)
-            or arr.dtype != dtype
-            or not arr.flags.c_contiguous
-        ):
+        if not isinstance(arr, np.ndarray) or arr.dtype != dtype or not arr.flags.c_contiguous:
             fail(
                 rank,
                 f"[{label}] retained {name} is not a C-contiguous Scotch-dtype array: {arr!r}",
@@ -275,10 +271,7 @@ def check_edgegsttab_workflow(rank, size):
         as_lists(arrays["edgeloctab"]),
         edgegsttab=edgegsttab,
     )
-    if (
-        address(dgraph.data(want_edgegsttab=True)["edgegsttab"])
-        != edgegsttab.ctypes.data
-    ):
+    if address(dgraph.data(want_edgegsttab=True)["edgegsttab"]) != edgegsttab.ctypes.data:
         fail(
             rank,
             "Scotch does not hold the caller's edgegsttab: ghst() results would go elsewhere",
@@ -353,18 +346,13 @@ def check_grow_work_array(dgraph, rank, size):
     vertgstnbr = dgraph.data(want_vertgstnbr=True)["vertgstnbr"]
 
     for label, seed_dtype in (("Scotch width", dtype), ("wrong width", wrong_dtype())):
-        seedloctab = np.array(
-            [baseval], dtype=seed_dtype
-        )  # ONE entry, vertlocnbr needed by C
+        seedloctab = np.array([baseval], dtype=seed_dtype)  # ONE entry, vertlocnbr needed by C
         seeds_before = seedloctab.copy()
         partgsttab = np.full(vertgstnbr, -1, dtype=dtype)
         partgsttab[0] = rank
         dgraph.grow(1, seedloctab, 3, partgsttab)
 
-        if (
-            not np.array_equal(seedloctab, seeds_before)
-            or seedloctab.dtype != seed_dtype
-        ):
+        if not np.array_equal(seedloctab, seeds_before) or seedloctab.dtype != seed_dtype:
             fail(
                 rank,
                 f"[{label}] grow() clobbered the caller's seed array: {seedloctab}",
@@ -380,8 +368,7 @@ def check_grow_work_array(dgraph, rank, size):
         if not np.array_equal(partgsttab[:vertlocnbr], expected):
             fail(
                 rank,
-                f"[{label}] grow() partition {partgsttab[:vertlocnbr].tolist()} != "
-                f"expected {expected.tolist()}",
+                f"[{label}] grow() partition {partgsttab[:vertlocnbr].tolist()} != expected {expected.tolist()}",
             )
 
         work = dgraph._queue_work
@@ -391,9 +378,7 @@ def check_grow_work_array(dgraph, rank, size):
                 f"[{label}] work array must have vertlocnbr={vertlocnbr} entries, got {work!r}",
             )
         if work[0] != baseval:
-            fail(
-                rank, f"[{label}] work array does not start with the seeds: {work[:4]}"
-            )
+            fail(rank, f"[{label}] work array does not start with the seeds: {work[:4]}")
         if int((work[1:] != 0).sum()) == 0:
             fail(
                 rank,
@@ -511,9 +496,7 @@ def main():
 
         mpi.finalize()
         if rank == 0:
-            print(
-                "PASS: Dgraph owns every array it hands to Scotch, for any width or layout"
-            )
+            print("PASS: Dgraph owns every array it hands to Scotch, for any width or layout")
         os._exit(0)
     except Exception as e:  # noqa: BLE001 -- any failure must reach stdout and exit non-zero
         rank = mpi.comm_rank() if mpi.is_initialized() else "?"

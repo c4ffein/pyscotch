@@ -9,17 +9,19 @@ Reference: external/scotch/src/check/test_scotch_dgraph_band.c
 
 Run with: mpirun -np 3 python dgraph_band.py <graph_file> <mapping_file>
 """
-import sys
+
 import os
+import sys
 from pathlib import Path
+
 import numpy as np
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from pyscotch import libscotch as lib
-from pyscotch.mpi import mpi
 from pyscotch.dgraph import Dgraph
+from pyscotch.mpi import mpi
 
 
 def main():
@@ -62,14 +64,9 @@ def main():
         mpi.barrier()
 
         # Get graph data (need baseval and vertex counts)
-        data = grafdat.data(
-            want_baseval=True,
-            want_vertglbnbr=True,
-            want_vertlocnbr=True
-        )
-        baseval = data['baseval']
-        vertglbnbr = data['vertglbnbr']
-        vertlocnbr = data['vertlocnbr']
+        data = grafdat.data(want_baseval=True, want_vertglbnbr=True, want_vertlocnbr=True)
+        baseval = data["baseval"]
+        vertlocnbr = data["vertlocnbr"]
 
         # Allocate frontier array
         # C code: lines 156-159
@@ -92,7 +89,7 @@ def main():
         #   distmax=4 - maximum distance from frontier (bandwidth)
         #   bandgrafdat - output band graph
         if grafdat.band(fronlocnbr, fronloctab, 4, bandgrafdat) != 0:
-            print(f"ERROR: cannot compute band graph")
+            print("ERROR: cannot compute band graph")
             grafdat.exit()
             mpi.finalize()
             os._exit(1)
@@ -103,12 +100,11 @@ def main():
             want_baseval=True,
             want_vertglbnbr=True,
             want_vertlocnbr=True,
-            want_vlblloctab=True  # Vertex labels!
+            want_vlblloctab=True,  # Vertex labels!
         )
-        band_baseval = band_data['baseval']
-        bandvertglbnbr = band_data['vertglbnbr']
-        bandvertlocnbr = band_data['vertlocnbr']
-        bandvlblloctab = band_data['vlblloctab']
+        bandvertglbnbr = band_data["vertglbnbr"]
+        bandvertlocnbr = band_data["vertlocnbr"]
+        bandvlblloctab = band_data["vlblloctab"]
 
         # Write mapping to file (sequential output with barriers)
         # C code: lines 177-196
@@ -117,7 +113,7 @@ def main():
 
             if procnum == rank:
                 # Open file (first rank writes, others append)
-                mode = 'w' if procnum == 0 else 'a'
+                mode = "w" if procnum == 0 else "a"
 
                 with open(mapping_file, mode) as f:
                     if procnum == 0:
@@ -143,16 +139,17 @@ def main():
         os._exit(0)
 
     except NotImplementedError as e:
-        rank = mpi.comm_rank() if mpi.is_initialized() else '?'
+        rank = mpi.comm_rank() if mpi.is_initialized() else "?"
         print(f"[Rank {rank}] {e}")
         if mpi.is_initialized():
             mpi.finalize()
         os._exit(1)
 
     except Exception as e:
-        rank = mpi.comm_rank() if mpi.is_initialized() else '?'
+        rank = mpi.comm_rank() if mpi.is_initialized() else "?"
         print(f"ERROR on rank {rank}: {e}")
         import traceback
+
         traceback.print_exc()
         if mpi.is_initialized():
             mpi.finalize()
