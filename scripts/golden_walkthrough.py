@@ -39,7 +39,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 GOLDEN = REPO / "tests" / "golden"
 RING = GOLDEN / "ring.grf"
-HELLO = REPO / "examples" / "hello_pyscotch.py"
+HELLO = REPO / "docs" / "site" / "examples" / "hello_pyscotch.py"
 
 # ---------------------------------------------------------------------------
 # Helper scripts the walkthrough drives (written into the workdir verbatim).
