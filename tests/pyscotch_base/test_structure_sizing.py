@@ -15,12 +15,12 @@ Tests run with ONE Scotch variant, configured via environment variables:
 - PYSCOTCH_PARALLEL: 0 or 1 (default: 0)
 """
 
-import pytest
 from ctypes import byref, sizeof
+
 import numpy as np
+import pytest
 
 from pyscotch import libscotch as lib
-
 
 # TODO This file made sense with the multi-variant logic, should be adapted to the new constraints - hardcode more
 
@@ -110,18 +110,13 @@ class TestAllStructureTypesHaveComputedSizes:
             if struct_class is None:
                 continue  # Skip structures not available in current variant
             size = sizeof(struct_class)
-            assert size <= MAX_REASONABLE_SIZE, (
-                f"Structure {struct_name} has suspicious size {size} bytes"
-            )
+            assert size <= MAX_REASONABLE_SIZE, f"Structure {struct_name} has suspicious size {size} bytes"
 
     def test_strat_size_is_small(self):
         """Strategy is tiny - if it's large, dynamic sizing may have failed."""
         # Strategy is typically 8 bytes - if it's 512+, something is wrong
         size = sizeof(lib.SCOTCH_Strat)
-        assert size < 100, (
-            f"Strategy size {size} is suspiciously large - "
-            "dynamic sizing may have failed"
-        )
+        assert size < 100, f"Strategy size {size} is suspiciously large - dynamic sizing may have failed"
 
 
 class TestStructureCreationAndBasicOperations:
@@ -146,6 +141,7 @@ class TestStructureCreationAndBasicOperations:
         edgetab = np.array([1, 2, 0, 2, 0, 1], dtype=dtype)
 
         from ctypes import POINTER
+
         ret = lib.SCOTCH_graphBuild(
             byref(graph),
             lib.SCOTCH_Num(0),  # baseval
@@ -181,6 +177,7 @@ class TestStructureCreationAndBasicOperations:
 
         # Set a mapping strategy
         from ctypes import c_char_p
+
         ret = lib.SCOTCH_stratGraphMap(byref(strat), c_char_p(b""))
         assert ret == 0, "Setting mapping strategy failed"
 
@@ -225,12 +222,15 @@ class TestStructureCreationAndBasicOperations:
         edgetab = np.array([1, 2, 0, 2, 0, 1], dtype=dtype)
 
         from ctypes import POINTER
+
         lib.SCOTCH_graphBuild(
             byref(graph),
             lib.SCOTCH_Num(0),
             lib.SCOTCH_Num(3),
             verttab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
-            None, None, None,
+            None,
+            None,
+            None,
             lib.SCOTCH_Num(6),
             edgetab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
             None,
@@ -307,9 +307,7 @@ class TestDgraphSizing:
         # Dgraph has additional fields for distributed processing
         dgraph_size = sizeof(lib.SCOTCH_Dgraph)
         graph_size = sizeof(lib.SCOTCH_Graph)
-        assert dgraph_size > graph_size, (
-            f"Dgraph ({dgraph_size}) should be larger than Graph ({graph_size})"
-        )
+        assert dgraph_size > graph_size, f"Dgraph ({dgraph_size}) should be larger than Graph ({graph_size})"
 
 
 class TestSizeDocumentation:

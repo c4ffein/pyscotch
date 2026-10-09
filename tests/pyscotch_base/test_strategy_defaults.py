@@ -88,8 +88,7 @@ class TestDefaultOrderingStrategy:
         g, nvert = _ring(64)
         permtab, _ = g.order()
         assert not np.array_equal(permtab, np.arange(nvert)), (
-            "order() returned the identity permutation: the default ordering "
-            "strategy performed no reordering at all"
+            "order() returned the identity permutation: the default ordering strategy performed no reordering at all"
         )
 
     def test_explicit_default_matches_implicit(self):
@@ -185,6 +184,6 @@ def test_every_strategy_produces_a_real_partition(case):
 
 def test_quality_and_fast_are_distinct_strategies():
     """`quality` and `fast` must not secretly be the same thing as `default`."""
-    assert (
-        Strategies.QUALITY_PARTITION is not None and Strategies.FAST_PARTITION is not None
-    ), "quality/fast are unset, so both silently degrade to the default strategy"
+    assert Strategies.QUALITY_PARTITION is not None and Strategies.FAST_PARTITION is not None, (
+        "quality/fast are unset, so both silently degrade to the default strategy"
+    )

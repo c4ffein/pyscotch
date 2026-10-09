@@ -14,8 +14,7 @@ from ctypes import byref, c_double
 
 import pytest
 
-from pyscotch import StrategyFlags
-from pyscotch import libscotch as lib
+from pyscotch import StrategyFlags, libscotch as lib
 from pyscotch.strategy import _ephemeral_strat, _saved_form
 
 

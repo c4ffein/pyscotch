@@ -15,9 +15,7 @@ import numpy as np
 import pytest
 
 import pyscotch
-from pyscotch import Graph, Mesh, StrategyFlags, random_reset
-from pyscotch import libscotch as lib
-from pyscotch import strategy as strategy_module
+from pyscotch import Graph, Mesh, StrategyFlags, libscotch as lib, random_reset, strategy as strategy_module
 from pyscotch.strategy import Strategies, Strategy
 
 
@@ -156,9 +154,7 @@ class TestConstructorString:
         partitioning leaves every vertex unassigned (-1)."""
         g, nvert = _ring(20)
         part = g.partition(2, Strategy(""))
-        assert (part == -1).all(), (
-            f"'' must be passed to Scotch verbatim (do-nothing): {part.tolist()}"
-        )
+        assert (part == -1).all(), f"'' must be passed to Scotch verbatim (do-nothing): {part.tolist()}"
 
 
 class TestNoneIsDefaultEmptyStringIsVerbatim:
@@ -179,9 +175,7 @@ class TestNoneIsDefaultEmptyStringIsVerbatim:
         strat = Strategy()
         strat.set_mapping("")
         part = g.partition(2, strat)
-        assert (part == -1).all(), (
-            f"set_mapping('') must behave as in C Scotch (all -1): {part.tolist()}"
-        )
+        assert (part == -1).all(), f"set_mapping('') must behave as in C Scotch (all -1): {part.tolist()}"
 
     def test_set_ordering_none_is_default(self):
         g, nvert = _ring(64)
@@ -189,9 +183,7 @@ class TestNoneIsDefaultEmptyStringIsVerbatim:
         strat.set_ordering(Strategies.DEFAULT_ORDER)  # None
         perm, _ = g.order(strat)
         assert np.array_equal(np.sort(perm), np.arange(nvert))
-        assert not np.array_equal(perm, np.arange(nvert)), (
-            "set_ordering(None) performed no reordering at all"
-        )
+        assert not np.array_equal(perm, np.arange(nvert)), "set_ordering(None) performed no reordering at all"
 
     def test_set_ordering_empty_is_identity(self):
         g, nvert = _ring(64)
@@ -199,8 +191,7 @@ class TestNoneIsDefaultEmptyStringIsVerbatim:
         strat.set_ordering("")
         perm, _ = g.order(strat)
         assert np.array_equal(perm, np.arange(nvert)), (
-            "set_ordering('') must return the identity permutation, verbatim "
-            "C Scotch behaviour"
+            "set_ordering('') must return the identity permutation, verbatim C Scotch behaviour"
         )
 
 
@@ -210,9 +201,7 @@ class TestUpstreamContractPins:
     build cache. Each of these was once verified by hand; these tests make the
     verification permanent."""
 
-    LIBSCOTCH_SRC = (
-        Path(__file__).resolve().parents[2] / "external" / "scotch" / "src" / "libscotch"
-    )
+    LIBSCOTCH_SRC = Path(__file__).resolve().parents[2] / "external" / "scotch" / "src" / "libscotch"
     LIBRARY_H = LIBSCOTCH_SRC / "library.h"
 
     def test_strategy_flags_match_library_h(self):
@@ -228,10 +217,7 @@ class TestUpstreamContractPins:
                 self.LIBRARY_H.read_text(),
             )
         }
-        py_values = {
-            name.replace("_", ""): member.value
-            for name, member in StrategyFlags.__members__.items()
-        }
+        py_values = {name.replace("_", ""): member.value for name, member in StrategyFlags.__members__.items()}
         assert py_values == c_values
 
     def test_no_code_bypasses_the_strat_guard(self):
@@ -264,9 +250,7 @@ class TestUpstreamContractPins:
             map_c.read_text(),
         )
         assert map_builds, "default mapping build not found in library_graph_map.c"
-        assert {float(b) for b in map_builds} == {
-            strategy_module._DEFAULT_MAPPING_BALANCE
-        }
+        assert {float(b) for b in map_builds} == {strategy_module._DEFAULT_MAPPING_BALANCE}
 
         order_builds = re.findall(
             r"SCOTCH_stratGraphOrderBuild\s*\(straptr,\s*SCOTCH_STRAT(\w+),\s*(\d+),\s*([\d.]+)\)",
@@ -440,13 +424,9 @@ class TestEveryFlagBehaves:
         perm, peri = g.order(strat)
         assert np.array_equal(np.sort(perm), np.arange(nvert))
         assert np.array_equal(peri[perm], np.arange(nvert))
-        assert not np.array_equal(perm, np.arange(nvert)), (
-            f"flags={flags!r} performed no reordering at all"
-        )
+        assert not np.array_equal(perm, np.arange(nvert)), f"flags={flags!r} performed no reordering at all"
 
-    @pytest.mark.parametrize(
-        "flags", [StrategyFlags.LEVEL_MAX, StrategyFlags.LEVEL_MIN], ids=str
-    )
+    @pytest.mark.parametrize("flags", [StrategyFlags.LEVEL_MAX, StrategyFlags.LEVEL_MIN], ids=str)
     def test_ordering_level_flags_with_levels(self, flags):
         """LEVEL_MAX/LEVEL_MIN are only meaningful with a levels bound."""
         g, nvert = _grid(20)
@@ -475,7 +455,7 @@ class TestEveryFlagBehaves:
         assert set(part.tolist()) >= {0, 1, 2, 3}, "not all parts present"
 
     def test_set_overlap_partitioning_empty_assigns_nothing(self):
-        """"" is passed verbatim: the do-nothing strategy assigns no vertex.
+        """ "" is passed verbatim: the do-nothing strategy assigns no vertex.
 
         SCOTCH_graphPartOvl never writes the output buffer when no method
         runs; PyScotch pre-fills it with -1 so the degenerate result is
@@ -485,9 +465,7 @@ class TestEveryFlagBehaves:
         strat.set_overlap_partitioning("")
         part = g.partition_overlap(4, strat)
         assert len(part) == nvert
-        assert (part == -1).all(), (
-            f"'' overlap strategy must assign nothing: {part.tolist()}"
-        )
+        assert (part == -1).all(), f"'' overlap strategy must assign nothing: {part.tolist()}"
 
 
 class TestFailedStringStaysFailed:
@@ -848,7 +826,7 @@ class TestBrokenBareStringsStayExplicit:
         (The r{sep=gf} half must keep passing forever.)"""
         g, nvert = _ring(24)
         strat = Strategy()
-        strat.set_mapping("r{job=t,map=t,poli=S,bal=0.05}")   # complex-looking, no sep=
+        strat.set_mapping("r{job=t,map=t,poli=S,bal=0.05}")  # complex-looking, no sep=
         part = g.partition(4, strat)
         assert len(set(part.tolist())) == 1, (
             "incomplete complex string stopped being degenerate — if Scotch "
@@ -858,7 +836,7 @@ class TestBrokenBareStringsStayExplicit:
 
         g2, _ = _ring(24)
         strat2 = Strategy()
-        strat2.set_mapping("r{sep=gf}")                       # sub-strategy spelled out
+        strat2.set_mapping("r{sep=gf}")  # sub-strategy spelled out
         part2 = g2.partition(4, strat2)
         assert set(part2.tolist()) == {0, 1, 2, 3}, "complete string must do real work"
 
@@ -880,7 +858,7 @@ class TestBrokenBareStringsStayExplicit:
                 strat.set_mapping(string)
                 part = g.partition(4, strat)
             except RuntimeError:
-                return True                    # rejected loudly: acceptable fix
+                return True  # rejected loudly: acceptable fix
             return len(set(part.tolist())) > 1  # or it does real work
 
         def trap_is_gone_ordering(string):

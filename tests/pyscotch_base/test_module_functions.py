@@ -4,7 +4,7 @@ Tests for module-level functions: scotch_version, random_*, mem_*.
 
 import numpy as np
 
-from pyscotch import Graph, random_proc, random_reset, random_seed, mem_cur, mem_max, scotch_version
+from pyscotch import Graph, mem_cur, mem_max, random_proc, random_reset, random_seed, scotch_version
 
 
 class TestScotchVersion:
@@ -83,10 +83,7 @@ class TestMemory:
         from pyscotch import Graph
 
         before = mem_max()
-        graphs = [
-            Graph.from_edges([(i, i + 1) for i in range(99)], num_vertices=100)
-            for _ in range(4)
-        ]
+        graphs = [Graph.from_edges([(i, i + 1) for i in range(99)], num_vertices=100) for _ in range(4)]
         after = mem_max()
         assert len(graphs) == 4
         if before == -1:

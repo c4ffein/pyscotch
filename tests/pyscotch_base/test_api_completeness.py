@@ -10,9 +10,9 @@ This prevents us from accidentally missing Scotch functions during porting.
 """
 
 import pytest
-from pyscotch.api_decorators import get_scotch_bindings
-from pyscotch import libscotch as lib
 
+from pyscotch import libscotch as lib
+from pyscotch.api_decorators import get_scotch_bindings
 
 # Functions that are intentionally not bound, with reasons
 INTENTIONALLY_UNBOUND = {
@@ -20,7 +20,6 @@ INTENTIONALLY_UNBOUND = {
     "SCOTCH_memAlloc": "Internal memory management - Python handles allocation",
     "SCOTCH_memFree": "Internal memory management - Python handles deallocation",
     "SCOTCH_memRealloc": "Internal memory management - Python handles reallocation",
-
     # Error handling - we use Python exceptions
     "SCOTCH_errorProg": "Error handling - we use Python exceptions instead",
     "SCOTCH_errorPrint": "Error handling - we use Python exceptions instead",
@@ -34,8 +33,7 @@ class TestAPICompleteness:
     def test_all_graph_functions_bound(self):
         """Check that all SCOTCH_graph* functions are bound or documented."""
         scotch_graph_funcs = [
-            name for name in dir(lib)
-            if name.startswith("SCOTCH_graph") and callable(getattr(lib, name))
+            name for name in dir(lib) if name.startswith("SCOTCH_graph") and callable(getattr(lib, name))
         ]
 
         bound_funcs = get_scotch_bindings()
@@ -54,8 +52,7 @@ class TestAPICompleteness:
     def test_all_mesh_functions_bound(self):
         """Check that all SCOTCH_mesh* functions are bound or documented."""
         scotch_mesh_funcs = [
-            name for name in dir(lib)
-            if name.startswith("SCOTCH_mesh") and callable(getattr(lib, name))
+            name for name in dir(lib) if name.startswith("SCOTCH_mesh") and callable(getattr(lib, name))
         ]
 
         bound_funcs = get_scotch_bindings()
@@ -74,8 +71,7 @@ class TestAPICompleteness:
     def test_all_arch_functions_bound(self):
         """Check that all SCOTCH_arch* functions are bound or documented."""
         scotch_arch_funcs = [
-            name for name in dir(lib)
-            if name.startswith("SCOTCH_arch") and callable(getattr(lib, name))
+            name for name in dir(lib) if name.startswith("SCOTCH_arch") and callable(getattr(lib, name))
         ]
 
         bound_funcs = get_scotch_bindings()
@@ -94,8 +90,7 @@ class TestAPICompleteness:
     def test_all_strat_functions_bound(self):
         """Check that all SCOTCH_strat* functions are bound or documented."""
         scotch_strat_funcs = [
-            name for name in dir(lib)
-            if name.startswith("SCOTCH_strat") and callable(getattr(lib, name))
+            name for name in dir(lib) if name.startswith("SCOTCH_strat") and callable(getattr(lib, name))
         ]
 
         bound_funcs = get_scotch_bindings()
@@ -114,8 +109,7 @@ class TestAPICompleteness:
     def test_all_geom_functions_bound(self):
         """Check that all SCOTCH_geom* functions are bound or documented."""
         scotch_geom_funcs = [
-            name for name in dir(lib)
-            if name.startswith("SCOTCH_geom") and callable(getattr(lib, name))
+            name for name in dir(lib) if name.startswith("SCOTCH_geom") and callable(getattr(lib, name))
         ]
 
         bound_funcs = get_scotch_bindings()

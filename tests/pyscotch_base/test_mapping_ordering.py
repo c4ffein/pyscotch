@@ -2,11 +2,11 @@
 Unit tests for Mapping and Ordering classes (no Scotch library required).
 """
 
-import pytest
-import numpy as np
-from pathlib import Path
-import tempfile
 import os
+import tempfile
+
+import numpy as np
+import pytest
 
 from pyscotch.mapping import Mapping
 from pyscotch.ordering import Ordering
@@ -84,7 +84,7 @@ class TestMapping:
         mapping = Mapping(partitions)
 
         # Save to temporary file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.map') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".map") as f:
             temp_path = f.name
 
         try:
@@ -188,7 +188,7 @@ class TestOrdering:
         ordering = Ordering(perm)
 
         # Save to temporary file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.ord') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".ord") as f:
             temp_path = f.name
 
         try:

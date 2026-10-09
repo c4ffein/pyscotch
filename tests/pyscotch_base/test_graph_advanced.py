@@ -3,12 +3,12 @@ Tests for advanced Graph methods: partition_fixed, partition_overlap, repart,
 stat, base, ordering I/O, mapping I/O, tab I/O.
 """
 
-import numpy as np
-import tempfile
 import os
+import tempfile
 
-from pyscotch import Graph, Architecture
-from pyscotch import libscotch as lib
+import numpy as np
+
+from pyscotch import Architecture, Graph, libscotch as lib
 
 
 class TestPartitionFixed:
@@ -45,30 +45,30 @@ class TestRepart:
 class TestGraphStat:
     def test_degree_hexagon(self, hexagon_graph):
         s = hexagon_graph.stat()
-        assert s['degrmin'] == 2
-        assert s['degrmax'] == 2
+        assert s["degrmin"] == 2
+        assert s["degrmax"] == 2
 
     def test_full_stats_hexagon(self, hexagon_graph):
         # Unweighted hexagon: unit vertex/edge loads, 6 vertices, 6 edges
         s = hexagon_graph.stat()
-        assert s['velomin'] == 1
-        assert s['velomax'] == 1
-        assert s['velosum'] == 6
-        assert s['edlomin'] == 1
-        assert s['edlomax'] == 1
-        assert s['edlosum'] == 6
+        assert s["velomin"] == 1
+        assert s["velomax"] == 1
+        assert s["velosum"] == 6
+        assert s["edlomin"] == 1
+        assert s["edlomax"] == 1
+        assert s["edlosum"] == 6
 
     def test_degree_star(self):
         g = Graph.from_edges([(0, 1), (0, 2), (0, 3), (0, 4)], num_vertices=5)
         s = g.stat()
-        assert s['degrmin'] == 1
-        assert s['degrmax'] == 4
+        assert s["degrmin"] == 1
+        assert s["degrmax"] == 4
 
     def test_full_stats_star(self):
         g = Graph.from_edges([(0, 1), (0, 2), (0, 3), (0, 4)], num_vertices=5)
         s = g.stat()
-        assert s['velosum'] == 5
-        assert s['edlosum'] == 4
+        assert s["velosum"] == 5
+        assert s["edlosum"] == 4
 
 
 class TestGraphBase:
@@ -87,7 +87,7 @@ class TestOrderingIO:
     def test_order_save(self, hexagon_graph):
         perm, inv = hexagon_graph.order()
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.ord') as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".ord") as f:
             path = f.name
         try:
             hexagon_graph.order_save(path, perm, inv)
@@ -108,7 +108,7 @@ class TestTabIO:
     def test_tab_save_load_roundtrip(self, hexagon_graph):
         parttab = hexagon_graph.partition(2)
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.tab') as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".tab") as f:
             path = f.name
         try:
             hexagon_graph.tab_save(path, parttab)
@@ -123,7 +123,7 @@ class TestMappingIO:
         parttab = hexagon_graph.partition(2)
         arch = Architecture.complete_graph(2)
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.map') as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".map") as f:
             path = f.name
         try:
             hexagon_graph.map_save(path, parttab, arch)
@@ -143,7 +143,7 @@ class TestMappingIO:
         parttab = hexagon_graph.partition(2)
         arch = Architecture.complete_graph(2)
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.view') as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".view") as f:
             path = f.name
         try:
             hexagon_graph.map_view(path, parttab, arch)

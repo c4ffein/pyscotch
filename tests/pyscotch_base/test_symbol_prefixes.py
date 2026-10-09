@@ -14,9 +14,9 @@ This test is independent of the active variant and directly loads the C librarie
 
 import ctypes
 import ctypes.util
-import pytest
 from pathlib import Path
 
+import pytest
 
 # TODO We should make this adaptive to scotch to never forget a new function
 
@@ -25,7 +25,7 @@ def _preload_dependencies():
     """Preload shared dependencies (zlib, mpi, scotcherr) globally."""
     # Preload zlib
     try:
-        zlib_path = ctypes.util.find_library('z')
+        zlib_path = ctypes.util.find_library("z")
         if zlib_path:
             ctypes.CDLL(zlib_path, mode=ctypes.RTLD_GLOBAL)
     except (OSError, AttributeError, TypeError):
@@ -33,7 +33,7 @@ def _preload_dependencies():
 
     # Preload MPI if available
     try:
-        mpi_path = ctypes.util.find_library('mpi')
+        mpi_path = ctypes.util.find_library("mpi")
         if mpi_path:
             ctypes.CDLL(mpi_path, mode=ctypes.RTLD_GLOBAL)
     except (OSError, AttributeError, TypeError):
@@ -251,8 +251,9 @@ class TestSymbolPrefixes:
 
         assert graph_size_32 > 0, "32-bit graph size should be positive"
         assert graph_size_64 > 0, "64-bit graph size should be positive"
-        assert graph_size_64 > graph_size_32, \
+        assert graph_size_64 > graph_size_32, (
             f"64-bit graph ({graph_size_64}) should be larger than 32-bit ({graph_size_32})"
+        )
 
     def test_num_sizeof_returns_correct_values(self):
         """Verify SCOTCH_numSizeof returns 4 for 32-bit and 8 for 64-bit."""

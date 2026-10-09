@@ -2,13 +2,13 @@
 Tests for Architecture class: topologies, save/load, sub-architecture.
 """
 
+import os
+import tempfile
+
 import numpy as np
 import pytest
-import tempfile
-import os
 
-from pyscotch import Architecture
-from pyscotch import libscotch as lib
+from pyscotch import Architecture, libscotch as lib
 
 
 def _scotch_array(values):
@@ -89,7 +89,7 @@ class TestArchitectureSubAndIO:
         arch = Architecture()
         arch.hypercube(3)
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.arch') as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".arch") as f:
             path = f.name
         try:
             arch.save(path)
@@ -100,18 +100,21 @@ class TestArchitectureSubAndIO:
         finally:
             os.unlink(path)
 
-    @pytest.mark.parametrize("setup,name,size", [
-        (lambda a: a.complete(5), "cmplt", 5),
-        (lambda a: a.complete_weighted(4, _scotch_array([1, 2, 3, 4])), "cmpltw", 4),
-        (lambda a: a.hypercube(3), "hcub", 8),
-        (lambda a: a.mesh2d(4, 3), "mesh2D", 12),
-        (lambda a: a.mesh3d(2, 3, 4), "mesh3D", 24),
-        (lambda a: a.torus2d(3, 4), "torus2D", 12),
-        (lambda a: a.torus3d(2, 3, 2), "torus3D", 12),
-        (lambda a: a.tree_leaf(2, _scotch_array([2, 3]), _scotch_array([10, 1])), "tleaf", 6),
-        (lambda a: a.variable_complete(), "varcmplt", None),
-        (lambda a: a.variable_hypercube(), "varhcub", None),
-    ])
+    @pytest.mark.parametrize(
+        "setup,name,size",
+        [
+            (lambda a: a.complete(5), "cmplt", 5),
+            (lambda a: a.complete_weighted(4, _scotch_array([1, 2, 3, 4])), "cmpltw", 4),
+            (lambda a: a.hypercube(3), "hcub", 8),
+            (lambda a: a.mesh2d(4, 3), "mesh2D", 12),
+            (lambda a: a.mesh3d(2, 3, 4), "mesh3D", 24),
+            (lambda a: a.torus2d(3, 4), "torus2D", 12),
+            (lambda a: a.torus3d(2, 3, 2), "torus3D", 12),
+            (lambda a: a.tree_leaf(2, _scotch_array([2, 3]), _scotch_array([10, 1])), "tleaf", 6),
+            (lambda a: a.variable_complete(), "varcmplt", None),
+            (lambda a: a.variable_hypercube(), "varhcub", None),
+        ],
+    )
     def test_save_load_roundtrip_all_topologies(self, setup, name, size):
         arch = Architecture()
         setup(arch)
@@ -119,7 +122,7 @@ class TestArchitectureSubAndIO:
         if size is not None:
             assert arch.size() == size
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.arch') as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".arch") as f:
             path = f.name
         try:
             arch.save(path)

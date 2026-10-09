@@ -13,8 +13,7 @@ Three jobs:
 
 import numpy as np
 import pytest
-from hypothesis import HealthCheck, given, settings
-from hypothesis import strategies as st
+from hypothesis import HealthCheck, given, settings, strategies as st
 
 from pyscotch import Graph
 from pyscotch.strategy import Strategy
@@ -74,9 +73,9 @@ class TestDriftGuard:
             asc=Mapping.Fm(move=120),
         )
         first = tree.validate()
-        again = Raw(first)
+        Raw(first)
         # Re-parse the canonical form as a mapping tree and re-save it.
-        wrapped = Strategy(first)  # constructor probe validates it too
+        Strategy(first)  # constructor probe validates it too
         from pyscotch.strategy import _probe_graph_string
 
         assert _probe_graph_string(first)["mapping"] == "ok"
@@ -96,9 +95,7 @@ class TestTypeGuarantees:
         with pytest.raises(TypeError, match="takes a bipart strategy"):
             Mapping.Recursive(sep=Ordering.Si())
         with pytest.raises(TypeError, match="takes a separation strategy"):
-            Ordering.NestedDissection(
-                sep=Bipart.Fm(), ole=Ordering.Si(), ose=Ordering.Si()
-            )
+            Ordering.NestedDissection(sep=Bipart.Fm(), ole=Ordering.Si(), ose=Ordering.Si())
 
     def test_mixed_family_composition_is_a_typeerror(self):
         with pytest.raises(TypeError, match="different grammar families"):
@@ -160,9 +157,7 @@ class TestEndToEnd:
 
     def test_builder_tree_orders_for_real(self):
         tree = Ordering.NestedDissection(
-            sep=Separation.Multilevel(
-                low=Separation.Gg(), asc=Separation.Fm()
-            ),
+            sep=Separation.Multilevel(low=Separation.Gg(), asc=Separation.Fm()),
             ole=Ordering.Si(),
             ose=Ordering.Si(),
         )

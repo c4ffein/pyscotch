@@ -9,8 +9,9 @@ Or test both:
     pytest tests/test_int_sizes.py && PYSCOTCH_INT_SIZE=64 pytest tests/test_int_sizes.py
 """
 
-import pytest
 import numpy as np
+import pytest
+
 import pyscotch
 
 
@@ -74,10 +75,7 @@ class TestGraphOperations:
         # Create a ring graph with 12 vertices
         n = 12
         verttab = np.arange(0, 2 * n + 1, 2, dtype=dtype)
-        edgetab = np.array([
-            [(i - 1) % n, (i + 1) % n]
-            for i in range(n)
-        ], dtype=dtype).flatten()
+        edgetab = np.array([[(i - 1) % n, (i + 1) % n] for i in range(n)], dtype=dtype).flatten()
 
         graph = pyscotch.Graph()
         graph.build(verttab, edgetab, baseval=0)
@@ -97,10 +95,7 @@ class TestGraphOperations:
         # Create a simple graph
         n = 8
         verttab = np.arange(0, 2 * n + 1, 2, dtype=dtype)
-        edgetab = np.array([
-            [(i - 1) % n, (i + 1) % n]
-            for i in range(n)
-        ], dtype=dtype).flatten()
+        edgetab = np.array([[(i - 1) % n, (i + 1) % n] for i in range(n)], dtype=dtype).flatten()
 
         graph = pyscotch.Graph()
         graph.build(verttab, edgetab, baseval=0)

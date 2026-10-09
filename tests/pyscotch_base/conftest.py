@@ -1,14 +1,14 @@
 """Shared test fixtures for pyscotch_base tests."""
 
 import pytest
+
 from pyscotch import Graph
 
 
 @pytest.fixture
 def hexagon_graph():
     """A hexagon graph (6 vertices, degree 2 everywhere)."""
-    return Graph.from_edges(
-        [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0)], num_vertices=6)
+    return Graph.from_edges([(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0)], num_vertices=6)
 
 
 @pytest.fixture

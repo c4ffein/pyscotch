@@ -2,10 +2,10 @@
 Unit tests for Graph class.
 """
 
-import pytest
 import numpy as np
-from pathlib import Path
-from pyscotch import Graph, Strategy, Mapping
+import pytest
+
+from pyscotch import Graph, Mapping, Strategy
 
 
 class TestGraph:
@@ -147,11 +147,14 @@ class TestFromEdgesInputs:
         for u in range(3):
             for k in range(int(indptr[u]), int(indptr[u + 1])):
                 load[(u, int(indices[k]))] = int(edlotab[k])
+        # Arc and its mirror on one line: the symmetry IS the assertion.
+        # fmt: off
         assert load == {
             (0, 1): 1, (1, 0): 1,
             (1, 2): 2, (2, 1): 2,
             (2, 0): 3, (0, 2): 3,
         }
+        # fmt: on
 
     def test_edge_weights_length_must_match_edges(self):
         with pytest.raises(ValueError, match="edge_weights length"):

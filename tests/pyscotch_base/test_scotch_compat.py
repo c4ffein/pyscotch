@@ -12,13 +12,13 @@ Tests run with ONE Scotch variant, configured via environment variables:
 To test all variants, run the test suite multiple times with different configurations.
 """
 
-import pytest
-import numpy as np
-from pathlib import Path
-import tempfile
 import os
-from pyscotch import Graph, Strategy, Architecture, Mapping, Ordering
-from pyscotch import libscotch as lib
+import tempfile
+
+import numpy as np
+import pytest
+
+from pyscotch import Architecture, Graph, Strategy, libscotch as lib
 
 
 class TestArchitecture:
@@ -121,7 +121,6 @@ class TestGraphBasic:
         vertnbr, edgenbr = graph.size()
         assert vertnbr == 5
         assert edgenbr == 8
-
 
     def test_simple_grid_2x2_csr(self):
         """Test building a 2x2 grid graph using CSR format.
@@ -365,8 +364,7 @@ class TestCompatLibrary:
         lib_size = "lib64" if int_size == 64 else "lib32"
         compat_path = os.path.join("scotch-builds", lib_size, "libpyscotch_compat.so")
         assert os.path.exists(compat_path), (
-            f"Compatibility library not found: {compat_path}\n"
-            "Please rebuild with 'make build-all'"
+            f"Compatibility library not found: {compat_path}\nPlease rebuild with 'make build-all'"
         )
 
     def test_compat_library_loads(self, int_size):
@@ -374,12 +372,12 @@ class TestCompatLibrary:
         from pyscotch.graph import c_fopen
 
         # Create a test file and try to open it with c_fopen
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-            f.write('test')
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
+            f.write("test")
             test_file = f.name
 
         try:
-            with c_fopen(test_file, 'r') as fp:
+            with c_fopen(test_file, "r") as fp:
                 assert fp is not None, "c_fopen returned NULL"
                 # FILE* pointer should be a valid memory address
                 assert isinstance(fp, int) and fp > 0, f"Invalid FILE* pointer: {fp}"

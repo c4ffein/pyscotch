@@ -80,8 +80,7 @@ def assert_real_partition(mapping, nparts, nvert):
     assert len(mapping) == nvert
     unassigned = sorted(v for v, p in mapping.items() if p < 0)
     assert not unassigned, (
-        f"{len(unassigned)}/{nvert} vertices left unassigned (-1) — "
-        f"the partitioner produced nothing: {unassigned[:10]}"
+        f"{len(unassigned)}/{nvert} vertices left unassigned (-1) — the partitioner produced nothing: {unassigned[:10]}"
     )
     assert max(mapping.values()) < nparts, "part index >= nparts"
     used = set(mapping.values())

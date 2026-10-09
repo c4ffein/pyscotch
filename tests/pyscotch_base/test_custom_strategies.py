@@ -7,8 +7,8 @@ Scotch's own source code (library_graph_map.c).
 """
 
 import pytest
-import numpy as np
-from pyscotch import Graph, Strategy, Strategies
+
+from pyscotch import Graph, Strategies, Strategy
 
 
 class TestCustomStrategies:

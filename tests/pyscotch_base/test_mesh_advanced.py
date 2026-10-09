@@ -2,12 +2,12 @@
 Tests for Mesh advanced methods: to_dual_graph, order.
 """
 
-import numpy as np
-import pytest
 from pathlib import Path
 
-from pyscotch import Mesh
-from pyscotch import libscotch as lib
+import numpy as np
+import pytest
+
+from pyscotch import Mesh, libscotch as lib
 
 
 def _load_test_mesh():

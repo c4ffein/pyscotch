@@ -7,7 +7,7 @@ import os
 import numpy as np
 import pytest
 
-from pyscotch import Context, random_seed, random_reset
+from pyscotch import Context, random_reset, random_seed
 
 # Context option indices, from SCOTCH_OPTIONNUM* in Scotch's library.h
 OPTION_DETERMINISTIC = 0

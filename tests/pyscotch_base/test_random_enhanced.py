@@ -11,6 +11,7 @@ Tests run with ONE Scotch variant, configured via environment variables:
 """
 
 import pytest
+
 from pyscotch import libscotch as lib
 
 
@@ -59,8 +60,7 @@ class TestRandomEnhanced:
         for upper_bound in [1, 10, 100, 1000, 10000]:
             for _ in range(50):
                 val = lib.SCOTCH_randomVal(upper_bound)
-                assert 0 <= val < upper_bound, \
-                    f"randomVal({upper_bound}) returned {val}, expected [0, {upper_bound})"
+                assert 0 <= val < upper_bound, f"randomVal({upper_bound}) returned {val}, expected [0, {upper_bound})"
 
     def test_random_val_zero_bound(self):
         """Test SCOTCH_randomVal(0) raises ValueError instead of crashing.
@@ -100,10 +100,8 @@ class TestRandomEnhanced:
 
         # Allow 30% deviation from expected (simple uniformity check)
         for i, count in enumerate(buckets):
-            assert count > expected * 0.7, \
-                f"Bucket {i} has too few values: {count} (expected ~{expected})"
-            assert count < expected * 1.3, \
-                f"Bucket {i} has too many values: {count} (expected ~{expected})"
+            assert count > expected * 0.7, f"Bucket {i} has too few values: {count} (expected ~{expected})"
+            assert count < expected * 1.3, f"Bucket {i} has too many values: {count} (expected ~{expected})"
 
     def test_random_large_bounds(self):
         """Test random generation with large upper bounds."""
@@ -116,10 +114,8 @@ class TestRandomEnhanced:
             values = [lib.SCOTCH_randomVal(bound) for _ in range(100)]
 
             # All values should be in range
-            assert all(0 <= v < bound for v in values), \
-                f"Some values out of range [0, {bound})"
+            assert all(0 <= v < bound for v in values), f"Some values out of range [0, {bound})"
 
             # Should have good diversity
             unique = len(set(values))
-            assert unique > 80, \
-                f"Too few unique values ({unique}/100) for bound {bound}"
+            assert unique > 80, f"Too few unique values ({unique}/100) for bound {bound}"

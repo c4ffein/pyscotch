@@ -12,8 +12,7 @@ whose data pointer points into interleaved memory.
 import numpy as np
 import pytest
 
-from pyscotch import Graph
-from pyscotch import libscotch as lib
+from pyscotch import Graph, libscotch as lib
 
 
 def wrong_dtype():
@@ -103,12 +102,7 @@ class TestStridedViewsOnPublicPaths:
         perm_view = np.repeat(permtab.astype(dtype), 2)[::2]
         peri_view = np.repeat(peritab.astype(dtype), 2)[::2]
         assert hexagon_graph.order_check(perm_view, peri_view) is True
-        assert (
-            hexagon_graph.order_check(
-                permtab.astype(wrong_dtype()), peritab.astype(wrong_dtype())
-            )
-            is True
-        )
+        assert hexagon_graph.order_check(permtab.astype(wrong_dtype()), peritab.astype(wrong_dtype())) is True
 
         # A strided view that is NOT a permutation (duplicate index) must be
         # rejected: proves the compacted copy carries the view's values, not

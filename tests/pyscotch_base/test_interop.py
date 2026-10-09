@@ -4,6 +4,7 @@ Unit tests for scipy.sparse and networkx interoperability on Graph.
 
 import numpy as np
 import pytest
+
 from pyscotch import Graph
 
 
