@@ -1,0 +1,100 @@
+--- a/src/libscotch/bgraph_bipart_gg.h
++++ b/src/libscotch/bgraph_bipart_gg.h
+@@ -97,6 +97,7 @@
+   Gnum                      cmloval;              /*+ Communication load value +*/
+   Gnum                      cpl0dlt;              /*+ Computation imbalance    +*/
+   GraphPart *               parttab;              /*+ Local part array         +*/
++  IntRandContext            randdat;              /*+ Private random generator, seeded before launch +*/
+ } BgraphBipartGgThread;
+ 
+ /*+ The loop routine parameter
+--- a/src/libscotch/bgraph_bipart_gg.c
++++ b/src/libscotch/bgraph_bipart_gg.c
+@@ -72,6 +72,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "gain.h"
+ #include "fibo.h"
+ #include "graph.h"
+@@ -124,7 +125,6 @@
+ {
+   Context                 contdat;                /* Local context, only used for its random section */
+   Context *               contptr;                /* Pointer to active local context                 */
+-  IntRandContext          randdat;                /* Local random context                            */
+   BgraphBipartGgTabl      tabldat;                /* Gain table                                      */
+   BgraphBipartGgVertex *  vexxtax;                /* Extended vertex array [norestrict]              */
+   BgraphBipartGgVertex *  vexxptr;                /* Pointer to current vertex to swap [norestrict]  */
+@@ -135,7 +135,7 @@
+   INT                     passnum;
+   
+ #ifndef BGRAPHBIPARTGGNOTHREAD
+-  const int                     thrdnum = threadNum (descptr);
++  const int                     thrdnum = (descptr != NULL) ? threadNum (descptr) : 0; /* NULL descriptor: single-threaded call */
+ #else /* BGRAPHBIPARTGGNOTHREAD */
+   const int                     thrdnum = 0;
+ #endif /* BGRAPHBIPARTGGNOTHREAD */
+@@ -173,9 +173,8 @@
+     contptr = grafptr->contptr;                   /* Use provided context */
+   }
+   else {
+-    parttax = thrdptr->parttab - grafptr->s.baseval; /* Use local array                       */
+-    intRandSpawn (grafptr->contptr->randptr, thrdnum, &randdat); /* Create fake local context */
+-    contdat.randptr = &randdat;
++    parttax = thrdptr->parttab - grafptr->s.baseval; /* Use local array                                  */
++    contdat.randptr = &thrdptr->randdat;          /* Use private generator, seeded by the caller before launch */
+     contptr = &contdat;
+   }
+ 
+@@ -266,10 +265,10 @@
+       }
+     } while (vexxptr != NULL);
+ 
+-    if ((passnum == 0) ||                         /* If first try                  */
+-        ( (grafptr->commload >  cmloval) ||       /* Or if better solution reached */
+-         ((grafptr->commload == cmloval) &&
+-          (abs (grafptr->compload0dlt) > abs (cpl0dlt))))) {
++    if ((passnum == 0) ||                         /* If first try                                            */
++        ( (thrdptr->cmloval >  cmloval) ||        /* Or if better than the best pass recorded by this thread */
++         ((thrdptr->cmloval == cmloval) &&        /* (grafptr->commload is the INPUT partition's load and is  */
++          (abs (thrdptr->cpl0dlt) > abs (cpl0dlt))))) { /* only updated after the reduction)                  */
+       Gnum                vertnum;
+ 
+       thrdptr->cmloval = cmloval;                 /* Record current solution */
+@@ -305,7 +304,8 @@
+   int                   o;
+ 
+ #ifndef BGRAPHBIPARTGGNOTHREAD
+-  const int                   thrdnbr = contextThreadNbr (grafptr->contptr);
++  INT                         deteval;            /* Flag set if deterministic behavior wanted */
++  int                         thrdnbr;
+ #else /* BGRAPHBIPARTGGNOTHREAD */
+   const int                   thrdnbr = 1;
+ #endif /* BGRAPHBIPARTGGNOTHREAD */
+@@ -317,6 +317,11 @@
+   const Gnum * restrict const veextax = grafptr->veextax;
+   const Gnum                  dodival = grafptr->domndist;
+ 
++#ifndef BGRAPHBIPARTGGNOTHREAD
++  contextValuesGetInt (grafptr->contptr, CONTEXTOPTIONNUMDETERMINISTIC, &deteval);
++  thrdnbr = (deteval != 0) ? 1 : contextThreadNbr (grafptr->contptr); /* Deterministic behavior wanted: run on one thread, like graphMatchInit() */
++#endif /* BGRAPHBIPARTGGNOTHREAD */
++
+   if (memAllocGroup ((void **) (void *)           /* Allocate shared data */
+                      &passdat.thrdtab, (size_t) (thrdnbr            * sizeof (BgraphBipartGgThread)),
+                      &passdat.cmg0tax, (size_t) (grafptr->s.vertnbr * sizeof (Gnum)), NULL) == NULL) {
+@@ -356,7 +361,12 @@
+   }
+ 
+ #ifndef BGRAPHBIPARTGGNOTHREAD
+-  contextThreadLaunch (grafptr->contptr, (ThreadFunc) bgraphBipartGg2, (void *) &passdat);
++  for (thrdnum = 1; thrdnum < thrdnbr; thrdnum ++) /* Seed worker generators from the shared one BEFORE any thread draws from it */
++    intRandSpawn (grafptr->contptr->randptr, thrdnum, &passdat.thrdtab[thrdnum].randdat);
++  if (thrdnbr > 1)
++    contextThreadLaunch (grafptr->contptr, (ThreadFunc) bgraphBipartGg2, (void *) &passdat);
++  else
++    bgraphBipartGg2 (NULL, &passdat);
+ #else /* BGRAPHBIPARTGGNOTHREAD */
+   bgraphBipartGg2 (NULL, &passdat);
+ #endif /* BGRAPHBIPARTGGNOTHREAD */
