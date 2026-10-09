@@ -5,10 +5,8 @@ Tests the conversion of Scotch mesh structures to graph structures.
 Corresponds to test_scotch_mesh_graph.c from the Scotch test suite.
 """
 
-import pytest
 from pathlib import Path
 
-from pyscotch import libscotch as lib
 from pyscotch import Graph, Mesh
 
 

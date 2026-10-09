@@ -4,12 +4,9 @@ Ported from: external/scotch/src/check/test_scotch_graph_induce.c
 Graph induction/subgraphs
 """
 
-import pytest
 import numpy as np
-from pathlib import Path
 
 from pyscotch import Graph
-from pyscotch import libscotch as lib
 
 
 class TestScotchGraphInduce:

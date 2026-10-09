@@ -5,14 +5,13 @@ Tests architecture decomposition functionality including building, saving, and s
 Corresponds to test_scotch_arch_deco.c from the Scotch test suite.
 """
 
-import pytest
-from pathlib import Path
 import tempfile
-import numpy as np
-from ctypes import byref, POINTER, c_void_p
+from ctypes import POINTER, byref
+from pathlib import Path
 
-from pyscotch import Graph, Architecture, Strategy
-from pyscotch import libscotch as lib
+import numpy as np
+
+from pyscotch import Architecture, Graph, Strategy, libscotch as lib
 from pyscotch.graph import c_fopen
 
 
@@ -45,12 +44,12 @@ class TestScotchArchDeco:
             byref(graph._graph),
             lib.SCOTCH_Num(vertnbr),  # Use all vertices
             None,  # NULL listtab = use all vertices
-            byref(strat._strat)
+            byref(strat._strat),
         )
         assert ret == 0, "SCOTCH_archBuild0 failed"
 
         # Save architecture to a file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.arch') as tmpfile:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".arch") as tmpfile:
             tmpfile_path = tmpfile.name
 
         try:
@@ -86,7 +85,7 @@ class TestScotchArchDeco:
             byref(arch._arch),
             byref(graph._graph),
             lib.SCOTCH_Num(vertnbr),
-            None  # NULL listtab = use all vertices
+            None,  # NULL listtab = use all vertices
         )
         assert ret == 0, "SCOTCH_archBuild2 failed"
 
@@ -105,12 +104,7 @@ class TestScotchArchDeco:
         vertnbr, _ = graph.size()
 
         arch = Architecture()
-        ret = lib.SCOTCH_archBuild2(
-            byref(arch._arch),
-            byref(graph._graph),
-            lib.SCOTCH_Num(vertnbr),
-            None
-        )
+        ret = lib.SCOTCH_archBuild2(byref(arch._arch), byref(graph._graph), lib.SCOTCH_Num(vertnbr), None)
         assert ret == 0, "archBuild2 failed"
 
         # Create a list of domains to extract
@@ -123,7 +117,7 @@ class TestScotchArchDeco:
             byref(sub_arch._arch),
             byref(arch._arch),
             lib.SCOTCH_Num(listnbr),
-            listtab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            listtab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
         )
         assert ret == 0, "SCOTCH_archSub failed"
 
@@ -142,16 +136,11 @@ class TestScotchArchDeco:
         vertnbr, _ = graph.size()
 
         arch1 = Architecture()
-        ret = lib.SCOTCH_archBuild2(
-            byref(arch1._arch),
-            byref(graph._graph),
-            lib.SCOTCH_Num(vertnbr),
-            None
-        )
+        ret = lib.SCOTCH_archBuild2(byref(arch1._arch), byref(graph._graph), lib.SCOTCH_Num(vertnbr), None)
         assert ret == 0, "archBuild2 failed"
 
         # Save to file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.arch') as tmpfile:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".arch") as tmpfile:
             tmpfile_path = tmpfile.name
 
         try:
@@ -172,5 +161,5 @@ class TestScotchArchDeco:
     def test_basic_architecture_creation(self):
         """Test basic architecture creation (complete graph architecture)."""
         # Set variant for this test
-        arch = Architecture.complete_graph(5)
+        Architecture.complete_graph(5)
         # Architecture created successfully

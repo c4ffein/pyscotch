@@ -5,13 +5,12 @@ Tests graph mapping computation and remapping operations.
 Corresponds to test_scotch_graph_map_copy.c from the Scotch test suite.
 """
 
-import pytest
+from ctypes import POINTER, byref
 from pathlib import Path
-import numpy as np
-from ctypes import byref, POINTER
 
-from pyscotch import Graph, Architecture, Strategy
-from pyscotch import libscotch as lib
+import numpy as np
+
+from pyscotch import Architecture, Graph, Strategy, libscotch as lib
 
 
 class TestScotchGraphMapCopy:
@@ -45,10 +44,7 @@ class TestScotchGraphMapCopy:
 
         # Initialize mapping
         ret = lib.SCOTCH_graphMapInit(
-            byref(graph._graph),
-            byref(mapping),
-            byref(arch._arch),
-            parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            byref(graph._graph), byref(mapping), byref(arch._arch), parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
         )
         assert ret == 0, "graphMapInit failed"
 
@@ -56,11 +52,7 @@ class TestScotchGraphMapCopy:
         strat = Strategy()
 
         # Compute mapping
-        ret = lib.SCOTCH_graphMapCompute(
-            byref(graph._graph),
-            byref(mapping),
-            byref(strat._strat)
-        )
+        ret = lib.SCOTCH_graphMapCompute(byref(graph._graph), byref(mapping), byref(strat._strat))
         assert ret == 0, "graphMapCompute failed"
 
         # Verify partition values are valid
@@ -100,16 +92,12 @@ class TestScotchGraphMapCopy:
             byref(graph._graph),
             byref(mapping_new),
             byref(arch._arch),
-            parttab_new.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            parttab_new.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
         )
         assert ret == 0, "graphMapInit (new) failed"
 
         strat = Strategy()
-        ret = lib.SCOTCH_graphMapCompute(
-            byref(graph._graph),
-            byref(mapping_new),
-            byref(strat._strat)
-        )
+        ret = lib.SCOTCH_graphMapCompute(byref(graph._graph), byref(mapping_new), byref(strat._strat))
         assert ret == 0, "graphMapCompute failed"
 
         # Copy new mapping to old mapping for remapping test
@@ -124,7 +112,7 @@ class TestScotchGraphMapCopy:
             byref(graph._graph),
             byref(mapping_new),
             byref(arch._arch),
-            parttab_new.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            parttab_new.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
         )
         assert ret == 0, "graphMapInit (remap) failed"
 
@@ -133,7 +121,7 @@ class TestScotchGraphMapCopy:
             byref(graph._graph),
             byref(mapping_old),
             byref(arch._arch),
-            parttab_old.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            parttab_old.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
         )
         assert ret == 0, "graphMapInit (old) failed"
 
@@ -144,7 +132,7 @@ class TestScotchGraphMapCopy:
             byref(mapping_old),
             0.0,  # remapping cost parameter
             None,  # No vertex permutation
-            byref(strat._strat)
+            byref(strat._strat),
         )
         assert ret == 0, "graphRemapCompute failed"
 
@@ -175,20 +163,13 @@ class TestScotchGraphMapCopy:
         # Create and initialize mapping
         mapping = lib.SCOTCH_Mapping()
         ret = lib.SCOTCH_graphMapInit(
-            byref(graph._graph),
-            byref(mapping),
-            byref(arch._arch),
-            parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            byref(graph._graph), byref(mapping), byref(arch._arch), parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
         )
         assert ret == 0, "graphMapInit failed"
 
         # Compute mapping
         strat = Strategy()
-        ret = lib.SCOTCH_graphMapCompute(
-            byref(graph._graph),
-            byref(mapping),
-            byref(strat._strat)
-        )
+        ret = lib.SCOTCH_graphMapCompute(byref(graph._graph), byref(mapping), byref(strat._strat))
         assert ret == 0, "graphMapCompute failed"
 
         # Verify

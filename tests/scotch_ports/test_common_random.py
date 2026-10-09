@@ -22,9 +22,7 @@ Additional tests using the public API are in:
 - tests/pyscotch_base/test_random_enhanced.py (comprehensive public API tests)
 """
 
-import pytest
 from pyscotch import libscotch as lib
-
 
 
 class TestCommonRandom:
@@ -58,8 +56,7 @@ class TestCommonRandom:
         # Generate second sequence and verify it matches (lines 111-115)
         for randnum in range(RANDNBR):
             val = lib.SCOTCH_randomVal(INTVALMAX)
-            assert randtab[randnum] == val, \
-                f"After reset, value {randnum} differs: {randtab[randnum]} != {val}"
+            assert randtab[randnum] == val, f"After reset, value {randnum} differs: {randtab[randnum]} != {val}"
 
     # Note: The C test's "two consecutive runs yield different values" test
     # (lines 155-170) checks time-based seeding across separate process runs.
@@ -71,6 +68,7 @@ class TestCommonRandom:
         # Set variant for this test
         import tempfile
         from pathlib import Path
+
         from pyscotch.graph import c_fopen
 
         RANDNBR = 100
@@ -80,7 +78,7 @@ class TestCommonRandom:
         lib.SCOTCH_randomReset()
 
         # Save RNG state BEFORE generating values
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.rng') as tmpfile:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".rng") as tmpfile:
             tmpfile_path = tmpfile.name
 
         try:

@@ -11,12 +11,11 @@ The C test loads a graph from file and performs 3 coarsening passes:
 Since we can't load from files (FILE* issues), we create test graphs directly.
 """
 
-import pytest
-import numpy as np
-from ctypes import byref, POINTER
+from ctypes import POINTER, byref
 
-from pyscotch import Graph, SCOTCH_COARSENNONE, SCOTCH_COARSENNOMERGE
-from pyscotch import libscotch as lib
+import numpy as np
+
+from pyscotch import SCOTCH_COARSENNOMERGE, SCOTCH_COARSENNONE, Graph, libscotch as lib
 
 
 class TestScotchGraphCoarsen:
@@ -47,7 +46,7 @@ class TestScotchGraphCoarsen:
             byref(coar_vertnbr),
             1.0,  # ratio
             SCOTCH_COARSENNOMERGE,
-            mate_array_c
+            mate_array_c,
         )
         assert ret == 0, "SCOTCH_graphCoarsenMatch failed"
 
@@ -67,11 +66,7 @@ class TestScotchGraphCoarsen:
         # Build coarse graph (C test line 290)
         coarse_graph = Graph()
         ret = lib.SCOTCH_graphCoarsenBuild(
-            byref(fine_graph._graph),
-            coar_vertnbr,
-            mate_array_c,
-            byref(coarse_graph._graph),
-            multinode_array_c
+            byref(fine_graph._graph), coar_vertnbr, mate_array_c, byref(coarse_graph._graph), multinode_array_c
         )
         assert ret == 0, "SCOTCH_graphCoarsenBuild failed"
 
@@ -108,7 +103,7 @@ class TestScotchGraphCoarsen:
             1.0,  # ratio
             SCOTCH_COARSENNONE,
             byref(coarse_graph._graph),
-            multinode_array_c
+            multinode_array_c,
         )
         assert ret == 0, "SCOTCH_graphCoarsen failed"
 
@@ -148,7 +143,7 @@ class TestScotchGraphCoarsen:
                 1.0,
                 SCOTCH_COARSENNONE,
                 byref(coarse_graph._graph),
-                multinode_array_c
+                multinode_array_c,
             )
 
             assert ret == 0, f"SCOTCH_graphCoarsen failed for {name}"

@@ -5,13 +5,12 @@ Tests overlapping graph partitioning functionality.
 Corresponds to test_scotch_graph_part_ovl.c from the Scotch test suite.
 """
 
-import pytest
+from ctypes import POINTER, byref
 from pathlib import Path
-import numpy as np
-from ctypes import byref, POINTER
 
-from pyscotch import Graph, Strategy
-from pyscotch import libscotch as lib
+import numpy as np
+
+from pyscotch import Graph, Strategy, libscotch as lib
 
 
 class TestScotchGraphPartOvl:
@@ -47,7 +46,7 @@ class TestScotchGraphPartOvl:
             byref(graph._graph),
             lib.SCOTCH_Num(partnbr),
             byref(strat._strat),
-            parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
         )
 
         assert ret == 0, "Overlapping partitioning failed"
@@ -87,7 +86,7 @@ class TestScotchGraphPartOvl:
             byref(graph._graph),
             lib.SCOTCH_Num(partnbr),
             byref(strat._strat),
-            parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num))
+            parttab.ctypes.data_as(POINTER(lib.SCOTCH_Num)),
         )
 
         assert ret == 0, "Overlapping partitioning failed"
@@ -95,4 +94,4 @@ class TestScotchGraphPartOvl:
         # -1 values indicate separator vertices (overlap boundaries)
         non_separator = parttab[parttab >= 0]
         assert len(non_separator) > 0, "All vertices are separators"
-        assert np.all(non_separator < partnbr), f"Invalid partition values"
+        assert np.all(non_separator < partnbr), "Invalid partition values"

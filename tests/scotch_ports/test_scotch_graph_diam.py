@@ -8,11 +8,9 @@ SCOTCH_graphDiamPV(). Since we can't load from files (FILE* issues), we
 create test graphs directly with known diameters.
 """
 
-import pytest
 from ctypes import byref
 
-from pyscotch import Graph
-from pyscotch import libscotch as lib
+from pyscotch import Graph, libscotch as lib
 
 
 class TestScotchGraphDiam:
@@ -87,6 +85,7 @@ class TestScotchGraphDiam:
         """
         # Single vertex with no edges - use build directly
         import numpy as np
+
         scotch_dtype = lib.get_scotch_dtype()
 
         graph = Graph()
