@@ -53,17 +53,54 @@ def _version_key(version: str):
     return tuple(int(part) for part in version.split("."))
 
 
+# Catalogued releases we deliberately neither ship nor recommend: upstream
+# releases known to be defective for PyScotch's contract (reason + pointer).
+# They stay buildable EXPLICITLY (`pyscotch scotch build 7.0.16`, with their
+# behavioral patches offered), but latest_version() skips them, the shipped
+# build stays on the newest non-skipped release, and the release-watch CI job
+# stays green while a skipped release is upstream's newest tag. Retire an
+# entry when the next upstream release passes `make test-reproducibility`.
+_SKIPPED_VERSIONS = {
+    "7.0.16": (
+        "multi-threaded bgraphBipartGg() is nondeterministic even under "
+        "SCOTCH_DETERMINISTIC=1 (upstream commit 7a934a8; fails `make "
+        "test-reproducibility`; QUESTIONS_FOR_SCOTCH_TEAM.md 2026-10-08)"
+    ),
+}
+
+# The release this repo builds and ships: git submodule, wheels, docs API
+# data. Test-guarded to equal the submodule's version and to be the newest
+# non-skipped catalogued release (the reproducibility harness is the gate a
+# release must pass before this moves).
+_SHIPPED_VERSION = "7.0.15"
+
+
 def latest_version() -> str:
-    """The newest version in the curated catalog (sha-pinned, validated;
-    quickfix patches applied automatically where needed). Single source of
-    truth for every 'which version should I build?' default and hint."""
-    return max(_KNOWN_VERSIONS, key=_version_key)
+    """The newest NON-SKIPPED version in the curated catalog (sha-pinned,
+    validated; quickfix patches applied automatically where needed). Single
+    source of truth for every 'which version should I build?' default and
+    hint."""
+    return max((v for v in _KNOWN_VERSIONS if v not in _SKIPPED_VERSIONS), key=_version_key)
 
 
 def latest_pristine_version() -> str:
-    """The newest catalog version that builds without any quickfix patch —
-    what to suggest as a fallback when a patched build went wrong."""
-    return max((v for v in _KNOWN_VERSIONS if not _PATCHES.get(v)), key=_version_key)
+    """The newest non-skipped catalog version that builds without any
+    quickfix patch — what to suggest as a fallback when a patched build went
+    wrong."""
+    return max(
+        (v for v in _KNOWN_VERSIONS if not _PATCHES.get(v) and v not in _SKIPPED_VERSIONS),
+        key=_version_key,
+    )
+
+
+def shipped_version() -> str:
+    """The release the repo's own builds and wheels ship (see _SHIPPED_VERSION)."""
+    return _SHIPPED_VERSION
+
+
+def skipped_versions() -> dict:
+    """{version: reason} for catalogued releases deliberately not shipped."""
+    return dict(_SKIPPED_VERSIONS)
 
 
 # Bundled "quickfix" patches, applied live to the extracted source before
@@ -89,6 +126,68 @@ def _patches_dir():
 def patches_for(version):
     """[(filename, reason)] bundled for a version (empty if none)."""
     return _PATCHES.get(version, [])
+
+
+# Bundled BEHAVIORAL patches: unlike quickfixes they change the library's
+# RESULTS, not just whether it compiles — so they are never applied silently.
+# Each entry is (patch filename in pyscotch/_patches/, description shown to
+# the user, needs_confirmation). At build time a confirming prompt is shown
+# (TTY), or the patch is skipped with a note (non-interactive) unless
+# --auto-allow-behavioral-patches is passed. Policy: a behavioral patch is
+# temporary — it must have a QUESTIONS_FOR_SCOTCH_TEAM.md entry and is
+# retired the day upstream ships the fix. Wheels and the repo's own default
+# builds stay pristine upstream behavior.
+_BEHAVIORAL_PATCHES = {
+    "7.0.16": [
+        (
+            "scotch-7.0.16-bgraph-bipart-gg-determinism.patch",
+            "restore reproducibility and best-pass selection in the "
+            "multi-threaded bgraphBipartGg() (7.0.16 regression, upstream "
+            "commit 7a934a8: worker PRNGs seeded from the shared generator "
+            "mid-draw; SCOTCH_DETERMINISTIC ignored; last improving pass "
+            "kept instead of the best). See QUESTIONS_FOR_SCOTCH_TEAM.md "
+            "2026-10-08.",
+            True,
+        ),
+    ],
+}
+
+
+def behavioral_patches_for(version):
+    """[(filename, description, needs_confirmation)] for a version."""
+    return _BEHAVIORAL_PATCHES.get(version, [])
+
+
+def _approved_behavioral(version, pristine=False, auto_allow=False, _input=input, _isatty=None):
+    """Which behavioral patches the user approves for this build.
+
+    Resolution per patch: --pristine skips everything; --auto-allow (or a
+    catalog entry with needs_confirmation=False) approves without asking; a
+    TTY gets a [Y/n] prompt; a non-interactive build skips with a note naming
+    the flag. Kept pure (injectable input/isatty) so tests can drive it.
+    """
+    if pristine:
+        return []
+    isatty = sys.stdin.isatty() if _isatty is None else _isatty
+    approved = []
+    for fname, description, confirm in behavioral_patches_for(version):
+        if auto_allow or not confirm:
+            approved.append(fname)
+            continue
+        if not isatty:
+            print(
+                f"  ! Skipping recommended behavioral patch (not a TTY): {fname}\n"
+                "    Pass --auto-allow-behavioral-patches to apply it in "
+                "non-interactive builds."
+            )
+            continue
+        print(f"We strongly recommend this patch: {description}")
+        ans = _input(f"Apply {fname}? [Y/n] ").strip().lower()
+        if ans in ("", "y", "yes"):
+            approved.append(fname)
+        else:
+            print(f"  Not applying {fname} (your call — stock upstream behavior kept).")
+    return approved
 
 
 # Base CFLAGS mirror patches/Makefile.inc.default (the flags PyScotch's own
@@ -425,31 +524,54 @@ def apply_patches(srcroot, version=None):
         version = detect_source_version(srcroot)
     applied = []
     for fname, reason in patches_for(version):
-        pf = _patches_dir() / fname
-        if not pf.exists():
-            raise BuildError(f"Bundled patch not found in the package: {fname}")
-        probe = subprocess.run(
-            ["patch", "-R", "-p1", "--dry-run", "-f", "-i", str(pf)],
-            cwd=srcroot,
-            capture_output=True,
+        _apply_one_patch(srcroot, version, fname, reason, label="quickfix")
+        applied.append(fname)
+    return applied
+
+
+def _apply_one_patch(srcroot, version, fname, reason, label):
+    """Apply one bundled patch (idempotent: reverse dry-run detects applied)."""
+    pf = _patches_dir() / fname
+    if not pf.exists():
+        raise BuildError(f"Bundled patch not found in the package: {fname}")
+    probe = subprocess.run(
+        ["patch", "-R", "-p1", "--dry-run", "-f", "-i", str(pf)],
+        cwd=srcroot,
+        capture_output=True,
+    )
+    if probe.returncode == 0:
+        print(f"  {label.capitalize()} already applied: {fname}")
+        return
+    proc = subprocess.run(
+        ["patch", "-p1", "-N", "-i", str(pf)],
+        cwd=srcroot,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        raise BuildError(
+            f"Failed to apply bundled patch {fname} (does it match Scotch "
+            f"{version}?):\n{proc.stdout}{proc.stderr}\n"
+            "Build with --pristine to skip patches."
         )
-        if probe.returncode == 0:
-            print(f"  Quickfix already applied: {fname}")
-            applied.append(fname)
-            continue
-        proc = subprocess.run(
-            ["patch", "-p1", "-N", "-i", str(pf)],
-            cwd=srcroot,
-            capture_output=True,
-            text=True,
-        )
-        if proc.returncode != 0:
-            raise BuildError(
-                f"Failed to apply bundled patch {fname} (does it match Scotch "
-                f"{version}?):\n{proc.stdout}{proc.stderr}\n"
-                "Build with --pristine to skip patches."
-            )
-        print(f"  Applied quickfix: {fname}\n      ({reason})")
+    print(f"  Applied {label}: {fname}\n      ({reason})")
+
+
+def apply_behavioral_patches(srcroot, names, version=None):
+    """Apply the APPROVED behavioral patches (by filename) to a source tree.
+
+    Approval happens elsewhere (_approved_behavioral / the build prompt);
+    this only applies what it is handed, idempotently, and returns the names.
+    """
+    srcroot = Path(srcroot)
+    if version is None:
+        version = detect_source_version(srcroot)
+    catalog = {fname: desc for fname, desc, _confirm in behavioral_patches_for(version)}
+    applied = []
+    for fname in names:
+        if fname not in catalog:
+            raise BuildError(f"Unknown behavioral patch for Scotch {version}: {fname}")
+        _apply_one_patch(srcroot, version, fname, catalog[fname], label="behavioral fix")
         applied.append(fname)
     return applied
 
@@ -560,8 +682,12 @@ def _compile_compat(dest_lib: Path, cc: str):
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
-def build(version, bits, parallel, url=None, sha256=None, force=False, pristine=False):
-    """Full build pipeline. Returns the build key on success."""
+def build(version, bits, parallel, url=None, sha256=None, force=False, pristine=False, behavioral=()):
+    """Full build pipeline. Returns the build key on success.
+
+    behavioral: APPROVED behavioral patch filenames (see _approved_behavioral)
+    — never resolved here, so library callers can't trigger a prompt mid-build.
+    """
     if platform.system() != "Linux":
         raise BuildError(
             f"scotch build currently supports Linux only (this is {platform.system()}). "
@@ -577,10 +703,11 @@ def build(version, bits, parallel, url=None, sha256=None, force=False, pristine=
         shutil.rmtree(dest)  # incomplete leftover
 
     quickfixes = [] if pristine else patches_for(version)
+    behavioral = [] if pristine else list(behavioral)
 
     # 1. Preflight — hard stop before any network/compile.
     print(f"Preflight for {key}:")
-    checks = preflight(parallel, need_patch=bool(quickfixes))
+    checks = preflight(parallel, need_patch=bool(quickfixes or behavioral))
     _print_checks(checks)
     failed = [c for c in checks if not c.ok]
     if failed:
@@ -605,6 +732,7 @@ def build(version, bits, parallel, url=None, sha256=None, force=False, pristine=
         _download(url, sha256, tarball)
         srcroot = _extract(tarball, work)
         applied = [] if pristine else _apply_patches(srcroot, version)
+        fixes = apply_behavioral_patches(srcroot, behavioral, version) if behavioral else []
         print(f"Building Scotch {version} ({bits}-bit, {'parallel' if parallel else 'sequential'})")
         libout = _build_libs(srcroot, bits, parallel, cc, mpicc)
 
@@ -616,9 +744,13 @@ def build(version, bits, parallel, url=None, sha256=None, force=False, pristine=
         for so in libout.glob("lib*scotch*.so"):
             shutil.copy2(so, libdir / so.name)
         _compile_compat(libdir, cc)
-        _store.write_patches(key, applied)
+        # Behavioral records carry a prefix so `scotch list` can tell the
+        # classes apart when reading the store back.
+        _store.write_patches(key, applied + [f"behavioral:{n}" for n in fixes])
 
     tag = f"  [quickfix: {', '.join(applied)}]" if applied else ""
+    if fixes:
+        tag += f"  [behavioral fix: {', '.join(fixes)}]"
     print(f"\n✓ Built {key}  ->  {libdir}{tag}")
     return key
 
@@ -636,7 +768,20 @@ def cmd_build(args):
     parallel = _resolve_parallel(args)
     version = args.version or latest_version()
     if args.version is None:
-        print(f"No version given — using the latest known release: {version}")
+        print(f"No version given — using the latest recommended release: {version}")
+        for skipped, why in sorted(_SKIPPED_VERSIONS.items(), key=lambda kv: _version_key(kv[0])):
+            if _version_key(skipped) > _version_key(version):
+                print(
+                    f"  (Scotch {skipped} exists but is skipped: {why}.\n"
+                    f"   Build it explicitly with `pyscotch scotch build {skipped}` if you want it.)"
+                )
+    # Behavioral patches are resolved HERE, before any download/compile, so
+    # the confirmation prompt comes first and build() itself never prompts.
+    behavioral = _approved_behavioral(
+        version,
+        pristine=args.pristine,
+        auto_allow=getattr(args, "auto_allow_behavioral", False),
+    )
     try:
         key = build(
             version,
@@ -646,6 +791,7 @@ def cmd_build(args):
             sha256=args.sha256,
             force=args.force,
             pristine=args.pristine,
+            behavioral=behavioral,
         )
     except BuildError as e:
         print(f"\nError: {e}", file=sys.stderr)
@@ -683,7 +829,10 @@ def cmd_list(args):
         info = _store.parse_key(k)
         mark = "*" if k == default else " "
         variant = "parallel" if info["parallel"] else "sequential"
-        fix = "  [quickfix]" if _store.read_patches(k) else ""
+        recs = _store.read_patches(k)
+        fix = "  [quickfix]" if any(not r.startswith("behavioral:") for r in recs) else ""
+        if any(r.startswith("behavioral:") for r in recs):
+            fix += "  [behavioral fix]"
         print(f" {mark} {k:<20} {info['bits']}-bit {variant:<10} {_store.build_lib_dir(k)}{fix}")
     if default:
         print("\n* = default (loaded when its width/variant matches the run).")
@@ -693,17 +842,31 @@ def cmd_list(args):
 
 
 def cmd_patches(args):
-    """List the bundled quickfix patches and which versions they target."""
-    if not _PATCHES:
-        print("No bundled quickfix patches.")
+    """List the bundled patches (quickfix and behavioral) per version."""
+    if not _PATCHES and not _BEHAVIORAL_PATCHES:
+        print("No bundled patches.")
         return 0
-    print("Bundled Scotch quickfix patches (applied automatically on build):")
-    for version, patches in sorted(_PATCHES.items()):
-        for fname, reason in patches:
-            present = (_patches_dir() / fname).exists()
-            mark = " " if present else "!"
-            print(f" {mark} {version}: {fname}")
-            print(f"       {reason}")
+    if _PATCHES:
+        print("Bundled Scotch quickfix patches (applied automatically on build):")
+        for version, patches in sorted(_PATCHES.items()):
+            for fname, reason in patches:
+                present = (_patches_dir() / fname).exists()
+                mark = " " if present else "!"
+                print(f" {mark} {version}: {fname}")
+                print(f"       {reason}")
+    if _BEHAVIORAL_PATCHES:
+        print(
+            "\nBundled BEHAVIORAL patches (change results, never applied "
+            "silently:\nconfirmed at build time, or pre-approved with "
+            "--auto-allow-behavioral-patches):"
+        )
+        for version, patches in sorted(_BEHAVIORAL_PATCHES.items()):
+            for fname, description, confirm in patches:
+                present = (_patches_dir() / fname).exists()
+                mark = " " if present else "!"
+                ask = "" if confirm else " (pre-approved: no confirmation needed)"
+                print(f" {mark} {version}: {fname}{ask}")
+                print(f"       {description}")
     print("\nBuild with --pristine to skip them (upstream may then fail to compile).")
     return 0
 

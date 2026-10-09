@@ -107,19 +107,86 @@ class TestDiagnosis:
 
 
 class TestLatestVersion:
-    def test_latest_is_numerically_greatest(self):
-        assert sb.latest_version() == max(sb._KNOWN_VERSIONS, key=lambda v: tuple(map(int, v.split("."))))
+    def test_latest_is_numerically_greatest_non_skipped(self):
+        candidates = [v for v in sb._KNOWN_VERSIONS if v not in sb._SKIPPED_VERSIONS]
+        assert sb.latest_version() == max(candidates, key=lambda v: tuple(map(int, v.split("."))))
 
     def test_sorting_is_numeric_not_lexicographic(self, monkeypatch):
         # "7.0.9" > "7.0.10" as strings — the classic trap.
         monkeypatch.setattr(sb, "_KNOWN_VERSIONS", {"7.0.9": "x", "7.0.10": "y"})
+        monkeypatch.setattr(sb, "_SKIPPED_VERSIONS", {})
         assert sb.latest_version() == "7.0.10"
 
     def test_latest_pristine_skips_patched_versions(self, monkeypatch):
         monkeypatch.setattr(sb, "_KNOWN_VERSIONS", {"7.0.10": "x", "7.0.11": "y", "7.0.12": "z"})
         monkeypatch.setattr(sb, "_PATCHES", {"7.0.12": [("f.patch", "why")]})
+        monkeypatch.setattr(sb, "_SKIPPED_VERSIONS", {})
         assert sb.latest_version() == "7.0.12"
         assert sb.latest_pristine_version() == "7.0.11"
+
+
+class TestSkippedVersions:
+    """A skipped release is catalogued (buildable explicitly) but never the
+    default, never the hint, and never what the repo ships."""
+
+    def test_skipped_are_catalogued_with_reasons(self):
+        for version, why in sb._SKIPPED_VERSIONS.items():
+            assert version in sb._KNOWN_VERSIONS, f"skipped {version} is not even in the catalog"
+            assert why.strip(), f"skipped {version} has no reason"
+
+    def test_latest_skips_skipped(self, monkeypatch):
+        monkeypatch.setattr(sb, "_KNOWN_VERSIONS", {"7.0.15": "x", "7.0.16": "y"})
+        monkeypatch.setattr(sb, "_PATCHES", {})
+        monkeypatch.setattr(sb, "_SKIPPED_VERSIONS", {"7.0.16": "broken"})
+        assert sb.latest_version() == "7.0.15"
+        assert sb.latest_pristine_version() == "7.0.15"
+
+    def test_7016_is_skipped_until_upstream_fixes_7a934a8(self):
+        """Retire this (and the catalog entry) when a later release passes
+        `make test-reproducibility` and the pin moves."""
+        assert "7.0.16" in sb._SKIPPED_VERSIONS
+        assert sb.latest_version() == "7.0.15"
+
+    def test_shipped_is_newest_non_skipped(self):
+        """The shipped pin must be exactly what latest_version() recommends —
+        the repo ships what it tells users to build."""
+        assert sb.shipped_version() in sb._KNOWN_VERSIONS
+        assert sb.shipped_version() not in sb._SKIPPED_VERSIONS
+        assert sb.shipped_version() == sb.latest_version()
+
+    def test_submodule_matches_shipped_pin(self):
+        """EQUIVALENCE GUARD: the submodule IS the shipped build. A submodule
+        bump without moving _SHIPPED_VERSION (or vice versa) fails here."""
+        sub = TestSourceTreeManagement.SUBMODULE
+        if not (sub / "src" / "Makefile").is_file():
+            pytest.skip("scotch submodule not initialized")
+        assert sb.detect_source_version(sub) == sb.shipped_version()
+
+    def test_build_default_explains_the_skip(self, capsys, monkeypatch):
+        """`pyscotch scotch build` with no version names the newer skipped
+        release and why, so the skip is never silent."""
+        monkeypatch.setattr(sb, "build", lambda *a, **k: "7.0.15-64-seq")
+        monkeypatch.setattr(sb._store, "set_default_key", lambda k: None)
+        args = type(
+            "A",
+            (),
+            dict(
+                version=None,
+                int_size="64",
+                parallel=False,
+                sequential=True,
+                url=None,
+                sha256=None,
+                force=False,
+                pristine=False,
+                use=False,
+                auto_allow_behavioral=False,
+            ),
+        )()
+        assert sb.cmd_build(args) == 0
+        out = capsys.readouterr().out
+        assert "latest recommended release: 7.0.15" in out
+        assert "7.0.16 exists but is skipped" in out
 
     def test_hints_derive_from_the_catalog(self):
         """No hint may hardcode a version: doctor and the loader error must
@@ -226,6 +293,78 @@ class TestQuickfixPatches:
         out = capsys.readouterr().out
         assert rc == 0
         assert "7.0.12" in out and "--pristine" in out
+
+
+class TestBehavioralPatches:
+    """Behavioral patches change results, so they are NEVER applied silently:
+    a TTY build confirms each one, a non-interactive build skips with a note,
+    and --auto-allow-behavioral-patches (or needs_confirmation=False in the
+    catalog) pre-approves."""
+
+    def test_bundled_behavioral_files_exist(self):
+        for version, patches in sb._BEHAVIORAL_PATCHES.items():
+            for fname, _description, _confirm in patches:
+                assert (sb._patches_dir() / fname).is_file(), f"{version}: {fname} missing"
+
+    def test_7016_determinism_fix_is_cataloged(self):
+        names = [f for f, _d, _c in sb.behavioral_patches_for("7.0.16")]
+        assert "scotch-7.0.16-bgraph-bipart-gg-determinism.patch" in names
+
+    def test_pristine_approves_nothing(self):
+        assert sb._approved_behavioral("7.0.16", pristine=True, auto_allow=True) == []
+
+    def test_auto_allow_approves_all(self):
+        approved = sb._approved_behavioral("7.0.16", auto_allow=True, _isatty=False)
+        assert approved == [f for f, _d, _c in sb.behavioral_patches_for("7.0.16")]
+
+    def test_non_tty_skips_with_note(self, capsys):
+        approved = sb._approved_behavioral("7.0.16", _isatty=False)
+        out = capsys.readouterr().out
+        assert approved == []
+        assert "Skipping recommended behavioral patch" in out
+        assert "--auto-allow-behavioral-patches" in out
+
+    def test_tty_prompt_defaults_to_yes(self, capsys):
+        approved = sb._approved_behavioral("7.0.16", _isatty=True, _input=lambda _prompt: "")
+        assert len(approved) == 1
+        assert "We strongly recommend this patch:" in capsys.readouterr().out
+
+    def test_tty_prompt_accepts_no(self, capsys):
+        approved = sb._approved_behavioral("7.0.16", _isatty=True, _input=lambda _prompt: "n")
+        out = capsys.readouterr().out
+        assert approved == []
+        assert "stock upstream behavior kept" in out
+
+    def test_no_confirmation_boolean_skips_the_prompt(self, monkeypatch):
+        monkeypatch.setattr(sb, "_BEHAVIORAL_PATCHES", {"9.9.9": [("x.patch", "desc", False)]})
+
+        def _explode(_prompt):
+            raise AssertionError("prompt must not be shown for confirm=False")
+
+        assert sb._approved_behavioral("9.9.9", _isatty=True, _input=_explode) == ["x.patch"]
+
+    def test_versions_without_behavioral_patches_stay_silent(self, capsys):
+        """The golden walkthrough builds 7.0.11: its output must not change."""
+        assert sb._approved_behavioral("7.0.11", _isatty=False) == []
+        assert capsys.readouterr().out == ""
+
+    def test_apply_rejects_unknown_name(self, tmp_path):
+        with pytest.raises(sb.BuildError, match="Unknown behavioral patch"):
+            sb.apply_behavioral_patches(tmp_path, ["nope.patch"], version="7.0.16")
+
+    def test_cmd_patches_lists_behavioral_section(self, capsys):
+        sb.cmd_patches(object())
+        out = capsys.readouterr().out
+        assert "BEHAVIORAL" in out
+        assert "bgraph-bipart-gg-determinism" in out
+
+    def test_list_marks_behavioral_builds(self, tmp_home, capsys):
+        _make_build(tmp_home, "7.0.16-64-seq")
+        store.write_patches("7.0.16-64-seq", ["behavioral:x.patch"])
+        sb.cmd_list(object())
+        out = capsys.readouterr().out
+        assert "[behavioral fix]" in out
+        assert "[quickfix]" not in out
 
 
 class TestStrictBuildFlags:
