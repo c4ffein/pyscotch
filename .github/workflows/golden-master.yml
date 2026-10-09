@@ -18,7 +18,7 @@ on:
       - "setup.py"
       - "scripts/golden_walkthrough.py"
       - "tests/golden/**"
-      - "examples/hello_pyscotch.py"
+      - "docs/site/examples/hello_pyscotch.py"
       - ".github/workflows/golden-master.yml"
   pull_request:
     paths:
@@ -26,7 +26,7 @@ on:
       - "setup.py"
       - "scripts/golden_walkthrough.py"
       - "tests/golden/**"
-      - "examples/hello_pyscotch.py"
+      - "docs/site/examples/hello_pyscotch.py"
   workflow_dispatch:
 
 permissions:
