@@ -16,8 +16,8 @@ from pathlib import Path
 import markdown
 from jinja2 import Environment, FileSystemLoader
 from pygments import highlight
-from pygments.lexers import PythonLexer
 from pygments.formatters import HtmlFormatter
+from pygments.lexers import PythonLexer
 
 # GitHub Primer (light) token colors for Pygments classes — the palette
 # GitHub itself renders Python with, on white code surfaces.
@@ -48,14 +48,34 @@ STATIC_DIR = SITE_DIR / "static"
 OUT_DIR = SITE_DIR.parent / "out"
 
 
-def read_example(filename):
-    """Read a .py example file and return syntax-highlighted HTML."""
+def read_example(filename, collapsed=False):
+    """Read a .py example file and return syntax-highlighted HTML.
+
+    Every block's header carries a download link to the raw file (published
+    under out/examples/). With collapsed=True the block renders as a closed
+    <details> — for long, run-it-yourself scripts (e.g. the mpirun demo) that
+    would otherwise dominate the page.
+    """
     path = EXAMPLES_DIR / filename
     if not path.exists():
         return f'<div class="example error">Example not found: {filename}</div>'
     code = path.read_text()
+
+    # Publish the raw file so the download link resolves (same-origin).
+    raw_out = OUT_DIR / "examples"
+    raw_out.mkdir(parents=True, exist_ok=True)
+    (raw_out / filename).write_text(code)
+
     html = highlight(code, PythonLexer(), HtmlFormatter(nowrap=True))
-    return f'<div class="example"><div class="example-header">{filename}</div><pre><code>{html}</code></pre></div>'
+    # stopPropagation: clicking the link must not also toggle a <details>.
+    dl = f'<a class="example-dl" href="examples/{filename}" download onclick="event.stopPropagation()">download</a>'
+    body = f"<pre><code>{html}</code></pre>"
+    if collapsed:
+        return (
+            f'<details class="example"><summary class="example-header">{filename}'
+            f'<span class="example-expand">click to expand</span>{dl}</summary>{body}</details>'
+        )
+    return f'<div class="example"><div class="example-header">{filename}{dl}</div>{body}</div>'
 
 
 def parse_page(path):
@@ -72,12 +92,13 @@ def parse_page(path):
 def render_markdown_with_examples(text):
     """First pass: resolve {% example %} tags. Second pass: render markdown."""
 
-    # Replace {% example "filename.py" %} with highlighted code
+    # Replace {% example "filename.py" %} with highlighted code;
+    # {% example "filename.py" collapsed %} renders it folded by default.
     def replace_example(match):
-        filename = match.group(1)
-        return read_example(filename)
+        filename, option = match.group(1), match.group(2)
+        return read_example(filename, collapsed=(option == "collapsed"))
 
-    text = re.sub(r'\{%\s*example\s+"([^"]+)"\s*%\}', replace_example, text)
+    text = re.sub(r'\{%\s*example\s+"([^"]+)"\s*(collapsed)?\s*%\}', replace_example, text)
 
     # Render markdown (the example blocks are already HTML, markdown will pass them through)
     md = markdown.Markdown(extensions=["fenced_code", "codehilite", "toc", "tables"])
@@ -195,7 +216,9 @@ def build():
 
     # Generate index redirect
     if nav:
-        index_html = f'<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url={nav[0]["url"]}"></head></html>'
+        index_html = (
+            f'<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url={nav[0]["url"]}"></head></html>'
+        )
         (OUT_DIR / "index.html").write_text(index_html)
 
     print(f"\nBuilt {len(nav)} pages to {OUT_DIR}/")
