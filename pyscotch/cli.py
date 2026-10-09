@@ -286,6 +286,14 @@ def main():
         action="store_true",
         help="Do NOT apply bundled quickfix patches (upstream may fail to build)",
     )
+    sb.add_argument(
+        "--auto-allow-behavioral-patches",
+        action="store_true",
+        dest="auto_allow_behavioral",
+        help="Apply recommended behavior-changing patches without the "
+        "confirmation prompt (for non-interactive builds; see `pyscotch "
+        "scotch patches`)",
+    )
     sb.add_argument("--url", help="Override the source tarball URL")
     sb.add_argument("--sha256", help="Override/skip the pinned checksum")
 
