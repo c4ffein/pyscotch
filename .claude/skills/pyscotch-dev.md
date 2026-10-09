@@ -51,6 +51,7 @@ Do NOT call `SCOTCH_dgraphExit` on it. Mark `_exit_called = True` to prevent cle
 Use the `c_fopen()` context manager from `pyscotch.graph` for all Scotch file operations:
 ```python
 from pyscotch.graph import c_fopen
+
 with c_fopen("graph.grf", "r") as fp:
     lib.SCOTCH_graphLoad(byref(graph._graph), fp, -1, 0)
 ```
