@@ -30,7 +30,7 @@ _PARALLEL_ENV_MISSING = (
 
 
 def pytest_collect_file(parent, file_path):
-    if file_path.suffix == ".py" and file_path.name.startswith(("ex_", "demo_")):
+    if file_path.suffix == ".py" and file_path.name.startswith(("ex_", "demo_", "hello_")):
         return ExampleFile.from_parent(parent, path=file_path)
 
 
