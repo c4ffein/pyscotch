@@ -11,16 +11,16 @@ Example:
     python benchmark_sequential_partitioning.py ../external/scotch/src/check/data/bump.grf 4
 """
 
+import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
-import subprocess
-import tempfile
 
 # Add pyscotch to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pyscotch import Graph, Architecture, Strategies
+from pyscotch import Architecture, Graph, Strategies
 
 
 def benchmark_pyscotch(graph_file: Path, num_parts: int, iterations: int = 5):
@@ -53,13 +53,13 @@ def benchmark_pyscotch(graph_file: Path, num_parts: int, iterations: int = 5):
     max_time = max(times)
 
     return {
-        'avg_time': avg_time,
-        'min_time': min_time,
-        'max_time': max_time,
-        'times': times,
-        'vertnbr': vertnbr,
-        'edgenbr': edgenbr,
-        'parttab': parttab
+        "avg_time": avg_time,
+        "min_time": min_time,
+        "max_time": max_time,
+        "times": times,
+        "vertnbr": vertnbr,
+        "edgenbr": edgenbr,
+        "parttab": parttab,
     }
 
 
@@ -68,7 +68,7 @@ def benchmark_native_scotch(graph_file: Path, num_parts: int, iterations: int = 
 
     # Check if gpart is available
     try:
-        result = subprocess.run(['which', 'gpart'], capture_output=True, text=True)
+        result = subprocess.run(["which", "gpart"], capture_output=True, text=True)
         if result.returncode != 0:
             return None
     except Exception:
@@ -82,9 +82,7 @@ def benchmark_native_scotch(graph_file: Path, num_parts: int, iterations: int = 
 
             start = time.perf_counter()
             result = subprocess.run(
-                ['gpart', str(num_parts), str(graph_file), mapping_file],
-                capture_output=True,
-                text=True
+                ["gpart", str(num_parts), str(graph_file), mapping_file], capture_output=True, text=True
             )
             end = time.perf_counter()
 
@@ -98,18 +96,13 @@ def benchmark_native_scotch(graph_file: Path, num_parts: int, iterations: int = 
     min_time = min(times)
     max_time = max(times)
 
-    return {
-        'avg_time': avg_time,
-        'min_time': min_time,
-        'max_time': max_time,
-        'times': times
-    }
+    return {"avg_time": avg_time, "min_time": min_time, "max_time": max_time, "times": times}
 
 
 def main():
     if len(sys.argv) < 3:
         print(f"Usage: {sys.argv[0]} <graph_file> <num_parts> [iterations]")
-        print(f"\nExample:")
+        print("\nExample:")
         print(f"  {sys.argv[0]} ../external/scotch/src/check/data/bump.grf 4 10")
         return 1
 
@@ -135,9 +128,9 @@ def main():
             print("ERROR: iterations must be an integer")
             return 1
 
-    print(f"=" * 70)
-    print(f"Sequential Graph Partitioning Benchmark")
-    print(f"=" * 70)
+    print("=" * 70)
+    print("Sequential Graph Partitioning Benchmark")
+    print("=" * 70)
     print(f"Graph file: {graph_file}")
     print(f"Partitions: {num_parts}")
     print(f"Iterations: {iterations}")
@@ -148,9 +141,9 @@ def main():
     pyscotch_results = benchmark_pyscotch(graph_file, num_parts, iterations)
 
     print(f"  Graph: {pyscotch_results['vertnbr']} vertices, {pyscotch_results['edgenbr']} edges")
-    print(f"  Average time: {pyscotch_results['avg_time']*1000:.2f} ms")
-    print(f"  Min time:     {pyscotch_results['min_time']*1000:.2f} ms")
-    print(f"  Max time:     {pyscotch_results['max_time']*1000:.2f} ms")
+    print(f"  Average time: {pyscotch_results['avg_time'] * 1000:.2f} ms")
+    print(f"  Min time:     {pyscotch_results['min_time'] * 1000:.2f} ms")
+    print(f"  Max time:     {pyscotch_results['max_time'] * 1000:.2f} ms")
     print()
 
     # Benchmark native Scotch if available
@@ -158,13 +151,13 @@ def main():
     native_results = benchmark_native_scotch(graph_file, num_parts, iterations)
 
     if native_results:
-        print(f"  Average time: {native_results['avg_time']*1000:.2f} ms")
-        print(f"  Min time:     {native_results['min_time']*1000:.2f} ms")
-        print(f"  Max time:     {native_results['max_time']*1000:.2f} ms")
+        print(f"  Average time: {native_results['avg_time'] * 1000:.2f} ms")
+        print(f"  Min time:     {native_results['min_time'] * 1000:.2f} ms")
+        print(f"  Max time:     {native_results['max_time'] * 1000:.2f} ms")
         print()
 
         # Calculate overhead
-        overhead = (pyscotch_results['avg_time'] / native_results['avg_time'] - 1) * 100
+        overhead = (pyscotch_results["avg_time"] / native_results["avg_time"] - 1) * 100
         print(f"PyScotch overhead: {overhead:+.1f}%")
 
         if overhead < 10:
@@ -183,7 +176,8 @@ def main():
 
     # Partition quality analysis
     import numpy as np
-    parttab = pyscotch_results['parttab']
+
+    parttab = pyscotch_results["parttab"]
     part_sizes = np.bincount(parttab, minlength=num_parts)
 
     print("Partition Quality:")

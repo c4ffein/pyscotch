@@ -19,8 +19,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pyscotch import libscotch as lib
+from pyscotch.dgraph import COARSEN_NONE, Dgraph
 from pyscotch.mpi import mpi
-from pyscotch.dgraph import Dgraph, COARSEN_NONE
 
 
 def benchmark_load(graph_file: Path, iterations: int = 5):
@@ -38,21 +38,17 @@ def benchmark_load(graph_file: Path, iterations: int = 5):
         times.append(end - start)
 
         if i == 0:
-            data = grafdat.data(
-                want_vertglbnbr=True,
-                want_vertlocnbr=True,
-                want_edgeglbnbr=True
-            )
+            data = grafdat.data(want_vertglbnbr=True, want_vertlocnbr=True, want_edgeglbnbr=True)
             first_result = data
 
         grafdat.exit()
 
     return {
-        'avg_time': sum(times) / len(times),
-        'min_time': min(times),
-        'max_time': max(times),
-        'times': times,
-        'data': first_result
+        "avg_time": sum(times) / len(times),
+        "min_time": min(times),
+        "max_time": max(times),
+        "times": times,
+        "data": first_result,
     }
 
 
@@ -66,19 +62,14 @@ def benchmark_check(graph_file: Path, iterations: int = 5):
 
     for i in range(iterations):
         start = time.perf_counter()
-        result = grafdat.check()
+        grafdat.check()
         end = time.perf_counter()
 
         times.append(end - start)
 
     grafdat.exit()
 
-    return {
-        'avg_time': sum(times) / len(times),
-        'min_time': min(times),
-        'max_time': max(times),
-        'times': times
-    }
+    return {"avg_time": sum(times) / len(times), "min_time": min(times), "max_time": max(times), "times": times}
 
 
 def benchmark_coarsen(graph_file: Path, iterations: int = 3):
@@ -102,7 +93,7 @@ def benchmark_coarsen(graph_file: Path, iterations: int = 3):
             if i == 0:
                 coar_data = coargrafdat.data(want_vertglbnbr=True)
                 orig_data = grafdat.data(want_vertglbnbr=True)
-                ratio = float(coar_data['vertglbnbr']) / float(orig_data['vertglbnbr'])
+                ratio = float(coar_data["vertglbnbr"]) / float(orig_data["vertglbnbr"])
                 first_ratio = ratio
 
             coargrafdat.exit()
@@ -110,15 +101,15 @@ def benchmark_coarsen(graph_file: Path, iterations: int = 3):
         grafdat.exit()
 
     result = {
-        'avg_time': sum(times) / len(times),
-        'min_time': min(times),
-        'max_time': max(times),
-        'times': times,
-        'success_count': success_count
+        "avg_time": sum(times) / len(times),
+        "min_time": min(times),
+        "max_time": max(times),
+        "times": times,
+        "success_count": success_count,
     }
 
     if success_count > 0:
-        result['ratio'] = first_ratio
+        result["ratio"] = first_ratio
 
     return result
 
@@ -140,18 +131,13 @@ def benchmark_ghst(graph_file: Path, iterations: int = 5):
 
     grafdat.exit()
 
-    return {
-        'avg_time': sum(times) / len(times),
-        'min_time': min(times),
-        'max_time': max(times),
-        'times': times
-    }
+    return {"avg_time": sum(times) / len(times), "min_time": min(times), "max_time": max(times), "times": times}
 
 
 def main():
     if len(sys.argv) < 2:
         print(f"Usage: mpirun -np <N> {sys.argv[0]} <graph_file> [iterations]")
-        print(f"\nExample:")
+        print("\nExample:")
         print(f"  mpirun -np 4 {sys.argv[0]} ../external/scotch/src/check/data/bump.grf 10")
         return 1
 
@@ -193,9 +179,9 @@ def main():
     if rank == 0:
         print(f"  Graph: {load_results['data']['vertglbnbr']} vertices (global)")
         print(f"  Rank 0: {load_results['data']['vertlocnbr']} vertices (local)")
-        print(f"  Average time: {load_results['avg_time']*1000:.2f} ms")
-        print(f"  Min time:     {load_results['min_time']*1000:.2f} ms")
-        print(f"  Max time:     {load_results['max_time']*1000:.2f} ms")
+        print(f"  Average time: {load_results['avg_time'] * 1000:.2f} ms")
+        print(f"  Min time:     {load_results['min_time'] * 1000:.2f} ms")
+        print(f"  Max time:     {load_results['max_time'] * 1000:.2f} ms")
         print()
 
     # Benchmark check
@@ -205,9 +191,9 @@ def main():
     check_results = benchmark_check(graph_file, iterations)
 
     if rank == 0:
-        print(f"  Average time: {check_results['avg_time']*1000:.2f} ms")
-        print(f"  Min time:     {check_results['min_time']*1000:.2f} ms")
-        print(f"  Max time:     {check_results['max_time']*1000:.2f} ms")
+        print(f"  Average time: {check_results['avg_time'] * 1000:.2f} ms")
+        print(f"  Min time:     {check_results['min_time'] * 1000:.2f} ms")
+        print(f"  Max time:     {check_results['max_time'] * 1000:.2f} ms")
         print()
 
     # Benchmark coarsen
@@ -217,10 +203,10 @@ def main():
     coarsen_results = benchmark_coarsen(graph_file, min(3, iterations))
 
     if rank == 0:
-        print(f"  Average time: {coarsen_results['avg_time']*1000:.2f} ms")
-        print(f"  Min time:     {coarsen_results['min_time']*1000:.2f} ms")
-        print(f"  Max time:     {coarsen_results['max_time']*1000:.2f} ms")
-        if 'ratio' in coarsen_results:
+        print(f"  Average time: {coarsen_results['avg_time'] * 1000:.2f} ms")
+        print(f"  Min time:     {coarsen_results['min_time'] * 1000:.2f} ms")
+        print(f"  Max time:     {coarsen_results['max_time'] * 1000:.2f} ms")
+        if "ratio" in coarsen_results:
             print(f"  Coarsening ratio: {coarsen_results['ratio']:.4f}")
         print()
 
@@ -231,9 +217,9 @@ def main():
     ghst_results = benchmark_ghst(graph_file, iterations)
 
     if rank == 0:
-        print(f"  Average time: {ghst_results['avg_time']*1000:.2f} ms")
-        print(f"  Min time:     {ghst_results['min_time']*1000:.2f} ms")
-        print(f"  Max time:     {ghst_results['max_time']*1000:.2f} ms")
+        print(f"  Average time: {ghst_results['avg_time'] * 1000:.2f} ms")
+        print(f"  Min time:     {ghst_results['min_time'] * 1000:.2f} ms")
+        print(f"  Max time:     {ghst_results['max_time'] * 1000:.2f} ms")
         print()
 
     # Summary
@@ -241,24 +227,31 @@ def main():
         print("=" * 70)
         print("Summary")
         print("=" * 70)
-        print(f"Graph size: {load_results['data']['vertglbnbr']} vertices, "
-              f"{load_results['data']['edgeglbnbr']} edges")
+        print(f"Graph size: {load_results['data']['vertglbnbr']} vertices, {load_results['data']['edgeglbnbr']} edges")
         print(f"Processes:  {size}")
         print()
         print("Operation           Avg Time    Min Time    Max Time")
         print("-" * 70)
-        print(f"Load               {load_results['avg_time']*1000:8.2f} ms  "
-              f"{load_results['min_time']*1000:8.2f} ms  "
-              f"{load_results['max_time']*1000:8.2f} ms")
-        print(f"Check              {check_results['avg_time']*1000:8.2f} ms  "
-              f"{check_results['min_time']*1000:8.2f} ms  "
-              f"{check_results['max_time']*1000:8.2f} ms")
-        print(f"Coarsen            {coarsen_results['avg_time']*1000:8.2f} ms  "
-              f"{coarsen_results['min_time']*1000:8.2f} ms  "
-              f"{coarsen_results['max_time']*1000:8.2f} ms")
-        print(f"Ghost (ghst)       {ghst_results['avg_time']*1000:8.2f} ms  "
-              f"{ghst_results['min_time']*1000:8.2f} ms  "
-              f"{ghst_results['max_time']*1000:8.2f} ms")
+        print(
+            f"Load               {load_results['avg_time'] * 1000:8.2f} ms  "
+            f"{load_results['min_time'] * 1000:8.2f} ms  "
+            f"{load_results['max_time'] * 1000:8.2f} ms"
+        )
+        print(
+            f"Check              {check_results['avg_time'] * 1000:8.2f} ms  "
+            f"{check_results['min_time'] * 1000:8.2f} ms  "
+            f"{check_results['max_time'] * 1000:8.2f} ms"
+        )
+        print(
+            f"Coarsen            {coarsen_results['avg_time'] * 1000:8.2f} ms  "
+            f"{coarsen_results['min_time'] * 1000:8.2f} ms  "
+            f"{coarsen_results['max_time'] * 1000:8.2f} ms"
+        )
+        print(
+            f"Ghost (ghst)       {ghst_results['avg_time'] * 1000:8.2f} ms  "
+            f"{ghst_results['min_time'] * 1000:8.2f} ms  "
+            f"{ghst_results['max_time'] * 1000:8.2f} ms"
+        )
         print()
         print("=" * 70)
 
