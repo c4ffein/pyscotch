@@ -21,6 +21,8 @@ PYTHON ?= python3
 # on this project that is the uv-managed .venv, not a bare python3. Prefer it
 # when present; override with DOCS_PYTHON=... for a different 3.14 interpreter.
 DOCS_PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,$(PYTHON))
+# ruff (lint + format, config in pyproject.toml): the uv .venv one when present.
+RUFF ?= $(if $(wildcard .venv/bin/ruff),.venv/bin/ruff,ruff)
 
 # Compiler settings
 CC = gcc
@@ -39,7 +41,7 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 # Targets
-.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 build-reference-tools clean clean-scotch install test test-full test-quadrant test-differential docs-api help
+.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 build-reference-tools clean clean-scotch install test test-full test-quadrant test-differential docs-api help lint-check format-check format
 
 help:
 	@echo "PyScotch Build System"
@@ -65,6 +67,9 @@ help:
 	@echo "  make build-reference-tools - Build Scotch's own CLI tools (gpart, gord, gmap; dgpart, dgord) as differential oracles"
 	@echo "  make test-differential     - Byte-compare PyScotch against those tools (needs build-reference-tools)"
 	@echo "  make docs-api              - Regenerate docs/site/api_data.json after a public-API change (mirrors CI)"
+	@echo "  make lint-check            - ruff check (what CI runs)"
+	@echo "  make format-check          - ruff format --check (what CI runs)"
+	@echo "  make format                - Apply ruff formatting + safe lint fixes"
 	@echo "  make clean           - Clean Python build artifacts"
 	@echo "  make clean-scotch    - Clean all Scotch builds"
 	@echo "  make check-submodule - Gets Scotch as a submodule"
@@ -242,6 +247,18 @@ check-submodule:
 		echo "✓ Makefile.inc created"; \
 	fi
 	@echo "✓ Patched source copy ready"
+
+# Lint / format (ruff; same conventions as c4ffein/keras-tinygrad).
+# lint-check and format-check are what CI runs; format applies both.
+lint-check:
+	$(RUFF) check .
+
+format-check:
+	$(RUFF) format --check .
+
+format:
+	$(RUFF) format .
+	$(RUFF) check --fix .
 
 # Install Python package
 install:
