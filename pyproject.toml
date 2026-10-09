@@ -34,8 +34,7 @@ dev = [
     "pytest>=6.0",
     "pytest-cov",
     "hypothesis>=6.0",
-    "black",
-    "flake8",
+    "ruff>=0.8",
     "mypy",
 ]
 docs = [
@@ -66,9 +65,28 @@ pyscotch = "pyscotch.cli:main"
 [tool.setuptools.dynamic]
 version = {attr = "pyscotch._version.__version__"}
 
-[tool.black]
-line-length = 100
-target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
+[tool.ruff]
+# Same standards as c4ffein/keras-tinygrad: ruff for both lint and format,
+# 120-column lines.
+line-length = 120
+extend-exclude = [
+    "external",   # the Scotch submodule (C) and anything a build drops there
+    "build",      # disposable patched Scotch source copy
+    "scotchpy",   # upstream's own bindings, checked out for differential tests
+]
+
+[tool.ruff.format]
+# Teaching code: docs examples and the demo runbook are display copy whose
+# layout (aligned inline comments) is deliberate. Lint still applies to them.
+exclude = ["docs/site/examples/*", "demo/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pyscotch"]
+# Keep aliased re-exports (`SCOTCH_X as X`) in one import block instead of one block per name.
+combine-as-imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
