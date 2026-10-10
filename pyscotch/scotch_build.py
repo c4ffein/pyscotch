@@ -109,6 +109,14 @@ def skipped_versions() -> dict:
 # upstream build breaks under PyScotch's suffixed (-DSCOTCH_RENAME_ALL) build,
 # so they are ON BY DEFAULT — a pristine 7.0.12 simply does not compile.
 _PATCHES = {
+    "7.0.10": [
+        (
+            "scotch-7.0.10-rename-dmesh-fix.patch",
+            "backport of upstream f7cd80c (7.0.11): 12 missing SCOTCH_NAME_SUFFIX "
+            "macros (SCOTCH_Dmesh, SCOTCH_dmesh*, SCOTCH_NUM_MPI) — without them "
+            "libptscotch does not compile under the suffixed build",
+        ),
+    ],
     "7.0.12": [
         (
             "scotch-7.0.12-rename-all-fix.patch",
@@ -131,8 +139,15 @@ def patches_for(version):
 # How CI proves a quickfix did its job: the suffixed symbol the patched
 # libscotch.so must export, and the diagnosis string a --pristine build of
 # that version must fail with. Consumed by scripts/ci_matrix.py.
+# `pristine_build` names the variant whose --pristine build must FAIL with
+# `pristine_grep` in its output (7.0.10's gap is in libptscotch only).
 _PATCH_VERIFY = {
-    "7.0.12": {"symbol": "SCOTCH_meshBuildElem_64", "pristine_grep": "SCOTCH_meshBuildElem"},
+    "7.0.10": {"symbol": "SCOTCH_dmeshInit_64", "pristine_grep": "SCOTCH_Dmesh", "pristine_build": "--parallel"},
+    "7.0.12": {
+        "symbol": "SCOTCH_meshBuildElem_64",
+        "pristine_grep": "SCOTCH_meshBuildElem",
+        "pristine_build": "--sequential",
+    },
 }
 
 

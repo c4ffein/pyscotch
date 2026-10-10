@@ -276,6 +276,15 @@ class TestQuickfixPatches:
         assert sb.patches_for("7.0.12"), "expected a bundled quickfix for 7.0.12"
         assert sb.patches_for("7.0.11") == []
 
+    def test_7010_carries_the_dmesh_rename_backport(self):
+        """7.0.10's libptscotch lacks 12 SCOTCH_NAME_SUFFIX macros (the very
+        first upstream report; fixed in 7.0.11 as f7cd80c). The CI matrix
+        derived from the catalog was the first thing ever to build 7.0.10
+        parallel, and it failed — hence the backport."""
+        names = [f for f, _ in sb.patches_for("7.0.10")]
+        assert names == ["scotch-7.0.10-rename-dmesh-fix.patch"]
+        assert sb._PATCH_VERIFY["7.0.10"]["pristine_build"] == "--parallel"
+
     def test_bundled_patch_files_exist(self):
         # Every patch named in the manifest must actually ship in the package.
         for version, patches in sb._PATCHES.items():
@@ -406,6 +415,7 @@ class TestCiMatrixDerivation:
         for r in self._matrix(full=True):
             if r["quickfix"] == "yes":
                 assert r["symbol"] and r["pristine_grep"], r
+                assert r["pristine_build"] in ("--sequential", "--parallel"), r
             else:
                 assert "symbol" not in r and "pristine_grep" not in r, r
 

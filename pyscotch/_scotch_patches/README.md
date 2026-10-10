@@ -23,7 +23,11 @@ classes with different rules:
 
 - **Quickfix** (`_PATCHES`): fixes a BUILD break (the version does not
   compile under PyScotch's suffixed build). Applied automatically; skipped
-  only by `--pristine`. Example: `scotch-7.0.12-rename-all-fix.patch`.
+  only by `--pristine`. Examples: `scotch-7.0.12-rename-all-fix.patch`, and
+  `scotch-7.0.10-rename-dmesh-fix.patch` (backport of upstream `f7cd80c`,
+  the 12 renaming macros 7.0.11 added — without it 7.0.10's libptscotch does
+  not compile suffixed; the retired `scotch-suffix-fixes.patch` reborn for
+  the one release that still needs it).
 - **Behavioral** (`_BEHAVIORAL_PATCHES`): changes the library's RESULTS.
   Never applied silently — the build asks per patch (default yes), a
   non-interactive build skips with a note, and

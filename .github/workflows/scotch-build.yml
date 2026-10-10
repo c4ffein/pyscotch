@@ -170,7 +170,7 @@ jobs:
       fail-fast: false
       # One entry per catalogued Scotch release, DERIVED from the catalog in
       # pyscotch/scotch_build.py by scripts/ci_matrix.py (the `catalog` job):
-      #   quickfix / symbol / pristine_grep  from _PATCHES + _PATCH_VERIFY
+      #   quickfix / symbol / pristine_grep / pristine_build  from _PATCHES + _PATCH_VERIFY
       #   repro ("pass" | "fail-expected")    from _SKIPPED_VERSIONS
       #   behavioral ("yes")                  from _BEHAVIORAL_PATCHES
       # Adding a release = adding its catalog entry; nothing to sync here.
@@ -228,15 +228,6 @@ jobs:
           fi
           pyscotch scotch list
           pyscotch doctor
-
-      - name: Quickfixed library exports the patched symbol
-        if: matrix.quickfix == 'yes'
-        working-directory: ${{ runner.temp }}
-        run: |
-          # The patch's whole job: the new symbol is present, correctly suffixed.
-          nm -D "$PYSCOTCH_HOME/builds/${{ matrix.scotch }}-64-seq/lib64/libscotch.so" \
-            | grep -qw "${{ matrix.symbol }}" \
-            || { echo "::error::quickfixed ${{ matrix.scotch }} lacks a defined ${{ matrix.symbol }}"; exit 1; }
 
       - name: Load + partition through the managed sequential build
         working-directory: ${{ runner.temp }}
@@ -297,6 +288,17 @@ jobs:
           PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 \
             mpirun --oversubscribe -n 2 python dgraph_smoke.py
 
+      - name: Quickfixed library exports the patched symbol
+        if: matrix.quickfix == 'yes'
+        working-directory: ${{ runner.temp }}
+        run: |
+          # The patch's whole job: the new symbol is present, correctly
+          # suffixed — in whichever library it belongs to (7.0.12's is in
+          # libscotch, 7.0.10's in libptscotch), so look at every lib built.
+          nm -D "$PYSCOTCH_HOME"/builds/${{ matrix.scotch }}-64-*/lib64/lib*scotch*.so \
+            | grep -qw "${{ matrix.symbol }}" \
+            || { echo "::error::quickfixed ${{ matrix.scotch }} lacks a defined ${{ matrix.symbol }}"; exit 1; }
+
       - name: Reproducibility harness (N fresh runs per config must agree)
         if: matrix.repro != ''
         run: |
@@ -352,7 +354,7 @@ jobs:
           # by default). The offending symbol is named in the output and
           # nothing is staged.
           set +e
-          out="$(pyscotch scotch build ${{ matrix.scotch }} --sequential --pristine --force 2>&1)"
+          out="$(pyscotch scotch build ${{ matrix.scotch }} ${{ matrix.pristine_build }} --pristine --force 2>&1)"
           rc=$?
           set -e
           echo "$out"

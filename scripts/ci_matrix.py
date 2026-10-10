@@ -7,6 +7,7 @@ catalogued release, every expectation DERIVED, never hand-typed:
     quickfix        "yes"/"no"  — the version has quickfix patches
     symbol          (quickfix)  — suffixed symbol the patched lib must export
     pristine_grep   (quickfix)  — diagnosis a --pristine build must fail with
+    pristine_build  (quickfix)  — which variant (--sequential/--parallel) exhibits it
     repro           "fail-expected" if the version is in _SKIPPED_VERSIONS
                     (known upstream nondeterminism), else "pass"
     behavioral      "yes" when the version has behavioral patches (CI rebuilds
