@@ -10,7 +10,7 @@ If an upstream release changes either, the pins turn red and the docs must be
 updated.
 """
 
-from ctypes import byref, c_double
+from ctypes import byref, c_char_p, c_double
 
 import pytest
 
@@ -128,3 +128,29 @@ class TestProbeClassifier:
         from pyscotch.strategy import _probe_graph_string
 
         assert _probe_graph_string(string) == expected
+
+
+class TestSaveParseSaveIdempotence:
+    """Scotch as its own oracle: a strategy's saved form, parsed back by the
+    same grammar and saved again, must be byte-identical. A divergence would
+    mean the serializer emits something its parser reads differently — a
+    class of upstream bug this tier would catch for free."""
+
+    @staticmethod
+    def _reparse(saved, parse):
+        with _ephemeral_strat() as strat:
+            rc = parse(byref(strat), c_char_p(saved.encode("utf-8")))
+            assert rc == 0, f"saved form does not re-parse: {saved[:80]}"
+            return _saved_form(strat)
+
+    @pytest.mark.parametrize(
+        "flags", [StrategyFlags.DEFAULT, StrategyFlags.QUALITY, StrategyFlags.BALANCE, StrategyFlags.RECURSIVE]
+    )
+    def test_mapping(self, flags):
+        saved = built_mapping(flags)
+        assert self._reparse(saved, lib.SCOTCH_stratGraphMap) == saved
+
+    @pytest.mark.parametrize("flags", [StrategyFlags.DEFAULT, StrategyFlags.SPEED])
+    def test_ordering(self, flags):
+        saved = built_ordering(flags, levels=3)
+        assert self._reparse(saved, lib.SCOTCH_stratGraphOrder) == saved

@@ -859,6 +859,60 @@ m{asc=b{width=3,bnd=d{pass=40,dif=1,rem=0}f{move=80,pass=-1,bal=0.01},org=f{move
 m{asc=b{width=3,bnd=d{pass=40,dif=1,rem=0}f{move=80,pass=-1,bal=0.01},org=f{move=80,pass=-1,bal=0.01}},low=r{job=t,bal=0.01,map=t,poli=S,sep=(m{asc=b{bnd=(d{pass=40,type=b}f{move=120,pass=-1,bal=0.01,type=b}|f{move=120,pass=-1,bal=0.01,type=b}),org=f{move=120,pass=-1,bal=0.01,type=b},width=3},low=h{pass=20}f{move=120,pass=-1,bal=0.01,type=b},vert=120,rat=0.8}|m{...same...})},vert=10000,rat=0.8,type=h}
 ```
 
+## SCOTCH_stratSave fails on a PT-Scotch ordering strategy whose nested-dissection method has an implicit separator sub-strategy (7.0.13 and 7.0.15 verified)
+
+Date: 2026-10-09. Found while adding construction-time validation of
+distributed strategy strings to PyScotch (the sequential grammars already
+had it): the validator parses a string with the library's own parser and
+round-trips it through `SCOTCH_stratSave` to detect implicit (stratdummy)
+sub-strategies, which `stratSave` serializes as empty parameters.
+
+### What happens
+
+Parsing a distributed **ordering** strategy that names the nested-dissection
+method without an explicit `sep=` sub-strategy succeeds, but saving the
+resulting strategy terminates the process with SIGSEGV (fault address 0x8 —
+a NULL structure field dereference) inside `SCOTCH_stratSave`:
+
+```c
+SCOTCH_Strat stratdat;
+SCOTCH_stratInit (&stratdat);
+SCOTCH_stratDgraphOrder (&stratdat, "n");          /* returns 0 */
+SCOTCH_stratSave (&stratdat, stdout);               /* SIGSEGV */
+```
+
+Observed on 7.0.13 and 7.0.15 (not a 7.0.16 regression). The same string
+with explicit leaf strategies, `n{ole=s,ose=s}`, parses and fails the same
+way, so the trigger is the implicit `sep=` of the distributed `n` method. The
+strategy that `SCOTCH_stratDgraphOrderBuild` produces (`n{sep=(/((0)=(0))?
+(m{...}...`) saves normally, and so do every other distributed case we tried:
+distributed-mapping `r` with implicit `sep=` saves (as the expected empty
+parameter), distributed-ordering `q` with implicit `strat=` saves, `s` saves.
+Sequential strategies with implicit sub-strategies all save as empty
+parameters, as documented. So only the distributed nested-dissection
+method's implicit separator slot breaks the serializer — presumably its
+default `stratdummy` entry lacks whatever the save routine dereferences
+for distributed separator strategies.
+
+### Why it matters to us
+
+Hollow strategy strings are the trap PyScotch validates against (see the
+2026-07 entries on bare method letters): a bare `n` for a distributed
+ordering runs and returns an identity permutation. The save round-trip is
+the only public way to detect that, and here it cannot be used in-process;
+PyScotch now runs the whole distributed probe (parse + save) in a sandbox
+subprocess — the parser can fault too, see the `r{sep=m{}}` entry — and
+treats a child dying in the save step as "hollow". A `stratSave` that reports the empty slot (as the
+sequential grammars do) would let the check run in-process.
+
+### Repro (no PyScotch needed)
+
+Compile the snippet above against libptscotch (any MPI; no MPI_Init needed
+for strategy parsing), run it, observe the fault; replace `"n"` with
+`"n{sep=s}"`-style strings to see the parser reject explicit-but-invalid
+separators (so a fully explicit string must come from
+`SCOTCH_stratDgraphOrderBuild` + `stratSave` to compare against).
+
 ## Suggestions (not defects)
 
 ### Best-of-N attempts: no numeric repeat construct in the strategy grammar?
@@ -891,6 +945,6 @@ Kept for the record; each was fixed in the stated release.
   `SCOTCH_meshBuildElem` (commit `2285ed4`) had no rename-table entry, so
   `library_mesh_f.c:233` hit an implicit declaration error. Same root cause as
   `memFree`; fixed in 7.0.13. PyScotch's managed builder still applies
-  `pyscotch/_patches/scotch-7.0.12-rename-all-fix.patch` to 7.0.12 automatically.
+  `pyscotch/_scotch_patches/scotch-7.0.12-rename-all-fix.patch` to 7.0.12 automatically.
 - **`dorderPerm` debug-mode early return / untyped leaf column blocks** —
   fixed in 7.0.14 (see that section above; two follow-ups remain open).

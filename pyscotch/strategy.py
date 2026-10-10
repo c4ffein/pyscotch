@@ -8,6 +8,7 @@ import tempfile
 from contextlib import contextmanager
 from ctypes import byref, c_char_p
 from enum import IntFlag
+from pathlib import Path
 from typing import Optional
 
 from . import libscotch as lib
@@ -113,12 +114,108 @@ def _probe_graph_string(string: str) -> dict:
     through SCOTCH_stratSave (public API; the library itself serializes dummy
     slots as empty parameters).
     """
-    result = {}
-    probes = (
-        ("mapping", lib.SCOTCH_stratGraphMap),
-        ("ordering", lib.SCOTCH_stratGraphOrder),
-        ("overlap", lib.SCOTCH_stratGraphPartOvl),
+    return _probe_under(
+        string,
+        (
+            ("mapping", lib.SCOTCH_stratGraphMap),
+            ("ordering", lib.SCOTCH_stratGraphOrder),
+            ("overlap", lib.SCOTCH_stratGraphPartOvl),
+        ),
     )
+
+
+# Child program for the sandboxed PT-Scotch probe (see _probe_dgraph_string).
+# It parses under ONE distributed grammar and prints a phase marker, then the
+# verdict; a library fault kills only this child, and which marker reached
+# the parent tells parse-fault from save-fault apart.
+_DGRAPH_PROBE_CHILD = """
+import sys
+sys.path.insert(0, sys.argv[3])
+from ctypes import byref, c_char_p
+from pyscotch import libscotch as lib
+from pyscotch.strategy import _HOLLOW_SLOT_RE, _ephemeral_strat, _quiet_stderr, _saved_form
+family, string = sys.argv[1], sys.argv[2]
+parse = {"dmapping": lib.SCOTCH_stratDgraphMap, "dordering": lib.SCOTCH_stratDgraphOrder}[family]
+with _ephemeral_strat() as strat:
+    with _quiet_stderr():
+        rc = parse(byref(strat), c_char_p(string.encode("utf-8")))
+    print("parsed", flush=True)
+    if rc != 0:
+        print("invalid")
+    else:
+        saved = _saved_form(strat)
+        print("hollow" if (not saved.strip() or _HOLLOW_SLOT_RE.search(saved)) else "ok")
+"""
+
+_DGRAPH_PROBE_CACHE = {}
+
+
+def _probe_dgraph_string(string: str) -> dict:
+    """Classify a strategy string under each PT-Scotch (distributed) grammar.
+
+    Same contract as _probe_graph_string, keyed "dmapping" / "dordering".
+    Only meaningful with the parallel library loaded (the parsers live in
+    libptscotch); strategy parsing needs no MPI communicator.
+
+    The WHOLE probe (parse + stratSave round-trip) runs in a sandbox child,
+    not in-process, because upstream can fault in either step: the parser on
+    a syntax error inside a strategy-valued parameter, and SCOTCH_stratSave
+    on a distributed ordering `n` whose separator is implicit (see
+    QUESTIONS_FOR_SCOTCH_TEAM.md). A validation probe must never take the
+    caller's process down. A child that dies before reporting "parsed" is
+    classified "invalid" (so the real setter never parses that string
+    in-process); one that dies after is "hollow" (the save fault occurs only
+    for implicit slots, the very condition the probe rejects). Verdicts are
+    cached per string.
+    """
+    if string in _DGRAPH_PROBE_CACHE:
+        return dict(_DGRAPH_PROBE_CACHE[string])
+    result = {family: _sandboxed_dgraph_probe(family, string) for family in ("dmapping", "dordering")}
+    _DGRAPH_PROBE_CACHE[string] = dict(result)
+    return result
+
+
+def _sandboxed_dgraph_probe(family: str, string: str) -> str:
+    """Run parse + stratSave for one distributed grammar in a child process."""
+    import subprocess
+    import sys
+
+    env = dict(os.environ)
+    # Pin the child to the very library this process loaded.
+    env["PYSCOTCH_PARALLEL"] = "1"
+    env["PYSCOTCH_INT_SIZE"] = str(lib.get_scotch_int_size())
+    if lib._loaded_lib_dir is not None:
+        env["PYSCOTCH_LIB_DIR"] = str(lib._loaded_lib_dir)
+    pkg_parent = str(Path(__file__).resolve().parent.parent)
+
+    def _no_core_dumps():
+        # A child dying in the library is an expected probe outcome, not an
+        # incident to dump: never litter the caller's cwd with core files.
+        try:
+            import resource
+
+            resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        except Exception:
+            pass
+
+    proc = subprocess.run(
+        [sys.executable, "-c", _DGRAPH_PROBE_CHILD, family, string, pkg_parent],
+        env=env,
+        capture_output=True,
+        text=True,
+        preexec_fn=_no_core_dumps,
+    )
+    lines = proc.stdout.split()
+    if proc.returncode == 0 and len(lines) == 2 and lines[1] in ("ok", "hollow", "invalid"):
+        return lines[1]
+    # The child died (or reported nothing usable): before "parsed" it was the
+    # parser, after it the serializer.
+    return "hollow" if lines[:1] == ["parsed"] else "invalid"
+
+
+def _probe_under(string: str, probes) -> dict:
+    """Parse `string` with each (family, parser) and classify ok/hollow/invalid."""
+    result = {}
     for family, parse in probes:
         with _ephemeral_strat() as strat:
             with _quiet_stderr():
@@ -130,6 +227,28 @@ def _probe_graph_string(string: str) -> dict:
             hollow = not saved.strip() or _HOLLOW_SLOT_RE.search(saved)
             result[family] = "hollow" if hollow else "ok"
     return result
+
+
+def _check_dgraph_string(string: str, family: str, what: str) -> None:
+    """Fail fast on a distributed strategy string that is invalid or hollow
+    under `family` ("dmapping"/"dordering"); "" stays verbatim (documented)."""
+    if string == "":
+        return
+    probe = _probe_dgraph_string(string)
+    status = probe[family]
+    if status == "invalid":
+        raise ValueError(
+            f"Invalid PT-Scotch {what} strategy {string!r}: it does not parse "
+            f"under the distributed {what} grammar{_grammar_hint(probe, family)}."
+        )
+    if status == "hollow":
+        raise ValueError(
+            f"PT-Scotch {what} strategy {string!r} parses but is hollow: every "
+            "strategy-valued parameter left implicit is a do-nothing dummy, so "
+            "it would silently produce one-part partitions / identity "
+            "orderings. Spell out the sub-strategies, or use None for "
+            "PT-Scotch's default."
+        )
 
 
 def _grammar_hint(probe, family: str) -> str:
@@ -211,10 +330,14 @@ class Strategy:
                 # "" is exempt: its verbatim do-nothing pass-through is a
                 # documented, tested semantic (see the docstring above).
                 self._probe = _probe_graph_string(strategy_string)
+                if lib.is_parallel():
+                    # A PT-Scotch string (for Dgraph.map/order) is legitimate
+                    # here too; probe those grammars as well before judging.
+                    self._probe.update(_probe_dgraph_string(strategy_string))
                 if all(v == "invalid" for v in self._probe.values()):
                     raise ValueError(
                         f"Invalid strategy string {strategy_string!r}: it parses "
-                        "under none of the mapping, ordering, or overlap grammars."
+                        f"under none of the {', '.join(self._probe)} grammars."
                     )
                 if "ok" not in self._probe.values():
                     raise ValueError(
@@ -388,15 +511,20 @@ class Strategy:
             RuntimeError: If setting the strategy fails
 
         Note:
-            Strings are passed to Scotch verbatim, exactly like set_mapping.
-            In particular "" builds a do-nothing method — SCOTCH_dgraphMap
+            The string is validated against PT-Scotch's own parser first:
+            strings that do not parse, or that parse with do-nothing dummy
+            sub-strategies (e.g. a bare "m"), raise ValueError here instead
+            of silently producing one-part partitions. Strings that pass are
+            handed to Scotch verbatim, exactly like set_mapping. The one
+            exception is "", which builds a do-nothing method — SCOTCH_dgraphMap
             only builds the real default when the strategy is still untouched
-            — which silently puts every vertex into one part (a result that
-            can look valid). Use None (or reset()) for the default.
+            — and silently puts every vertex into one part (a result that can
+            look valid). Use None (or reset()) for the default.
         """
         if strategy_string is None:
             self.reset()
             return
+        _check_dgraph_string(strategy_string, "dmapping", "mapping")
         ret = lib.SCOTCH_stratDgraphMap(byref(self._strat_data), c_char_p(strategy_string.encode("utf-8")))
         if ret != 0:
             raise lib.scotch_error("Failed to set parallel mapping strategy", ret)
@@ -420,14 +548,17 @@ class Strategy:
             RuntimeError: If setting the strategy fails
 
         Note:
-            Strings are passed to Scotch verbatim, exactly like set_ordering.
-            In particular "" builds a do-nothing method, silently returning
-            the identity permutation — no reordering at all. Use None (or
-            reset()) for the default.
+            The string is validated against PT-Scotch's own parser first
+            (invalid or hollow strings raise ValueError here); strings that
+            pass are handed to Scotch verbatim, exactly like set_ordering.
+            The one exception is "", which builds a do-nothing method,
+            silently returning the identity permutation — no reordering at
+            all. Use None (or reset()) for the default.
         """
         if strategy_string is None:
             self.reset()
             return
+        _check_dgraph_string(strategy_string, "dordering", "ordering")
         ret = lib.SCOTCH_stratDgraphOrder(byref(self._strat_data), c_char_p(strategy_string.encode("utf-8")))
         if ret != 0:
             raise lib.scotch_error("Failed to set parallel ordering strategy", ret)
