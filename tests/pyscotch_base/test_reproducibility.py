@@ -23,20 +23,18 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.skipif(
+# Opt-in marker for the stress tests (applied per class below); the vendored-
+# graph tripwire at the bottom runs unconditionally.
+REPRO_OPT_IN = pytest.mark.skipif(
     os.environ.get("PYSCOTCH_REPRO") != "1",
     reason="reproducibility stress harness is opt-in: set PYSCOTCH_REPRO=1",
 )
 
 REPO = Path(__file__).resolve().parent.parent.parent
-# Default: the submodule's copy; PYSCOTCH_REPRO_GRAPH overrides (CI checkouts
-# without the submodule extract it from the cached source tarball instead).
-GRAPH = Path(
-    os.environ.get(
-        "PYSCOTCH_REPRO_GRAPH",
-        REPO / "external" / "scotch" / "src" / "check" / "data" / "m16x16_b100000_v.grf",
-    )
-)
+# The reference graph is vendored (tests/data, see its README): the harness
+# must run without the submodule and against release tarballs that do not
+# ship it (older ones do not). PYSCOTCH_REPRO_GRAPH overrides.
+GRAPH = Path(os.environ.get("PYSCOTCH_REPRO_GRAPH", REPO / "tests" / "data" / "m16x16_b100000_v.grf"))
 RUNS = int(os.environ.get("PYSCOTCH_REPRO_RUNS", "12"))
 
 # The known-sensitive spot: a strategy reaching bgraphBipartGg (`h`), the
@@ -75,8 +73,7 @@ def _graph_or_skip():
     if not GRAPH.exists():
         pytest.fail(
             f"reproducibility graph not found: {GRAPH}\n"
-            "run `git submodule update --init --recursive`, or point "
-            "PYSCOTCH_REPRO_GRAPH at a copy of m16x16_b100000_v.grf"
+            "(vendored in tests/data; or point PYSCOTCH_REPRO_GRAPH at a copy of m16x16_b100000_v.grf)"
         )
     return GRAPH
 
@@ -104,6 +101,7 @@ def _run_fresh(threads, strategy=None, runs=RUNS):
     return results
 
 
+@REPRO_OPT_IN
 class TestSequentialReproducibility:
     def test_default_strategy_two_threads(self):
         results = _run_fresh(threads=2)
@@ -134,6 +132,7 @@ class TestSequentialReproducibility:
         )
 
 
+@REPRO_OPT_IN
 class TestParallelReproducibility:
     def test_dgraph_part_under_mpirun(self):
         mpirun = shutil.which("mpirun")
@@ -165,3 +164,20 @@ class TestParallelReproducibility:
         assert len(results) == 1, (
             f"{len(results)} distinct Dgraph partitions across identical deterministic mpirun runs"
         )
+
+
+def test_vendored_probe_graph_matches_upstream_copy():
+    """The harness graph is a frozen PROBE (its sensitivity must not drift with
+    the library under test), but we want to know when upstream changes its
+    copy: then we re-baseline deliberately — re-validating that the new file
+    still exposes the known 7.0.16 nondeterminism — instead of inheriting the
+    change silently. Runs whenever the submodule is populated; not gated by
+    PYSCOTCH_REPRO."""
+    upstream = REPO / "external" / "scotch" / "src" / "check" / "data" / "m16x16_b100000_v.grf"
+    vendored = REPO / "tests" / "data" / "m16x16_b100000_v.grf"
+    if not upstream.exists():
+        pytest.skip("scotch submodule not populated")
+    assert vendored.read_bytes() == upstream.read_bytes(), (
+        "upstream changed m16x16_b100000_v.grf: re-baseline tests/data/ on purpose "
+        "(and re-check the probe still exposes the 7.0.16 regression)"
+    )

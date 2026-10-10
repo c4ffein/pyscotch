@@ -294,7 +294,7 @@ jobs:
         run: |
           # The patch's whole job: the new symbol is present, correctly
           # suffixed — in whichever library it belongs to (7.0.12's is in
-          # libscotch, 7.0.10's in libptscotch), so look at every lib built.
+          # libscotch; a parallel-only fix would be in libptscotch), so look at every lib built.
           nm -D "$PYSCOTCH_HOME"/builds/${{ matrix.scotch }}-64-*/lib64/lib*scotch*.so \
             | grep -qw "${{ matrix.symbol }}" \
             || { echo "::error::quickfixed ${{ matrix.scotch }} lacks a defined ${{ matrix.symbol }}"; exit 1; }
@@ -305,15 +305,10 @@ jobs:
           # Audits the PRISTINE parallel build just made (libscotch AND
           # libptscotch, so the mpirun leg runs too): N fresh-process
           # runs per threading config must yield exactly one result (see
-          # tests/pyscotch_base/test_reproducibility.py). The m16x16 graph
-          # comes from the cached source tarball (no submodule in this job).
+          # tests/pyscotch_base/test_reproducibility.py; the reference graph
+          # is vendored in tests/data — not every release tarball ships it).
           # repro=fail-expected is the upstream-fixed watchdog: red stays
           # informational, green prints the retire-the-patch warning.
-          tar -xzf "$PYSCOTCH_HOME"/cache/scotch-v${{ matrix.scotch }}.tar.gz \
-              -C "$RUNNER_TEMP" --wildcards "*/src/check/data/m16x16_b100000_v.grf"
-          echo "PYSCOTCH_REPRO_GRAPH=$(find "$RUNNER_TEMP" -name m16x16_b100000_v.grf | head -1)" >> "$GITHUB_ENV"
-          export PYSCOTCH_REPRO_GRAPH="$(find "$RUNNER_TEMP" -name m16x16_b100000_v.grf | head -1)"
-          [ -n "$PYSCOTCH_REPRO_GRAPH" ] || { echo "::error::m16x16_b100000_v.grf not found in the ${{ matrix.scotch }} tarball"; exit 1; }
           export PYSCOTCH_REPRO=1 PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0
           export PYSCOTCH_LIB_DIR="$PYSCOTCH_HOME/builds/${{ matrix.scotch }}-64-par/lib64"
           set +e

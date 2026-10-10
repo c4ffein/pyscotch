@@ -122,7 +122,22 @@ def gate_reproducibility(libdir, runs):
         "PYSCOTCH_LIB_DIR": str(libdir),
         "PYSCOTCH_MPI_OVERSUBSCRIBE": "1",
     }
-    proc = run([PY, "-m", "pytest", "tests/pyscotch_base/test_reproducibility.py", "-q", "-rs"], env=env, cwd=REPO)
+    # Only the stress classes: the module's vendored-graph tripwire may skip
+    # without the submodule, and a skip here is treated as a failure.
+    proc = run(
+        [
+            PY,
+            "-m",
+            "pytest",
+            "tests/pyscotch_base/test_reproducibility.py",
+            "-q",
+            "-rs",
+            "-k",
+            "TestSequentialReproducibility or TestParallelReproducibility",
+        ],
+        env=env,
+        cwd=REPO,
+    )
     output = proc.stdout + proc.stderr
     tail = "\n".join(output.strip().splitlines()[-15:])
     if proc.returncode != 0:

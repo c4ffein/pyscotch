@@ -42,7 +42,7 @@ jobs:
         run: |
           python -m pip install build
           # wheel picks up pyscotch/_libs staged above; sdist stays pure
-          python -m build --wheel
+          python -m build --wheel -C--build-option=--plat-name=linux_x86_64
           rm -rf pyscotch/_libs
           python -m build --sdist
 

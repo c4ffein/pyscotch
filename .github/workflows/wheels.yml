@@ -40,6 +40,9 @@ jobs:
           # The wheel is tagged py3-none-<platform> (ctypes-only, no CPython
           # C-API), so building under a single CPython version is enough.
           CIBW_BUILD: "cp312-manylinux_${{ matrix.arch }}"
+          # No setup.py: the bundled-libs wheel is made platform-specific by the
+          # build frontend (py3-none-<plat>; auditwheel then retags to manylinux).
+          CIBW_CONFIG_SETTINGS: "--build-option=--plat-name=linux_${{ matrix.arch }}"
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
           # Builds sequential-only Scotch (32+64-bit, suffixed symbols) and

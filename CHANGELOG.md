@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [7.0.6] - 2026-10-10
 
 ### Added
 - **Strategy-grammar agreement check and importer.** `strategy_grammar.parse(
@@ -22,6 +22,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ordering defaults — parses with zero unknowns and renders back to a string
   Scotch saves byte-identically; the drift guard now covers all eight
   namespaces. Doc example `ex_04_strategy_import.py`.
+- **CeCILL-C licence text and a bundling notice ship with the package.** Wheels bundle
+  Scotch libraries, the repo carries small patches to Scotch sources and a
+  Scotch test graph — all CeCILL-C (© Inria) — yet only PyScotch's MIT text
+  travelled. `LICENSES/` (the CeCILL-C text plus a README stating what is
+  bundled) now ships in wheels and sdists (`license-files`), and the README
+  points at it.
+- **Property-based grammar round-trips**
+  (`tests/hypothesis/test_strategy_grammar_roundtrip.py`): for random typed
+  trees of every top-level grammar — populated value parameters, `Seq`,
+  `Select` with empty alternatives, conditions with and without else — Scotch
+  reads the builder's rendering, `parse()` reads Scotch's canonical form, and
+  re-rendering it means the same thing to Scotch (byte-identical canonical).
+  Generalizes the eleven-default agreement corpus to the language the builder
+  covers.
 - **PT-Scotch strategy strings are checked at construction too.**
   `set_dgraph_mapping()` / `set_dgraph_ordering()` — and `Strategy(string)`
   when the parallel library is loaded — now probe the string with PT-Scotch's
@@ -77,13 +91,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pristine upstream behavior.
 
 ### Fixed
+- The reproducibility harness's reference graph (`m16x16_b100000_v.grf`) is
+  vendored in `tests/data/` instead of being taken from the submodule or the
+  release tarball under test: not every upstream tarball ships it (older
+  ones do not), which made the CI harness step fail for a reason unrelated to
+  reproducibility. `MANIFEST.in` also still pointed at the old `patches/`
+  directory, so the sdist no longer shipped `Makefile.inc.default`.
 - The doc-examples test harness now runs each example with the repository on
   `PYTHONPATH`: examples execute as `python <script>`, whose import path
   starts at the examples directory, so they used to import whatever
   `pyscotch` was installed in the environment (possibly stale) instead of
   the working tree — and silently tested the wrong code.
+- `tests/pyscotch_integration/test_orchestrator.py` handed its MPI children a
+  hard-coded 64-bit width, so a 32-bit session with `PYSCOTCH_LIB_DIR` pinned
+  to a 32-bit directory failed the distributed-coarsening workflow with
+  "exports neither SCOTCH_graphInit_64 nor SCOTCH_graphInit". It now follows
+  the session width like the MPI port orchestrator already did.
+- `make test-differential` now pins `PYSCOTCH_LIB_DIR` to the fresh
+  `scotch-builds/lib32`, so a stale wheel-layout `pyscotch/_libs/lib32` can no
+  longer shadow it and silently compare two different Scotch versions.
 
 ### Changed
+- **The build catalog now starts at 7.0.11.** 7.0.10's PT-Scotch does not
+  compile under the suffixed build without a backport of the 12 renaming
+  macros 7.0.11 added (upstream `f7cd80c`, the project's very first report);
+  the catalog-derived CI matrix was the first thing ever to build it and found
+  out. Rather than carry a quickfix for a release nothing needs, 7.0.10 was
+  dropped. The quickfix verification gained a `pristine_build` variant so a
+  future fix that lands in libptscotch is checked in the right library.
+- **Python >= 3.12; packaging is `pyproject.toml` alone.** `requires-python`
+  moves from 3.7 to 3.12 (3.7–3.11 are end-of-life or close to it), which
+  unlocks setuptools >= 77 and PEP 639: the package declares
+  `license = "MIT AND CECILL-C"` with `license-files = ["LICENSE",
+  "LICENSES/*"]`, so the wheel's own metadata states both licences. `setup.py`
+  and `MANIFEST.in` are gone: the bundled-libs wheel is made
+  platform-specific by the build frontend (`--build-option=--plat-name`,
+  set in the wheel workflows) instead of a `bdist_wheel` subclass, package
+  data lives in `[tool.setuptools.package-data]`, and the sdist is now
+  package-only (no Makefile/scripts/tests; CI still asserts it carries no
+  binary). The licence notice lives in `LICENSES/README.md` next to the
+  CeCILL-C text. CI tests Python 3.12 and 3.14 (oldest supported, newest).
 - Bundled Scotch patches and the build config moved from `patches/` and
   `pyscotch/_patches/` into one package directory, `pyscotch/_scotch_patches/`
   (the two root `.patch` copies had no consumer). `CONTRIBUTING.md` removed
@@ -125,29 +172,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   behaviour change intended (unused imports and dead assignments dropped,
   three bare `except:` in `pyscotch/mpi.py` narrowed to `except Exception:`).
 
-### Fixed
-- `tests/pyscotch_integration/test_orchestrator.py` handed its MPI children a
-  hard-coded 64-bit width, so a 32-bit session with `PYSCOTCH_LIB_DIR` pinned
-  to a 32-bit directory failed the distributed-coarsening workflow with
-  "exports neither SCOTCH_graphInit_64 nor SCOTCH_graphInit". It now follows
-  the session width like the MPI port orchestrator already did.
-- `make test-differential` now pins `PYSCOTCH_LIB_DIR` to the fresh
-  `scotch-builds/lib32`, so a stale wheel-layout `pyscotch/_libs/lib32` can no
-  longer shadow it and silently compare two different Scotch versions.
-
 ### Known
-- `TestRandom::test_random_proc_decorrelates_and_roundtrips` is flaky on
-  7.0.16 (roughly one run in five) with the default thread count. This is an
-  upstream regression: 7.0.16 made the greedy graph-growing bipartitioner
-  multi-threaded (commit `7a934a8`) with a seeding race between threads and
-  no deterministic-mode guard, so threaded partitioning is no longer
-  reproducible even with `SCOTCH_DETERMINISTIC=1` or a
-  `-DSCOTCH_DETERMINISTIC` build; 7.0.13 to 7.0.15 honour the flag, and a
-  7.0.16 rebuilt with `-DBGRAPHBIPARTGGNOTHREAD` is deterministic again.
-  Root-cause analysis, repro and a tested three-part fix
-  (`pyscotch/_scotch_patches/scotch-7.0.16-bgraph-bipart-gg-determinism.patch`, proposed
-  upstream, NOT applied by `pyscotch scotch build`) are in
-  `docs/QUESTIONS_FOR_SCOTCH_TEAM.md`; the test is deliberately left as is.
+- Scotch 7.0.16 is not reproducible under threads, even with
+  `SCOTCH_DETERMINISTIC=1` or a `-DSCOTCH_DETERMINISTIC` build: upstream
+  commit `7a934a8` made the greedy graph-growing bipartitioner multi-threaded
+  with a seeding race and no deterministic-mode guard (7.0.13–7.0.15 honour the
+  flag; a 7.0.16 rebuilt with `-DBGRAPHBIPARTGGNOTHREAD` is deterministic
+  again). This release therefore ships 7.0.15 and lists 7.0.16 as skipped; the
+  root-cause analysis, repro and the tested fix are in
+  `docs/QUESTIONS_FOR_SCOTCH_TEAM.md`, and the fix is offered as a confirmed-only
+  behavioral patch when building 7.0.16 explicitly. The reproducibility
+  harness is the gate the pin must pass before moving again.
 
 ## [7.0.5] - 2026-10-02
 

@@ -183,7 +183,9 @@ actually loaded at runtime.
 
 MIT License. See [LICENSE](LICENSE).
 
-PT-Scotch itself is distributed under the [CeCILL-C](https://cecill.info/licences/Licence_CeCILL-C_V1-en.html) license.
+PT-Scotch itself is distributed under the [CeCILL-C](https://cecill.info/licences/Licence_CeCILL-C_V1-en.html)
+license; the wheels bundle its libraries and the repository carries small patches
+and a test graph from it — see [`LICENSES/`](LICENSES/README.md).
 
 ## Acknowledgments
 

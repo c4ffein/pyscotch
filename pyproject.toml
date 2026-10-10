@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=61", "wheel", "numpy>=1.19.0"]
+# setuptools >= 77 for PEP 639 licence metadata (license expression + files).
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,8 +11,11 @@ name = "pyscotch"
 dynamic = ["version"]
 description = "Python wrapper for PT-Scotch graph partitioning library"
 readme = "README.md"
-requires-python = ">=3.7"
-license = {text = "MIT"}
+requires-python = ">=3.12"
+# PEP 639: PyScotch is MIT; wheels bundle (and the repo patches/copies parts of)
+# Scotch, which is CeCILL-C — the expression and the files below declare both.
+license = "MIT AND CECILL-C"
+license-files = ["LICENSE", "LICENSES/*"]
 authors = [
     {name = "c4ffein"}
 ]
@@ -21,8 +25,12 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
     "Topic :: Scientific/Engineering",
-    "License :: OSI Approved :: MIT License",
+    "Topic :: Software Development :: Libraries",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: POSIX :: Linux",
 ]
 
 dependencies = [
@@ -62,6 +70,26 @@ Repository = "https://github.com/c4ffein/pyscotch"
 [project.scripts]
 pyscotch = "pyscotch.cli:main"
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["pyscotch*"]
+
+[tool.setuptools.package-data]
+# _libs/lib{32,64}/*.so are staged by scripts/build_wheel_libs.sh for binary
+# wheels (built with `--build-option=--plat-name=<plat>` so the wheel is tagged
+# py3-none-<platform>; see wheels.yml); the globs are no-ops when absent. The
+# sdist is package-only: CI asserts it never carries a binary.
+pyscotch = [
+    "py.typed",
+    "native/*.c",
+    "_scotch_patches/*.patch",
+    "_scotch_patches/Makefile.inc.default",
+    "_libs/lib32/*.so",
+    "_libs/lib64/*.so",
+]
+
 [tool.setuptools.dynamic]
 version = {attr = "pyscotch._version.__version__"}
 
@@ -97,7 +125,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 
 [tool.mypy]
-python_version = "3.7"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
