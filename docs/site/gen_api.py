@@ -43,7 +43,19 @@ LEVELS = {
 # together, or the page numbers drift.
 _MAP_PATH = SITE_DIR / "scotch_manual_pages.json"
 MANUAL_PAGES = json.loads(_MAP_PATH.read_text()) if _MAP_PATH.exists() else {}
-SCOTCH_DOC_TAG = "v7.0.16"
+
+
+def _catalog_newest_version() -> str:
+    """Newest release in pyscotch/scotch_build.py's catalog, read as TEXT so the
+    docs build needs none of the package's runtime dependencies."""
+    src = (Path(__file__).resolve().parents[2] / "pyscotch" / "scotch_build.py").read_text()
+    versions = re.findall(r'^\s*"(\d+\.\d+\.\d+)":\s*"[0-9a-f]{64}"', src, re.M)
+    return max(versions, key=lambda v: tuple(int(x) for x in v.split(".")))
+
+
+# Manual deep links point at the newest CATALOGUED release: the PDFs are
+# unaffected by a behavioral skip, and the catalog is the single version source.
+SCOTCH_DOC_TAG = "v" + _catalog_newest_version()
 _MANUAL_URL = "https://gitlab.inria.fr/scotch/scotch/-/raw/{tag}/doc/{pdf}?inline=true"
 
 

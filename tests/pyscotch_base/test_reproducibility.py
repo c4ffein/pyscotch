@@ -69,8 +69,15 @@ if comm.Get_rank() == 0:
 
 
 def _graph_or_skip():
+    """The audit was opted into (PYSCOTCH_REPRO=1): a missing graph is an
+    ERROR, not a skip — a silently skipped gate once reported a known-bad
+    release as passing."""
     if not GRAPH.exists():
-        pytest.skip("scotch submodule data not initialized")
+        pytest.fail(
+            f"reproducibility graph not found: {GRAPH}\n"
+            "run `git submodule update --init --recursive`, or point "
+            "PYSCOTCH_REPRO_GRAPH at a copy of m16x16_b100000_v.grf"
+        )
     return GRAPH
 
 

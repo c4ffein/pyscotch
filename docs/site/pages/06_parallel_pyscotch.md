@@ -154,6 +154,14 @@ library was built and run:
    which handles the threading source only. Small graphs stay below the
    threading thresholds, which can make all of this easy to miss in tests.
 
+> **Scotch 7.0.16 caveat.** Its multi-threaded `bgraphBipartGg()` ignores the
+> deterministic option (upstream regression `7a934a8`, reported with a tested
+> fix), so with threads it is not reproducible even under
+> `SCOTCH_DETERMINISTIC=1`. PyScotch's wheels and default builds therefore
+> ship **7.0.15**. If you build 7.0.16 explicitly, reproducibility under
+> threads needs either the bundled behavioral patch (offered at build time)
+> or `SCOTCH_PTHREAD_NUMBER=1`.
+
 With both in place, one variable remains: **the stream position**, which
 advances with every randomized operation. It has to be taken into account
 whenever a sequence of operations must replay identically — in unit tests, or

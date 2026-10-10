@@ -377,3 +377,50 @@ class TestStrictBuildFlags:
 
     def test_makefile_inc_carries_strict_flag(self):
         assert "-Werror=implicit-function-declaration" in sb._makefile_inc("gcc", "mpicc")
+
+
+class TestCiMatrixDerivation:
+    """scripts/ci_matrix.py is the only place the CI matrices come from: every
+    expectation must be derivable from the catalog, with nothing hand-typed."""
+
+    @staticmethod
+    def _matrix(full):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "ci_matrix", Path(__file__).resolve().parents[2] / "scripts" / "ci_matrix.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.matrix(full=full)["include"]
+
+    def test_every_catalogued_version_has_a_row(self):
+        rows = self._matrix(full=True)
+        assert {r["scotch"] for r in rows} == set(sb._KNOWN_VERSIONS)
+
+    def test_rows_are_newest_first(self):
+        versions = [r["scotch"] for r in self._matrix(full=True)]
+        assert versions == sorted(versions, key=sb._version_key, reverse=True)
+
+    def test_quickfix_rows_carry_their_proof(self):
+        for r in self._matrix(full=True):
+            if r["quickfix"] == "yes":
+                assert r["symbol"] and r["pristine_grep"], r
+            else:
+                assert "symbol" not in r and "pristine_grep" not in r, r
+
+    def test_skipped_versions_are_fail_expected(self):
+        for r in self._matrix(full=True):
+            expected = "fail-expected" if r["scotch"] in sb._SKIPPED_VERSIONS else "pass"
+            assert r["repro"] == expected, r
+
+    def test_behavioral_flag_follows_the_catalog(self):
+        for r in self._matrix(full=True):
+            assert (r.get("behavioral") == "yes") == bool(sb.behavioral_patches_for(r["scotch"])), r
+
+    def test_pypi_matrix_is_the_minimal_shape(self):
+        for r in self._matrix(full=False):
+            assert set(r) == {"scotch", "quickfix"}, r
+
+    def test_patch_verify_covers_every_quickfixed_version(self):
+        assert set(sb._PATCH_VERIFY) == set(sb._PATCHES)

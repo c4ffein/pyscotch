@@ -41,7 +41,7 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 # Targets
-.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 build-reference-tools clean clean-scotch install test test-full test-quadrant test-differential test-reproducibility docs-api help lint-check format-check format
+.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 build-reference-tools clean clean-scotch install test test-full test-quadrant test-differential test-reproducibility bump docs-api help lint-check format-check format
 
 help:
 	@echo "PyScotch Build System"
@@ -68,6 +68,7 @@ help:
 	@echo "  make test-differential     - Byte-compare PyScotch against those tools (needs build-reference-tools)"
 	@echo "  make docs-api              - Regenerate docs/site/api_data.json after a public-API change (mirrors CI)"
 	@echo "  make test-reproducibility  - N fresh-process runs per config must agree (PYSCOTCH_REPRO_RUNS=12)"
+	@echo "  make bump SCOTCH=X.Y.Z     - Gated Scotch version bump (add BUMP_FLAGS=--apply to perform it)"
 	@echo "  make lint-check            - ruff check (what CI runs)"
 	@echo "  make format-check          - ruff format --check (what CI runs)"
 	@echo "  make format                - Apply ruff formatting + safe lint fixes"
@@ -244,7 +245,7 @@ check-submodule:
 	@$(PYTHON) -m pyscotch.cli scotch prepare --source $(SCOTCH_SUBMODULE) --dest $(SCOTCH_DIR)
 	@if [ ! -f "$(SCOTCH_SRC)/Makefile.inc" ]; then \
 		echo "Creating default Makefile.inc..."; \
-		cp patches/Makefile.inc.default $(SCOTCH_SRC)/Makefile.inc; \
+		cp pyscotch/_scotch_patches/Makefile.inc.default $(SCOTCH_SRC)/Makefile.inc; \
 		echo "✓ Makefile.inc created"; \
 	fi
 	@echo "✓ Patched source copy ready"
@@ -271,40 +272,66 @@ install:
 # Audits the dev build by default; point PYSCOTCH_LIB_DIR elsewhere to audit a
 # different library (a FAILURE is a true statement about that library —
 # pristine 7.0.16 fails until upstream fixes 7a934a8).
+# With PYSCOTCH_LIB_DIR set: audit that one library (PYSCOTCH_INT_SIZE, default
+# 64, must match it). Otherwise: every width the dev build has (lib64, lib32).
 test-reproducibility:
-	PYSCOTCH_REPRO=1 PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0 \
-	PYSCOTCH_LIB_DIR=$${PYSCOTCH_LIB_DIR:-$(CURDIR)/$(BUILDS_DIR)/lib64} \
-	PYSCOTCH_MPI_OVERSUBSCRIBE=1 \
-	pytest tests/pyscotch_base/test_reproducibility.py -v
+	@if [ -n "$$PYSCOTCH_LIB_DIR" ]; then \
+	  PYSCOTCH_REPRO=1 PYSCOTCH_INT_SIZE=$${PYSCOTCH_INT_SIZE:-64} PYSCOTCH_PARALLEL=0 \
+	  PYSCOTCH_MPI_OVERSUBSCRIBE=1 pytest tests/pyscotch_base/test_reproducibility.py -v; \
+	else \
+	  for w in 64 32; do \
+	    d=$(CURDIR)/$(BUILDS_DIR)/lib$$w; \
+	    [ -f $$d/libscotch.so ] || { echo "== $$w-bit: no $$d, skipped"; continue; }; \
+	    echo "== $$w-bit: $$d"; \
+	    PYSCOTCH_REPRO=1 PYSCOTCH_INT_SIZE=$$w PYSCOTCH_PARALLEL=0 PYSCOTCH_LIB_DIR=$$d \
+	    PYSCOTCH_MPI_OVERSUBSCRIBE=1 pytest tests/pyscotch_base/test_reproducibility.py -v || exit 1; \
+	  done; \
+	fi
+
+# Scotch version bump, gated: `make bump SCOTCH=7.0.17` checks the release
+# (download/sha, compile, reproducibility harness, API-surface drift) and
+# STOPS with a classified report on any failure; `make bump SCOTCH=7.0.17
+# BUMP_FLAGS=--apply` then performs the mechanical steps (catalog, shipped
+# pin, submodule, docs-api, page map, sdist, goldens). See scripts/bump_scotch.py.
+bump:
+	@test -n "$(SCOTCH)" || { echo "usage: make bump SCOTCH=7.0.17 [BUMP_FLAGS=--apply]"; exit 2; }
+	$(PYTHON) scripts/bump_scotch.py $(SCOTCH) $(BUMP_FLAGS)
+
+# The test targets PIN the dev build (scotch-builds/libNN): without
+# PYSCOTCH_LIB_DIR the loader prefers a `pyscotch scotch use`d store build, so
+# `make test` on a machine with one would silently test THAT Scotch instead of
+# the pinned submodule. 32-bit quadrants need `make build-32` (or build-all).
+LIB64 = PYSCOTCH_LIB_DIR=$(CURDIR)/$(BUILDS_DIR)/lib64
+LIB32 = PYSCOTCH_LIB_DIR=$(CURDIR)/$(BUILDS_DIR)/lib32
 
 test:
-	PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/ -v --ignore=tests/hypothesis/
+	$(LIB64) PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/ -v --ignore=tests/hypothesis/
 
 # Run full test suite including hypothesis property tests
 test-full:
-	PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/ -v
+	$(LIB64) PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/ -v
 
 # Run all 4 variants (32/64-bit × sequential/parallel) with hypothesis
 test-quadrant:
 	@echo "========================================"
 	@echo "[1/4] Testing 32-bit sequential"
 	@echo "========================================"
-	PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=0 pytest tests/ -v
+	$(LIB32) PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=0 pytest tests/ -v
 	@echo ""
 	@echo "========================================"
 	@echo "[2/4] Testing 32-bit parallel"
 	@echo "========================================"
-	PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=1 pytest tests/ -v
+	$(LIB32) PYSCOTCH_INT_SIZE=32 PYSCOTCH_PARALLEL=1 pytest tests/ -v
 	@echo ""
 	@echo "========================================"
 	@echo "[3/4] Testing 64-bit sequential"
 	@echo "========================================"
-	PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0 pytest tests/ -v
+	$(LIB64) PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0 pytest tests/ -v
 	@echo ""
 	@echo "========================================"
 	@echo "[4/4] Testing 64-bit parallel"
 	@echo "========================================"
-	PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/ -v
+	$(LIB64) PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 pytest tests/ -v
 	@echo ""
 	@echo "✓ All 4 variants tested successfully!"
 

@@ -8,7 +8,7 @@ name: Verify published PyPI release
 # `pyscotch scotch build --parallel` and drive PT-Scotch under mpirun
 # through it. The matrix pins each version's quickfix expectation, so it
 # proves BOTH catalog behaviours: versions that must be auto-patched
-# (7.0.12) and versions that must build pristine (7.0.13-7.0.16). When a new
+# (7.0.12) and versions that must build pristine (the rest). When a new
 # Scotch lands in the catalog, add one matrix entry here.
 #
 # Pre-publish twins, for orientation:
@@ -72,27 +72,40 @@ jobs:
           PYSCOTCH_PARALLEL=0 pyscotch partition smoke.grf -n 2 -o smoke.map
           test -s smoke.map
 
+  catalog:
+    name: "Build matrix from the installed package's catalog"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.emit.outputs.matrix }}
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - id: emit
+        run: |
+          spec="pyscotch"
+          if [ -n "${{ inputs.version }}" ]; then spec="pyscotch==${{ inputs.version }}"; fi
+          pip install -q "$spec"
+          python - <<'PY' | tee /tmp/matrix.json
+          import json
+          from pyscotch.scotch_build import _KNOWN_VERSIONS, _PATCHES, _version_key
+          rows = [{"scotch": v, "quickfix": "yes" if _PATCHES.get(v) else "no"}
+                  for v in sorted(_KNOWN_VERSIONS, key=_version_key, reverse=True)]
+          print(json.dumps({"include": rows}, separators=(",", ":")))
+          PY
+          echo "matrix=$(cat /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
+
   scotch-matrix:
     name: "Scotch ${{ matrix.scotch }} from tarball (quickfix: ${{ matrix.quickfix }})"
     runs-on: ubuntu-latest
+    needs: catalog
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # One entry per catalogued Scotch release, with its quickfix
-          # expectation pinned. Keep in sync with _KNOWN_VERSIONS/_PATCHES in
-          # pyscotch/scotch_build.py — a mismatch here IS the signal (either
-          # the catalog drifted or upstream regenerated a tarball).
-          - scotch: "7.0.16"
-            quickfix: "no"   # verified pristine 2026-10-08 (strict implicit-decl build, seq + par)
-          - scotch: "7.0.15"
-            quickfix: "no"
-          - scotch: "7.0.14"
-            quickfix: "no"
-          - scotch: "7.0.13"
-            quickfix: "no"   # first release with our rename-table fix merged upstream
-          - scotch: "7.0.12"
-            quickfix: "yes"  # rename-table regression; must be auto-patched
+      # Derived from the catalog of the INSTALLED package (this workflow has
+      # no checkout: the matrix is what the published pyscotch knows about),
+      # same derivation as scripts/ci_matrix.py --pypi.
+      matrix: ${{ fromJSON(needs.catalog.outputs.matrix) }}
     steps:
       # Deliberately NO actions/checkout: a user has none of this repo.
       - uses: actions/setup-python@v6

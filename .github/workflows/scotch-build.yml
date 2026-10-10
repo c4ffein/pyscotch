@@ -10,8 +10,9 @@ name: Build Scotch from CLI (end-to-end)
 # releases must be auto-patched (and export the patched symbol), pristine
 # releases must build with no patch at all. Version-specific negative tests
 # (e.g. --pristine 7.0.12 must fail with the right diagnosis) hang off matrix
-# fields. When a new Scotch lands in the catalog, add one matrix entry here
-# AND in pypi-verify.yml (its post-publish twin, which runs the same journey
+# fields. The matrix is DERIVED from the catalog (scripts/ci_matrix.py), so a
+# new Scotch release is one catalog entry — nothing to add here nor in
+# pypi-verify.yml (its post-publish twin, which runs the same journey
 # but installs pyscotch from the real PyPI index with no checkout — this one
 # gates the code before release, that one certifies the published package
 # after).
@@ -38,7 +39,7 @@ on:
       - "pyscotch/_store.py"
       - "pyscotch/libscotch.py"
       - "pyscotch/native/**"
-      - "pyscotch/_patches/**"
+      - "pyscotch/_scotch_patches/**"
       - ".github/workflows/scotch-build.yml"
   pull_request:
     paths:
@@ -46,7 +47,7 @@ on:
       - "pyscotch/_store.py"
       - "pyscotch/libscotch.py"
       - "pyscotch/native/**"
-      - "pyscotch/_patches/**"
+      - "pyscotch/_scotch_patches/**"
       - ".github/workflows/scotch-build.yml"
   workflow_dispatch:
 
@@ -91,6 +92,22 @@ jobs:
                   bad += 1
           sys.exit(1 if bad else 0)
           PY
+
+  catalog:
+    name: "Build matrix from the Scotch catalog"
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      matrix: ${{ steps.emit.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - id: emit
+        run: |
+          python scripts/ci_matrix.py --full | tee /tmp/matrix.json
+          echo "matrix=$(cat /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
 
   release-watch:
     name: "Upstream releases vs the shipped pin"
@@ -148,50 +165,16 @@ jobs:
     # compiles, mpirun). On a schedule it runs only for the Monday cron; the
     # 6-hourly cron fires the tarball-drift job alone.
     if: github.event_name != 'schedule' || github.event.schedule == '30 6 * * 1'
+    needs: catalog
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # One entry per catalogued Scotch release. Keep in sync with
-          # _KNOWN_VERSIONS/_PATCHES in pyscotch/scotch_build.py and with the
-          # matrix in pypi-verify.yml — a mismatch here IS the signal (catalog
-          # drift, or upstream regenerated/fixed something).
-          #
-          # Fields:
-          #   quickfix        "yes" if the version must be auto-patched
-          #   symbol          (quickfix only) suffixed symbol the patch must
-          #                   make libscotch.so export
-          #   pristine_grep   if set, `--pristine` must FAIL and its output
-          #                   must contain this string (the diagnosis)
-          #   repro           reproducibility harness expectation for the
-          #                   PRISTINE sequential build: "pass" (must be
-          #                   reproducible), "fail-expected" (known upstream
-          #                   nondeterminism — a PASS warns that upstream
-          #                   fixed it and the behavioral patch can retire)
-          #   behavioral      "yes": rebuild with the bundled behavioral
-          #                   patch (--auto-allow-behavioral-patches) and the
-          #                   harness must then pass
-          - scotch: "7.0.16"
-            quickfix: "no"   # verified pristine 2026-10-08 (strict implicit-decl build, seq + par)
-            repro: "fail-expected"  # upstream 7a934a8: threaded bgraphBipartGg nondeterminism
-            behavioral: "yes"
-          - scotch: "7.0.15"
-            quickfix: "no"
-            repro: "pass"
-          - scotch: "7.0.14"
-            quickfix: "no"
-            repro: "pass"
-          - scotch: "7.0.13"
-            quickfix: "no"   # first release with our rename-table fix merged upstream
-            repro: "pass"
-          - scotch: "7.0.12"
-            quickfix: "yes"  # rename-table regression; must be auto-patched
-            symbol: "SCOTCH_meshBuildElem_64"
-            pristine_grep: "SCOTCH_meshBuildElem"
-            repro: "pass"
-          - scotch: "7.0.11"
-            quickfix: "no"
-            repro: "pass"
+      # One entry per catalogued Scotch release, DERIVED from the catalog in
+      # pyscotch/scotch_build.py by scripts/ci_matrix.py (the `catalog` job):
+      #   quickfix / symbol / pristine_grep  from _PATCHES + _PATCH_VERIFY
+      #   repro ("pass" | "fail-expected")    from _SKIPPED_VERSIONS
+      #   behavioral ("yes")                  from _BEHAVIORAL_PATCHES
+      # Adding a release = adding its catalog entry; nothing to sync here.
+      matrix: ${{ fromJSON(needs.catalog.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v5
         # No submodules: build-scotch downloads its own Scotch source.
@@ -255,35 +238,6 @@ jobs:
             | grep -qw "${{ matrix.symbol }}" \
             || { echo "::error::quickfixed ${{ matrix.scotch }} lacks a defined ${{ matrix.symbol }}"; exit 1; }
 
-      - name: Reproducibility harness (N fresh runs per config must agree)
-        if: matrix.repro != ''
-        run: |
-          # Audits the PRISTINE sequential build just made: N fresh-process
-          # runs per threading config must yield exactly one result (see
-          # tests/pyscotch_base/test_reproducibility.py). The m16x16 graph
-          # comes from the cached source tarball (no submodule in this job).
-          # repro=fail-expected is the upstream-fixed watchdog: red stays
-          # informational, green prints the retire-the-patch warning.
-          tar -xzf "$PYSCOTCH_HOME"/cache/scotch-v${{ matrix.scotch }}.tar.gz \
-              -C "$RUNNER_TEMP" --wildcards "*/src/check/data/m16x16_b100000_v.grf"
-          echo "PYSCOTCH_REPRO_GRAPH=$(find "$RUNNER_TEMP" -name m16x16_b100000_v.grf | head -1)" >> "$GITHUB_ENV"
-          export PYSCOTCH_REPRO_GRAPH="$(find "$RUNNER_TEMP" -name m16x16_b100000_v.grf | head -1)"
-          export PYSCOTCH_REPRO=1 PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0
-          export PYSCOTCH_LIB_DIR="$PYSCOTCH_HOME/builds/${{ matrix.scotch }}-64-seq/lib64"
-          set +e
-          python -m pytest tests/pyscotch_base/test_reproducibility.py -v -k "not mpirun"
-          rc=$?
-          set -e
-          if [ "${{ matrix.repro }}" = "fail-expected" ]; then
-            if [ "$rc" -eq 0 ]; then
-              echo "::warning::pristine Scotch ${{ matrix.scotch }} is reproducible again — upstream may have fixed 7a934a8; consider retiring the behavioral determinism patch"
-            else
-              echo "Pristine ${{ matrix.scotch }} still non-reproducible under threads (known upstream regression) — expected."
-            fi
-          elif [ "$rc" -ne 0 ]; then
-            exit "$rc"
-          fi
-
       - name: Load + partition through the managed sequential build
         working-directory: ${{ runner.temp }}
         run: |
@@ -343,6 +297,37 @@ jobs:
           PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=1 \
             mpirun --oversubscribe -n 2 python dgraph_smoke.py
 
+      - name: Reproducibility harness (N fresh runs per config must agree)
+        if: matrix.repro != ''
+        run: |
+          # Audits the PRISTINE parallel build just made (libscotch AND
+          # libptscotch, so the mpirun leg runs too): N fresh-process
+          # runs per threading config must yield exactly one result (see
+          # tests/pyscotch_base/test_reproducibility.py). The m16x16 graph
+          # comes from the cached source tarball (no submodule in this job).
+          # repro=fail-expected is the upstream-fixed watchdog: red stays
+          # informational, green prints the retire-the-patch warning.
+          tar -xzf "$PYSCOTCH_HOME"/cache/scotch-v${{ matrix.scotch }}.tar.gz \
+              -C "$RUNNER_TEMP" --wildcards "*/src/check/data/m16x16_b100000_v.grf"
+          echo "PYSCOTCH_REPRO_GRAPH=$(find "$RUNNER_TEMP" -name m16x16_b100000_v.grf | head -1)" >> "$GITHUB_ENV"
+          export PYSCOTCH_REPRO_GRAPH="$(find "$RUNNER_TEMP" -name m16x16_b100000_v.grf | head -1)"
+          [ -n "$PYSCOTCH_REPRO_GRAPH" ] || { echo "::error::m16x16_b100000_v.grf not found in the ${{ matrix.scotch }} tarball"; exit 1; }
+          export PYSCOTCH_REPRO=1 PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0
+          export PYSCOTCH_LIB_DIR="$PYSCOTCH_HOME/builds/${{ matrix.scotch }}-64-par/lib64"
+          set +e
+          python -m pytest tests/pyscotch_base/test_reproducibility.py -v
+          rc=$?
+          set -e
+          if [ "${{ matrix.repro }}" = "fail-expected" ]; then
+            if [ "$rc" -eq 0 ]; then
+              echo "::warning::pristine Scotch ${{ matrix.scotch }} is reproducible again — upstream may have fixed 7a934a8; consider retiring the behavioral determinism patch"
+            else
+              echo "Pristine ${{ matrix.scotch }} still non-reproducible under threads (known upstream regression) — expected."
+            fi
+          elif [ "$rc" -ne 0 ]; then
+            exit "$rc"
+          fi
+
       - name: Switching the default changes the loaded library
         working-directory: ${{ runner.temp }}
         run: |
@@ -386,12 +371,12 @@ jobs:
           # (pre-approved by flag — CI is not a TTY) and the harness that
           # just failed on the pristine build must now pass. Guards both the
           # patch and the confirmation plumbing end to end.
-          out="$(pyscotch scotch build ${{ matrix.scotch }} --sequential --force --auto-allow-behavioral-patches 2>&1)"
+          out="$(pyscotch scotch build ${{ matrix.scotch }} --parallel --force --auto-allow-behavioral-patches 2>&1)"
           echo "$out"
           echo "$out" | grep -q "Applied behavioral fix" \
             || { echo "::error::behavioral patch was not applied"; exit 1; }
           pyscotch scotch list | grep "${{ matrix.scotch }}" | grep -q "behavioral fix" \
             || { echo "::error::build not marked with the behavioral-fix tag"; exit 1; }
           export PYSCOTCH_REPRO=1 PYSCOTCH_INT_SIZE=64 PYSCOTCH_PARALLEL=0
-          export PYSCOTCH_LIB_DIR="$PYSCOTCH_HOME/builds/${{ matrix.scotch }}-64-seq/lib64"
-          python -m pytest tests/pyscotch_base/test_reproducibility.py -v -k "not mpirun"
+          export PYSCOTCH_LIB_DIR="$PYSCOTCH_HOME/builds/${{ matrix.scotch }}-64-par/lib64"
+          python -m pytest tests/pyscotch_base/test_reproducibility.py -v

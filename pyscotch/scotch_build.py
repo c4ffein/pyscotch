@@ -105,7 +105,7 @@ def skipped_versions() -> dict:
 
 # Bundled "quickfix" patches, applied live to the extracted source before
 # building (unless --pristine). Keyed by exact version; each entry is
-# (patch filename in pyscotch/_patches/, one-line reason). These fix real
+# (patch filename in pyscotch/_scotch_patches/, one-line reason). These fix real
 # upstream build breaks under PyScotch's suffixed (-DSCOTCH_RENAME_ALL) build,
 # so they are ON BY DEFAULT — a pristine 7.0.12 simply does not compile.
 _PATCHES = {
@@ -120,7 +120,7 @@ _PATCHES = {
 
 
 def _patches_dir():
-    return Path(__file__).parent / "_patches"
+    return Path(__file__).parent / "_scotch_patches"
 
 
 def patches_for(version):
@@ -128,9 +128,17 @@ def patches_for(version):
     return _PATCHES.get(version, [])
 
 
+# How CI proves a quickfix did its job: the suffixed symbol the patched
+# libscotch.so must export, and the diagnosis string a --pristine build of
+# that version must fail with. Consumed by scripts/ci_matrix.py.
+_PATCH_VERIFY = {
+    "7.0.12": {"symbol": "SCOTCH_meshBuildElem_64", "pristine_grep": "SCOTCH_meshBuildElem"},
+}
+
+
 # Bundled BEHAVIORAL patches: unlike quickfixes they change the library's
 # RESULTS, not just whether it compiles — so they are never applied silently.
-# Each entry is (patch filename in pyscotch/_patches/, description shown to
+# Each entry is (patch filename in pyscotch/_scotch_patches/, description shown to
 # the user, needs_confirmation). At build time a confirming prompt is shown
 # (TTY), or the patch is skipped with a note (non-interactive) unless
 # --auto-allow-behavioral-patches is passed. Policy: a behavioral patch is
@@ -190,7 +198,7 @@ def _approved_behavioral(version, pristine=False, auto_allow=False, _input=input
     return approved
 
 
-# Base CFLAGS mirror patches/Makefile.inc.default (the flags PyScotch's own
+# Base CFLAGS mirror pyscotch/_scotch_patches/Makefile.inc.default (the flags PyScotch's own
 # builds use). Per-build we append -DINTSIZE64 / -DSCOTCH_NAME_SUFFIX / RENAME.
 #
 # -Werror=implicit-function-declaration is deliberate and load-bearing: under
