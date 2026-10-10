@@ -8,6 +8,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Strategy-grammar agreement check and importer.** `strategy_grammar.parse(
+  string, family)` turns any Scotch strategy string into a typed tree, driven
+  by the builder's method tables: unknown methods/parameters raise
+  (`UnknownMethodError` / `UnknownParameterError` — the signal that upstream
+  added something the builder does not model), missing or empty strategy
+  slots raise `HollowSlotError` from the tables alone, and `Empty` / `Cond`
+  nodes model selection alternatives and `/(test)?a:b;` conditions. The
+  builder gains the four PT-Scotch namespaces (`DMapping`, `DBipart`,
+  `DOrdering`, `DSeparation`, from the `*dgraph*_st.c` tables; `validate()`
+  covers them via the sandboxed probe). New tests assert that every built-in
+  Scotch default — mapping and ordering presets, the distributed mapping and
+  ordering defaults — parses with zero unknowns and renders back to a string
+  Scotch saves byte-identically; the drift guard now covers all eight
+  namespaces. Doc example `ex_04_strategy_import.py`.
+- **PT-Scotch strategy strings are checked at construction too.**
+  `set_dgraph_mapping()` / `set_dgraph_ordering()` — and `Strategy(string)`
+  when the parallel library is loaded — now probe the string with PT-Scotch's
+  own parsers (`SCOTCH_stratDgraphMap/Order`) and reject invalid or *hollow*
+  strings (implicit do-nothing sub-strategies, e.g. a bare `"r"` for mapping
+  or `"q"`/`"n"` for ordering) with `ValueError`, instead of silently
+  producing one-part partitions / identity orderings. `""` keeps its
+  documented verbatim pass-through. A PT-Scotch-only string given to
+  `Strategy()` under the parallel library is now accepted (it used to fail
+  with "parses under none of the grammars"). The whole probe (parse +
+  stratSave round-trip) runs in a sandbox subprocess because upstream can
+  fault in either step — the parser on a syntax error inside a
+  strategy-valued parameter (known), and `SCOTCH_stratSave` on a distributed
+  ordering strategy whose nested-dissection method has an implicit separator
+  (7.0.13 and 7.0.15 at least; reported, see QUESTIONS_FOR_SCOTCH_TEAM.md
+  2026-10-09). A child dying in the parse is "invalid", in the save
+  "hollow"; the caller's process never parses such a string itself.
+- **Catalog-derived CI matrices and a gated bump.** `scripts/ci_matrix.py`
+  emits the scotch-build matrix from the catalog in `scotch_build.py` (a new
+  `_PATCH_VERIFY` holds each quickfix's proof symbol/diagnosis); pypi-verify
+  derives its matrix from the *installed* package; the manuals tag in
+  `gen_api.py` derives from the catalog. Adding a Scotch release is one
+  catalog entry. `make bump SCOTCH=X.Y.Z` (`scripts/bump_scotch.py`) checks a
+  candidate — download/sha, compile, the reproducibility gate (skips count
+  as failures), exported-symbol drift + API-completeness — and STOPS with a
+  classified report; `BUMP_FLAGS=--apply` then performs the mechanical steps
+  (catalog, shipped pin, submodule, `docs-api`, page map, sdist, goldens).
+- **Reproducibility harness in CI covers the mpirun leg and both widths**:
+  the scotch-build matrix audits each version's *parallel* build (Dgraph
+  under mpirun included); `make test-reproducibility` runs every width the
+  dev build has (lib64, lib32) or one explicit `PYSCOTCH_LIB_DIR`.
 - **Reproducibility stress harness** (`make test-reproducibility`,
   `tests/pyscotch_base/test_reproducibility.py`, opt-in via
   `PYSCOTCH_REPRO=1`): the same operation runs N times in fresh processes
@@ -31,7 +76,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--pristine` still skips everything; wheels and the repo's own builds stay
   pristine upstream behavior.
 
+### Fixed
+- The doc-examples test harness now runs each example with the repository on
+  `PYTHONPATH`: examples execute as `python <script>`, whose import path
+  starts at the examples directory, so they used to import whatever
+  `pyscotch` was installed in the environment (possibly stale) instead of
+  the working tree — and silently tested the wrong code.
+
 ### Changed
+- Bundled Scotch patches and the build config moved from `patches/` and
+  `pyscotch/_patches/` into one package directory, `pyscotch/_scotch_patches/`
+  (the two root `.patch` copies had no consumer). `CONTRIBUTING.md` removed
+  (stale; the README's Development section and the Makefile help are the
+  contributor docs). The reproducibility docs gained a 7.0.16 caveat.
 - **Scotch pin bumped from 7.0.13 to 7.0.15 — 7.0.16 is catalogued but
   SKIPPED.** The build catalog (`pyscotch scotch build`) gains 7.0.14, 7.0.15
   and 7.0.16 with sha256 pins, all verified to compile pristine (no quickfix)
@@ -88,7 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `-DSCOTCH_DETERMINISTIC` build; 7.0.13 to 7.0.15 honour the flag, and a
   7.0.16 rebuilt with `-DBGRAPHBIPARTGGNOTHREAD` is deterministic again.
   Root-cause analysis, repro and a tested three-part fix
-  (`patches/scotch-7.0.16-bgraph-bipart-gg-determinism.patch`, proposed
+  (`pyscotch/_scotch_patches/scotch-7.0.16-bgraph-bipart-gg-determinism.patch`, proposed
   upstream, NOT applied by `pyscotch scotch build`) are in
   `docs/QUESTIONS_FOR_SCOTCH_TEAM.md`; the test is deliberately left as is.
 

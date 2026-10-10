@@ -77,8 +77,22 @@ sole semantic authority:
 
 {% example "ex_04_strategy_grammar.py" %}
 
-Four namespaces mirror upstream's method tables — `Mapping`, `Bipart`,
-`Ordering`, `Separation`, named after the `*_st.c` routine suffixes
+Parsing goes the other way, and it is the builder's own drift detector:
+`parse(string, family)` turns any Scotch strategy string — including the
+canonical defaults Scotch writes for itself — into a typed tree, driven by
+the same tables. A method or parameter the tables don't know is an error
+(`UnknownMethodError` / `UnknownParameterError`: upstream moved and the
+builder is behind), a missing strategy slot is a `HollowSlotError` (the
+stratdummy trap, detected without a library call), and the test suite
+asserts that every built-in Scotch default parses with zero unknowns and
+renders back to something Scotch reads identically.
+
+{% example "ex_04_strategy_import.py" %}
+
+Eight namespaces mirror upstream's method tables — `Mapping`, `Bipart`,
+`Ordering`, `Separation` and their PT-Scotch twins `DMapping`, `DBipart`, `DOrdering`, `DSeparation` (from the
+`*dgraph*_st.c` tables; a distributed `q` method wraps a *sequential*
+strategy, exactly as upstream declares). Each is named after the `*_st.c` routine suffixes
 (`Mapping.Ml` = `kgraphMapMl`, aliased `Mapping.Multilevel`) — plus the
 `Seq`/`Select` combinators (juxtaposition and the grammar's best-of `|`
 operator) and a `Raw` escape hatch for constructs the builder doesn't model.

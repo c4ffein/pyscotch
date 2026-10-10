@@ -15,14 +15,23 @@ import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-from pyscotch import Graph
+from pyscotch import Graph, libscotch as lib
 from pyscotch.strategy import Strategy
 from pyscotch.strategy_grammar import (
     BIPART,
+    DBIPART,
+    DMAPPING,
+    DORDERING,
+    DSEPARATION,
     MAPPING,
+    NAMESPACES,
     ORDERING,
     SEPARATION,
     Bipart,
+    DBipart,
+    DMapping,
+    DOrdering,
+    DSeparation,
     Mapping,
     Ordering,
     Raw,
@@ -31,12 +40,18 @@ from pyscotch.strategy_grammar import (
     Seq,
 )
 
+DISTRIBUTED = {DMAPPING, DBIPART, DORDERING, DSEPARATION}
+
 # Simplest complete ("terminal") node per family, used to fill required slots.
 TERMINALS = {
     MAPPING: lambda: Mapping.Fm(),
     BIPART: lambda: Bipart.Fm(),
     ORDERING: lambda: Ordering.Si(),
     SEPARATION: lambda: Separation.Fm(),
+    DMAPPING: lambda: DMapping.Rb(sep=DBipart.Zr(), seq=Mapping.Cp()),
+    DBIPART: lambda: DBipart.Zr(),
+    DORDERING: lambda: DOrdering.Si(),
+    DSEPARATION: lambda: DSeparation.Zr(),
 }
 
 
@@ -47,7 +62,7 @@ def minimal(cls):
 
 
 def all_method_classes():
-    for ns in (Mapping, Bipart, Ordering, Separation):
+    for ns in NAMESPACES.values():
         seen = set()
         for name in vars(ns):
             cls = getattr(ns, name)
@@ -63,6 +78,8 @@ class TestDriftGuard:
     )
     def test_every_method_parses_live(self, ns, name, cls):
         """Render a minimal instance and let the live library judge it."""
+        if cls.family in DISTRIBUTED and not lib.is_parallel():
+            pytest.skip("distributed grammars need the parallel library")
         canonical = minimal(cls).validate()
         assert canonical.strip(), f"{ns}.{name} produced an empty canonical form"
 

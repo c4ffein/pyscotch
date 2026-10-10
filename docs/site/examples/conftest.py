@@ -44,6 +44,12 @@ class ExampleItem(pytest.Item):
         is_demo = self.path.name.startswith("demo_")
         wants_parallel = is_demo and "parallel" in self.path.name
         env = os.environ.copy()
+        # Examples run as `python <script>`, whose sys.path[0] is the examples
+        # directory — NOT the repo. Without this they would import whatever
+        # pyscotch is installed in the venv (possibly stale) instead of the
+        # working tree, and silently test the wrong code.
+        repo = str(Path(__file__).parents[3])
+        env["PYTHONPATH"] = repo + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
         env.setdefault("PYSCOTCH_INT_SIZE", "64")
         if wants_parallel:
             env["PYSCOTCH_PARALLEL"] = "1"
