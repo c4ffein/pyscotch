@@ -16,7 +16,7 @@ upstream findings in [QUESTIONS_FOR_SCOTCH_TEAM.md](QUESTIONS_FOR_SCOTCH_TEAM.md
   bare letters build real defaults decides which tests get deleted and
   whether the constructor check loosens. Details in `tasks.md`.
 - **Strategy parser, phase 2.** The recursive-descent spike
-  (`experiments/parser-rd`) matches bison byte-for-byte on valid input.
+  (`upstream/experiments/parser-rd`) matches bison byte-for-byte on valid input.
   Remaining: structured error transport, the two accept/reject trap fixes
   (empty scalar values, nested syntax-error crash), the dgraph grammars, and
   how to propose it upstream. All gated on a conversation with the Scotch team.
@@ -27,7 +27,7 @@ upstream findings in [QUESTIONS_FOR_SCOTCH_TEAM.md](QUESTIONS_FOR_SCOTCH_TEAM.md
   undocumented public functions, the `contextAlloc` rename-table gap, the
   missing NEEDED entries, and two dorderPerm follow-ups.
 - **Static-analysis reports.** Twelve subsystem reports in
-  `docs/scotch-analysis/` were never triaged into the questions file nor
+  `upstream/scotch-static-analysis-history/claude_2026-07-13/` were never triaged into the questions file nor
   reproduced against a built library.
 - **7.0.16 threaded `bgraphBipartGg()` is not deterministic.** Upstream
   regression (seeding race, no deterministic-mode guard, last-not-best pass);
@@ -75,7 +75,7 @@ Functions declared in the Scotch headers with no binding in `libscotch.py`:
   shouldn't use this" warning. Removing it is the stated goal before
   approaching upstream about adoption.
 - **Untracked work** not yet committed or referenced anywhere: `demo/`,
-  `experiments/`, `docs/scotch-analysis/`, `tasks.md`.
+  `experiments/`, `upstream/scotch-static-analysis-history/claude_2026-07-13/`, `tasks.md`.
 
 ## Documentation and project
 

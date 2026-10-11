@@ -30,7 +30,7 @@ classes with different rules:
   `--auto-allow-behavioral-patches` pre-approves. Example:
   `scotch-7.0.16-bgraph-bipart-gg-determinism.patch` (restores
   reproducibility in the threaded `bgraphBipartGg()`; see the 2026-10-08
-  entry in `docs/QUESTIONS_FOR_SCOTCH_TEAM.md`).
+  entry in `upstream/QUESTIONS_FOR_SCOTCH_TEAM.md`).
 
 Policy: every behavioral patch is **temporary** — it must have a
 `QUESTIONS_FOR_SCOTCH_TEAM.md` entry (it doubles as the proposed upstream

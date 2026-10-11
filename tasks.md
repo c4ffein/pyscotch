@@ -21,7 +21,7 @@ per the grammar question in QUESTIONS_FOR_SCOTCH_TEAM.md:
 ## Custom strategy-string parser (replace flex/bison) — Phase 2
 
 Phase-1 spike DONE (see below): a hand-written recursive-descent front-end
-(`experiments/parser-rd/parser_rd.c`) is byte-for-byte equivalent to the
+(`upstream/experiments/parser-rd/parser_rd.c`) is byte-for-byte equivalent to the
 bison parser on all valid strings. Remaining work, gated on a conversation
 with François (see the two new QUESTIONS entries — the parser CRASHes on
 malformed nested strategies, and the empty-scalar-value over-acceptance):

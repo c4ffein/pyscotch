@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`upstream/` — PyScotch's output for Scotch, in one place.**
+  `QUESTIONS_FOR_SCOTCH_TEAM.md` (every verified upstream finding) moves
+  there from `docs/`, next to `proposals/` (patches proposed upstream that
+  PyScotch does not apply), `experiments/` (the research tooling behind the
+  findings — first entry: the strategy-parser differential fuzzer, 20k strings,
+  246 crashing inputs, origin of the parser reports) and
+  `scotch-static-analysis-history/` (dated snapshots of large static reads,
+  explicitly labelled as unverified leads; first entry: the July 2026 read of
+  Scotch 7.0.11). The README describes the lead → repro → report → proposal →
+  retire loop.
+
 ## [7.0.6] - 2026-10-10
 
 ### Added

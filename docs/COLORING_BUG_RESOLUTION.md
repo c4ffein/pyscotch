@@ -184,7 +184,7 @@ There may be a logic issue where:
 
 Test marked as `xfail` (expected failure) in PyScotch:
 ```python
-@pytest.mark.xfail(reason="Upstream Scotch bug with sparse graphs - see docs/QUESTIONS_FOR_SCOTCH_TEAM_2.md")
+@pytest.mark.xfail(reason="Upstream Scotch bug with sparse graphs - see upstream/QUESTIONS_FOR_SCOTCH_TEAM.md")
 def test_coloring_no_adjacent_same_color(self, graph_data): ...
 ```
 
