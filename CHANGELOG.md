@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.0.7] - 2026-10-14
+
 ### Added
 - **The Scotch tracker on the docs site.** `docs/site/gen_analysis.py` renders `upstream/reports/<version>/` as a
   sub-site (dashboard of every finding with status per Scotch version, one page per finding with evidence, fix
@@ -18,8 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Per-version upstream reports and a local docs server.** `scripts/gen_upstream_report.py` renders our
   verification of a third-party review against a new Scotch version as HTML, a PDF (headless Chromium via
   Playwright, fonts loaded from pinned, hash-checked files) and an unsent email draft; `make upstream-report` and
-  `make docs-serve` (loopback by default, private reports mounted outside `docs/out`). Third-party text is
-  cited by identifier and never copied. New optional extra `report`.
+  `make docs-serve` (loopback by default; the rendered reports are mounted outside `docs/out`). Third-party text
+  is cited by identifier and never copied. New optional extra `report`.
 - **Pre-release-aware Scotch version ordering.** `_version_key` accepts
   `X.Y.Z[-]rcN` (also `alpha`/`beta`): a release candidate sorts before its
   release and `rc2` after `rc1`, so the catalog, `ci_matrix.py` and the bump
