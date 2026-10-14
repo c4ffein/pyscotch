@@ -11,6 +11,8 @@ on:
     branches: [main]
     paths:
       - "docs/site/**"
+      - "upstream/reports/**"   # the tracker is rendered from these
+      - "upstream/repro/**"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
