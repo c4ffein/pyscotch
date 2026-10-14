@@ -1,0 +1,10 @@
+BLD-17: make -j8 esmumps ptesmumps compiles the esmumps objects and links libesmumps twice concurrently.
+Tree: $WORK/race (copy of the 32-bit ASan tree with scotch and ptscotch built). Loop (6 runs):
+  (cd esmumps && make clean); rm -f ../lib/*esmumps*; make -j8 esmumps ptesmumps > base_runN.log
+  count: grep -c "Entering directory.*src/esmumps'" ; grep -c -- '-c dof.c' ; grep -c '^gcc.*-o libesmumps.so'
+pristine (base_run1..6.log): esmumps dir entered 8 times, libesmumps.so linked 2 times in 6/6 runs,
+  dof.c compiled twice in 2/6 runs (runs 2 and 4); no hard failure observed in 6 runs.
+patched (fixed_run1..6.log): entered 6 times, dof.c compiled once, libesmumps.so linked once, 6/6 runs;
+  fixed_ci.log: the CI invocation `make -j scotch ptscotch esmumps ptesmumps` builds both libraries;
+  fixed_pt.log: `make -j8 ptesmumps` alone installs libesmumps.so and libptesmumps.so.
+(race_prep.log: the copied tree first needed its stale .so removed and scotch/ptscotch relinked.)

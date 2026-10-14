@@ -1,0 +1,6 @@
+Mutation fuzz of the mesh loaders (tools/mutfuzz_mesh.py, derived from G14's mutfuzz.py; .msh through mord, .rsa/.pue through mcv -ib -os), 1200 mutants, seed 1234:
+  before (pristine): iters=1200 sanitizer_hits=213 unique_buckets=12 (TIMEOUT x2, graphLoad2, hallOrderHdR2Halmd, hallOrderHxBuild, hmeshHgraph, hmeshOrderCp, intLoad, meshFree, meshLoad, meshGeomLoadHabo, meshSave)
+  after  (series) : iters=1200 sanitizer_hits=84  unique_buckets=6  (graphLoad2, hallOrderHdR2Halmd, hallOrderHxBuild, intLoad, meshLoad, meshGeomLoadHabo)
+Remaining buckets are all signed-integer-overflow UBSan reports on huge header/field values (edgenbr+baseval, vlblmax+1 in graphLoad2, intLoad digit accumulation,
+HB digit accumulation on a huge field width) and ordering crashes on meshes whose arcs are inconsistent (meshLoad, like graphLoad, does not verify arc symmetry;
+mord, like gord, does not call the Check routine). Commands: python3 -I tools/mutfuzz_mesh.py BINDIR LIBDIR seeds OUTDIR 1200 1234

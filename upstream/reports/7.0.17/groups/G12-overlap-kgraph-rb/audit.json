@@ -1,0 +1,391 @@
+[
+ {
+  "id": "SEP-01",
+  "our_title": "Empty vertex-bipartition part: recursion on part 0 without part array, and terminal target domain mishandled",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Build: INFRA/asan (pristine 7.0.17, ASan+UBSan, 32-bit Gnum) vs $WORK/build (same flags, this series); LD_LIBRARY_PATH=<tree>/lib, UBSAN_OPTIONS=print_stacktrace=1, ASAN_OPTIONS=detect_leaks=0 unless stated. Reproducers and exact commands in $WORK/repro/<ID>/README.\n$WORK/repro/SEP-01/partovl.32 6 3 'r{sep=z}' (pristine):\n  wgraph_part_rb.c:108:5: runtime error: null pointer passed as argument 2 ... #0 wgraphPartRb3Fron #1 wgraphPartRb2 wgraph_part_rb.c:299 #2 wgraphPartRb2 wgraph_part_rb.c:363\n  wgraph_part_rb.c:207:18: runtime error: load of null pointer of type 'const GraphPart' ; AddressSanitizer: SEGV in wgraphPartRb3One\nSame for 7/8/9 vertices x 3 parts with 'z'; 4 and 5 parts return 'ret=0 part: 0 0 0 0 0 0' (spltnum 0 with domnsiz >= 2 survives by luck). Patched: 6 3 'r{sep=z}' -> ret=0 part: 0 0 0 0 0 0; matrix of n=6..9, p=3..5, strategies z/f/h/g/default all ret=0, no sanitizer report.\nOne-token alternative (alt/SEP-01-a) built by symbol interposition against the pristine library: ./partovl_sep01a 6 3 'r{sep=(z|f)}' -> ret=0 part: 1 1 1 1 1 1 (every vertex in part 1 although the surviving fake part only owns domain 0); recommended fix -> 0 0 0 0 0 0.\nNew check line `test_scotch_graph_part_ovl 3 data/m16x16.grf /dev/null 'r{sep=z}'`: pristine library -> runtime error + SEGV (rc 141); patched -> passes.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Public API (SCOTCH_graphPartOvl) crash in release builds; needs a bipartition that leaves a part empty, which happens on small (sub)graphs with real strategies and always with 'z'. Same rating as the review.",
+  "location_7_0_17": "src/libscotch/wgraph_part_rb.c:355-368 (empty-part branch, call at :363), :297-304 (terminal-domain branch taken when spltnum == 0), :330-331 (dwgttab from inddomnsiz / 2)",
+  "evidence": "wgraph_part_rb.c:355-363:\n  if ((partval = 1, actgrafdat.compsize[0] <= 0) || /* If a subpart is empty, run on other part ... */\n      (partval = 0, actgrafdat.compsize[1] <= 0)) {\n    spltdat.splttab[1].vertnbr = actgrafdat.s.vertnbr; /* TRICK: use fake part 1 for calling */\n    ...\n    spltdat.parttax = NULL;\n    wgraphPartRb2 (contptr, partval, &spltdat);\nwgraph_part_rb.c:297-300: if (indpartval == 0) { if (inddomnsiz <= 1) { wgraphPartRb3Fron (dataptr, orggrafptr, orgfrontab, orgfronnbr); wgraphPartRb3One (dataptr, orggrafptr, orgparttax, indpartval, inddomnnum); -- orgfrontab and orgparttax are NULL here.\nSecond defect in the same branch: when partval == 0 and inddomnsiz == 3, the surviving part owns a single domain (splttab[0].domnsiz == 1); calling the recursion on it (with any spltnum) bipartitions the graph again with dwgttab = {inddomnsiz / 2, ...} = {0, 1} (:330-331) and wgraphPartRb3Both (:341) then maps part 1 onto inddomnnum + 1, which belongs to the sibling.",
+  "upstream_change": "813ef60 (08 oct 2026) only changed the type of indvertnbr in this file (int -> Gnum); the empty-part branch is untouched.",
+  "review_accuracy": "Accurate on the crash mechanism (spltnum = partval = 0, NULL parttax, uninitialised splttab[0].vertnbr). Its 'Fix:' line (call with 1) is incomplete: it stops the crash but leaves the terminal-domain case wrong (shown above with r{sep=(z|f)}). Making Rb3* return errors through revaptr is unnecessary: their only failure paths are debug-only parameter checks that cannot trigger once the call is right.",
+  "first_pass_critique": "Status, method and reproducer right; the preferred option (one-token fix) was tested only with strategies for which the degenerate child bipartition happens to put everything in part 0, so the wrong-domain case was missed; option 2 (guard in callee) has the same hole and leaves the recursion bipartitioning a graph onto a single domain. The 'maintainer precedent' claimed (wgraphPartRb starts with fake part 1) supports calling with 1 but not the missing terminal case.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/kgraph_map_rb_part.c:290-302",
+    "quote": "if ((partval = 1, (actgrafdat.compsize0 == 0)) || ... kgraphMapRbPart2 (contptr, spltnum, spltptr); /* Run bipartitioning on same subgraph */",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Recurse on fake part 1 and map directly onto a terminal domain (recommended)",
+    "summary": "In the empty-part branch: if the surviving part owns a single domain, put all vertices (separator included) in part 0 with vgraphZero() and map them with wgraphPartRb3One(); otherwise call wgraphPartRb2 (contptr, 1, &spltdat) as the TRICK comment intends.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0007-Bugfix-handle-empty-part-after-bipartitioning-in-wgr.patch",
+    "tested": "repro matrix above (32-bit and 64-bit patched builds), check_scotch_graph_part_ovl (+ new line), check_prog_gpart_overlap, SCOTCH_DEBUG_ALL build runs wgraphCheck() after it: clean.",
+    "tradeoffs": "No behaviour change when no part is empty. Reuses existing helpers; vgraphZero() costs one memset of the part array.",
+    "preferred": true,
+    "maintainer_fit": "Mirrors the kgraph twin: kgraphMapRbPart2 handles the empty part by recursing on the same subgraph with the surviving subdomain (kgraph_map_rb_part.c:290-302) and kgraphMapRbPart3 maps a whole graph onto a terminal domain (:133-156). Same 'TRICK' reuse style as the surrounding code."
+   },
+   {
+    "label": "One-token fix: always recurse on fake part 1",
+    "summary": "wgraphPartRb2 (contptr, 1, &spltdat) only (first pass's option).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/SEP-01-a-fake-part-only.diff",
+    "tested": "interposed into the pristine library: no crash on the matrix, but 'r{sep=(z|f)}' on 2..8 vertices x 3/7 parts maps every vertex onto the sibling's domain (part 1 1 1 ...).",
+    "tradeoffs": "Stops the crash; still bipartitions a graph onto a single domain with dwgttab {0,1} and may assign vertices outside the target range.",
+    "preferred": false,
+    "maintainer_fit": "Too small: leaves a silent wrong result."
+   },
+   {
+    "label": "Guard the terminal branch in the callee",
+    "summary": "Make the small-branch test `(indpartval == 0) && (orgparttax != NULL)` so a NULL part array means whole graph.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/SEP-01-b-callee-guard.diff",
+    "tested": "untested: same hole as option 2 (whole graph still bipartitioned onto one domain), rejected by reading.",
+    "tradeoffs": "Relies on parttax == NULL as a flag; does not fix the terminal case.",
+    "preferred": false,
+    "maintainer_fit": "Not what the code's own comment intends."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0007-Bugfix-handle-empty-part-after-bipartitioning-in-wgr.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "src/check/Makefile and src/check/CMakeLists.txt: test_scotch_graph_part_ovl 3 data/m16x16.grf /dev/null 'r{sep=z}' (checks the empty-part path; crashes on pristine).",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The Rb3* helpers still return void with debug-only checks; acceptable since the only invalid call is removed. Commit 0007."
+ },
+ {
+  "id": "SEP-17",
+  "our_title": "Overlap partition leaves separator vertices with no neighbour in any part, so they belong to no part",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Build: INFRA/asan (pristine 7.0.17, ASan+UBSan, 32-bit Gnum) vs $WORK/build (same flags, this series); LD_LIBRARY_PATH=<tree>/lib, UBSAN_OPTIONS=print_stacktrace=1, ASAN_OPTIONS=detect_leaks=0 unless stated. Reproducers and exact commands in $WORK/repro/<ID>/README.\n$WORK/repro/SEP-17/partovl.32 2 3 - 1 (edgeless, pristine) -> ret=0 part: 2 -1 ; 3 6 - 1 -> ret=0 part: -1 -1 -1\n$WORK/repro/SEP-17/lost.32 4 4 - (PATH graph, default strategy, pristine) -> ret=0 part: -1 -1 -1 3  lost=2 ; 5 5 - -> lost=1 ; 10 9 - -> lost=2\nPatched: 2 3 - 1 -> ret=0 part: 2 0 ; 3 6 - 1 -> 2 1 0 ; lost.32 4 4 - -> part: -1 0 -1 3 lost=0 ; all 14 tried cases lost=0. SCOTCH_DEBUG_ALL build (wgraphCheck after the post-pass) check_scotch_graph_part_ovl and check_prog_gpart_overlap clean.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Silent wrong result (a vertex in no part) but only on tiny (sub)graphs: isolated vertices, or pendant/boundary vertices of induced subgraphs at the leaves of the recursion; the review's Low is right. Reachable with the default strategy on ordinary graphs (path 4 vertices / 4 parts), not only on edgeless graphs.",
+  "location_7_0_17": "src/libscotch/wgraph_part_rb.c:441-454 (wgraphPartRb: recursion then wgraphCost, no post-processing); vertices put in the separator by vgraph methods on induced subgraphs (vgraph_separate_gg.c:172-189 leaves the last root in the separator when balance stops the growth)",
+  "evidence": "doc/src/scotch/s_l.tex:1177-1180: 'the load of every separator vertex is accounted for several times, in each of the parts it separates' -- a separator vertex with no neighbour in a part separates nothing and is counted nowhere (wgraph.c:203-221 wgraphCost adds a separator vertex's load only to neighbouring parts). wgraph_part_rb.c:449-454: grafptr->fronnbr = datadat.fronnbr; ... wgraphCost (grafptr) -- nothing removes such vertices.",
+  "upstream_change": "",
+  "review_accuracy": "Behaviour accurately described but the lead only covers zero-degree vertices; the same loss happens to vertices isolated in an induced subgraph, or whose neighbours all became separator vertices at other recursion levels (path 4 vertices / 4 parts: vertices 0 and 1 are lost). Its 'Fix:' (vertex-separation strategies) is one of the options but would change nested-dissection orderings and not cover the multi-level case.",
+  "first_pass_critique": "Preferred option (post-pass on zero-degree vertices only) does not fix 'path 4 4' (still lost=2, see alt/SEP-17-a); the lost condition is 'no neighbour in a part', not degree zero. Its option 2 ('assign them while gluing') is not compiled and cannot see cross-level losses. Option 3 (vgraph separators) is correctly flagged as large blast radius.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Post-pass in wgraphPartRb: assign to the lightest part every separator vertex with no neighbour in a part (recommended)",
+    "summary": "New static wgraphPartRbFron() called after wgraphCost(): removes such vertices from the frontier, assigns them to the lightest part, updates compload/compsize/fronload incrementally (neighbouring separator vertices now separate that part too).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0008-Bugfix-assign-to-a-part-the-separator-vertices-that-.patch",
+    "tested": "repro above; check_scotch_graph_part_ovl, check_prog_gpart_overlap on 32-bit, 64-bit and SCOTCH_DEBUG_ALL builds (wgraphCheck validates the updated loads).",
+    "tradeoffs": "Changes outputs only when lost vertices exist; O(sum of degrees of lost vertices and their neighbours). Choice of the lightest part ignores locality (a lost vertex may be far from its part); a 2-hop neighbourhood choice would be a refinement.",
+    "preferred": true,
+    "maintainer_fit": "Local to the RB method that produces the situation, guarantees the documented model for every vertex, does not touch the vgraph separators used by orderings. Same 'fix-up after recursion' idea as kgraphMapRbVfloMerge()."
+   },
+   {
+    "label": "Post-pass on zero-degree vertices only (first pass)",
+    "summary": "Move isolated frontier vertices to the lightest part.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/SEP-17-a-degree-zero-post-pass.diff",
+    "tested": "read and compared: misses subgraph-isolated vertices (path 4 4 keeps lost=2 on the recommended fix's test matrix reasoning: vertex 0 has degree 1).",
+    "tradeoffs": "Incomplete.",
+    "preferred": false,
+    "maintainer_fit": "Does not meet the model."
+   },
+   {
+    "label": "Fix at the source in vgraphSeparateGg: do not leave an isolated root in the separator",
+    "summary": "When growth stops for balance reasons and the current root has no neighbour, put it back in part 0.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/SEP-17-b-vgraph-gg-isolated-root.diff",
+    "tested": "untested: only one of several separator methods (FM, DF, BD, ML...), does not cover cross-level losses; changes ordering results.",
+    "tradeoffs": "Larger blast radius (nested dissection), partial.",
+    "preferred": false,
+    "maintainer_fit": "Unlikely in a bugfix release."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0008-Bugfix-assign-to-a-part-the-separator-vertices-that-.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": " none: the existing check inputs (m16x16, bump, 4-32 parts) do not produce lost vertices; a deterministic case would need a tiny graph data file (path of 4 vertices) which is not in the file's style; repro/SEP-17/lost.c is the check.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Design point for the maintainer: which part a lost vertex should join (lightest part here; alternative: a part adjacent to one of its separator neighbours). Commit 0008."
+ },
+ {
+  "id": "API-22",
+  "our_title": "SCOTCH_graphPartOvlView keeps running on NULL work arrays after an allocation failure",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "64-bit Gnum ASan build: LD_LIBRARY_PATH=$WORK/build64/lib ASAN_OPTIONS=allocator_may_return_null=1:detect_leaks=0 $WORK/repro/API-22/po.64 68719476736\n  pristine: ERROR: SCOTCH_graphPartOvlView: out of memory ; AddressSanitizer: unknown-crash ... WRITE of size 1099511627776 ... memset ... SCOTCH_graphPartOvlView library_graph_map_view.c:719\n  patched : ERROR: SCOTCH_graphPartOvlView: out of memory ; r=1\nPlain build + LD_PRELOAD fault injector (fails malloc call #3 = the routine's memAllocGroup): FAIL_NTH=3 LD_PRELOAD=repro/common/failmalloc.so ./po.plain 2\n  pristine: ERROR ... out of memory ; Segmentation fault (exit 139)\n  patched : ERROR ... out of memory ; r=1 (exit 0)",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Only on allocation failure of a diagnostic routine; crash instead of error. Same as review.",
+  "location_7_0_17": "src/libscotch/library_graph_map_view.c:712-719 (and stale header comment :682-685)",
+  "evidence": "library_graph_map_view.c:716-719:\n    errorPrint (STRINGIFY (SCOTCH_graphPartOvlView) \": out of memory\");\n  }\n  listtab ++;                                     /* TRICK: Trim array so that listtab[-1] is valid */\n  memSet (listtab, ~0, partnbr * sizeof (GraphMapViewList));\nHeader :682-685 still says 'It returns : void : in case of success / exit : on error (because of errorPrint)' although the routine returns int.",
+  "upstream_change": "d604eb1 (08 oct 2026) reworked graphMapView2/graphMapView3 in this file (pidxtax) but did not touch SCOTCH_graphPartOvlView.",
+  "review_accuracy": "Accurate; the fix line (return (1)) is right.",
+  "first_pass_critique": "Right. Its second option (goto fail) is pointless as there is nothing to free. It did not do the LD_PRELOAD injection nor fix the stale header comment.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "return (1) after the error message, fix header comment (recommended)",
+    "summary": "Add the missing return; make the routine header say 0 / !0 like every other library routine.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0001-Bugfix-return-error-value-on-memory-allocation-failu.patch",
+    "tested": "both runs above; check_scotch_graph_part_ovl, check_prog_gpart_overlap (gmtst -o uses the routine) on 32/64-bit.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Identical to every other 'out of memory' path in library_*.c (e.g. library_graph_map_view.c:297-299)."
+   },
+   {
+    "label": "Degrade: print only the separator line without per-part statistics",
+    "summary": "On allocation failure print 'P\\tsep=?' and return 0.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/API-22-b-degrade-without-arrays.diff",
+    "tested": "untested: rejected by reading (hides the failure from the caller).",
+    "tradeoffs": "Output format change, silent degradation.",
+    "preferred": false,
+    "maintainer_fit": "Against the library's error convention."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0001-Bugfix-return-error-value-on-memory-allocation-failu.patch"
+  ],
+  "cleanup_done": "stale header comment corrected",
+  "test_added": "none: no fault-injection harness in src/check; repro/API-22 has both methods",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "partnbr and parttab contents are not validated at all by this routine (partval >= partnbr indexes compload out of bounds); not in the review, debug-only validation would be consistent with graphMapView2's SCOTCH_DEBUG_LIBRARY1 block; left to the API owners. Commit 0001."
+ },
+ {
+  "id": "GRA-01",
+  "our_title": "Fixed-vertex merge hash table sized from load slots, not fixed vertices: infinite probe loop with zero loads",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Build: INFRA/asan (pristine 7.0.17, ASan+UBSan, 32-bit Gnum) vs $WORK/build (same flags, this series); LD_LIBRARY_PATH=<tree>/lib, UBSAN_OPTIONS=print_stacktrace=1, ASAN_OPTIONS=detect_leaks=0 unless stated. Reproducers and exact commands in $WORK/repro/<ID>/README.\n$WORK/repro/GRA-01/gra01.32 64 1 -> ret=0 (unit loads) ; timeout 20 ./gra01.32 64 0 -> Terminated rc=124 (hang) ; also 40 0, 33 0, 32 0 hang (6 free vertices -> hashnbr 6 -> 32 slots).\nPatched: 64 0 -> ret=0 100 101 ... ; 32 0 -> ret=0 ; 300 0 1 -> ret=0.\nNew case in test_scotch_graph_map.c (all vertices but one fixed, zero loads, distinct terminals, cmplt(vertnbr)): run against the pristine library: timeout 120 ./test_scotch_graph_map data/m4x4.grf -> rc=124 (hang); patched 32/64/debug builds: passes.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Hang from the public API with legal input (zero-load fixed vertices are explicitly allowed: 'Vertex loads can be 0 if we have fixed vertices', library_graph_map.c:209). Same as review.",
+  "location_7_0_17": "src/libscotch/kgraph_map_rb.c:409-412 (sizing), :456-473 (probe loop without exit), :291-296 (vflonbr set to 0 when all loads are zero), :393-395 (vfixnbr parameter unused)",
+  "evidence": "kgraph_map_rb.c:409: hashnbr = mappptr->domnnbr + vflonbr;\nkgraph_map_rb.c:291-295: if (velomsk == 0) { memFree (hashtab); *vflonbrptr = 0; *vflotabptr = NULL; return (0); }\nkgraph_map_rb.c:456-459: for (hashnum = (pfixval * KGRAPHMAPRBVFLOHASHPRIME) & hashmsk; ; hashnum = (hashnum + 1) & hashmsk) { if (hashtab[hashnum].termnum == pfixval) break; if (hashtab[hashnum].termnum == ~0) {\nkgraph_map_rb.c:393: const Gnum vfixnbr, /*+ Number of fixed vertices in graph +*/ -- never used in the body.\nOther sizing sites checked: kgraphMapRbVfloBuild :234-244 (min(archsize, vfixnbr): correct), kgraph_band.c:154-156 (domnnbr: correct, entries are terminal domains of domntab), mapping.c mapBuild2 :319-326 (archsize + 1 or vertnbr + 1: correct). No hash table in kgraph_map_rb_map.c / kgraph_map_rb_part.c.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate, including the regime (distinct fixed terminals > 4 x next power of two of domnnbr).",
+  "first_pass_critique": "Right on status and mechanism. Its preferred one-liner (domnnbr + vfixnbr) is correct but leaves the vflonbr parameter unused instead of removing it, and does not bound the table by the architecture size as kgraphMapRbVfloBuild() does (for a fixed-size architecture with 1M fixed vertices on 4 terminals it would allocate a 64 MB table). Its option 2 would pass vflonbr > 0 with vflotab == NULL into kgraphMapRbVfloSplit(), which dereferences vflotab: a crash. The hashtab leak it notes on the mapResize path is real and is fixed by the GRA-23 commit (single exit point).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/kgraph_map_rb.c:243, :411 and src/libscotch/kgraph_band.c:155",
+    "quote": "hashsiz = 1 << (hashsiz + 2); /* Fill hash table at 25% maximum */",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Size from min(archsize, vfixnbr) + domnnbr, drop the vflonbr parameter (recommended)",
+    "summary": "Mirror kgraphMapRbVfloBuild()'s bound in kgraphMapRbVfloMerge(); remove the now unused vflonbr parameter from the routine, its prototype and its caller; drop the misleading 'Use fixed vertex load slots as hash slots' comment.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0003-Bugfix-size-fixed-vertex-merging-hash-table-accordin.patch",
+    "tested": "repro above; check_scotch_graph_map (with new case) on 32-bit, 64-bit and SCOTCH_DEBUG_ALL builds; check_scotch_graph_map_copy, check_prog_gmap.",
+    "tradeoffs": "Memory of the temporary table bounded by the architecture size for fixed-size architectures; unchanged otherwise. Internal signature change (library ABI unaffected).",
+    "preferred": true,
+    "maintainer_fit": "Same idiom 170 lines above (kgraph_map_rb.c:234-241); removes what becomes unused, as his commits do ('Remove useless structure definition')."
+   },
+   {
+    "label": "One-liner: hashnbr = domnnbr + vfixnbr (first pass)",
+    "summary": "Use the unused parameter as the bound; remove vflonbr.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/GRA-01-a-size-from-vfixnbr-only.diff",
+    "tested": "equivalent behaviour on the repro (same loop, larger table); not built separately.",
+    "tradeoffs": "Over-allocates for many fixed vertices on few terminals.",
+    "preferred": false,
+    "maintainer_fit": "Acceptable but less careful than his own Build routine."
+   },
+   {
+    "label": "Bound the probe loop and fail when the table is full",
+    "summary": "Count probes; errorPrint + return 1 instead of looping.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/GRA-01-c-bounded-probe-loop.diff",
+    "tested": "untested: turns the hang into an error without making the input work; only useful as defence in depth.",
+    "tradeoffs": "Does not fix the feature.",
+    "preferred": false,
+    "maintainer_fit": "He does not guard hash loops elsewhere."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0003-Bugfix-size-fixed-vertex-merging-hash-table-accordin.patch"
+  ],
+  "cleanup_done": "removed the unused vflonbr parameter of kgraphMapRbVfloMerge() (kgraph_map_rb.c, kgraph_map_rb.h, caller) and a stale comment",
+  "test_added": "src/check/test_scotch_graph_map.c: 'zero-load fixed vertices' block (graph copy with loads, cmplt(vertnbr), all vertices but one fixed to distinct terminals, both strategies, checkMap); hangs on pristine.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The `1 << (hashsiz + 2)` int shift (extra_instances) overflows for more than 2^29 entries; unreachable in practice, listed in extra.json as PS2-G12-4. Commit 0003."
+ },
+ {
+  "id": "GRA-21",
+  "our_title": "kgraphMapRbBgraph() error paths return without freeing the bipartition graph it initialised",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Build: INFRA/asan (pristine 7.0.17, ASan+UBSan, 32-bit Gnum) vs $WORK/build (same flags, this series); LD_LIBRARY_PATH=<tree>/lib, UBSAN_OPTIONS=print_stacktrace=1, ASAN_OPTIONS=detect_leaks=0 unless stated. Reproducers and exact commands in $WORK/repro/<ID>/README. (LeakSanitizer ON for this item)\n$WORK/repro/GRA-21/gra21.32 100 c (pristine): ERROR: kgraphMapRbBgraph: invalid fixed part array / kgraphMapRbPart2: cannot create bipartition graph ; LeakSanitizer: 'Direct leak of 1016 byte(s) ... #1 _SCOTCHbgraphInit bgraph.c:120 #2 _SCOTCHkgraphMapRbBgraph kgraph_map_rb.c:530 #3 kgraphMapRbPart2 kgraph_map_rb_part.c:255'; ./gra21.32 100 h: same through kgraphMapRbMap.\nPatched: no bgraphInit frame; only the reproducer's own arrays remain (5124 bytes in 2 allocations).\nAllocation-failure path, plain build + LD_PRELOAD: FAIL_NTH=53 LD_PRELOAD=repro/common/failmalloc.so ./gra21.plain 1 c (patched) -> 'ERROR: kgraphMapRbBgraph: out of memory' ... ret=1, 'failmalloc: 54 malloc calls, 0 blocks never freed'.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Leak on error paths only (invalid fixed part array from the public API in release builds, or allocation failure). Same as review.",
+  "location_7_0_17": "src/libscotch/kgraph_map_rb.c:547-550 (veextax allocation failure), :613-616 (archDomTerm failure -> fail:), :667-671 (fail: frees veextax only), :681-685 (debug bgraphCheck failure)",
+  "evidence": "kgraph_map_rb.c:547-550: if ((veextax = (Gnum *) memAlloc (...)) == NULL) { errorPrint (\"kgraphMapRbBgraph: out of memory\"); return (1); }\nkgraph_map_rb.c:667-671: fail:\n  if ((o != 0) || (veexmsk == 0)) { memFree (veextax + actgrafptr->s.baseval); return (o); }\nCallers: kgraph_map_rb_part.c:255-258 'goto end2' skips 'end1: bgraphExit (&actgrafdat)'; kgraph_map_rb_map.c:944-948 returns after kgraphMapRbMapPoolExit() without bgraphExit(). bgraph.c:115 clears GRAPHFREETABS on the clone, so bgraphExit() inside the callee cannot free the caller's graph arrays.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate. The debug-only bgraphCheck() failure (:681-685) is a third instance it did not list.",
+  "first_pass_critique": "Right; its diff matches the sketch. Its title mixes in the GRA-23 debug-only validation topic. It did not exercise the allocation-failure path (done here with LD_PRELOAD).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/kgraph_map_rb.c:681-685",
+    "quote": "if (bgraphCheck (actgrafptr) != 0) { errorPrint (\"kgraphMapRbBgraph: inconsistent graph data\"); return (1); }",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "bgraphExit() in the callee on every error path after bgraphInit() (recommended)",
+    "summary": "Free the bipartition graph on the allocation failure, on the fail: path when o != 0, and on the debug check failure (veextax is then owned by the graph).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0004-Bugfix-free-bipartition-graph-on-error-in-kgraphMapR.patch",
+    "tested": "LSan runs and LD_PRELOAD injection above; check_scotch_graph_map on 32/64/debug builds.",
+    "tradeoffs": "Callers keep their current logic; no double free since bgraphExit() does not free the cloned graph arrays.",
+    "preferred": true,
+    "maintainer_fit": "His bgraphInit() does exactly this on its own debug failure (bgraph.c:131-134); kgraph_band.c fail: label frees what the routine created."
+   },
+   {
+    "label": "Free in the callers",
+    "summary": "kgraphMapRbPart2: goto end1 instead of end2; kgraphMapRbMap: bgraphExit() before PoolExit().",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/GRA-21-b-callers-free-bgraph.diff",
+    "tested": "untested: rejected by reading (the callers cannot tell whether bgraphInit() succeeded; bgraphExit() on an uninitialised Bgraph reads garbage pointers).",
+    "tradeoffs": "Two sites, fragile.",
+    "preferred": false,
+    "maintainer_fit": "Ownership belongs to the routine that initialised the graph."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0004-Bugfix-free-bipartition-graph-on-error-in-kgraphMapR.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "none: leak detection needs a sanitizer; repro/GRA-21 covers both paths",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "PT-Scotch twin kdgraph_map_rb_part.c:383-397 already calls bdgraphExit() on failure. Commit 0004."
+ },
+ {
+  "id": "GRA-23",
+  "our_title": "Invalid terminal numbers in old or fixed part arrays accepted: uninitialised domains, success returned",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Build: INFRA/asan (pristine 7.0.17, ASan+UBSan, 32-bit Gnum) vs $WORK/build (same flags, this series); LD_LIBRARY_PATH=<tree>/lib, UBSAN_OPTIONS=print_stacktrace=1, ASAN_OPTIONS=detect_leaks=0 unless stated. Reproducers and exact commands in $WORK/repro/<ID>/README.\n$WORK/repro/GRA-23/gra23.32 100 (remap, old part 100 on cmplt(4), pristine) -> ret=0 new[7]=1 (silent)\n$WORK/repro/GRA-23/gra23b.32 100 (isolated fixed vertex on terminal 100, pristine) -> kgraph_cost.c:178:34: runtime error: signed integer overflow: 1 - -2147483648 ... #1 kgraphMapRb kgraph_map_rb.c:176 ; ret=0 p[16]=0\nPatched: gra23 100 -> ERROR: mapBuild3: invalid terminal array / kgraphInit: cannot initialize remapping (2) ; ret=1 ; gra23b 100 -> ERROR: kgraphMapRbVfloMerge: invalid fixed part array / kgraphMapRb: cannot merge fixed vertex domains ; ret=1 ; valid inputs unchanged (ret=0).\nBehaviour change observed: gpart 16 data/bump_imbal_32.grf /dev/null -rodata/bump_old.map (32 old parts onto a 16-terminal architecture) is now rejected with 'mapBuild3: invalid terminal array'; it previously computed on uninitialised domains.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Higher than the review's Low: reachable from the public API in release builds (validation is SCOTCH_DEBUG_LIBRARY1 only), produces UB in cost computation and a success code; the gpart case shows users can hit it by remapping onto fewer parts.",
+  "location_7_0_17": "src/libscotch/mapping.c:389 (mapBuild3); src/libscotch/kgraph_map_rb.c:466 (kgraphMapRbVfloMerge); related debug-only check src/libscotch/kgraph_map_rb.c:344-355 (kgraphMapRbVfloSplit)",
+  "evidence": "mapping.c:389: archDomTerm (archptr, &domntab[domnnbr], termnum); /* Create slot with terminal number domain */\nkgraph_map_rb.c:466: archDomTerm (archptr, &mappptr->domntab[domnnum], pfixval); /* Add new domain to domain array */\nkgraph_map_rb.c:613-616 (same input, checked): if (archDomTerm (archptr, &domndat, pfixval) != 0) { errorPrint (\"kgraphMapRbBgraph: invalid fixed part array\"); goto fail; }\nlibrary_graph_map.c:197-205 and :238-244: the checks of parotab / fixed parttab are under #ifdef SCOTCH_DEBUG_LIBRARY1.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate; the fix line is what was implemented. It did not mention that kgraphMapRbVfloMerge() also leaked its hash table on its mapResize() failure path, fixed in the same restructuring.",
+  "first_pass_critique": "Right. Its diff for Merge set domnnbr and freed hashtab inline at one site only; the maintainer's idiom in the sibling routine mapBuild3() (o / fail: / memFree) covers all four error paths, which is what the patch does. Its option 2 (unconditional validation at the API boundary) is a valid alternative, tested here as alt/GRA-23-b.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/kgraph_map_rb.c:344-355",
+    "quote": "archDomTerm (archptr, &domndat, vflotab[vflonum].termnum); #ifdef SCOTCH_DEBUG_KGRAPH2 if (o != 0) { errorPrint (\"kgraphMapRbVfloSplit: internal error\"); return; }",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/library_graph_map_view.c:468-469, :490-491",
+    "quote": "archDomTerm (archptr, &domnorg, parttax[vertnum]); /* Get terminal domains */",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/library_dgraph_map_stat.c:263, :335, :351",
+    "quote": "archDomTerm (archptr, &domndat, tgtnum); /* Get weight of terminal domain */",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Check archDomTerm() in mapBuild3() and kgraphMapRbVfloMerge(), single exit point in Merge (recommended)",
+    "summary": "goto fail with 'invalid terminal array' / 'invalid fixed part array'; Merge gets the o/fail: structure of mapBuild3() so that the hash table is freed on every error (mapResize failure included).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0005-Bugfix-check-validity-of-terminal-domain-numbers-whe.patch",
+    "tested": "repro above; check_scotch_graph_map, check_scotch_graph_map_copy, check_prog_gpart_remap, check_prog_gmap on 32/64/debug builds.",
+    "tradeoffs": "Invalid input now fails instead of computing on garbage (remapping from a mapping onto a larger architecture is rejected, consistent with the debug-mode check 'invalid old partition').",
+    "preferred": true,
+    "maintainer_fit": "Same check and message he wrote at kgraph_map_rb.c:613-616; error-path structure copied from mapBuild3() (mapping.c:359-404)."
+   },
+   {
+    "label": "Validate the part arrays unconditionally at the library boundary",
+    "summary": "Move the SCOTCH_DEBUG_LIBRARY1 loops of graphMapCompute2() out of the #ifdef.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/GRA-23-b-validate-at-api-boundary.diff",
+    "tested": "untested as a build; read: O(n) archDomTerm calls per API call, covers Split too, but leaves mapBuild3() (used for user-provided old mappings) and Merge trusting their input.",
+    "tradeoffs": "Defence at one place only; he put the SCOTCH_dgraphRedist() parameter check under SCOTCH_DEBUG_LIBRARY1 in 7.0.17 (b10825d), so he may not want unconditional API checks.",
+    "preferred": false,
+    "maintainer_fit": "Possible complement, not his first choice."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0005-Bugfix-check-validity-of-terminal-domain-numbers-whe.patch"
+  ],
+  "cleanup_done": "none needed (error paths unified)",
+  "test_added": "none: an invalid-input test would need a new error-expecting harness; repro/GRA-23 covers both routines",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "kgraphMapRbVfloSplit() still trusts its terminal numbers (debug check only); it runs before Merge, so with the patch an invalid fixed terminal with non-zero load is still used in archDomIncl() on an uninitialised domain inside Split before being rejected by Bgraph/Merge; making Split return int would change two callers (kgraph_map_rb_part.c:253, kgraph_map_rb_map.c:942). The library_graph_map_view.c / library_dgraph_map_stat.c instances belong to the API groups. Commit 0005."
+ },
+ {
+  "id": "GRA-05",
+  "our_title": "Band graph anchors' old parts set for the old mapping's domain count instead of the current one",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Build: INFRA/asan (pristine 7.0.17, ASan+UBSan, 32-bit Gnum) vs $WORK/build (same flags, this series); LD_LIBRARY_PATH=<tree>/lib, UBSAN_OPTIONS=print_stacktrace=1, ASAN_OPTIONS=detect_leaks=0 unless stated. Reproducers and exact commands in $WORK/repro/<ID>/README.\nST='r{sep=h{pass=10}}b{width=3,bnd=f{move=100,pass=-1,bal=0.05},org=f{move=100,pass=-1,bal=0.05}}'\n$WORK/repro/GRA-05/gra05.32 2 8 \"$ST\" (pristine) -> AddressSanitizer: SEGV ... #0 _SCOTCHarchCmpltDomIncl arch_cmplt.c:418 #1 kgraphMapFmPartAdd kgraph_map_fm.c:766 ; 2 3 -> SEGV ; 8 2, 4 4, 1 16 -> ret=0\nPatched: 2 8, 2 3, 4 4, 1 16 -> ret=0 ; 8 2 -> ret=1 (now rejected by GRA-23: 8 old parts on cmplt(2)).\ngpart (pristine, ASan) 2 data/m16x16.grf k2.map; gpart 4 data/m16x16.grf /dev/null -rok2.map -vmt \"-M$ST\" -> SEGV in archCmpltDomIncl ; patched: 'Processors 4/4'.\nDefault strategy does not reach kgraphBand() on graphs below the 10000-vertex coarsening threshold; with an explicit multilevel+band strategy on bump_imbal_32 (9800 vertices) the band array exceeds ASan's 4096-byte 0xbe fill and no crash shows (anchors read whatever is in memory).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Crash or silent use of garbage old parts from the public remapping API whenever the new part count differs from the old one and a band method runs (default strategies above 10000 vertices). Same as review.",
+  "location_7_0_17": "src/libscotch/kgraph_band.c:267 (anchors are the last domnnbr vertices, :199 'bandvertnbr += domnnbr'); consumer src/libscotch/kgraph_map_fm.c:668-670",
+  "evidence": "kgraph_band.c:267: memSet (bandparotax + bandvertnbr - bandgrafptr->r.m.domnnbr, ~0, bandgrafptr->r.m.domnnbr * sizeof (Gnum)); /* Old parts of anchors are unspecified */\nkgraph_band.c:222: mapInit2 (&bandgrafptr->r.m, ..., grafptr->r.m.domnnbr); -- old mapping's count; :199: bandvertnbr += domnnbr; -- anchors use the current count.\nkgraph_map_fm.c:668-670: if ((parotax != NULL) && (parotax[oldvertnum] != -1)) ... domoptr = &grafptr->r.m.domntab[parotax[oldvertnum]]",
+  "upstream_change": "",
+  "review_accuracy": "Accurate, fix line correct. 'With more old parts than new, the memSet overwrites ordinary band vertices' is right. The first pass's remark that it may also write before the array start would need more old domains than band vertices (anchors included), conceivable only for a tiny band graph remapped from many parts; the fix covers it anyway.",
+  "first_pass_critique": "Right; diff identical to the sketch. It only tested the ASan build, where the crash depends on the 0xbe fill of the first 4096 bytes; it did not note that larger graphs fail silently rather than crash, nor add a test.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/kgraph_map_ml.c:110",
+    "quote": "mapInit2 (&coargrafptr->r.m, &coargrafptr->s, finegrafptr->r.m.archptr, finegrafptr->r.m.domnmax, finegrafptr->r.m.domnnbr);",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "memSet the domnnbr anchor entries (recommended)",
+    "summary": "Use the current mapping's domain count for both the offset and the length.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0002-Bugfix-initialize-old-part-array-of-all-band-graph-a.patch",
+    "tested": "repro above; new check_prog_gpart_remap lines (Makefile + CMake) on 32/64/debug builds; check_scotch_graph_map remapping types 2-6.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "One-token fix in the maintainer's own style (cf. 'Bugfix: assign proper variable' fd6c780)."
+   },
+   {
+    "label": "Initialise the whole bandparotax array to ~0",
+    "summary": "memSet all bandvertnbr entries before the copy loops.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/GRA-05-b-memset-whole-old-part-array.diff",
+    "tested": "untested: equivalent by reading (regular entries are rewritten at :352 and :450), costs O(bandvertnbr) stores.",
+    "tradeoffs": "Slightly more robust to future layout changes, slightly slower.",
+    "preferred": false,
+    "maintainer_fit": "He writes the precise size."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0002-Bugfix-initialize-old-part-array-of-all-band-graph-a.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "src/check/Makefile check_prog_gpart_remap and CMakeLists.txt gpart_remap_2 (gpart_remap renamed gpart_remap_1): gpart 2 data/m16x16.grf -> gpart 4 ... -ro<map> with an r+b strategy; SEGV on pristine ASan gpart. Detection relies on the uninitialised memory content (deterministic under ASan/valgrind).",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "kgraph_map_ml.c:110 (extra instance) is correct: the coarse old mapping keeps the old count. Commit 0002."
+ }
+]

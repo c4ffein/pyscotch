@@ -1,0 +1,6 @@
+nth=3 exit=139 :: 1 (1): ERROR: SCOTCH_dgraphBand: out of memory (1);1 fishim: rank 1: failing allocation #3;1 fishim: rank 1: signal 11, backtrace:;
+nth=4 exit=134 :: 1 (1): ERROR: dgraphBand2Ptop: out of memory (1);1 fishim: rank 1: failing allocation #4;1 fishim: rank 1: signal 6, backtrace:;
+nth=5 exit=139 :: 1 (1): ERROR: SCOTCH_dgraphBand: out of memory (2);1 fishim: rank 1: failing allocation #5;1 fishim: rank 1: signal 11, backtrace:;1 library_dgraph_band.c:201:32: runtime error: store to null pointer of type 'Gnum';
+nth=6 exit=1 :: 1 (1): ERROR: SCOTCH_dgraphBand: out of memory (3);1 fishim: rank 1: failing allocation #6;1 rank 0: band rc=1 seen=0;1 rank 1: band rc=1 seen=7;1 rank 2: band rc=1 seen=0;1 rank 3: band rc=1 seen=0;
+nth=7 exit=1 :: 1 (1): ERROR: SCOTCH_dgraphBand: out of memory (4);1 fishim: rank 1: failing allocation #7;1 rank 0: band rc=1 seen=0;1 rank 1: band rc=1 seen=8;1 rank 2: band rc=1 seen=0;1 rank 3: band rc=1 seen=0;
+nth=8 exit=124 :: HANG; 1 (1): ERROR: SCOTCH_dgraphBand: cannot perform halo exchange;1 (1): ERROR: dgraphHaloSync2: out of memory;1 fishim: rank 1: failing allocation #8;1 rank 1: band rc=1 seen=9;

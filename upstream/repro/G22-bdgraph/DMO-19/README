@@ -1,0 +1,24 @@
+DMO-19 (+ PS2-G22-2, PS2-G22-3) : latent external-gain code of the distributed bipartitioning
+==============================================================================================
+veexloctax is never set by bdgraphInit() ("TODO: Compute external gains"); the driver attaches one
+(veex=1) so that the code paths run; bdgraphCheck() then verifies commglbload and commglbgainextn
+against the external gain array.
+cd $WORK/repro/common
+Pristine 7.0.17 ASan tree (probes_pristine.txt; LD_LIBRARY_PATH=$INFRA/asan/lib):
+  gather mode, np=1 and 3: "bad=14280 of 15606": bdgraphGatherAll() allocates the centralized veextax
+     but returns before gathering it when the distributed graph has no part array      -> PS2-G22-2
+  'q{strat=f}' veex, np=3: UBSan "signed integer overflow: -1094795308 + -1094795582" in
+     bgraph_bipart_gg.c:234 (0xBEBEBEBE = uninitialised heap), check=96                 -> same cause
+  'm{...,fold=n}' veex, np=3: "AddressSanitizer: heap-buffer-overflow ... bdgraphBipartMlCoarsen
+     bdgraph_bipart_ml.c:150" (global vertex numbers used as local indices)              -> DMO-19
+  (np=1 passes by luck: global == local numbers)
+The exactifier accounting error (reduglbtab[4] added in full) cannot be shown on pristine because the
+gathered veextax is garbage before 'x' runs; after the gather fix alone, 'q{strat=f{bal=0.2}}x{bal=0}'
+with veex fails bdgraphCheck with "invalid global communication loads" (observed during development:
+the x commit was tested on top of the gather fix).
+Patched (probes_patched_release.txt, probes_patched_debug.txt):
+  gather bad=0; 'q{strat=f{bal=0.2}}x{bal=0}' check=0; 'm{asc=x{bal=0},low=q{strat=f},seq=q{strat=f},
+  fold=F,dvert=100000,vert=100}' for F in n,f,d and np in 1,2,3,4: check=0, no sanitizer report, on the
+  release tree and on the -DSCOTCH_DEBUG_ALL tree (which runs bdgraphCheck() on every coarse graph).
+  The uncoarsening gain fix (PS2-G22-3) was found by this test: without it, np>=2 fails with
+  "bdgraphCheck: invalid global communication gains".

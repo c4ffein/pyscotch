@@ -1,0 +1,78 @@
+From a6cfd21a05f82fdf87b1612202d0d7b198afec20 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:04:54 +0000
+Subject: [PATCH 043/240] Bugfix: honor deterministic option in
+ `bgraphBipartGg()` [report PyScotch]
+
+The passes of the greedy graph growing algorithm were shared across
+all threads of the context, whatever the value of the deterministic
+option, so that results depended on the number of threads. When
+deterministic behavior is wanted, only thread 0 performs all passes,
+as in `graphMatch()`.
+---
+ src/libscotch/bgraph_bipart_gg.c | 15 +++++++++++----
+ src/libscotch/bgraph_bipart_gg.h |  1 +
+ 2 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/src/libscotch/bgraph_bipart_gg.c b/src/libscotch/bgraph_bipart_gg.c
+index 6518ecf..4038160 100644
+--- a/src/libscotch/bgraph_bipart_gg.c
++++ b/src/libscotch/bgraph_bipart_gg.c
+@@ -72,6 +72,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "gain.h"
+ #include "fibo.h"
+ #include "graph.h"
+@@ -149,8 +150,10 @@ BgraphBipartGgData * restrict const passptr)
+   const Anum                    dod2val = grafptr->domndist * 2;
+   const Gnum * restrict const   cmg0tax = passptr->cmg0tax;
+ 
+-  thrdptr->parttab = NULL;                        /* In case of error                 */
+-  partsiz = (thrdnum == 0) ? 0 : grafptr->s.vertnbr; /* Thread 0 uses graph part data */
++  thrdptr->parttab = NULL;                        /* In case of error                     */
++  if (thrdnum >= passptr->thrdnbr)                /* If thread does not take part in work */
++    return;
++  partsiz = (thrdnum == 0) ? 0 : grafptr->s.vertnbr; /* Thread 0 uses graph part data     */
+   if ((bgraphBipartGgTablInit (&tabldat) != 0) ||
+       (memAllocGroup ((void **) (void *)          /* Allocate here for memory affinity as it is a private array */
+                       &thrdptr->parttab, (size_t) (partsiz            * sizeof (GraphPart)),
+@@ -300,6 +303,7 @@ const BgraphBipartGgParam * const paraptr)        /*+ Method parameters +*/
+   Gnum                  cmloval;
+   Gnum                  cmgxval;
+   Gnum                  cpl0dlt;
++  Gnum                  deteval;                  /* Flag set if deterministic behavior wanted */
+   int                   o;
+ 
+ #ifndef BGRAPHBIPARTGGNOTHREAD
+@@ -323,8 +327,11 @@ const BgraphBipartGgParam * const paraptr)        /*+ Method parameters +*/
+   }
+   passdat.cmg0tax -= grafptr->s.baseval;
+   passdat.grafptr  = grafptr;
+-  passdat.passnbr  = (paraptr->passnbr + (thrdnbr - 1)) / thrdnbr; /* Share passes across threads */
+-  for (thrdnum = 1; thrdnum < thrdnbr; thrdnum ++) /* Spawn local random contexts before threads are launched */
++
++  contextValuesGetInt (grafptr->contptr, CONTEXTOPTIONNUMDETERMINISTIC, &deteval);
++  passdat.thrdnbr = (deteval != 0) ? 1 : thrdnbr; /* If deterministic behavior wanted, only thread 0 will work */
++  passdat.passnbr = (paraptr->passnbr + (passdat.thrdnbr - 1)) / passdat.thrdnbr; /* Share passes across working threads */
++  for (thrdnum = 1; thrdnum < passdat.thrdnbr; thrdnum ++) /* Spawn local random contexts before threads are launched */
+     intRandSpawn (grafptr->contptr->randptr, thrdnum, &passdat.thrdtab[thrdnum].randdat);
+ 
+   if (edlotax == NULL) {                          /* If graph has no edge weights */
+diff --git a/src/libscotch/bgraph_bipart_gg.h b/src/libscotch/bgraph_bipart_gg.h
+index 0bc82db..b7efb88 100644
+--- a/src/libscotch/bgraph_bipart_gg.h
++++ b/src/libscotch/bgraph_bipart_gg.h
+@@ -108,6 +108,7 @@ typedef struct BgraphBipartGgData_ {
+   Bgraph *                  grafptr;              /*+ Graph to work on              +*/
+   Gnum *                    cmg0tax;              /*+ Gain initialization array     +*/
+   BgraphBipartGgThread *    thrdtab;              /*+ Array of thread-specific data +*/
++  int                       thrdnbr;              /*+ Number of working threads     +*/
+   INT                       passnbr;              /*+ Number of passes per thread   +*/
+ } BgraphBipartGgData;
+ 
+-- 
+2.47.3
+

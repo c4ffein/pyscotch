@@ -1,0 +1,28 @@
+DRAFT — not sent. Review before sending; attach the PDF only after the credit line is confirmed.
+
+Subject: Scotch {{ ver }}: status of the {{ prev.version }} findings ({{ counts.fixed }} fixed, {{ counts.present + counts.partial }} still open)
+
+Hello François,
+
+Here is where things stand on Scotch {{ ver }}, using the same identifiers as {{ review.author }}'s review of {{ prev.version }} so you can follow them directly.
+
+What changed in {{ ver }}
+- {{ counts.fixed }} of the {{ counts.total }} findings are fixed ({{ counts.fixed_high }} of the high-severity ones).
+- {{ counts.partial }} are partially fixed, {{ counts.present }} are still present, {{ counts.nobug }} turned out not to be bugs.
+- {{ vcount.run }} of these were settled by running code (ASan/UBSan, reproducers, fault injection); {{ vcount.read }} by reading the {{ ver }} source only, and the report says which is which.
+
+Most useful to look at first
+{% for f in top %}- {{ f.id }}  {{ f.our_title or '(see report)' }}  [{{ f.location | trunc(90) }}]
+{% endfor %}
+{% if highlights %}
+Also
+{% for h in highlights %}- {{ h }}
+{% endfor %}{% endif %}
+{% if new %}While checking we found {{ new|length }} further defects that were not in the review (listed separately, ids PS-...).
+{% endif %}
+For each open item the PDF has the {{ ver }} location, the evidence, and two or more fix options. {% if series %}{{ distinct }} of the fixes are attached as git commits on v{{ ver }}{% if combined.count %}, also as one numbered series that applies with a plain git am{% endif %} ({{ patched }} findings{% if patched_new %} plus {{ patched_new }} of our own{% endif %}), written to be applied as they are: one commit per defect, the twin routines fixed in the same series, whatever a fix makes unused removed with it, a regression test in src/check where there was a natural home, header dates bumped, built warning-free with 32-bit and 64-bit integers and run through the relevant check targets. The alternatives we rejected are in the report with the reason.{% else %}The preferred one was compiled and run against the reproducer where we could.{% endif %} Some of the review's own suggested fixes would not work as written; the report says where and why.
+
+Credit: the leads come from {{ review.author }}'s review. Everything else (status in {{ ver }}, evidence, fix options) is our own verification.
+
+Best regards,
+{{ sender }}

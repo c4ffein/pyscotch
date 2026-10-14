@@ -1,0 +1,8 @@
+PS2-G18-1: unchecked memRealloc() in hdgraphInduceList()  (patches/0005)
+======================================================================
+Allocations #81 and #93 of rank 0 and #89 of rank 2 (np 3) are the shrinking memRealloc of hdgraph_induce.c:302.
+base:    $C/one.sh $WORK/basefi/lib  $C/bin_basefi/orderfi  3 0 81 rc -> signal 11 (Segmentation fault), no error message
+patched: $C/one.sh $WORK/buildfi/lib $C/bin_buildfi/orderfi 3 0 81 rc -> rc=0 on every rank (the unshrunk array is kept), 0 live blocks;
+         mode check -> ordering check rc=0.
+Twins patched in the same commit: hgraph_induce.c:197/207 (sequential), kdgraph_map_rb_part.c:139 (domain array): source-read only
+(not reachable by the injector without a weighted sequential run; shrinking cannot fail with glibc).

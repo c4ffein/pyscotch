@@ -1,0 +1,37 @@
+# PS2-G21-2 option B (NOT preferred, sketch): check the shrinking reallocations and fail. A shrink that fails leaves a perfectly usable larger array, so failing is both unnecessary and expensive: the failure happens between collectives and would need its own agreement (the edge-array one could ride the final reduction, the multinode one cannot), and the realloc'ed-to-NULL array is leaked. Option A keeps the array, as the maintainer's tree already does for the send index array of dgraphGhst2() after G19.
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/dgraph_coarsen.c b/src/libscotch/dgraph_coarsen.c
+index 09540aa..b035a44 100644
+--- a/src/libscotch/dgraph_coarsen.c
++++ b/src/libscotch/dgraph_coarsen.c
+@@ -1266,9 +1266,13 @@ DgraphCoarsenData * restrict const  coarptr)
+     }
+   }
+ 
+-  coargrafptr->edgeloctax  = memRealloc (coargrafptr->edgeloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum));
++  if (((coargrafptr->edgeloctax = memRealloc (coargrafptr->edgeloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum))) == NULL) ||
++      ((coargrafptr->edloloctax = memRealloc (coargrafptr->edloloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum))) == NULL)) {
++    errorPrint ("dgraphCoarsenBuild: out of memory (3)");
++    dgraphFree (coargrafptr);                     /* Edge load array may be leaked; must be agreed upon before the final reduction */
++    return (1);
++  }
+   coargrafptr->edgeloctax -= coargrafptr->baseval;
+-  coargrafptr->edloloctax  = memRealloc (coargrafptr->edloloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum));
+   coargrafptr->edloloctax -= coargrafptr->baseval;
+ 
+   reduloctab[0] = coargrafptr->vertlocnbr;        /* Compute maximum of local vertices across all processes  */
+@@ -1432,8 +1436,12 @@ Context * restrict const              contptr)    /*+ Execution context
+   }
+ 
+   if (matedat.c.multloctmp != NULL) {             /* If we allocated the multinode array */
+-    matedat.c.multloctmp =
+-    matedat.c.multloctab = memRealloc (matedat.c.multloctab, matedat.c.multlocnbr * sizeof (DgraphCoarsenMulti)); /* Resize multinode array */
++    if ((matedat.c.multloctab = memRealloc (matedat.c.multloctab, matedat.c.multlocnbr * sizeof (DgraphCoarsenMulti))) == NULL) { /* Resize multinode array */
++      errorPrint ("dgraphCoarsen: out of memory");
++      dgraphCoarsenExit (&matedat.c);             /* Not collective: other processes enter dgraphCoarsenBuild() */
++      return (2);
++    }
++    matedat.c.multloctmp = matedat.c.multloctab;
+   }
+ 
+   if (dgraphCoarsenBuild (&matedat.c) != 0) {     /* Build coarse graph */

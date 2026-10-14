@@ -1,0 +1,17 @@
+Alternative for GRA-08: keep the late check but additionally guard the
+edlotax store so the pre-check store cannot overflow. Smaller diff, but
+leaves the read/check ordering convoluted and still stores chavertnum
+one iteration before the bound is enforced in the general shape.
+
+--- a/src/libscotch/graph_io_chac.c
++++ b/src/libscotch/graph_io_chac.c
+@@ -215,7 +215,8 @@
+       if ((intLoad (filesrcptr, &chavertnum) != 1) ||
+           (chavertnum < 1)                         ||
+           (chavertnum > chavertnbr)                ||
+-          ((grafptr->edlotax != NULL) &&
++          (edgenum >= (grafptr->edgenbr + 1))      ||
++          ((grafptr->edlotax != NULL) &&
+            ((intLoad (filesrcptr, &grafptr->edlotax[edgenum]) != 1) ||
+             (edlosum += grafptr->edlotax[edgenum], grafptr->edlotax[edgenum] < 1)))) {
+         errorPrint ("graphGeomLoadChac: bad input (4)");

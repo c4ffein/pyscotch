@@ -1,0 +1,38 @@
+--- a/src/libscotch/library_mesh_order.c	2026-10-13 08:40:02.907404191 +0000
++++ b/src/libscotch/library_mesh_order.c	2026-10-13 13:25:19.290827393 +0000
+@@ -144,7 +144,10 @@
+ const SCOTCH_Ordering * const ordeptr,            /*+ Ordering to save +*/
+ FILE * const                  stream)             /*+ Output stream    +*/
+ {
+-  return (orderSave (&((LibOrder *) ordeptr)->o, ((Mesh *) CONTEXTOBJECT (meshptr))->vlbltax, stream));
++  const Mesh * const  srcmeshptr = (Mesh *) CONTEXTOBJECT (meshptr);
++
++  return (orderSave (&((LibOrder *) ordeptr)->o, /* Ordering indices are node indices based at baseval: shift label array to nodes */
++                     (srcmeshptr->vlbltax != NULL) ? (srcmeshptr->vlbltax + (srcmeshptr->vnodbas - srcmeshptr->baseval)) : NULL, stream));
+ }
+ 
+ /* This routine saves the mapping data
+@@ -161,7 +164,10 @@
+ const SCOTCH_Ordering * const ordeptr,            /*+ Ordering to save +*/
+ FILE * const                  stream)             /*+ Output stream    +*/
+ {
+-  return (orderSaveMap (&((LibOrder *) ordeptr)->o, ((Mesh *) CONTEXTOBJECT (meshptr))->vlbltax, stream));
++  const Mesh * const  srcmeshptr = (Mesh *) CONTEXTOBJECT (meshptr);
++
++  return (orderSaveMap (&((LibOrder *) ordeptr)->o,
++                        (srcmeshptr->vlbltax != NULL) ? (srcmeshptr->vlbltax + (srcmeshptr->vnodbas - srcmeshptr->baseval)) : NULL, stream));
+ }
+ 
+ /* This routine saves to the given stream
+@@ -178,7 +184,10 @@
+ const SCOTCH_Ordering * const ordeptr,            /*+ Ordering to save +*/
+ FILE * const                  stream)             /*+ Output stream    +*/
+ {
+-  return (orderSaveTree (&((LibOrder *) ordeptr)->o, ((Mesh *) CONTEXTOBJECT (meshptr))->vlbltax, stream));
++  const Mesh * const  srcmeshptr = (Mesh *) CONTEXTOBJECT (meshptr);
++
++  return (orderSaveTree (&((LibOrder *) ordeptr)->o,
++                         (srcmeshptr->vlbltax != NULL) ? (srcmeshptr->vlbltax + (srcmeshptr->vnodbas - srcmeshptr->baseval)) : NULL, stream));
+ }
+ 
+ /* This routine computes an ordering

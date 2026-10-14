@@ -1,0 +1,10 @@
+API-22: SCOTCH_graphPartOvlView continues after an allocation failure.
+(a) 64-bit Gnum ASan build, huge part count:
+  LD_LIBRARY_PATH=<tree64>/lib ASAN_OPTIONS=allocator_may_return_null=1:detect_leaks=0 ./po.64 68719476736
+  pristine: "ERROR: SCOTCH_graphPartOvlView: out of memory" then AddressSanitizer: unknown-crash in memset (library_graph_map_view.c:719)
+  patched : "ERROR: SCOTCH_graphPartOvlView: out of memory" then r=1
+(b) plain (non-sanitized) build + LD_PRELOAD fault injection, failing the 3rd malloc (the memAllocGroup of the routine):
+  gcc -O0 -g -I<plain>/include -o po.plain po.c -L<plain>/lib -lscotch -lscotcherr -lz -lm -lpthread
+  FAIL_NTH=3 LD_PRELOAD=../common/failmalloc.so ./po.plain 2
+  pristine: "ERROR: ... out of memory" then Segmentation fault (exit 139)
+  patched : "ERROR: ... out of memory", r=1, exit 0

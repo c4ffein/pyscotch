@@ -1,0 +1,31 @@
+--- orig_libscotch_src/parser_yy.y	2026-10-12 19:38:19.648602809 +0000
++++ fix/src/libscotch/parser_yy.y	2026-10-12 19:40:23.510796561 +0000
+@@ -457,6 +457,11 @@
+               }
+               |
+               {
++                if (penvptr->paraptr->typeval != STRATPARAMSTRAT) { /* Only strategy-valued parameters can receive a strategy */
++                  errorPrint ("stratParserParse: parameter \"%s\" of method \"%s\" does not accept a strategy",
++                              penvptr->paraptr->nameptr, penvptr->straptr->tablptr->methtab[penvptr->straptr->data.methdat.methnum].nameptr);
++                  YYABORT;
++                }
+                 ($<SAVE>$).strat = penvptr->straptr;
+                 ($<SAVE>$).param = penvptr->paraptr;
+                 penvptr->straptr = NULL;
+@@ -481,9 +486,13 @@
+               }
+               | error
+               {
+-                errorPrint ("stratParserParse: invalid value for parameter \"%s\" of method \"%s\", line %d, column %d, before \"%s\"",
+-                            penvptr->paraptr->nameptr, penvptr->straptr->tablptr->methtab[penvptr->straptr->data.methdat.methnum].nameptr,
+-                            (@1).libenum, (@1).cobenum, (@1).tebeptr);
++                if ((penvptr->paraptr != NULL) && (penvptr->straptr != NULL)) /* Mid-rule action may have cleared them while parsing a sub-strategy */
++                  errorPrint ("stratParserParse: invalid value for parameter \"%s\" of method \"%s\", line %d, column %d, before \"%s\"",
++                              penvptr->paraptr->nameptr, penvptr->straptr->tablptr->methtab[penvptr->straptr->data.methdat.methnum].nameptr,
++                              (@1).libenum, (@1).cobenum, (@1).tebeptr);
++                else
++                  errorPrint ("stratParserParse: invalid value for strategy parameter, line %d, column %d, before \"%s\"",
++                              (@1).libenum, (@1).cobenum, (@1).tebeptr);
+                 YYABORT;
+               }
+               ;

@@ -1,0 +1,25 @@
+From f3b7d432b74da55c53e444914226defba711e91c Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:27:25 +0000
+Subject: [PATCH 6/6] Style fix
+
+---
+ src/libscotchmetis/metis_graph_part.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/libscotchmetis/metis_graph_part.c b/src/libscotchmetis/metis_graph_part.c
+index e3e1d25..30a7219 100644
+--- a/src/libscotchmetis/metis_graph_part.c
++++ b/src/libscotchmetis/metis_graph_part.c
+@@ -328,7 +328,7 @@ const double * const        kbalval)
+           if (SCOTCH_archCmpltw (&archdat, *nparts, twintab) == 0) {
+             o = SCOTCH_graphMap (&grafdat, &archdat, &stradat, part);
+           }
+-	  SCOTCH_archExit(&archdat);
++          SCOTCH_archExit (&archdat);
+         }
+       }
+     }
+-- 
+2.47.3
+

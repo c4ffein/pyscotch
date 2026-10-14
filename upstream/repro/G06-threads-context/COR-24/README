@@ -1,0 +1,20 @@
+COR-24: explicit core table numbered differently from automatic placement
+-------------------------------------------------------------------------
+core.c: SCOTCH_contextThreadSpawn (ctx, 4, coretab) with coretab = argv[1..4]; prints Cpus_allowed_list of every
+task of the process from /proc/self/task/*/status after the spawn.
+
+  gcc -O0 -g -fsanitize=address,undefined -I$B/include -o core core.c -L$B/lib -lscotch -lscotcherr -lz -lm -lpthread
+  LD_LIBRARY_PATH=$B/lib taskset -c 4-7 ./core 4 5 6 7
+
+Container: 8 CPUs (0-7), taskset works (no cgroup cpuset needed: sched_setaffinity to a CPU outside the inherited
+mask is permitted, which is exactly what makes the defect observable).
+
+Pristine 7.0.17, taskset -c 4-7:
+  coretab {4,5,6,7} -> threads bound to CPUs 0, 1, 2, 3  (coretab[i] % CPU_COUNT(mask) = i % 4, used as physical ids:
+                       the threads escape the process mask)
+  coretab {0,1,2,3} -> CPUs 0, 1, 2, 3 (outside the mask as well)
+  coretab {-1,...}  -> 4-7 (unbound, correct)
+  no taskset, {4,5,6,7} -> CPUs 4,5,6,7
+Patched (patches/0004): taskset -c 4-7: {4,5,6,7} -> CPUs 4,5,6,7 ; {0,1,2,3} -> CPUs 4,5,6,7 (logical indices into
+the mask, modulus-reduced, as documented for SCOTCH_contextThreadSpawn); {-1,5,-1,7} -> 4-7, 5, 4-7, 7.
+After SCOTCH_contextExit the main thread's mask is restored to 4-7 in both versions.

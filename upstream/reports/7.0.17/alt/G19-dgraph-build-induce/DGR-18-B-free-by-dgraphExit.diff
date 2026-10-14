@@ -1,0 +1,25 @@
+diff --git a/src/libscotch/dgraph_build_grid3d.c b/src/libscotch/dgraph_build_grid3d.c
+index 730e359..19cbf26 100644
+--- a/src/libscotch/dgraph_build_grid3d.c
++++ b/src/libscotch/dgraph_build_grid3d.c
+@@ -473,14 +473,16 @@ const Gnum                  flagval)              /* Grid type        */
+   }
+   vertloctax[vertlocnum] = edgelocnum;            /* Mark end of local vertex array */
+ 
+-  grafptr->flagval = (DGRAPHFREETABS | DGRAPHVERTGROUP | DGRAPHEDGEGROUP); /* All arrays will be freed on exit */
++  grafptr->flagval |= (DGRAPHFREETABS | DGRAPHVERTGROUP | DGRAPHEDGEGROUP); /* All arrays will be freed on exit */
+ 
+   if (dgraphBuild2 (grafptr, baseval,             /* Build distributed graph */
+                     vertlocnbr, vertlocnbr, vertloctax, vertloctax + 1, veloloctax, velolocsum, NULL, vlblloctax,
+                     edgelocnum - baseval, edgelocsiz, datadat.edgeloctax, NULL, datadat.edloloctax, degrglbmax) != 0) {
+-    memFree (datadat.edgeloctax + baseval);       /* Free memory group leaders */
+-    memFree (vertloctax + baseval);
+-    return  (1);
++    if (grafptr->vertloctax == NULL) {            /* If arrays were not attached to graph, free them now; else dgraphExit() will */
++      memFree (datadat.edgeloctax + baseval);     /* Free memory group leaders */
++      memFree (vertloctax + baseval);
++    }
++    return (1);
+   }
+ 
+   return (0);

@@ -1,0 +1,9 @@
+API-10: builders skip the loaders' checks
+
+Pristine 32-bit ASan (./archbuild compiled with the manual prototype):
+  mode 0 SCOTCH_archLtleaf perm {5,0}  -> heap-buffer-overflow WRITE library_arch.c:562
+  mode 3 70 SCOTCH_archHcub(70)        -> UBSan shift exponent 70, r=0 size=64; mode 3 0 -> r=0 size=1; mode 3 31 -> size=-2147483648
+  mode 4 tleaf sizes {0,-3}            -> r=0 size=0;  mode 5 levlnbr -1 -> ASan allocation-size-too-big; mode 6 levlnbr 0 -> r=0 size=1
+  mode 7 tleaf 65536x65536             -> UBSan overflow library_arch.c:522
+Patched (patches/0002 + 0003): every one of these returns 1 with an errorPrint from archTleafArchBuild / archLtleafArchBuild2 / archHcubArchBuild,
+  then SCOTCH_archExit succeeds ('exit ok'); valid builds (mode 8, mode 3 30) unchanged; test_scotch_arch now also builds/saves/loads an ltleaf.

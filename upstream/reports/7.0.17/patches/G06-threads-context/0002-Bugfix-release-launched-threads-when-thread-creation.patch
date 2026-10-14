@@ -1,0 +1,49 @@
+From 91738a5c6598af47162061536199492f3a43ac91 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:53:50 +0000
+Subject: [PATCH 2/5] Bugfix: release launched threads when thread creation
+ fails in `threadContextInit()` [report R. Perry]
+
+When a thread could not be created, the thread number was reduced to
+the number of threads launched to date, and `threadContextExit()` was
+called to terminate them. However, these threads were still blocked in
+the start-up barrier, waiting for the initial number of threads, and
+never reached their wait loop, so that `threadContextExit()` spun
+forever. Also, the thread descriptor array was never freed, and the
+lock features were not destroyed when no slave thread had been
+launched.
+The main thread now joins the start-up barrier after having reduced
+the thread number, so that launched threads reach their wait loop and
+can be terminated, and all allocated resources are released.
+
+Refs: COR-09
+---
+ src/libscotch/common_thread.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/common_thread.c b/src/libscotch/common_thread.c
+index 3fb7fb6..1bdf1dc 100644
+--- a/src/libscotch/common_thread.c
++++ b/src/libscotch/common_thread.c
+@@ -141,8 +141,16 @@ const int * const           coretab)
+ 
+     if (threadCreate (&desctab[thrdnum], thrdnum, corenum) != 0) {
+       errorPrint ("threadContextInit: cannot create thread (%d)", thrdnum);
+-      contptr->thrdnbr = thrdnum;                 /* Terminate all threads that have been launched to date */
+-      threadContextExit (contptr);
++      pthread_mutex_lock (&contptr->lockdat);
++      contptr->thrdnbr = thrdnum;                 /* Only threads launched to date take part in barriers */
++      pthread_mutex_unlock (&contptr->lockdat);
++      threadContextBarrier (contptr);             /* Let launched threads complete their start-up */
++      threadContextExit (contptr);                /* Terminate all threads that have been launched to date */
++      if (thrdnum == 1) {                         /* If no slave thread launched, lock features still exist */
++        pthread_cond_destroy  (&contptr->conddat);
++        pthread_mutex_destroy (&contptr->lockdat);
++      }
++      memFree (desctab);
+       return (1);
+     }
+   }
+-- 
+2.47.3
+

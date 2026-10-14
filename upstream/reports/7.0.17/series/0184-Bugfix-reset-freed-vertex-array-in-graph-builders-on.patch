@@ -1,0 +1,110 @@
+From bb975003fd024aa307d0488513c437b5d44310e9 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:41:39 +0000
+Subject: [PATCH 184/240] Bugfix: reset freed vertex array in graph builders on
+ memory error [report PyScotch]
+
+When the second allocation of `meshGraphDual()`, `meshGraphNodal()`,
+`graphLoad()` and `graphGeomLoadChac()` failed, the vertex array
+allocated by the first one was freed, but its address was kept in the
+graph structure whose flags state that arrays must be freed. Hence, the
+`graphExit()` call that library users perform afterwards, as
+`METIS_PartMeshDual()` does, freed the array a second time, and
+`graphLoad()` itself did so through `graphFree()`, with a pointer
+offset by the base value.
+
+The freed pointer is now reset to NULL, as `graphGeomLoadHabo()` and
+`meshGeomLoadHabo()` already do.
+
+Refs: PS2-G26-1, CLI-15
+---
+ src/libscotch/graph_io.c      |  7 ++++---
+ src/libscotch/graph_io_chac.c |  8 +++++---
+ src/libscotch/mesh_graph.c    | 12 ++++++++----
+ 3 files changed, 17 insertions(+), 10 deletions(-)
+
+diff --git a/src/libscotch/graph_io.c b/src/libscotch/graph_io.c
+index 872bf0a..6e4dc2c 100644
+--- a/src/libscotch/graph_io.c
++++ b/src/libscotch/graph_io.c
+@@ -165,10 +165,11 @@ const GraphLoadFlag         flagval)              /* Graph loading flags
+       (memAllocGroup ((void **) (void *)
+                       &grafptr->edgetax, (size_t) (grafptr->edgenbr       * sizeof (Gnum)),
+                       &grafptr->edlotax, (size_t) (edlosiz                * sizeof (Gnum)), NULL) == NULL)) {
+-    if (grafptr->verttax != NULL)
+-      memFree (grafptr->verttax);
+     errorPrint ("graphLoad: out of memory");
+-    graphFree  (grafptr);
++    if (grafptr->verttax != NULL) {
++      memFree (grafptr->verttax);
++      grafptr->verttax = NULL;                    /* Allow for graphExit() to be called afterwards */
++    }
+     return (1);
+   }
+   grafptr->vertnnd  = grafptr->vertnbr + grafptr->baseval;
+diff --git a/src/libscotch/graph_io_chac.c b/src/libscotch/graph_io_chac.c
+index be6dc0b..06be7f9 100644
+--- a/src/libscotch/graph_io_chac.c
++++ b/src/libscotch/graph_io_chac.c
+@@ -143,10 +143,12 @@ const char * const          dataptr)              /* No use           */
+       (memAllocGroup ((void **) (void *)
+                       &grafptr->edgetax, (size_t) (grafptr->edgenbr * sizeof (Gnum)),
+                       &grafptr->edlotax, (size_t) (edlosiz          * sizeof (Gnum)), NULL) == NULL)) {
+-    if (grafptr->verttax != NULL)
+-      memFree (grafptr->verttax);
+     errorPrint ("graphGeomLoadChac: out of memory");
+-    return     (1);
++    if (grafptr->verttax != NULL) {
++      memFree (grafptr->verttax);
++      grafptr->verttax = NULL;                    /* Allow for graphExit() to be called afterwards */
++    }
++    return (1);
+   }
+   grafptr->verttax --;
+   grafptr->vendtax = grafptr->verttax + 1;
+diff --git a/src/libscotch/mesh_graph.c b/src/libscotch/mesh_graph.c
+index 582140a..3fcb73e 100644
+--- a/src/libscotch/mesh_graph.c
++++ b/src/libscotch/mesh_graph.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2009,2016,2018,2020,2021,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2009,2016,2018,2020,2021,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -48,7 +48,7 @@
+ /**                # Version 6.1  : from : 20 nov 2020     **/
+ /**                                 to   : 07 jun 2021     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 30 aug 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # From a given mesh is created a graph, **/
+ /**                  such that all vertices of the graph   **/
+@@ -116,8 +116,10 @@ Graph * restrict const        grafptr)            /*+ Graph to build +*/
+   if (((grafptr->verttax = memAlloc ((meshptr->vnodnbr + 1) * sizeof (Gnum)))          == NULL) ||
+       ((hashtab          = memAlloc (hashsiz                * sizeof (MeshGraphHash))) == NULL)) {
+     errorPrint ("meshGraphNodal: out of memory (1)");
+-    if (grafptr->verttax != NULL)
++    if (grafptr->verttax != NULL) {
+       memFree (grafptr->verttax);
++      grafptr->verttax = NULL;                    /* Allow for graphExit() to be called afterwards */
++    }
+     return (1);
+   }
+   grafptr->verttax -= grafptr->baseval;
+@@ -261,8 +263,10 @@ const Gnum                  noconbr)              /*+ number of common points to
+   if (((grafptr->verttax = memAlloc ((meshptr->velmnbr + 1) * sizeof (Gnum)))              == NULL) ||
+       ((hashtab          = memAlloc (hashsiz                * sizeof (MeshGraphDualHash))) == NULL)) {
+     errorPrint ("meshGraphDual: out of memory (1)");
+-    if (grafptr->verttax != NULL)
++    if (grafptr->verttax != NULL) {
+       memFree (grafptr->verttax);
++      grafptr->verttax = NULL;                    /* Allow for graphExit() to be called afterwards */
++    }
+     return (1);
+   }
+   grafptr->verttax -= grafptr->baseval;
+-- 
+2.47.3
+

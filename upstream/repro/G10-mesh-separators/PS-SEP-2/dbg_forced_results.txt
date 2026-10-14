@@ -1,0 +1,5 @@
+DEBUG-forced(VMESH2+3) m2_32_32: rc=0 errors=0 gotst:OPC=5.639710e+05
+DEBUG-forced(VMESH2+3) ship001: rc=0 errors=0 gotst:OPC=1.005507e+10
+DEBUG-forced(VMESH2+3) m2_100_100: rc=0 errors=0 gotst:OPC=1.876131e+07
+DEBUG-forced(VMESH2+3) m3_20_20_20: rc=0 errors=0 gotst:OPC=5.249849e+08
+(resize counts from the traced runs: m2_32_32=14 ship001=98 m2_100_100=297 m3_20_20_20=64)

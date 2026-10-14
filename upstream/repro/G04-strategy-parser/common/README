@@ -1,0 +1,16 @@
+Shared harness for the G04 strategy-parser reproducers.
+
+  st.c        : st '<strategy>' [m|o|e|d]  -> SCOTCH_stratGraphMap/GraphOrder/MeshOrder/GraphPartOvl, prints ret=, then SCOTCH_stratSave
+  defstrat.c  : prints the default strategy strings used as fuzz seeds (bases.txt)
+  fuzz.py     : fuzz.py <st-binary> <bases.txt> <mutations-per-base> <seed> <libdir>  (1-3 random char edits per run; counts sanitizer hits)
+  c4.tgt      : "cmplt 4" target for gmap runs
+
+Build (32-bit Gnum, ASan+UBSan build tree of the patched series in $WORK/build; pristine in $INFRA/asan):
+  gcc -O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer -I$WORK/build/include st.c -o st_pristine -L$WORK/build/lib -lscotch -lscotcherr -lz -lm -lpthread
+  (the binary name st_pristine is historical: the library it loads is chosen with LD_LIBRARY_PATH)
+Run against pristine : LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'r{sep=m{asc=b{:width=3}}}'
+Run against patched  : LD_LIBRARY_PATH=$WORK/build/lib   ./st_pristine 'r{sep=m{asc=b{:width=3}}}'
+
+Fuzz results (600 mutations x 4 seeds = 2400 runs, seed 1):
+  pristine : 2072 sanitizer hits  (see fuzz_pristine.txt: 1853 leaks parser_yy.y:288, 158+27 NULL deref parser_yy.y:485, 4 misaligned Strat* stores parser_yy.y:479, 2 crashes in stratSave, 12 leaks :225, 10 :180, 4 :196, 1 :158, 1 parser.c:212)
+  patched  : 0 sanitizer hits (fuzz_patched.txt, seed 1) and 0 (fuzz_patched2.txt, seed 2)

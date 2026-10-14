@@ -1,0 +1,70 @@
+--- a/src/esmumps/esmumps.c
++++ b/src/esmumps/esmumps.c
+@@ -131,16 +131,27 @@
+ 
+   if ((vendtab = memAlloc (n * sizeof (INT))) == NULL) {
+     errorPrint ("esmumps2: out of memory");
+-    return (1);
++    return (-1);                                  /* MUMPS-style negative error code */
+   }
+   for (vertnum = 0; vertnum < n; vertnum ++)
+     vendtab[vertnum] = petab[vertnum] + lentab[vertnum];
+ 
+-  graphInit        (&grafdat);
+-  graphBuildGraph2 (&grafdat, 1, n, pfree - 1, petab, vendtab, velotab, NULL, iwtab, NULL); /* Assume Fortran-based indexing */
++  graphInit (&grafdat);
++  if (graphBuildGraph2 (&grafdat, 1, n, pfree - 1, petab, vendtab, velotab, NULL, iwtab, NULL) != 0) { /* Assume Fortran-based indexing */
++    errorPrint ("esmumps2: cannot build graph");
++fail1:
++    graphExit (&grafdat);
++    memFree   (vendtab);
++    return (-1);
++  }
+ 
+-  orderInit  (&ordedat);
+-  orderGraph (&ordedat, &grafdat);                /* Compute ordering with Scotch */
++  orderInit (&ordedat);
++  if (orderGraph (&ordedat, &grafdat) != 0) {     /* Compute ordering with Scotch */
++    errorPrint ("esmumps2: cannot compute ordering");
++fail2:
++    orderExit (&ordedat);
++    goto fail1;
++  }
+ 
+ #ifdef ESMUMPS_ORDER_DUMP
+   {
+@@ -152,7 +163,7 @@
+     if (filestr[0] != '\0') {                     /* If environment variable is not empty, perform dump of block ordering */
+       if ((fileptr = fopen (filestr, "w+")) == NULL) {
+         errorPrint ("esmumps2: cannot open ordering dump file");
+-        return (1);
++        goto fail2;
+       }
+ 
+       orderSave (&ordedat, fileptr);
+@@ -167,8 +178,12 @@
+   memCpy (lasttab, ordedat.peritab, n * sizeof (INT));
+ #endif /* ESMUMPS_DEBUG */
+ 
+-  symbolInit     (&symbdat);
+-  symbolFaxGraph (&symbdat, &grafdat, &ordedat);  /* Compute block symbolic factorizaion */
++  symbolInit (&symbdat);
++  if (symbolFaxGraph (&symbdat, &grafdat, &ordedat) != 0) { /* Compute block symbolic factorization */
++    errorPrint ("esmumps2: cannot compute symbolic factorization");
++    symbolExit (&symbdat);
++    goto fail2;
++  }
+ 
+ #ifdef ESMUMPS_DEBUG_OUTPUT
+   {
+--- a/src/esmumps/test_esmumps.c
++++ b/src/esmumps/test_esmumps.c
+@@ -144,7 +144,7 @@
+   graphExit (&grafdat);
+ 
+   if (ncmpa < 0) {
+-    errorPrint ("test_esmumps: error in ESMUMPSF (%d)", ncmpa);
++    errorPrint ("test_esmumps: error in ESMUMPSF (" INTSTRING ")", ncmpa);
+     exit       (EXIT_FAILURE);
+   }
+ 

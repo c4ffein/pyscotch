@@ -1,0 +1,2 @@
+DMO-14: dorderCblkDist returns 1 on error. Not runnable (needs an MPI_Allreduce failure). Normal values checked:
+  LD_LIBRARY_PATH=$WORK/build/lib mpirun --oversubscribe -np 1 repro/common/dtest_build repro/common/4elt.grf -1 order "" 0 n -  -> CblkDist=1 ; np=3 -> 7

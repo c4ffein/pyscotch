@@ -1,0 +1,11 @@
+CLI-03  ubvec (METIS ratio, e.g. 1.05) handed to Scotch as a tolerance (40x40 grid, vertex loads 1..10, 4 parts)
+  ./cli03     prints, for Kway and Recursive and ubvec in {1.001,1.01,1.03,1.05,1.3,NULL}: cut and max part load / ideal load
+pristine (32-bit; 64-bit identical):
+  Kway      ubvec=1.05  ret=1 cut=  40 imbalance=2.0079     (5% requested, one part holds twice the average load)
+  Kway      ubvec=1.001 ret=1 cut=  43 imbalance=2.0002
+  Kway      ubvec=0 (NULL) ret=1 cut=82 imbalance=1.0046     (default 0.01 tolerance)
+  Recursive ubvec=NULL -> crash (CLI-02)
+patched (0003):
+  Kway      ubvec=1.001 imbalance=1.0006 | 1.01 -> 1.0046 | 1.03 -> 1.0200 | 1.05 -> 1.0200 | 1.3 -> 1.0200 | NULL -> 1.0046
+  Recursive ubvec=1.001 imbalance=1.0006 | 1.01 -> 1.0046 | 1.03 -> 1.0187 | 1.05 -> 1.0200 | 1.3 -> 1.0200 | NULL -> 1.0046
+  (a ubvec[0] <= 1.0 now returns METIS_ERROR_INPUT with "invalid imbalance ratio")

@@ -1,0 +1,264 @@
+From 499451cbb7c3f04bb1f34c0bf7cc6128e77427fb Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:51:03 +0000
+Subject: [PATCH 129/240] Bugfix: check edge ends and edge loads of distributed
+ graphs in `dgraphCheck()` [report R. Perry]
+
+Edge ends were never compared to the global vertex number range, so
+that an edge to a vertex that belongs to no process matched no
+neighbor and was silently accepted. An edge end that lies in the
+numbering hole of some process was looked up beyond the vertex arrays
+received from that process. Edge loads were only checked when a ghost
+edge array exists.
+
+Check that edge ends lie within the global vertex number range and
+that vertex indices are not below the base value, report edge ends
+that lie in numbering holes, and check edge loads unconditionally.
+Add malformed graphs built in code to the test program.
+
+Refs: DGR-11
+---
+ src/check/test_scotch_dgraph_check.c | 81 +++++++++++++++++++++++++++-
+ src/libscotch/dgraph_check.c         | 53 +++++++++++-------
+ 2 files changed, 112 insertions(+), 22 deletions(-)
+
+diff --git a/src/check/test_scotch_dgraph_check.c b/src/check/test_scotch_dgraph_check.c
+index 7e09178..e4b6d2a 100644
+--- a/src/check/test_scotch_dgraph_check.c
++++ b/src/check/test_scotch_dgraph_check.c
+@@ -44,7 +44,7 @@
+ /**                # Version 6.1  : from : 28 dec 2021     **/
+ /**                                 to   : 28 dec 2021     **/
+ /**                # Version 7.0  : from : 03 jul 2023     **/
+-/**                                 to   : 11 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -59,6 +59,20 @@
+ 
+ #include "ptscotch.h"
+ 
++/*
++**  The type and structure definitions.
++*/
++
++/*+ Test cases of malformed graphs. +*/
++
++typedef enum C_TestCase_ {
++  C_TESTVALID = 0,                                /*+ Valid graph                                   +*/
++  C_TESTRANGE,                                    /*+ Some edge end is outside of all vertex ranges +*/
++  C_TESTHOLE,                                     /*+ Some edge end lies in a numbering hole        +*/
++  C_TESTEDLO,                                     /*+ Edge loads are not positive                   +*/
++  C_TESTNBR
++} C_TestCase;
++
+ /*********************/
+ /*                   */
+ /* The main routine. */
+@@ -75,6 +89,8 @@ char *              argv[])
+   int                 procglbnbr;                 /* Number of processes sharing graph data */
+   int                 proclocnum;                 /* Number of this process                 */
+   SCOTCH_Dgraph       grafdat;
++  SCOTCH_Num          baseval;
++  C_TestCase          casenum;
+   FILE *              file;
+ #ifdef SCOTCH_PTHREAD
+   int                 thrdreqlvl;
+@@ -124,7 +140,7 @@ char *              argv[])
+   }
+ 
+   if (SCOTCH_dgraphInit (&grafdat, proccomm) != 0) { /* Initialize source graph */
+-    SCOTCH_errorPrint ("main: cannot initialize graph");
++    SCOTCH_errorPrint ("main: cannot initialize graph (1)");
+     exit (EXIT_FAILURE);
+   }
+ 
+@@ -153,8 +169,69 @@ char *              argv[])
+     exit (EXIT_FAILURE);
+   }
+ 
++  SCOTCH_dgraphData (&grafdat, &baseval, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
++
+   SCOTCH_dgraphExit (&grafdat);
+ 
++  for (casenum = C_TESTVALID; casenum < C_TESTNBR; casenum ++) { /* Check that malformed graphs are rejected */
++    SCOTCH_Num          vertloctab[3];
++    SCOTCH_Num          edgeloctab[6];
++    SCOTCH_Num          edloloctab[6];
++    SCOTCH_Num          vertglbnum;               /* Global number of first local vertex */
++    SCOTCH_Num          edgelocnum;
++    int                 o;
++
++    vertglbnum = baseval + 4 * proclocnum;        /* Each process has two vertices in a range of four: the last two numbers are a hole */
++    edgelocnum = 0;
++    vertloctab[0] = baseval;                      /* First vertex is linked to second vertex and to second vertex of previous process */
++    edgeloctab[edgelocnum]    = vertglbnum + 1;
++    edloloctab[edgelocnum ++] = 2;
++    if (procglbnbr > 1) {
++      edgeloctab[edgelocnum]    = baseval + 4 * ((proclocnum + procglbnbr - 1) % procglbnbr) + 1;
++      edloloctab[edgelocnum ++] = 3;
++    }
++    if (casenum == C_TESTRANGE) {                 /* Edge end beyond all vertex ranges */
++      edgeloctab[edgelocnum]    = baseval + 4 * procglbnbr + 7;
++      edloloctab[edgelocnum ++] = 1;
++    }
++    if (casenum == C_TESTHOLE) {                  /* Edge end in numbering hole of next process */
++      edgeloctab[edgelocnum]    = baseval + 4 * ((proclocnum + 1) % procglbnbr) + 2;
++      edloloctab[edgelocnum ++] = 1;
++    }
++    vertloctab[1] = baseval + edgelocnum;         /* Second vertex is linked to first vertex and to first vertex of next process */
++    edgeloctab[edgelocnum]    = vertglbnum;
++    edloloctab[edgelocnum ++] = 2;
++    if (procglbnbr > 1) {
++      edgeloctab[edgelocnum]    = baseval + 4 * ((proclocnum + 1) % procglbnbr);
++      edloloctab[edgelocnum ++] = 3;
++    }
++    vertloctab[2] = baseval + edgelocnum;
++    if (casenum == C_TESTEDLO) {                  /* Symmetric but invalid edge loads */
++      SCOTCH_Num          edlolocnum;
++
++      for (edlolocnum = 0; edlolocnum < edgelocnum; edlolocnum ++)
++        edloloctab[edlolocnum] = 0;
++    }
++
++    if (SCOTCH_dgraphInit (&grafdat, proccomm) != 0) {
++      SCOTCH_errorPrint ("main: cannot initialize graph (2)");
++      exit (EXIT_FAILURE);
++    }
++    if (SCOTCH_dgraphBuild (&grafdat, baseval, 2, 4, vertloctab, NULL, NULL, NULL,
++                            edgelocnum, edgelocnum, edgeloctab, NULL, edloloctab) != 0) {
++      SCOTCH_errorPrint ("main: cannot build graph (case %d)", (int) casenum);
++      exit (EXIT_FAILURE);
++    }
++
++    o = SCOTCH_dgraphCheck (&grafdat);
++    if ((casenum == C_TESTVALID) ? (o != 0) : (o == 0)) {
++      SCOTCH_errorPrint ("main: wrong check result (case %d)", (int) casenum);
++      exit (EXIT_FAILURE);
++    }
++
++    SCOTCH_dgraphExit (&grafdat);
++  }
++
+   MPI_Finalize ();
+   exit (EXIT_SUCCESS);
+ }
+diff --git a/src/libscotch/dgraph_check.c b/src/libscotch/dgraph_check.c
+index 76af8fc..5223c3c 100644
+--- a/src/libscotch/dgraph_check.c
++++ b/src/libscotch/dgraph_check.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2010,2012,2014,2019,2020,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2010,2012,2014,2019,2020,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -57,7 +57,7 @@
+ /**                # Version 6.0  : from : 29 sep 2012     **/
+ /**                                 to   : 31 aug 2019     **/
+ /**                # Version 7.0  : from : 03 may 2019     **/
+-/**                                 to   : 29 sep 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -101,6 +101,7 @@ const Dgraph * restrict const grafptr)
+   Gnum                vertlocnum;
+   Gnum                vertngbmin;                 /* Smallest vertex number of neighbor process   */
+   Gnum                vertngbmax;                 /* Largest vertex number of neighbor process    */
++  Gnum                vertngbnnd;                 /* After-end number of neighbor process vertices */
+   int                 vertngbnbr[2];              /* Size of the neighbor vertex arrays           */
+   Gnum * restrict     vertngbtab[2];              /* Array of two neighbor vertex arrays          */
+   Gnum * restrict     vertngbptr;                 /* Pointer to working neighbor vertex array     */
+@@ -295,7 +296,8 @@ const Dgraph * restrict const grafptr)
+   for (vertlocnum = grafptr->baseval, edgelocnbr = 0; vertlocnum < grafptr->vertlocnnd; vertlocnum ++) {
+     Gnum                edgelocnum;
+ 
+-    if ((vendloctax[vertlocnum] < vertloctax[vertlocnum]) ||
++    if ((vertloctax[vertlocnum] < grafptr->baseval) ||
++        (vendloctax[vertlocnum] < vertloctax[vertlocnum]) ||
+         (vendloctax[vertlocnum] > (grafptr->edgelocsiz + grafptr->baseval))) {
+       errorPrint ("dgraphCheck: inconsistent local vertex arrays");
+       cheklocval = 1;
+@@ -303,21 +305,25 @@ const Dgraph * restrict const grafptr)
+     }
+     edgelocnbr += vendloctax[vertlocnum] - vertloctax[vertlocnum];
+ 
+-    if ((grafptr->flagval & DGRAPHHASEDGEGST) != 0) { /* If ghost edge array is valid */
+-      for (edgelocnum = vertloctax[vertlocnum]; edgelocnum < vendloctax[vertlocnum]; edgelocnum ++) {
+-        if ((edgegsttax[edgelocnum] < grafptr->baseval) ||
+-            (edgegsttax[edgelocnum] >= grafptr->vertgstnnd)) {
+-          errorPrint ("dgraphCheck: inconsistent ghost edge array");
+-          cheklocval = 1;
+-          goto fail;
+-        }
+-
+-        if ((edloloctax != NULL) &&
+-            (edloloctax[edgelocnum] <= 0)) {
+-          errorPrint ("dgraphCheck: invalid edge load");
+-          cheklocval = 1;
+-          goto fail;
+-        }
++    for (edgelocnum = vertloctax[vertlocnum]; edgelocnum < vendloctax[vertlocnum]; edgelocnum ++) {
++      if ((edgeloctax[edgelocnum] <  grafptr->procvrttab[0]) || /* Edge ends must lie within global vertex number range */
++          (edgeloctax[edgelocnum] >= grafptr->procvrttab[procglbnbr])) {
++        errorPrint ("dgraphCheck: invalid edge array");
++        cheklocval = 1;
++        goto fail;
++      }
++      if ((edloloctax != NULL) &&                 /* Edge loads must be positive, with or without a ghost edge array */
++          (edloloctax[edgelocnum] <= 0)) {
++        errorPrint ("dgraphCheck: invalid edge load");
++        cheklocval = 1;
++        goto fail;
++      }
++      if (((grafptr->flagval & DGRAPHHASEDGEGST) != 0) && /* If ghost edge array is valid */
++          ((edgegsttax[edgelocnum] < grafptr->baseval) ||
++           (edgegsttax[edgelocnum] >= grafptr->vertgstnnd))) {
++        errorPrint ("dgraphCheck: inconsistent ghost edge array");
++        cheklocval = 1;
++        goto fail;
+       }
+     }
+   }
+@@ -420,6 +426,7 @@ fail:
+     procngbnum = (proclocnum + procnum) % procglbnbr; /* Compute neighbor process number */
+     vertngbmin = grafptr->procvrttab[procngbnum]; /* Get neighbor vertex number range    */
+     vertngbmax = grafptr->procvrttab[procngbnum + 1];
++    vertngbnnd = vertngbmin + grafptr->proccnttab[procngbnum]; /* Vertex numbers from there up to vertngbmax are a hole */
+ 
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+     if ((vertngbnbr[procngbsel] != grafptr->proccnttab[procngbnum]) ||
+@@ -463,6 +470,10 @@ fail:
+           Gnum                edgengbnnd;
+           Gnum                edgengbsum;
+ 
++          if (vertglbend >= vertngbnnd) {         /* If end vertex lies in numbering hole of neighbor process */
++            cheklocval = 4;
++            continue;
++          }
+           for (edgengbnum = vertngbptr[vertglbend - vertngbmin],
+                edgengbnnd = vendngbptr[vertglbend - vertngbmin], edgengbsum = 0;
+                edgengbnum < edgengbnnd; edgengbnum ++) {
+@@ -482,13 +493,15 @@ fail:
+     }
+     MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, proccomm);
+ 
+-    if (chekglbval != 0) {                        /* Error number ranges from 1 to 3 */
++    if (chekglbval != 0) {                        /* Error number ranges from 1 to 4 */
+       if (chekglbval == 1)
+         errorPrint ("dgraphCheck: arc data do not match");
+       else if (chekglbval == 2)
+         errorPrint ("dgraphCheck: duplicate arc");
+-      else
++      else if (chekglbval == 3)
+         errorPrint ("dgraphCheck: arc load data do not match");
++      else
++        errorPrint ("dgraphCheck: arc end in numbering hole");
+       memFree (vertngbtab[0]);                    /* Free group leader */
+       return  (1);
+     }
+-- 
+2.47.3
+

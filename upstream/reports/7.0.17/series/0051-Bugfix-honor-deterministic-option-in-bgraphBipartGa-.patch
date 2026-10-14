@@ -1,0 +1,160 @@
+From a35c6af0c7d9dbb6adada5f4fe2533da872d45fd Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:01:11 +0000
+Subject: [PATCH 051/240] Bugfix: honor deterministic option in
+ `bgraphBipartGa()` [report PyScotch]
+
+The population of the genetic algorithm was spread across all threads
+of the context, whatever the value of the deterministic option, so that
+results depended on the number of threads. When deterministic behavior
+is wanted, only thread 0 performs all the work, as in `graphMatch()` and
+`bgraphBipartGg()`.
+---
+ src/libscotch/bgraph_bipart_ga.c | 41 +++++++++++++++++++++++---------
+ src/libscotch/bgraph_bipart_ga.h |  3 ++-
+ 2 files changed, 32 insertions(+), 12 deletions(-)
+
+diff --git a/src/libscotch/bgraph_bipart_ga.c b/src/libscotch/bgraph_bipart_ga.c
+index f9d1001..05121e8 100644
+--- a/src/libscotch/bgraph_bipart_ga.c
++++ b/src/libscotch/bgraph_bipart_ga.c
+@@ -58,6 +58,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "graph.h"
+ #include "arch.h"
+ #include "bgraph.h"
+@@ -127,7 +128,7 @@ BgraphBipartGaData * restrict const loopptr)
+   Gnum                partnum;
+ 
+ #ifndef BGRAPHBIPARTGANOTHREAD
+-  const int                           thrdnbr = threadNbr (descptr);
++  const int                           thrdnbr = loopptr->thrdnbr; /* Number of working threads */
+   const int                           thrdnum = threadNum (descptr);
+ #else /* BGRAPHBIPARTGANOTHREAD */
+   const int                           thrdnbr = 1;
+@@ -150,13 +151,19 @@ BgraphBipartGaData * restrict const loopptr)
+   const Gnum                          cpl0avg = grafptr->compload0avg; /* Average vertex load in part 0            */
+   const Gnum                          cmloadj = grafptr->s.edlosum * grafptr->domndist; /* Penalty for imbalance   */
+ 
++#ifndef BGRAPHBIPARTGANOTHREAD
++  if (thrdnum >= thrdnbr)                         /* If thread does not take part in work */
++    return;
++#endif /* BGRAPHBIPARTGANOTHREAD */
++
+   if ((demetab = (GraphPart *) memAlloc ((size_t) (demesiz * 2 * sizeof (GraphPart)))) == NULL) {
+     errorPrint ("bgraphBipartGa: out of memory (1)");
+     loopptr->abrtval = 1;
+   }
+ 
+ #ifndef BGRAPHBIPARTGANOTHREAD
+-  threadBarrier (descptr);                        /* Check that local memory allocation went well */
++  if (thrdnbr > 1)                                /* Barriers only involve working threads       */
++    threadBarrier (descptr);                      /* Check that local memory allocation went well */
+ #endif /* BGRAPHBIPARTGANOTHREAD */
+   if (loopptr->abrtval == 1) {                    /* If any process decided to quit */
+     if (demetab != NULL)                          /* Free local array if necessary  */
+@@ -215,7 +222,8 @@ BgraphBipartGaData * restrict const loopptr)
+     }
+ 
+ #ifndef BGRAPHBIPARTGANOTHREAD
+-    threadBarrier (descptr);
++    if (thrdnbr > 1)
++      threadBarrier (descptr);                    /* Wait until all costs have been computed */
+ #endif /* BGRAPHBIPARTGANOTHREAD */
+ 
+     if (thrdnum == 0)                             /* Main thread sorts the individuals by ascending cost */
+@@ -238,7 +246,8 @@ BgraphBipartGaData * restrict const loopptr)
+     }
+ 
+ #ifndef BGRAPHBIPARTGANOTHREAD
+-    threadBarrier (descptr);
++    if (thrdnbr > 1)
++      threadBarrier (descptr);                    /* Wait until sort and mating arrays are ready */
+ #endif /* BGRAPHBIPARTGANOTHREAD */
+ 
+     for (sortnum = sortbas, parttab = demeptr[1]; sortnum < sortnnd; sortnum += 2) { /* Create offsprings */
+@@ -258,7 +267,8 @@ BgraphBipartGaData * restrict const loopptr)
+     }
+ 
+ #ifndef BGRAPHBIPARTGANOTHREAD
+-    threadBarrier (descptr);                      /* Wait until all parents have been read before sort array is overwritten */
++    if (thrdnbr > 1)
++      threadBarrier (descptr);                    /* Wait until all parents have been read before sort array is overwritten */
+ #endif /* BGRAPHBIPARTGANOTHREAD */
+ 
+     demetmp    = demeptr[0];                      /* Swap pointers for current and new demes */
+@@ -276,7 +286,8 @@ BgraphBipartGaData * restrict const loopptr)
+   }
+ 
+ #ifndef BGRAPHBIPARTGANOTHREAD
+-  threadBarrier (descptr);                        /* Make sure champion is copied before local memory is freed */
++  if (thrdnbr > 1)
++    threadBarrier (descptr);                      /* Make sure champion is copied before local memory is freed */
+ #endif /* BGRAPHBIPARTGANOTHREAD */
+ 
+   memFree (demetab);
+@@ -294,20 +305,27 @@ Bgraph * restrict const           grafptr,        /* Active graph      */
+ const BgraphBipartGaParam * const paraptr)        /* Method parameters */
+ {
+   BgraphBipartGaData  loopdat;
++  Gnum                demenbr;                    /* Size of thread local deme             */
++  Gnum                sortnbr;                    /* Overall number of individuals to sort */
+ #ifndef BGRAPHBIPARTGANOTHREAD
++  Gnum                deteval;                    /* Flag set if deterministic behavior wanted */
++  int                 thrdnbr;                    /* Number of working threads                 */
+   int                 thrdnum;
+-
+-  const int                 thrdnbr = contextThreadNbr (grafptr->contptr);
+ #else /* BGRAPHBIPARTGANOTHREAD */
+-  const int                 thrdnbr = 1;
++  const int           thrdnbr = 1;
+ #endif /* BGRAPHBIPARTGANOTHREAD */
+-  const Gnum                demenbr = DEMENBR (paraptr->popunbr, thrdnbr); /* Size of thread local deme */
+-  const Gnum                sortnbr = demenbr * thrdnbr; /* Overall number of individuals to sort       */
+ 
+   if ((grafptr->s.vertnbr < 3) ||                 /* If less than three vertices, no crossing-over possible and nothing relevant to do */
+       (paraptr->popunbr < 1))                     /* If no individuals, nothing to do either                                           */
+     return (0);
+ 
++#ifndef BGRAPHBIPARTGANOTHREAD
++  contextValuesGetInt (grafptr->contptr, CONTEXTOPTIONNUMDETERMINISTIC, &deteval);
++  thrdnbr = (deteval != 0) ? 1 : contextThreadNbr (grafptr->contptr); /* If deterministic behavior wanted, only thread 0 will work */
++#endif /* BGRAPHBIPARTGANOTHREAD */
++  demenbr = DEMENBR (paraptr->popunbr, thrdnbr);
++  sortnbr = demenbr * thrdnbr;
++
+   if (memAllocGroup ((void **) (void *)
+                      &loopdat.thrdtab, (size_t) (thrdnbr * sizeof (BgraphBipartGaThread)),
+                      &loopdat.sorttab, (size_t) (sortnbr * sizeof (BgraphBipartGaSort)),
+@@ -317,6 +335,7 @@ const BgraphBipartGaParam * const paraptr)        /* Method parameters */
+   }
+ 
+   loopdat.grafptr = grafptr;
++  loopdat.thrdnbr = thrdnbr;
+   loopdat.passnbr = paraptr->passnbr;
+   loopdat.popunbr = paraptr->popunbr;
+   loopdat.abrtval = 0;                            /* No reason to abort (yet) */
+diff --git a/src/libscotch/bgraph_bipart_ga.h b/src/libscotch/bgraph_bipart_ga.h
+index 9d6ba0a..38ac667 100644
+--- a/src/libscotch/bgraph_bipart_ga.h
++++ b/src/libscotch/bgraph_bipart_ga.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -83,6 +83,7 @@ typedef struct BgraphBipartGaData_ {
+   BgraphBipartGaSort *      sorttab;              /*+ Shared array to sort individualsby fitness   +*/
+   Gnum *                    matetab;              /*+ Mating array, of pairs of indices in sorttab +*/
+   BgraphBipartGaThread *    thrdtab;              /*+ Array of thread-specific data                +*/
++  int                       thrdnbr;              /*+ Number of working threads                    +*/
+   INT                       passnbr;              /*+ Number of generations                        +*/
+   INT                       popunbr;              /*+ Number of individuals per thread             +*/
+   INT                       abrtval;              /*+ Abort value                                  +*/
+-- 
+2.47.3
+

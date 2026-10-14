@@ -1,0 +1,5 @@
+Alternative for API-23: make SCOTCH_graphMapInit allocate nothing (defer the
+part-array allocation to graphMapCompute), so the Init call cannot fail and the
+wrappers need no check. Rejected: it changes the allocation timing/semantics of
+the public Init/Exit pair (a larger redesign) for no behavioural gain over
+checking the result. No diff provided (design change spanning Init/Compute/Exit).

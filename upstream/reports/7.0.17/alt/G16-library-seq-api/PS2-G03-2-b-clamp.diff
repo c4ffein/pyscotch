@@ -1,0 +1,22 @@
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -470,7 +470,7 @@
+       distval = archDomDist (archptr, &domnorg, &domnend);
+       if (edlotax != NULL)                        /* Get edge weight if any */
+         edloval = edlotax[edgenum];
+-      commdist[(distval > 255) ? 255 : distval] += edloval;
++      commdist[(distval < 0) ? 0 : ((distval > 255) ? 255 : distval)] += edloval;
+       commload  += edloval;
+       commdilat += distval;
+       commexpan += distval * edloval;
+--- a/src/libscotch/library_dgraph_map_stat.c
++++ b/src/libscotch/library_dgraph_map_stat.c
+@@ -351,7 +351,7 @@
+           archDomTerm (archptr, &termdomend, termgstend);
+           distval = archDomDist (archptr, &termdomdat, &termdomend);
+         }
+-        cdstloctab[(distval > 255) ? 255 : distval] += edloval;
++        cdstloctab[(distval < 0) ? 0 : ((distval > 255) ? 255 : distval)] += edloval;
+         cmlolocsum += edloval;
+         cmdilocsum += distval;
+         cmexlocsum += distval * edloval;

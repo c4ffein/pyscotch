@@ -1,0 +1,45 @@
+diff --git a/src/libscotch/bgraph_bipart_fm.c b/src/libscotch/bgraph_bipart_fm.c
+index 605037b..f74f40c 100644
+--- a/src/libscotch/bgraph_bipart_fm.c
++++ b/src/libscotch/bgraph_bipart_fm.c
+@@ -280,6 +280,7 @@ const BgraphBipartFmParam * const paraptr)        /*+ Method parameters +*/
+   Gnum                            fronnbr;
+   Gnum                            fronnum;
+   BgraphBipartFmType              typeval;
++  int                             o;
+ 
+   const Gnum * restrict const verttax = grafptr->s.verttax; /* Fast accesses */
+   const Gnum * restrict const vendtax = grafptr->s.vendtax;
+@@ -598,8 +599,8 @@ const BgraphBipartFmParam * const paraptr)        /*+ Method parameters +*/
+             if (hashnbr >= hashmax) {             /* If extended vertex table is already full */
+               if (bgraphBipartFmResize (&hashtab, &hashmax, &hashmsk, &savetab, savenbr, tablptr, &lockptr) != 0) {
+                 errorPrint ("bgraphBipartFm: out of memory (2)");
+-                memFree    (hashtab);             /* Free group leader */
+-                bgraphBipartFmTablExit (tablptr);
++                o = 1;
++                goto fail;
+               }
+               for (hashnum = (vertend * BGRAPHBIPARTFMHASHPRIME) & hashmsk; hashtab[hashnum].vertnum != ~0; hashnum = (hashnum + 1) & hashmsk) ; /* Search for new first free slot */
+             }
+@@ -839,17 +840,19 @@ const BgraphBipartFmParam * const paraptr)        /*+ Method parameters +*/
+   grafptr->commgainextn = commgainextn;
+   grafptr->bbalval      = (double) ((grafptr->compload0dlt < 0) ? (- grafptr->compload0dlt) : grafptr->compload0dlt) / (double) grafptr->compload0avg;
+ 
++  o = 0;                                          /* Everything went well */
+ #ifdef SCOTCH_DEBUG_BGRAPH2
+   if (bgraphCheck (grafptr) != 0) {
+     errorPrint ("bgraphBipartFm: inconsistent graph data");
+-    return (1);
++    o = 1;
+   }
+ #endif /* SCOTCH_DEBUG_BGRAPH2 */
+ 
++fail:
+   memFree (hashtab);                              /* Free group leader */
+   bgraphBipartFmTablExit (tablptr);
+ 
+-  return (0);
++  return (o);
+ }
+ 
+ /* This routine doubles the size all of the arrays

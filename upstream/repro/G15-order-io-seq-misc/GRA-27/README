@@ -1,0 +1,8 @@
+GRA-27: graphDump() emits "delotab" for the edge load array it declares as "edlotab"
+Build (needs internal headers): CF="$(grep '^CFLAGS' <tree>/src/Makefile.inc | cut -d= -f2-)"
+  gcc $CF -I<tree>/src/libscotch -I<tree>/include dump.c -o dump -L<tree>/lib -lscotch -lscotcherr -lz -lm -lpthread
+Run (LD_LIBRARY_PATH=<tree>/lib UBSAN_OPTIONS=print_stacktrace=1 (pristine tree: INFRA/asan; patched: $WORK/build or $WORK/build64), ASAN_OPTIONS=detect_leaks=0): ./dump > dumped.c
+  (printf '#include "module.h"\n#include "common.h"\n#include "graph.h"\n'; cat dumped.c) > dumped_full.c
+  gcc $CF -I<tree>/src/libscotch -fsyntax-only dumped_full.c
+Pristine: line 26 "grafptr->edlotax = mydelotab_x - 0;" -> error: 'mydelotab_x' undeclared. Patched: compiles.
+Note: graphDump()/graphDump2()/graphDumpArrays() have no caller in the tree (debugging helpers); SCOTCH_graphDump (gdump) is unaffected.

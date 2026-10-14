@@ -1,0 +1,9 @@
+Usage is:
+  gmk_m2 <dimX> [<dimY> [<output source file>]] <options>
+    -b<val>   : Set base value for output (0 or 1)
+    -e        : Build a 8-neighbor grid rather than a 4-neighbor one
+    -g<file>  : Output the geometry to <file>
+    -h        : Display this help
+    -t        : Build a torus rather than a grid
+    -V        : Print program version and copyright
+    -y        : Invert y coordinate in geometry

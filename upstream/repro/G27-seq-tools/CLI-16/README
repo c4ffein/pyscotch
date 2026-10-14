@@ -1,0 +1,9 @@
+CLI-16: gout Tulip writer tests a based pointer instead of the geometry array (src/scotch/gout_o.c outDrawTulMesh).
+Run:  B=$TREE/bin; export LD_LIBRARY_PATH=$TREE/lib UBSAN_OPTIONS=print_stacktrace=1
+  $B/gout g1.grf /dev/null /dev/null o.tlp -mn -gn -Ot; echo rc=$?      # base 1, no geometry
+  $B/gout g0.grf /dev/null /dev/null o.tlp -mn -gn -Ot; echo rc=$?      # base 0 control
+  for o in i v p; do $B/gout g1.grf /dev/null /dev/null o.x -mn -gn -O$o; done   # other writers, base 1
+Pristine: base 1 -> UBSan "applying non-zero offset ... to null pointer" at gout_o.c:921, then SEGV in outDrawTulMesh (:978);
+  base 0 -> "gout: ERROR: outDrawTulMesh: geometry not provided". The three other writers print the error but also emit
+  the UBSan null-offset report (:281, :570, :1068) because they form coortab - baseval before testing coortab.
+Patched: all four writers: "ERROR: outDraw...: geometry not provided", rc=1, no sanitizer output.

@@ -1,0 +1,404 @@
+[
+ {
+  "id": "GRA-04",
+  "our_title": "graphLoad accepts negative vertex labels, used unchecked as heap indices in graphLoad2",
+  "status": "partially-fixed",
+  "method": "ran",
+  "ran": "gtst neglbl.grf (pristine ASan): 'AddressSanitizer: heap-buffer-overflow READ ... in _SCOTCHgraphLoad2 graph_io.c:304'. Patched: 'graphLoad: bad input (3)'.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Agree high: user-supplied .grf, out-of-bounds heap read at a file-controlled offset in a public API (SCOTCH_graphLoad).",
+  "location_7_0_17": "src/libscotch/graph_io.c:194 (label read), 304 (indxtab[vlbltax[vertnum]])",
+  "evidence": "7.0.17 label read: 'if (intLoad (stream, &vlblval) != 1) {' with no sign check (graph_io.c:194); graphLoad2: 'if (indxtab[vlbltax[vertnum]] != ~0)' indexes with the label (graph_io.c:304).",
+  "upstream_change": "febaef7 'Prevent reading negative graph edge values' fixed negative EDGE ENDS only (edgeval < 0); negative LABELS remained.",
+  "review_accuracy": "Accurate for 7.0.16. In 7.0.17 the edge-end half is fixed; the label half is not. Review's suggested fix (reject labels <0 and >vlblmax at read) is right for the lower bound; an upper bound at read is impossible since vlblmax grows while reading, but is unnecessary because graphLoad2 allocates indxtab to vlblmax+1 and bounds edge ends by it.",
+  "first_pass_critique": "Correct status (partially-fixed) and correct preferred fix. Its note that large labels allocate a huge indxtab is right and is a real residual (see extra PS2-G14-1: vlblmax+1 overflow / huge alloc). It missed the distributed and mesh twins (dgraphLoadCent/Dist, meshLoad) which have the same unchecked label read.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/dgraph_io_load.c:334-339 (dgraphLoadCent) and 804-809 (dgraphLoadDist)",
+    "quote": "if (intLoad (fileptr, &vlblredval) != 1) {  (no sign check) ... vlblredtax[vertrednum] = vlblredval;",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/mesh_io.c:216-221 (meshLoad)",
+    "quote": "if (intLoad (stream, &vlblval) != 1) { ... meshptr->vlbltax[vertnum] = vlblval + vertbas + baseadj;  then graphLoad2 called at :294",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Reject negative labels and range-check edge ends at read time (recommended)",
+    "summary": "Add (vlblval < 0) to the label read; for unlabeled graphs range-check each base-adjusted edge end against [baseval,vertnnd[.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0001-Bugfix-validate-vertex-labels-and-edge-ends-read-by-.patch",
+    "tested": "Built 32-bit and 64-bit ASan+UBSan (0 warnings); neglbl.grf and badend.grf/conv.grf now rejected; m4x4/base-0/base-1/labelled g.grf still load; check_prog_gbase/gmk/gout/gpart, check_scotch_graph_dump/map/order/induce/coarsen pass.",
+    "tradeoffs": "One comparison per vertex/arc; rejects only invalid files. No ABI change.",
+    "preferred": true,
+    "maintainer_fit": "Mirrors febaef7's own in-loop reject style (graph_io.c:236,246) and graphLoad's existing header checks (graph_io.c:131-139)."
+   },
+   {
+    "label": "Range-check inside graphLoad2",
+    "summary": "Reject vlbltax[vertnum] < 0 before using it as an index in graphLoad2.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/alt/GRA-04-b-range-check-in-graphLoad2.diff",
+    "tested": "untested: alternative not built; preferred option was built and tested. Would stop the OOB read but leaves GRA-10 (unlabeled edge ends) unguarded and adds a branch to the relabeling loop.",
+    "tradeoffs": "Protects all graphLoad2 callers in one place; does not cover the unlabeled edge-end path.",
+    "preferred": false,
+    "maintainer_fit": "Less likely: the maintainer validates untrusted values where they are read (febaef7), not deep in a shared relabeling helper."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0001-Bugfix-validate-vertex-labels-and-edge-ends-read-by-.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Twins in dgraph_io_load.c (G20) and mesh_io.c (G11) share the defect and are not in this group's files; flagged for those groups. Patch 0001 also hardens the vertex-degree read (negative degree, arc-count overflow) found by the fuzzer; see extra PS2-G14-2."
+ },
+ {
+  "id": "GRA-10",
+  "our_title": "graphLoad never range-checks unlabelled edge ends outside debug builds",
+  "status": "partially-fixed",
+  "method": "ran",
+  "ran": "gpart 2 badend.grf /dev/null (pristine ASan): SEGV in bgraphBipartGg2 (graphLoad returned 0). conv.grf (base mismatch): graphLoad ret 0, graphCheck ret 1. Patched: both -> 'graphLoad: invalid arc end number'.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Agree medium: needs a malformed file but then corrupts memory in downstream mapping/ordering; the only check was under SCOTCH_DEBUG_GRAPH2.",
+  "location_7_0_17": "src/libscotch/graph_io.c:245-251",
+  "evidence": "7.0.17 stores 'grafptr->edgetax[edgenum] = edgeval + baseadj;' (graph_io.c:251) with only edgeval<0 checked at read; no upper bound and no base-adjusted lower bound.",
+  "upstream_change": "febaef7 (edgeval < 0 at read only).",
+  "review_accuracy": "Accurate. In 7.0.17 only the negative half is covered, and not after base adjustment (conv.grf slips through).",
+  "first_pass_critique": "Correct. Shares patch 0001 with GRA-04 (one coherent read-loop validation), which is the right structure per the group brief.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/dgraph_io_load.c:858 (dgraphLoadDist), 407 (dgraphLoadCent)",
+    "quote": "edgeloctax[edgelocnum] = edgelocval + baseadj;  (no range check)",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/mesh_io.c:263 (meshLoad)",
+    "quote": "meshptr->edgetax[edgenum] = edgeval + edgeadj;  (no range check)",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Range-check each unlabeled edge end in the read loop (recommended)",
+    "summary": "After base adjustment require baseval <= end < vertnnd when vlbltax==NULL.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0001-Bugfix-validate-vertex-labels-and-edge-ends-read-by-.patch",
+    "tested": "See GRA-04; badend.grf and conv.grf rejected, valid files load, all listed check targets pass.",
+    "tradeoffs": "One compare pair per arc; does not catch asymmetric adjacency (still graphCheck's job).",
+    "preferred": true,
+    "maintainer_fit": "Matches febaef7 and the header-count checks already in graphLoad; cheapest correct fix the review itself proposes."
+   },
+   {
+    "label": "Run graphCheck() unconditionally after load",
+    "summary": "Drop the SCOTCH_DEBUG_GRAPH2 guard around the post-load graphCheck.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/alt/GRA-10-b-run-graphCheck-after-load.diff",
+    "tested": "untested: alternative not built. Would also catch asymmetry/duplicate arcs but costs O(E) hashed check on every load and changes behaviour for slightly-malformed files.",
+    "tradeoffs": "Broader validation, higher cost and behaviour change.",
+    "preferred": false,
+    "maintainer_fit": "Unlikely: he keeps graphCheck debug-only on the load path for performance."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0001-Bugfix-validate-vertex-labels-and-edge-ends-read-by-.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Same twins as GRA-04 (dgraph_io_load.c / mesh_io.c, other groups)."
+ },
+ {
+  "id": "GRA-07",
+  "our_title": "Matrix Market loader overflows vertex array (fill loop compares based index to unbased count)",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "gcv -im0 t0b.mtx /dev/null (pristine ASan): 'heap-buffer-overflow WRITE ... graphGeomLoadMmkt graph_io_mmkt.c:229'. gcv -im2 t2c.mtx: uninitialised end entry, gtst 'invalid vertex arrays'. Patched: base 0/1/2 all load and pass gtst.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Agree medium: converter (gcv) over a user .mtx; one-past heap write for base 0, wrong result for base 2.",
+  "location_7_0_17": "src/libscotch/graph_io_mmkt.c:227-229",
+  "evidence": "7.0.17: 'while (vertnum < mrownbr) grafptr->verttax[++ vertnum] = edgenum;' then 'grafptr->verttax[++ vertnum] = edgenum;' - vertnum is based, mrownbr is unbased.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate, including the fix (loop to vertnnd-1). graphCheck is only the base-2 symptom; the real defect is the unfilled trailing entries.",
+  "first_pass_critique": "Correct status and preferred fix (loop to vertnnd-1).",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Compare in based space (recommended)",
+    "summary": "Loop while vertnum < vertnnd-1.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0002-Bugfix-fix-vertex-array-overflow-in-Matrix-Market-lo.patch",
+    "tested": "Built 32/64-bit (0 warnings); -im0/-im1/-im2 load and pass gtst; gcv chac/mtx round-trips of m4x4/m4x4_b1/small1/p2-p2 clean under ASan.",
+    "tradeoffs": "Two-token change, no effect for base 1, no ABI change.",
+    "preferred": true,
+    "maintainer_fit": "Uses the structure's own based bound (vertnnd); idiomatic throughout the tree."
+   },
+   {
+    "label": "Normalise indices to base 0 while reading",
+    "summary": "Work in unbased space, add baseval only at the writers.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/alt/GRA-07-b-normalise-to-base0.diff",
+    "tested": "untested: structural alternative not implemented in full.",
+    "tradeoffs": "Cleaner model but rewrites much of a rarely used converter; larger regression risk.",
+    "preferred": false,
+    "maintainer_fit": "Unlikely for a bugfix release; too invasive versus the two-token fix."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0002-Bugfix-fix-vertex-array-overflow-in-Matrix-Market-lo.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Negative/huge mrownbr or linenbr in the header are a separate resource issue; see extra PS2-G14-1."
+ },
+ {
+  "id": "GRA-08",
+  "our_title": "Chaco loader edge-array bound is off by one and applied after the store",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "gcv -ic over.chac /dev/null (pristine ASan): 'heap-buffer-overflow WRITE ... graphGeomLoadChac graph_io_chac.c:230'. Patched: 'graphGeomLoadChac: bad input (5)'; valid Chaco files still load.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Agree medium: converter over a user .chac; heap write past the based edge array.",
+  "location_7_0_17": "src/libscotch/graph_io_chac.c:225,230",
+  "evidence": "7.0.17: 'if (edgenum > (grafptr->edgenbr + 1))' (chac:225) runs AFTER 'grafptr->edgetax[edgenum ++] = chavertnum;' (chac:230) and edlotax is stored even earlier; the bound is one too permissive for a base-1 array.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate; review's 'edgenum >= edgenbr + baseval' equals edgenbr+1 since Chaco base is 1.",
+  "first_pass_critique": "Correct; preferred hoist-and-tighten matches what I committed.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Hoist and tighten the check (recommended)",
+    "summary": "Test edgenum >= edgenbr+1 before reading/storing any arc data.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0003-Bugfix-check-edge-array-bounds-before-storing-in-Cha.patch",
+    "tested": "Built 32/64-bit (0 warnings); over.chac rejected, valid chac loads, gcv round-trips clean.",
+    "tradeoffs": "Rejects over-long adjacency earlier; same error number kept.",
+    "preferred": true,
+    "maintainer_fit": "Bound-before-store is the pattern used by the HB loader and graphLoad."
+   },
+   {
+    "label": "Guard the edlotax store only",
+    "summary": "Keep the late check but add the bound into the edlotax read condition.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/alt/GRA-08-b-guard-store-only.diff",
+    "tested": "untested: alternative not built.",
+    "tradeoffs": "Smaller diff but leaves read/check order convoluted.",
+    "preferred": false,
+    "maintainer_fit": "Less clean; he prefers an explicit guard before the store."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0003-Bugfix-check-edge-array-bounds-before-storing-in-Cha.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "GRA-11",
+  "our_title": "Harwell-Boeing loader uses unchecked row indices to index the vertex array",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "gcv -ib bad99.hb /dev/null and bad0.hb (pristine ASan): 'heap-buffer-overflow READ ... graphGeomLoadHabo graph_io_habo.c:280'. Patched: 'graphGeomLoadHabo: bad input (9)'; ok.hb still loads.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Agree medium: converter over a user .rsa; OOB vertex-array access from a file-controlled row index (0 or >order).",
+  "location_7_0_17": "src/libscotch/graph_io_habo.c:277-281",
+  "evidence": "7.0.17: 'habnzrtab[habnzrnum] = habnzrval; if (habnzrval != vertnum) { grafptr->verttax[vertnum]++; grafptr->verttax[habnzrval]++; }' with no bound on habnzrval.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate; the loader additionally trusts the column-pointer array habcoltab (see extra PS2-G14-1).",
+  "first_pass_critique": "Correct. First pass bundled GRA-11 with GRA-24 in one diff; I split them into two commits (distinct logical defects: a range check vs a parser typo).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/mesh_io_habo.c:204-207,236-239 (meshGeomLoadHabo)",
+    "quote": "ELTPTR/VARIND range checks exist only under SCOTCH_DEBUG_MESH2 - same class, tracked by review id SEP-08 (G11)",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Reject out-of-range rows right after decoding (recommended)",
+    "summary": "Require 1 <= habnzrval <= habcolnbr (also rejects blank fields decoded as 0).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0004-Bugfix-validate-row-indices-in-Harwell-Boeing-loader.patch",
+    "tested": "Built 32/64-bit (0 warnings); bad99.hb/bad0.hb rejected, ok.hb and pre.hb still load.",
+    "tradeoffs": "One comparison per non-zero; malformed files fail loudly.",
+    "preferred": true,
+    "maintainer_fit": "Same reject-on-read pattern as the Chaco loader's chavertnum check (chac:216-217)."
+   },
+   {
+    "label": "Validate the whole pattern in a second pass",
+    "summary": "Also validate habcoltab monotonicity and entries <= nnz+1 in a helper.",
+    "diff_file": "",
+    "tested": "untested: not implemented; more thorough but larger, and the column-pointer gap is logged as PS2-G14-1.",
+    "tradeoffs": "Guards column pointers too; more code.",
+    "preferred": false,
+    "maintainer_fit": "He would likely take the targeted row check now and treat column-pointer hardening separately."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0004-Bugfix-validate-row-indices-in-Harwell-Boeing-loader.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Column-pointer array habcoltab is still trusted (can drive habnzrnum past habnzrtab); recorded as PS2-G14-1. Mesh twin is SEP-08 (G11)."
+ },
+ {
+  "id": "GRA-24",
+  "our_title": "Harwell-Boeing format parser applies isdigit to a comparison result",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "gcv -ib pre.hb (format (1X,10I3), pristine): 'graphGeomLoadHabo: bad input (2)'. Patched: pre.hb loads, output byte-identical to ok.hb (format (10I3)).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Agree low: logic bug that rejects valid nX,mIw formats; no memory-safety impact.",
+  "location_7_0_17": "src/libscotch/graph_io_habo.c:407",
+  "evidence": "7.0.17: 'if (! isdigit (*charptr < '0')) break;' applies isdigit() to a 0/1 comparison result.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate.",
+  "first_pass_critique": "Correct fix. First pass shipped it inside the GRA-11 diff; committed separately here as its own logical defect.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Cast and test the character (recommended)",
+    "summary": "isdigit ((int) (unsigned char) *charptr), like the two other calls in the routine.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0005-Bugfix-fix-isdigit-test-in-Harwell-Boeing-format-par.patch",
+    "tested": "Built 32/64-bit (0 warnings); pre.hb now loads and its output equals ok.hb's byte for byte.",
+    "tradeoffs": "No downside; enables documented nX,mIw formats.",
+    "preferred": true,
+    "maintainer_fit": "Makes the three isdigit() calls in the routine identical; obvious typo fix."
+   },
+   {
+    "label": "Factor a strtol()-based digit helper",
+    "summary": "Replace the three hand loops with a checked strtol helper.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/alt/GRA-24-b-strtol-helper.diff",
+    "tested": "untested: sketch only.",
+    "tradeoffs": "Removes the typo class and is the natural place to bound field widths (PS2-G14-1); larger diff.",
+    "preferred": false,
+    "maintainer_fit": "Possible as a follow-up cleanup, not for a one-line bugfix."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0005-Bugfix-fix-isdigit-test-in-Harwell-Boeing-format-par.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "GRA-09",
+  "our_title": "Scotch geometry loader keeps the dimension in a local, so saved geometry is empty",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "gra09.c (load p4s.grf+p4.xyz 2-D, then geomData+saveScot). Pristine: 'dim=0', saved file begins '0\\n4' (no coords). Patched: 'dim=2', saved file lists all coordinates.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Agree medium: silent wrong result through a public API (SCOTCH_graphGeomLoadScot/geomData/SaveScot); no crash.",
+  "location_7_0_17": "src/libscotch/graph_io_scot.c:90,116-120",
+  "evidence": "dimnnbr is a local (scot:90); geomptr->dimnnbr is never assigned in graphGeomLoadScot; geomtab is allocated only when NULL, ignoring a stored dimension.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate, including the geomtab-reuse size hazard.",
+  "first_pass_critique": "Correct; its preferred memRealloc approach is what I used, but I reallocate unconditionally (handles a changed vertnbr at the same dimension too, not just a changed dimension).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/mesh_io_scot.c:88,114-118 (meshGeomLoadScot)",
+    "quote": "Gnum dimnnbr; ... (geomptr->geomtab == NULL) && memAlloc(...); geomptr->dimnnbr never set - identical bug in the mesh twin (G11's file)",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "(Re)allocate geomtab and record the dimension (recommended)",
+    "summary": "memRealloc geomtab to vertnbr*dimnnbr and set geomptr->dimnnbr.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0006-Bugfix-store-geometry-dimension-in-Scotch-geometry-l.patch",
+    "tested": "Built 32/64-bit (0 warnings); gra09 reports dim=2 and saves all coordinates; no leak (memRealloc reuses the existing block).",
+    "tradeoffs": "Reallocates every call (negligible); assumes geomtab came from memAlloc, which holds for geomInit users.",
+    "preferred": true,
+    "maintainer_fit": "memRealloc(NULL,...) idiom is used across the tree; fixes both the missing dimension and the stale-size reuse in one place."
+   },
+   {
+    "label": "Record the dimension only; refuse a differing reuse",
+    "summary": "Set dimnnbr, keep the conditional alloc, error if an existing geomtab has another dimension.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/alt/GRA-09-b-record-dimension-only.diff",
+    "tested": "untested: alternative not built.",
+    "tradeoffs": "Smallest change, never reallocs caller memory, but cannot reuse a Geom across dimensions.",
+    "preferred": false,
+    "maintainer_fit": "Acceptable but less flexible than reallocating."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0006-Bugfix-store-geometry-dimension-in-Scotch-geometry-l.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Mesh twin meshGeomLoadScot (mesh_io_scot.c, G11) has the identical bug; flagged for G11."
+ },
+ {
+  "id": "PS-API-5",
+  "our_title": "graphCheck does not enforce the vertex-label uniqueness invariant",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "tl.c builds a 4-vertex graph with vlbltab {0,0,1,2}. Pristine: SCOTCH_graphCheck=0 (accepted), SCOTCH_graphTabLoad then mis-assigns a part. Patched: 'graphCheck: duplicate vertex label', =1; unique-label graph still =0.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Low: reachable only by building a graph with duplicate labels via SCOTCH_graphBuild; file loaders already reject duplicates. Impact is a silent wrong mapping, not corruption.",
+  "location_7_0_17": "src/libscotch/graph_check.c (graphCheck, no label validation)",
+  "evidence": "graphCheck never reads grafptr->vlbltax; yet graphLoad2 (graph_io.c:304), graphGeomLoadScot (graph_io_scot.c:162) and SCOTCH_graphTabLoad (library_graph_map_io.c:137) all treat duplicate labels as an error, and doc s_f.tex states labels must be unique.",
+  "upstream_change": "",
+  "review_accuracy": "New defect (not in the review); related to API-21 (graphTabLoad reads one element past mappsorttab).",
+  "first_pass_critique": "First pass reproduced it and preferred rejecting in graphCheck; I agree and implemented that, since uniqueness is a documented Graph invariant that only graphCheck can catch for a built (not loaded) graph.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Reject duplicates in graphCheck (recommended)",
+    "summary": "When vlbltax != NULL, sort a copy of the labels and reject equal neighbours.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0007-Bugfix-reject-duplicate-vertex-labels-in-graphCheck-.patch",
+    "tested": "Built 32/64-bit (0 warnings); tl 1 rejected, tl 0 accepted; check_scotch_graph_map/order/induce/coarsen and check_prog_gtst/gbase/gmk/gout/gpart (all on labelled graphs) still pass.",
+    "tradeoffs": "Adds an O(V log V) sort and a memAlloc to a Check routine that was allocation-free, so the check can now fail with out-of-memory. Internal graphs never carry duplicate labels, so no legitimate graph is rejected.",
+    "preferred": true,
+    "maintainer_fit": "Section 3.3 of the maintainer guide: a Check method verifies internal consistency; label uniqueness is such an invariant, enforced everywhere else at construction. DECISION FOR MAINTAINER: whether allocation inside graphCheck is acceptable; alt-B avoids it."
+   },
+   {
+    "label": "Leave graphCheck; harden consumers",
+    "summary": "Keep Check allocation-free and make label consumers robust (e.g. graphTabLoad / API-21).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/alt/PS-API-5-b-harden-consumers.diff",
+    "tested": "untested: alternative not built.",
+    "tradeoffs": "No allocation in Check, but whack-a-mole across every label consumer and never surfaces the invalid graph to the user.",
+    "preferred": false,
+    "maintainer_fit": "He may prefer this if he wants graphCheck to stay allocation-free; otherwise the invariant check is cleaner."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0007-Bugfix-reject-duplicate-vertex-labels-in-graphCheck-.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Design question for the maintainer (loader vs graphCheck). Recommended: graphCheck, because uniqueness is a documented invariant (doc/src/scotch/s_f.tex:206) and a built graph has no other validation point. Both options provided."
+ }
+]

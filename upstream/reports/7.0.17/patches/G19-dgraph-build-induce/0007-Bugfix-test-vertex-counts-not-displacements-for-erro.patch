@@ -1,0 +1,46 @@
+From 77154c38b2e807decff1f2dce9e71cf2a9f0b25a Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:44:24 +0000
+Subject: [PATCH 07/11] Bugfix: test vertex counts, not displacements, for
+ errors of other processes in `dgraphInduce2()` [report R. Perry]
+
+A process that could not allocate its data notifies the others by
+gathering a count of -1 into `proccnttab`, but the loop that builds the
+vertex displacement array tested the running prefix sum in `procdsptab`
+instead, which is negative only when the base value is 0 and the failed
+process is the first one. In all other cases, the error was missed and
+the remaining processes went on into the halo exchange and waited
+forever for the failed process, which had returned.
+
+Test `proccnttab`, as `hdgraphInduceList()` does.
+
+Refs: DGR-06
+---
+ src/libscotch/dgraph_induce.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/dgraph_induce.c b/src/libscotch/dgraph_induce.c
+index 91524ec..6164b68 100644
+--- a/src/libscotch/dgraph_induce.c
++++ b/src/libscotch/dgraph_induce.c
+@@ -46,7 +46,7 @@
+ /**                # Version 6.0  : from : 29 aug 2012     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 05 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -174,7 +174,7 @@ fail2:
+ 
+   indgrafptr->procdsptab[0] = baseval;            /* Build vertex-to-process array */
+   for (procnum = 0; procnum < indgrafptr->procglbnbr; procnum ++) {
+-    if (indgrafptr->procdsptab[procnum] < 0)      /* If error notified by another process */
++    if (indgrafptr->proccnttab[procnum] < 0)      /* If error notified by another process */
+       goto fail2;
+     indgrafptr->procdsptab[procnum + 1] = indgrafptr->procdsptab[procnum] + indgrafptr->proccnttab[procnum];
+   }
+-- 
+2.47.3
+

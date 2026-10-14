@@ -1,0 +1,5 @@
+API-06 remainder: SCOTCH_meshGeomLoadHabo/LoadScot/SaveScot cast the mesh handle directly; SCOTCH_meshExit lacks the contextContainerTrue() guard.
+  ../API-12/bound 2 $WORK/scotch/src/check/data/small2.msh   pristine -> "meshGeomLoadScot(container)=0" but "underlying mesh vnodnbr=0" (the mesh was loaded over the container; its arrays leak)
+                                                             patched  -> "underlying mesh vnodnbr=7 check=0"
+  ../API-12/bound 3 ...   meshExit on a container: no visible effect in either (container flag 0x4000 carries no MESHFREE bit); the guard mirrors SCOTCH_graphExit/SCOTCH_dmeshExit.
+Fixed by patches/0005.

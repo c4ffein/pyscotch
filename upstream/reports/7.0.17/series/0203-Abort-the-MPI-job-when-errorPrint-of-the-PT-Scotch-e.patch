@@ -1,0 +1,93 @@
+From b9790b9ab6663d6cd69d9f02e2c7125758a2f5d4 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:15:02 +0000
+Subject: [PATCH 203/240] Abort the MPI job when `errorPrint()' of the
+ PT-Scotch error-exit library is called [report R. Perry]
+
+`errorPrint()' of libptscotcherrexit terminated the calling process
+with `exit()', which the MPI standard does not define for a process
+that has initialized MPI. With launchers that do not kill the job
+when one process exits with a non-zero status, the other processes
+of a PT-Scotch program would then wait forever in their next
+collective communication (e.g., after a graph file could not be
+read by one process). Call `MPI_Abort()' on `MPI_COMM_WORLD' when
+MPI has been initialized and not yet finalized, then exit.
+
+Refs: CLI-21
+---
+ doc/src/handson/h_c.tex            |  4 ++--
+ src/libscotch/library_error_exit.c | 18 +++++++++++++++---
+ 2 files changed, 17 insertions(+), 5 deletions(-)
+
+diff --git a/doc/src/handson/h_c.tex b/doc/src/handson/h_c.tex
+index 36841b1..0acdf84 100644
+--- a/doc/src/handson/h_c.tex
++++ b/doc/src/handson/h_c.tex
+@@ -182,8 +182,8 @@ MPI process number, to the standard error stream, and tries to return
+ an error value to the caller routine;
+ \item
+ \texttt{libptscotcherrexit}, which sends the error message, comprising
+-the MPI process number, to the standard error stream, and exits
+-immediately after.
++the MPI process number, to the standard error stream, and aborts the
++whole MPI job immediately after.
+ \end{itemize}
+ 
+ \begin{center}
+diff --git a/src/libscotch/library_error_exit.c b/src/libscotch/library_error_exit.c
+index 2816856..4a26e28 100644
+--- a/src/libscotch/library_error_exit.c
++++ b/src/libscotch/library_error_exit.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007-2009,2011,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007-2009,2011,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -50,7 +50,7 @@
+ /**                # Version 6.0  : from : 24 sep 2019     **/
+ /**                                 to   : 24 sep 2019     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 09 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -101,7 +101,10 @@ const char * const          progstr)              /*+ Program name +*/
+ 
+ /* This routine prints an error message with
+ ** a variable number of arguments, as printf ()
+-** does, and exits.
++** does, and exits. When MPI is running, all
++** processes of the job are aborted, so that
++** none of them waits for the exiting process
++** in a collective communication.
+ ** It returns:
+ ** - EXIT  : in all cases.
+ */
+@@ -114,6 +117,7 @@ const char * const          errstr,               /*+ printf-like variable argum
+   va_list             errlist;                    /* The argument list of the call */
+ #ifdef SCOTCH_PTSCOTCH
+   int                 proclocnum;
++  int                 flagval;                    /* MPI initialization or finalization flag */
+ #endif /* SCOTCH_PTSCOTCH */
+ 
+   fprintf (stderr, "%s", _SCOTCHerrorProgName);
+@@ -139,6 +143,14 @@ const char * const          errstr,               /*+ printf-like variable argum
+   sleep (SCOTCH_ERROR_SLEEP);                     /* Wait for messages to be propagated */
+ #endif /* SCOTCH_ERROR_SLEEP */
+ 
++#ifdef SCOTCH_PTSCOTCH
++  if ((MPI_Initialized (&flagval) == MPI_SUCCESS) && /* If MPI is running, abort all processes of the job */
++      (flagval != 0)                              &&
++      (MPI_Finalized (&flagval) == MPI_SUCCESS)   &&
++      (flagval == 0))
++    MPI_Abort (MPI_COMM_WORLD, EXIT_FAILURE);
++#endif /* SCOTCH_PTSCOTCH */
++
+   exit (EXIT_FAILURE);
+ }
+ 
+-- 
+2.47.3
+

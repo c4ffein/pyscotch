@@ -1,0 +1,9 @@
+failmalloc.c : LD_PRELOAD malloc fault injector used by the CLI-10, CLI-15, CLI-22 and PS2-G26-1 reproducers.
+  gcc -O1 -fPIC -shared failmalloc.c -o failmalloc.so -ldl
+  FAILMALLOC_AT=N          fail the N-th malloc/calloc/realloc call of the process
+  FAILMALLOC_FUNC=sym      count only allocations whose immediate caller is the exported function "sym"
+  FAILMALLOC_NTH=k         ... and fail the k-th of them (default 1)
+  FAILMALLOC_TRACE=1       print what was failed and the counts at exit
+Use it with a NON-sanitized build ($WORK/plain: the asan tree with -fsanitize removed from Makefile.inc),
+since ASan's own allocator would be displaced by the preload. With mpirun, pass the variables with -x.
+Internal libscotch symbols are renamed (_SCOTCHmemAllocGroup, _SCOTCHmeshGraphDual) under SCOTCH_RENAME.

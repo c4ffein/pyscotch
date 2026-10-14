@@ -1,0 +1,77 @@
+From 370b9cb29712e2f0bead75ec2b00ad833a52855b Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:07:10 +0000
+Subject: [PATCH 03/11] Bugfix: write un-based vertex indices in Inventor and
+ VTK outputs of `gout` [report R. Perry]
+
+The Inventor writer un-based every entry of its index array,
+including the "-1" path terminators, which became "-2" for graphs
+of base 1. The VTK writer wrote based vertex numbers in its CELLS
+section, while the POINTS section is always indexed from 0, so
+graphs of base 1 produced shifted cells and an out-of-range point
+index. The outputs of both writers now only depend on the graph
+topology, not on its base value.
+
+Refs: CLI-12
+---
+ src/scotch/gout_o.c | 17 ++++++++++-------
+ 1 file changed, 10 insertions(+), 7 deletions(-)
+
+diff --git a/src/scotch/gout_o.c b/src/scotch/gout_o.c
+index a695a68..854b96d 100644
+--- a/src/scotch/gout_o.c
++++ b/src/scotch/gout_o.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2011,2012,2018,2021,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2011,2012,2018,2021,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -59,7 +59,7 @@
+ /**                # Version 6.1  : from : 04 apr 2021     **/
+ /**                                 to   : 28 aug 2021     **/
+ /**                # Version 7.0  : from : 31 aug 2021     **/
+-/**                                 to   : 13 jul 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -400,9 +400,12 @@ FILE * const                fileptr)              /* Output stream
+ 
+   fprintf (fileptr, "  IndexedLineSet {\n    coordIndex ["); /* Write set of lines */
+   for (indxnum = 0; indxnum < indxnbr - 1; indxnum ++) {
++    SCOTCH_Num          indxval;
++
+     if ((indxnum % 8) == 0)
+       fprintf (fileptr, "\n");
+-    fprintf (fileptr, "\t" SCOTCH_NUMSTRING ",", indxtab[indxnum] - baseval); /* Un-base vertex indices in paths */
++    indxval = indxtab[indxnum];
++    fprintf (fileptr, "\t" SCOTCH_NUMSTRING ",", (indxval != -1) ? (indxval - baseval) : indxval); /* Un-base vertex indices in paths, not path terminators */
+   }
+   if (((indxnbr - 1) % 8) == 0)
+     fprintf (fileptr, "\n");
+@@ -1116,9 +1119,9 @@ FILE * const                fileptr)              /* Output stream
+       continue;
+     }
+ 
+-    indxtmp = indxnbr ++;                         /* Save space for number of points */
+-    verttmp = vertnum;                            /* Begin with this vertex          */
+-    indxtab[indxnbr ++] = verttmp;                /* Add it to the current path      */
++    indxtmp = indxnbr ++;                         /* Save space for number of points                 */
++    verttmp = vertnum;                            /* Begin with this vertex                          */
++    indxtab[indxnbr ++] = verttmp - baseval;      /* Add it to the current path, as un-based VTK point */
+     do {                                          /* Build path from current vertex  */
+       SCOTCH_Num          parttmp;
+       SCOTCH_Num          vertend;
+@@ -1139,7 +1142,7 @@ FILE * const                fileptr)              /* Output stream
+       pathtax[verttmp].pathnbr --;                /* One less output path remaining    */
+       pathtax[verttmp].edgenum = edgetmp + 1;     /* Search from the next position     */
+       verttmp = vertend;                          /* Go-on from end vertex             */
+-      indxtab[indxnbr ++] = verttmp;              /* Add end vertex to current path    */
++      indxtab[indxnbr ++] = verttmp - baseval;    /* Add un-based end vertex to path   */
+     } while (pathtax[verttmp].pathnbr > 0);       /* As long as there is an exit route */
+     indxtab[indxtmp] = indxnbr - indxtmp - 1;     /* Set size of created path          */
+     pathnbr ++;                                   /* One more path created             */
+-- 
+2.47.3
+

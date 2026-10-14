@@ -1,0 +1,22 @@
+COR-08: fork-mode (de)compression deadlocks with several compressed files; children flush father's stdio
+=======================================================================================================
+Fork mode needs a build WITHOUT COMMON_PTHREAD: $WORK/buildnp (patched) and $WORK/buildnp0 (pristine) are copies of
+INFRA/asan with "-DCOMMON_PTHREAD -DCOMMON_PTHREAD_AFFINITY_LINUX -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI" removed from
+CFLAGS in src/Makefile.inc (module.h then leaves COMMON_PTHREAD_FILE undefined). Only zlib is available on this box.
+Files: bump_b1.grf (src/check/data), stdio_dup.c (prints a line to stdout BEFORE fileBlockOpen of two output files,
+       then writes one line to each), tcfc_new_pristine = the patched test_common_file_compress.c linked against the
+       pristine fork-mode library.
+
+Pristine (buildnp0 / buildnp before patch), ASAN_OPTIONS=detect_leaks=0, timeout 20:
+  gpart 4 bump_b1.grf o1.map.gz                 -> rc=0
+  gpart 4 bump_b1.grf o2.map.gz o2.log.gz       -> rc=124 (hang)      <- two compression children
+  gpart 4 bump_b1.grf.gz o4.map.gz              -> rc=0 (loader does not read to EOF)
+  ./stdio_dup_np d1.gz d1.txt > log1.txt        -> rc=0, "HEADER" printed 2 times (once by the child's exit())
+  ./stdio_dup_np d2.gz d3.gz > log2.txt         -> rc=124 (hang)
+  ./tcfc_new_pristine bump_b1.grf p1.gz p2.gz   -> rc=124 (hang) ; the extended check_common_file_compress rule hangs (rc=124)
+  ASAN_OPTIONS=detect_leaks=1 ./tcfc_new_pristine bump_b1.grf p3.gz -> LeakSanitizer: 131080 bytes from fileCompress (PS2-G07-1)
+Patched (buildnp, patches 0002 + 0003):
+  gpart 4 bump_b1.grf o2.map.gz o2.log.gz       -> rc=0, both .gz files valid (zcat)
+  gpart 4 bump_b1.grf.gz o5.map.gz o5.log.gz    -> rc=0
+  ./stdio_dup_np d1.gz d1.txt / d2.gz d3.gz     -> rc=0, "HEADER" printed once, outputs "one"/"two" correct
+  check_common_file_compress (new 3-file lines) -> passes in fork mode with detect_leaks=1 and in pthread mode ($WORK/build)

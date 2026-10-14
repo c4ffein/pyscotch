@@ -1,0 +1,9 @@
+Usage is:
+  amk_grf [<input source file> [<output target file>]] <options>
+    -2         : Create a 'deco 2' instead of a 'deco 1' architecture
+    -b<strat>  : Apply bipartitioning strategy <strat> (for 'deco 0' architectures)
+    -h         : Display this help
+    -l<file>   : Load vertex list from <file>
+    -V         : Print program version and copyright
+  
+  Default option set is : '-Bhf{move=1000}/((load0=load)|(load0=0))?x;'

@@ -1,0 +1,10 @@
+--- a/src/libscotch/bdgraph_bipart_st.c
++++ b/src/libscotch/bdgraph_bipart_st.c
+@@ -294,6 +294,7 @@
+         o |= bdgraphBipartSt (grafptr, straptr->data.concdat.stratab[1]); /* Then apply second strategy */
+       break;
+     case STRATNODECOND :
++      grafptr->bbalglbval = (double) ABS (grafptr->compglbload0dlt) / (double) grafptr->compglbload0avg; /* Refresh strategy variable from global data */
+       o = stratTestEval (straptr->data.conddat.testptr, &testdat, (void *) grafptr); /* Evaluate expression */
+       if (o == 0) {                               /* If evaluation was correct */
+ #ifdef SCOTCH_DEBUG_BDGRAPH2

@@ -1,0 +1,134 @@
+--- a/src/libscotch/library_mesh_io_habo_f.c	2026-10-13 08:40:02.907404191 +0000
++++ b/src/libscotch/library_mesh_io_habo_f.c	2026-10-13 13:24:28.461917388 +0000
+@@ -75,7 +75,7 @@
+ SCOTCH_Geom * const         geomptr,              \
+ const int * const           filegrfptr,           \
+ const int * const           filegeoptr,           \
+-const char * const          dataptr, /* No use */ \
++const char * const          dataptr,              \
+ int * const                 revaptr,              \
+ const int                   datanbr),             \
+ (meshptr, geomptr, filegrfptr, filegeoptr, dataptr, revaptr, datanbr))
+@@ -84,16 +84,27 @@
+   FILE *              filegeostream;
+   int                 filegrfnum;                 /* Duplicated handle */
+   int                 filegeonum;
++  char * restrict     datatab;                    /* Pointer to null-terminated string */
+   int                 o;
+ 
++  if ((datatab = (char *) memAlloc (datanbr + 1)) == NULL) { /* Allocate temporary space */
++    errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (MESHGEOMLOADHABO)) ": out of memory");
++    *revaptr = 1;
++    return;
++  }
++  memCpy (datatab, dataptr, datanbr);             /* Copy string contents */
++  datatab[datanbr] = '\0';                        /* Terminate string     */
++
+   if ((filegrfnum = dup (*filegrfptr)) < 0) {     /* If cannot duplicate file descriptor */
+     errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (MESHGEOMLOADHABO)) ": cannot duplicate handle (1)");
++    memFree    (datatab);
+     *revaptr = 1;                                 /* Indicate error */
+     return;
+   }
+   if ((filegeonum = dup (*filegeoptr)) < 0) {     /* If cannot duplicate file descriptor */
+     errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (MESHGEOMLOADHABO)) ": cannot duplicate handle (2)");
+     close      (filegrfnum);
++    memFree    (datatab);
+     *revaptr = 1;                                 /* Indicate error */
+     return;
+   }
+@@ -101,6 +112,7 @@
+     errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (MESHGEOMLOADHABO)) ": cannot open input stream (1)");
+     close      (filegrfnum);
+     close      (filegeonum);
++    memFree    (datatab);
+     *revaptr = 1;
+     return;
+   }
+@@ -108,14 +120,16 @@
+     errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (MESHGEOMLOADHABO)) ": cannot open input stream (2)");
+     fclose     (filegrfstream);
+     close      (filegeonum);
++    memFree    (datatab);
+     *revaptr = 1;
+     return;
+   }
+ 
+-  o = SCOTCH_meshGeomLoadHabo (meshptr, geomptr, filegrfstream, filegeostream, NULL);
++  o = SCOTCH_meshGeomLoadHabo (meshptr, geomptr, filegrfstream, filegeostream, datatab);
+ 
+-  fclose (filegrfstream);                         /* This closes file descriptors too */
+-  fclose (filegeostream);
++  memFree (datatab);
++  fclose  (filegrfstream);                        /* This closes file descriptors too */
++  fclose  (filegeostream);
+ 
+   *revaptr = o;
+ }
+--- a/src/libscotch/library_graph_io_habo_f.c	2026-10-13 08:40:02.907404191 +0000
++++ b/src/libscotch/library_graph_io_habo_f.c	2026-10-13 13:24:28.461917388 +0000
+@@ -75,7 +75,7 @@
+ SCOTCH_Geom * const         geomptr,              \
+ const int * const           filegrfptr,           \
+ const int * const           filegeoptr,           \
+-const char * const          dataptr, /* No use */ \
++const char * const          dataptr,              \
+ int * const                 revaptr,              \
+ const int                   datanbr),             \
+ (grafptr, geomptr, filegrfptr, filegeoptr, dataptr, revaptr, datanbr))
+@@ -84,16 +84,27 @@
+   FILE *              filegeostream;
+   int                 filegrfnum;                 /* Duplicated handle */
+   int                 filegeonum;
++  char * restrict     datatab;                    /* Pointer to null-terminated string */
+   int                 o;
+ 
++  if ((datatab = (char *) memAlloc (datanbr + 1)) == NULL) { /* Allocate temporary space */
++    errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (GRAPHGEOMLOADHABO)) ": out of memory");
++    *revaptr = 1;
++    return;
++  }
++  memCpy (datatab, dataptr, datanbr);             /* Copy string contents */
++  datatab[datanbr] = '\0';                        /* Terminate string     */
++
+   if ((filegrfnum = dup (*filegrfptr)) < 0) {     /* If cannot duplicate file descriptor */
+     errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (GRAPHGEOMLOADHABO)) ": cannot duplicate handle (1)");
++    memFree    (datatab);
+     *revaptr = 1;                                 /* Indicate error */
+     return;
+   }
+   if ((filegeonum = dup (*filegeoptr)) < 0) {     /* If cannot duplicate file descriptor */
+     errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (GRAPHGEOMLOADHABO)) ": cannot duplicate handle (2)");
+     close      (filegrfnum);
++    memFree    (datatab);
+     *revaptr = 1;                                 /* Indicate error */
+     return;
+   }
+@@ -101,6 +112,7 @@
+     errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (GRAPHGEOMLOADHABO)) ": cannot open input stream (1)");
+     close      (filegrfnum);
+     close      (filegeonum);
++    memFree    (datatab);
+     *revaptr = 1;
+     return;
+   }
+@@ -108,14 +120,16 @@
+     errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (GRAPHGEOMLOADHABO)) ": cannot open input stream (2)");
+     fclose     (filegrfstream);
+     close      (filegeonum);
++    memFree    (datatab);
+     *revaptr = 1;
+     return;
+   }
+ 
+-  o = SCOTCH_graphGeomLoadHabo (grafptr, geomptr, filegrfstream, filegeostream, NULL);
++  o = SCOTCH_graphGeomLoadHabo (grafptr, geomptr, filegrfstream, filegeostream, datatab);
+ 
+-  fclose (filegrfstream);                         /* This closes file descriptors too */
+-  fclose (filegeostream);
++  memFree (datatab);
++  fclose  (filegrfstream);                        /* This closes file descriptors too */
++  fclose  (filegeostream);
+ 
+   *revaptr = o;
+ }

@@ -1,0 +1,99 @@
+From 4bc7fb5c808e6eafb5b90c4aa561a63b1dcf5ca8 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:34:29 +0000
+Subject: [PATCH 075/240] Remove dead isolated-anchor handling in
+ `kgraphCost()' [report R. Perry]
+
+The block meant to freeze the load of isolated anchors was unreachable: the
+search loop did `if (degree != 0) continue;' on both branches, so it always ran
+to its end and `domnnbr != domnnbr' guarded the block out. The code was therefore
+inert and misleading.
+
+It cannot simply be turned on. The test it uses -- an anchor with no band edge --
+is not a correct predicate for "empty part": once the band strategy has
+repartitioned, regular vertices can be assigned to a part whose anchor has no
+band edge, so the part load is not equal to the anchor load. Activating the block
+then subtracts a wrong load and trips the `kgraphCost: invalid load difference'
+assertion under SCOTCH_DEBUG_KGRAPH2 (observed with a default-style band mapping).
+
+Since the block never ran, `fdomwgt' and `fvelsum' were always zero; removing it
+and them leaves the computed load targets unchanged. A correct freeze of truly
+empty parts would need a proper empty-part test and is left to a separate change.
+
+Refs: GRA-19
+---
+ src/libscotch/kgraph_cost.c | 38 +++----------------------------------
+ 1 file changed, 3 insertions(+), 35 deletions(-)
+
+diff --git a/src/libscotch/kgraph_cost.c b/src/libscotch/kgraph_cost.c
+index add77ad..c22f2d0 100644
+--- a/src/libscotch/kgraph_cost.c
++++ b/src/libscotch/kgraph_cost.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -39,7 +39,7 @@
+ /**                partitions.                             **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 16 jun 2023     **/
+-/**                                 to   : 16 jun 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -73,8 +73,6 @@ Kgraph * restrict const     grafptr)
+   Gnum                      vertnum;
+   Gnum * restrict           compload;
+   Gnum                      commload;
+-  double                    fdomwgt;
+-  Gnum                      fvelsum;
+   Gnum                      velosum;
+   Anum                      domnnum;
+   ArchDom                   domndat;
+@@ -141,39 +139,9 @@ Kgraph * restrict const     grafptr)
+   }
+   grafptr->commload = commload;
+ 
+-  fdomwgt = 0;
+-  fvelsum = 0;
+-  if ((grafptr->s.flagval & KGRAPHHASANCHORS) != 0) {
+-    const Gnum                  vertancnnd = grafptr->s.vertnnd - domnnbr;
+-    Gnum                        veloval;
+-
+-    for (domnnum = 0; domnnum < domnnbr; domnnum ++)
+-      if ((grafptr->s.verttax[vertancnnd + domnnum + 1] - grafptr->s.verttax[vertancnnd + domnnum]) != 0)
+-        continue;
+-
+-    if (domnnum != domnnbr) {
+-      for (domnnum = 0; domnnum < domnnbr; domnnum ++) {
+-        if ((grafptr->s.verttax[vertancnnd + domnnum + 1] - grafptr->s.verttax[vertancnnd + domnnum]) == 0) {
+-          veloval = grafptr->s.velotax[vertancnnd + domnnum];
+-
+-          fdomwgt += (double) archDomWght (archptr, &domntab[domnnum]);
+-          fvelsum += veloval;
+-          compload[domnnum] -=
+-          grafptr->comploadavg[domnnum] = veloval;
+-#ifdef SCOTCH_DEBUG_KGRAPH2
+-          if (compload[domnnum] != 0) {
+-            errorPrint ("kgraphCost: invalid load difference");
+-            return;
+-          }
+-#endif /* SCOTCH_DEBUG_KGRAPH2 */
+-        }
+-      }
+-    }
+-  }
+   archDomFrst (archptr, &domndat);
+   domnrat = (double) archDomWght (archptr, &domndat);
+-  domnrat -= fdomwgt;
+-  velosum = grafptr->s.velosum - fvelsum;
++  velosum = grafptr->s.velosum;
+   for (domnnum = 0; domnnum < domnnbr; domnnum ++) {
+     compload[domnnum]            -=
+     grafptr->comploadavg[domnnum] = (Gnum) ((double) velosum * ((double) archDomWght (archptr, &domntab[domnnum]) / domnrat));
+-- 
+2.47.3
+

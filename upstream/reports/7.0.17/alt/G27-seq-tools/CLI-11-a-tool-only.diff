@@ -1,0 +1,51 @@
+diff --git a/src/scotch/amk_grf.c b/src/scotch/amk_grf.c
+index d64d3bb..5267373 100644
+--- a/src/scotch/amk_grf.c
++++ b/src/scotch/amk_grf.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2010-2012,2014,2018,2019,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2010-2012,2014,2018,2019,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -57,7 +57,7 @@
+ /**                # Version 6.0  : from : 01 jan 2012     **/
+ /**                                 to   : 24 sep 2019     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -196,7 +196,12 @@ char *                      argv[])
+         errorPrint ("main: duplicate list labels");
+     }
+ 
+-    if (vlbltab != NULL) {                        /* If graph has vertex labels */
++    if (vlbltab == NULL) {                        /* If graph has no vertex labels, list holds based vertex numbers */
++      if ((listnbr > 0) &&                        /* List is sorted: check its bounds                               */
++          ((listtab[0] < baseval) || (listtab[listnbr - 1] >= (vertnbr + baseval))))
++        errorPrint ("main: list vertex number out of range");
++    }
++    else {                                        /* If graph has vertex labels */
+       SCOTCH_Num          vertnum;
+ 
+       if ((sorttab = (C_VertSort *) memAlloc (vertnbr * sizeof (C_VertSort))) == NULL)
+@@ -204,7 +209,7 @@ char *                      argv[])
+ 
+       for (vertnum = 0; vertnum < vertnbr; vertnum ++) { /* Initialize sort area */
+         sorttab[vertnum].vlblnum = vlbltab[vertnum];
+-        sorttab[vertnum].vertnum = vertnum;
++        sorttab[vertnum].vertnum = vertnum + baseval; /* Library expects based vertex numbers */
+       }
+       intSort2asc1 (sorttab, vertnbr);            /* Sort by ascending labels */
+ 
+@@ -215,7 +220,7 @@ char *                      argv[])
+             (sorttab[vertnum].vlblnum > listtab[listnum]))
+           errorPrint ("main: list label '" SCOTCH_NUMSTRING "' not in graph", (SCOTCH_Num) listtab[listnum]);
+ 
+-        listtab[listnum] = sorttab[vertnum ++].vertnum; /* Replace label by number */
++        listtab[listnum] = sorttab[vertnum ++].vertnum; /* Replace label by based vertex number */
+       }
+       memFree (sorttab);                          /* Free sort area */
+     }

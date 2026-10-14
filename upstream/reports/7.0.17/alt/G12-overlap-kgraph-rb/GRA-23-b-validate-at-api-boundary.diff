@@ -1,0 +1,49 @@
+--- a/src/libscotch/library_graph_map.c
++++ b/src/libscotch/library_graph_map.c
+@@ -193,6 +193,11 @@
+       errorPrint ("graphMapCompute2: output and old mappings do not correspond to same architecture");
+       goto fail;
+     }
++  }
++#endif /* SCOTCH_DEBUG_LIBRARY1 */
++  if (lmaoptr != NULL) {                          /* Old partition array is user data: always check it */
++    Gnum                vertnbr;
++    Gnum                vertnum;
+ 
+     for (vertnum = 0, vertnbr = lmaoptr->grafptr->vertnbr; vertnum < vertnbr; vertnum ++) {
+       ArchDom                     domndat;
+@@ -204,7 +209,6 @@
+       }
+     }
+   }
+-#endif /* SCOTCH_DEBUG_LIBRARY1 */
+ #ifdef SCOTCH_DEBUG_LIBRARY2
+   if (graphCheck (grafptr) != 0) {                /* Vertex loads can be 0 if we have fixed vertices */
+     errorPrint ("graphMapCompute2: invalid input graph");
+@@ -226,23 +230,23 @@
+   }
+ 
+   if (vfixnbr > 0) {                              /* We have fixed vertices */
+-#ifdef SCOTCH_DEBUG_LIBRARY1
+     ArchDom             domndat;
+     Gnum                vertnbr;
+     Gnum                vertnum;
+ 
++#ifdef SCOTCH_DEBUG_LIBRARY1
+     if (lmapptr->parttab == NULL) {               /* We must have fixed vertex information */
+       errorPrint ("graphMapCompute2: missing output mapping part array");
+       goto fail;
+     }
+-    for (vertnum = 0, vertnbr = lmapptr->grafptr->vertnbr; vertnum < vertnbr; vertnum ++) {
++#endif /* SCOTCH_DEBUG_LIBRARY1 */
++    for (vertnum = 0, vertnbr = lmapptr->grafptr->vertnbr; vertnum < vertnbr; vertnum ++) { /* Fixed part array is user data: always check it */
+       if ((lmapptr->parttab[vertnum] >= 0) &&
+           (archDomTerm (lmapptr->archptr, &domndat, lmapptr->parttab[vertnum]) != 0)) {
+         errorPrint ("graphMapCompute2: invalid fixed partition");
+         goto fail;
+       }
+     }
+-#endif /* SCOTCH_DEBUG_LIBRARY1 */
+     if (vfixnbr >= grafptr->vertnbr) {            /* If all fixed vertices, do nothing */
+       o = 0;
+       goto fail;

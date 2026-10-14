@@ -1,0 +1,12 @@
+SEP-04: genetic bipartitioning crashes (SIGFPE, modulo 0) on a 2-vertex graph.
+Build: gcc -g -fsanitize=address,undefined -I$B/include sep04.c -o sep04 -L$B/lib -lscotch -lscotcherr -lm -lz -lpthread
+Run (LD_LIBRARY_PATH=$B/lib, ASAN_OPTIONS=detect_leaks=0):
+  ./sep04 2                               pristine: "AddressSanitizer: FPE ... common_integer.c:471 division by zero"
+                                                    "#1 bgraphBipartGaLoop bgraph_bipart_ga.c:239"   (pristine_n2.log)
+                                          patched:  rc=0 part: 0 0
+  ./sep04 16 'r{sep=a{pass=5,pop=0}}'     pristine: heap-buffer-overflow WRITE in memcpy, bgraph_bipart_ga.c:170 (pristine_pop0.log)
+                                          patched:  rc=0
+  ./sep04 16 'r{sep=a{pass=50,pop=64}}'   pristine: rc=0 part: 0 0 0 ... (GA never leaves the zero partition; PS2-G09-2)
+                                          patched:  rc=0 part: 0 0 1 1 1 1 1 1 1 1 0 0 0 0 0 0
+Regression test added to src/check (check_prog_gpart / CMake gpart_5):
+  gpart 4 data/p2-p2.grf /dev/null -vmt '-Mr{sep=a}'   pristine: SIGFPE (rc=141); patched: rc=0 (32-bit, 64-bit, debug)

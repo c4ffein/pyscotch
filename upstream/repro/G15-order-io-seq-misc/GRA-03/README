@@ -1,0 +1,12 @@
+GRA-03: orderLoad() trusts the vertex count and the permutation values of a .ord file
+Files: p4.grf (4-vertex graph), ok.ord, bad_count.ord (count 100, 8 lines), bad_range.ord (rank 5000),
+bad_neg.ord (rank -1), bad_dup.ord (rank 2 twice), bad_short.ord (count 3), shuffled.ord (lines not in vertex order).
+Run (LD_LIBRARY_PATH=<tree>/lib UBSAN_OPTIONS=print_stacktrace=1 (pristine tree: INFRA/asan; patched: $WORK/build or $WORK/build64)):
+  for f in ok bad_count bad_range bad_neg bad_dup bad_short shuffled; do gotst p4.grf $f.ord /dev/null; done
+Pristine: bad_count -> ASan heap-buffer-overflow WRITE in intLoad (order_io.c:107); bad_range/bad_neg -> ASan
+heap-buffer-overflow WRITE in orderPeri (order.c:170) from orderLoad (order_io.c:120); bad_dup -> SEGV in orderPeri
+called from SCOTCH_graphOrderLoad (library_graph_order.c:151); bad_short -> ordeptr->vnodnbr silently set to 3.
+Patched: "orderLoad: bad input (1)" / "invalid permutation value" / "duplicate permutation value", rc=1, no sanitizer report.
+Fuzz: $WORK/fuzz/tools/mutfuzz_ord.py (seeds in fuzz/seeds, 1500 mutants, seed 42): before 248 sanitizer hits
+(intLoad overflow + orderPeri OOB), after 78, all UBSan integer overflow in intLoad() on absurd numbers (common_integer.c:121).
+Regression test: src/check/test_scotch_graph_order.c (save/load round trip + four invalid files), check_scotch_graph_order.

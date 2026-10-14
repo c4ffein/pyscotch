@@ -1,0 +1,3 @@
+G25 reproducers. Build all against a build tree:  ./build.sh <tree>   (tree = $WORK/build (32-bit Gnum) or $WORK/build64)
+Run with:  export LD_LIBRARY_PATH=<tree>/lib ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1
+"pristine" below = the untouched 7.0.17 ASan build ($INFRA/asan, same flags); "patched" = the series in ../patches applied.

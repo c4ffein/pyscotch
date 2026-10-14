@@ -1,0 +1,15 @@
+BLD-09: scotchf.h / ptscotchf.h custom commands depend on library.h instead of library_f.h / library_pt_f.h.
+cmake 4.4.4 (uv tool), tree $W/cm = cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON $W/scotch
+Generated headers live in $W/cm/src/include.
+
+Pristine:
+  touch src/libscotch/library_f.h src/libscotch/library_pt_f.h; make -C cm/src/libscotch
+  -> scotchf.h regenerated: NO; ptscotchf.h regenerated: NO
+  touch src/libscotch/library.h; make -C cm/src/libscotch
+  -> "[  3%] Generate scotchf.h" "[  4%] Generate ptscotchf.h" (spurious), scotchf.h regenerated: yes
+Patched:
+  touch library_f.h library_pt_f.h -> scotchf.h regenerated: yes; ptscotchf.h regenerated: yes
+  touch library.h -> scotch.h regenerated: yes; scotchf.h regenerated: NO  (see $W/verify-cm.status)
+Twins checked: src/libscotchmetis/CMakeLists.txt metis.h/metisf.h/parmetis.h depend on their own templates
+(lines 58, 67, 154); src/libscotch/Makefile:3567-3581 are right; ptscotchf.h needs no scotchf_h
+dependency since library_pt_f.h includes nothing (library_pt.h includes scotch.h, hence ptscotch.h -> scotch_h).

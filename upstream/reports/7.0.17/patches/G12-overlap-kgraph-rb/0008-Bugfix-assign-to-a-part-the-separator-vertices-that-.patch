@@ -1,0 +1,113 @@
+From f9b2b97e038651637f31b08c451d94ba201cb91f Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:17:42 +0000
+Subject: [PATCH 8/9] Bugfix: assign to a part the separator vertices that do
+ not separate anything in `wgraphPartRb()` [report R. Perry]
+
+Vertex separators computed on induced subgraphs may contain vertices
+that have no neighbor in any part, such as isolated vertices, or
+vertices all neighbors of which are separator vertices of other
+recursion levels. Since the load of a separator vertex is accounted for
+in each of the parts it separates, such vertices belonged to no part at
+all. After the recursion, assign every such vertex to the lightest part
+and update part loads and sizes accordingly.
+
+Refs: SEP-17
+---
+ src/libscotch/wgraph_part_rb.c | 73 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 73 insertions(+)
+
+diff --git a/src/libscotch/wgraph_part_rb.c b/src/libscotch/wgraph_part_rb.c
+index ea6cb4b..21f8185 100644
+--- a/src/libscotch/wgraph_part_rb.c
++++ b/src/libscotch/wgraph_part_rb.c
+@@ -403,6 +403,78 @@ fail:
+ #endif /* SCOTCH_PTHREAD */
+ }
+ 
++/* This routine removes from the separator the
++** vertices that have no neighbor in any part,
++** and which consequently do not separate
++** anything, and assigns them to the lightest
++** part. Part loads and sizes are assumed to
++** be up to date, and are updated accordingly.
++** It returns:
++** - void  : in all cases.
++*/
++
++static
++void
++wgraphPartRbFron (
++Wgraph * restrict const     grafptr)
++{
++  Gnum                fronnum;
++
++  const Gnum * restrict const verttax  = grafptr->s.verttax;
++  const Gnum * restrict const vendtax  = grafptr->s.vendtax;
++  const Gnum * restrict const velotax  = grafptr->s.velotax;
++  const Gnum * restrict const edgetax  = grafptr->s.edgetax;
++  Anum * restrict const       parttax  = grafptr->parttax;
++  Gnum * restrict const       frontab  = grafptr->frontab;
++  Gnum * restrict const       compload = grafptr->compload;
++  Gnum * restrict const       compsize = grafptr->compsize;
++
++  for (fronnum = 0; fronnum < grafptr->fronnbr; ) { /* For all separator vertices */
++    Gnum                vertnum;
++    Gnum                edgenum;
++    Anum                partnum;
++    Anum                partmin;
++
++    vertnum = frontab[fronnum];
++    for (edgenum = verttax[vertnum]; edgenum < vendtax[vertnum]; edgenum ++) {
++      if (parttax[edgetax[edgenum]] >= 0)         /* If vertex has a neighbor in a part */
++        break;
++    }
++    if (edgenum < vendtax[vertnum]) {             /* If vertex separates something */
++      fronnum ++;                                 /* Keep it in separator          */
++      continue;
++    }
++
++    for (partnum = 1, partmin = 0; partnum < grafptr->partnbr; partnum ++) { /* Find lightest part */
++      if (compload[partnum] < compload[partmin])
++        partmin = partnum;
++    }
++    parttax[vertnum]   = partmin;                 /* Assign vertex to lightest part */
++    compload[partmin] += (velotax != NULL) ? velotax[vertnum] : 1;
++    compsize[partmin] ++;
++    grafptr->fronload -= (velotax != NULL) ? velotax[vertnum] : 1;
++    frontab[fronnum]   = frontab[-- grafptr->fronnbr]; /* Remove vertex from separator */
++
++    for (edgenum = verttax[vertnum]; edgenum < vendtax[vertnum]; edgenum ++) { /* All neighbors are separator vertices which now separate this part too */
++      Gnum                vertend;
++      Gnum                edgtnum;
++
++      vertend = edgetax[edgenum];
++      for (edgtnum = verttax[vertend]; edgtnum < vendtax[vertend]; edgtnum ++) {
++        Gnum                vertent;
++
++        vertent = edgetax[edgtnum];
++        if ((vertent != vertnum) && (parttax[vertent] == partmin)) /* If separator vertex already accounted for in part */
++          break;
++      }
++      if (edgtnum >= vendtax[vertend]) {          /* If separator vertex did not already separate this part */
++        compload[partmin] += (velotax != NULL) ? velotax[vertend] : 1;
++        compsize[partmin] ++;
++      }
++    }
++  }
++}
++
+ /*********************************************/
+ /*                                           */
+ /* This is the entry point for vertex        */
+@@ -458,6 +530,7 @@ const WgraphPartRbParam * restrict const  paraptr)
+     errorPrint ("wgraphPartRb: could not compute partition cost");
+     return (1);
+   }
++  wgraphPartRbFron (grafptr);                     /* Separator vertices must separate something */
+ 
+ #ifdef SCOTCH_DEBUG_WGRAPH2
+   if (wgraphCheck (grafptr) != 0) {
+-- 
+2.47.3
+

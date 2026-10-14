@@ -1,0 +1,78 @@
+From 9a2a154370b19f1272a68b3d59eb035a79fb1ab9 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:16:19 +0000
+Subject: [PATCH 151/240] Bugfix: do not hide allocation failures in the anchor
+ degree sums of `bdgraphBipartDf()` [report R. Perry]
+
+On allocation failure, `bdgraphBipartDf()` set the local anchor degree
+to -1 before the sum reduction, so that the failure was masked by the
+positive degrees of the other processes, and the failing process then
+wrote through NULL pointers. Reduce a separate allocation failure flag
+in the same operation and return on it, and only base the work arrays
+when they have been allocated. The same layout of the reduction array
+is to be used by `vdgraphSeparateDf()`.
+
+Refs: DMO-04
+---
+ src/libscotch/bdgraph_bipart_df.c | 21 ++++++++++++---------
+ 1 file changed, 12 insertions(+), 9 deletions(-)
+
+diff --git a/src/libscotch/bdgraph_bipart_df.c b/src/libscotch/bdgraph_bipart_df.c
+index 8ee0aaa..84d5003 100644
+--- a/src/libscotch/bdgraph_bipart_df.c
++++ b/src/libscotch/bdgraph_bipart_df.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2011,2014,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2011,2014,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**                # Version 6.0  : from : 11 sep 2011     **/
+ /**                                 to   : 31 aug 2014     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 09 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -120,6 +120,7 @@ const BdgraphBipartDfParam * const  paraptr)      /*+ Method parameters +*/
+     reduloctab[2] = grafptr->s.veloloctax[grafptr->s.vertlocnnd - 2];
+     reduloctab[3] = grafptr->s.veloloctax[grafptr->s.vertlocnnd - 1];
+   }
++  reduloctab[4] = 0;                              /* Assume memory allocation is all right */
+ 
+   veexlocnbr = (grafptr->veexloctax != NULL) ? grafptr->s.vertlocnbr : 0;
+   if (memAllocGroup ((void **) (void *)
+@@ -128,19 +129,21 @@ const BdgraphBipartDfParam * const  paraptr)      /*+ Method parameters +*/
+                      &difogsttax, (size_t) (grafptr->s.vertgstnbr * sizeof (float)),
+                      &difngsttax, (size_t) (grafptr->s.vertgstnbr * sizeof (float)), NULL) == NULL) {
+     errorPrint ("bdgraphBipartDf: out of memory");
+-    reduloctab[0] = -1;
++    reduloctab[4] = 1;
++  }
++  else {
++    ielsloctax -= grafptr->s.baseval;
++    difogsttax -= grafptr->s.baseval;
++    difngsttax -= grafptr->s.baseval;
++    veexloctax  = (grafptr->veexloctax != NULL) ? (veexloctax - grafptr->s.baseval) : NULL;
+   }
+-  ielsloctax -= grafptr->s.baseval;
+-  difogsttax -= grafptr->s.baseval;
+-  difngsttax -= grafptr->s.baseval;
+-  veexloctax  = (grafptr->veexloctax != NULL) ? (veexloctax - grafptr->s.baseval) : NULL;
+ 
+-  if (MPI_Allreduce (reduloctab, reduglbtab, 4, GNUM_MPI, MPI_SUM, grafptr->s.proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (reduloctab, reduglbtab, 5, GNUM_MPI, MPI_SUM, grafptr->s.proccomm) != MPI_SUCCESS) {
+     errorPrint ("bdgraphBipartDf: communication error (1)");
+     return     (1);
+   }
+ 
+-  if (reduglbtab[0] < 0) {
++  if (reduglbtab[4] != 0) {                       /* If some process could not allocate its arrays */
+     if (ielsloctax != NULL)
+       memFree (ielsloctax + grafptr->s.baseval);  /* Free group leader */
+     return (1);
+-- 
+2.47.3
+

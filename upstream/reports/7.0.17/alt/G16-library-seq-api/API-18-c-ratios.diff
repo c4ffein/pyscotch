@@ -1,0 +1,38 @@
+--- a/src/libscotch/library_dgraph_map_view.c
++++ b/src/libscotch/library_dgraph_map_view.c
+@@ -101,6 +101,8 @@
+   Gnum                          cmlosum;          /* Communication load (sum of edge weights)                  */
+   Gnum                          cmdisum;          /* Communication dilation (sum of distances)                 */
+   Gnum                          cmexsum;          /* Communication expansion (sum of edge weights * distances) */
++  double                        cmdiavg;          /* Average dilation per edge                                 */
++  double                        cmexavg;          /* Average expansion per unit of load                        */
+ 
+   const Dgraph * const grafptr = (Dgraph *) CONTEXTOBJECT (libgrafptr);
+ 
+@@ -131,21 +133,20 @@
+            (Gnum) ngbmax,
+            (Gnum) ngbsum);
+ 
++  cmdiavg = (double) cmdisum / (double) (grafptr->edgeglbnbr / 2);
++  cmexavg = (cmlosum == 0) ? 0.0 : (double) cmexsum / (double) cmlosum;
+   fprintf (stream, "M\tCommDilat=%f\t(" GNUMSTRING ")\n",
+-           (double) cmdisum / (double) (grafptr->edgeglbnbr / 2),
++           cmdiavg,
+            (Gnum) cmdisum);
+   fprintf (stream, "M\tCommExpan=%f\t(" GNUMSTRING ")\n",
+-           ((cmlosum == 0) ? (double) 0.0L
+-                           : (double) cmexsum / (double) cmlosum),
++           cmexavg,
+            (Gnum) cmexsum);
+   fprintf (stream, "M\tCommCutSz=%f\t(" GNUMSTRING ")\n",
+            ((cmlosum == 0) ? (double) 0.0L
+                            : (double) (cmlosum - cdsttab[0]) / (double) cmlosum),
+            (Gnum) (cmlosum - cdsttab[0]));
+   fprintf (stream, "M\tCommDelta=%f\n",
+-           (((double) cmlosum  * (double) cmdisum) == 0.0L)
+-           ? (double) 0.0L
+-           : ((double) grafptr->edgeglbnbr) / (double) (cmlosum * 2));
++           (cmdiavg == 0.0) ? 0.0 : (cmexavg / cmdiavg)); /* Ratio of average expansion over average dilation */
+ 
+   for (cdstnum = 0; cdstnum <= cdstmax; cdstnum ++) /* Print distance histogram */
+     fprintf (stream, "M\tCmlosum[" ANUMSTRING "]=%f\n",

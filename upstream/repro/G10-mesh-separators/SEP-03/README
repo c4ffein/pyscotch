@@ -1,0 +1,13 @@
+SEP-03: meshCoarsen never reports "cannot coarsen" -> unbounded multilevel recursion
+Build:   ./common/build.sh $INFRA/asan SEP-03/sep03.c SEP-03/sep03_pristine; ./common/build.sh $WORK/build SEP-03/sep03.c SEP-03/sep03
+Usage:   sep03 NE [baseval]   (NE disjoint triangles, each with three private nodes; default strategy, STRAT env overrides)
+Pristine: ./SEP-03/sep03_pristine 300
+  AddressSanitizer: stack-overflow ... _SCOTCHmemAllocGroup <- _SCOTCHmeshCoarsen mesh_coarsen.c:151 <- vmeshSeparateMlCoarsen
+  vmesh_separate_ml.c:96 <- vmeshSeparateMl2 (hundreds of frames)
+  STRAT='n{sep=m{vnod=100,low=h{pass=10},asc=f{bal=0.2}},ole=s,ose=s}' ./SEP-03/sep03_pristine 300 -> same
+Patched: ./SEP-03/sep03 300 ; ./SEP-03/sep03 1000 ; with the explicit strategy -> "order=0 permutation valid" (32- and 64-bit)
+Quality on meshes that do coarsen (mord | gotst): m2_32_32 identical to pristine; ship001 OPC 1.0654e10 -> 1.0635e10 (8 threads),
+  1.0291e10 -> 1.0258e10 (1 thread).
+Fault injection (patched, 1 thread): ./common/failscan.sh ./SEP-03/sep03_err 300 1 -> scan_patched_sep03.txt; no finding in
+  meshCoarsen/meshInduceSepa/hmeshOrderNd; remaining findings belong to hmesh_induce.c:362 (unchecked memRealloc, see extra.json),
+  hmesh_order_cp.c:386 (compressed ordering tree leaked on error, extra.json) and routines outside this group.

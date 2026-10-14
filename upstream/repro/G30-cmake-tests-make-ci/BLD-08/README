@@ -1,0 +1,8 @@
+BLD-08: test_dgscat* chain dgscat ; dggath ; compare_files with ";".
+Pristine (cm tree): ctest -R '^test_dgscat$' passes once (creates cm/src/check/out_dggat.grf); then
+  mv bin/dgscat bin/dgscat.real; mv bin/dggath bin/dggath.real; stubs "#!/bin/sh exit 1" in their place
+  ctest -R '^test_dgscat' --output-on-failure
+  -> test_dgscat Passed (stale out_dggat.grf compares equal), test_dgscat_b100000 and _b1 Failed
+     (no stale file for those), with "stub failure" printed by both programs.
+Patched: same procedure -> all three Failed (see $W/verify-cm.status).
+Other ';' chains in src/check/CMakeLists.txt: none (grep '; \\$').

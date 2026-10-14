@@ -1,0 +1,12 @@
+--- a/src/libscotch/hmesh_order_cp.c
++++ b/src/libscotch/hmesh_order_cp.c
+@@ -206,7 +206,8 @@
+ 
+   coarmeshdat.m.verttax = coarverttax;
+   coarmeshdat.m.vendtax = coarverttax + 1;        /* Use compact representation of arrays     */
+-  coarmeshdat.m.velotax = finemeshptr->m.velotax; /* Re-use element vertex load array, if any */
++  coarmeshdat.m.velotax = (finemeshptr->m.velotax != NULL) /* Re-use element vertex load array, if any, with new element base */
++                          ? finemeshptr->m.velotax + (finemeshptr->m.velmbas - coarmeshdat.m.velmbas) : NULL;
+   coarmeshdat.m.vnlotax = coarvnlotax;
+   coarmeshdat.m.edgetax = coaredgetax;
+ 

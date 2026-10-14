@@ -1,0 +1,22 @@
+--- a/src/check/test_scotch_graph_map.c
++++ b/src/check/test_scotch_graph_map.c
+@@ -92,15 +92,14 @@
+     SCOTCH_Num          partval;
+ 
+     partval = parttab[vertnum];
+-    if (partval == -1)                            /* Unmapped vertex */
+-      continue;
+-    if (partval < 0) {                            /* Other negative values are invalid */
++    if (partval < 0) {                            /* All vertices must have been mapped */
+       SCOTCH_errorPrint ("checkMap: invalid mapping (1)");
+       exit (EXIT_FAILURE);
+     }
+ 
+-    if ((flagval == 0) &&
+-        (partval >= partnbr)) {                   /* For fixed mappings, check against partnbr */
++    if ((flagval == 0)                            /* For fixed-size architectures, check against partnbr */
++        ? (partval >= partnbr)
++        : (partval == 0)) {                       /* For variable-sized architectures, 0 is not a terminal domain */
+       SCOTCH_errorPrint ("checkMap: invalid mapping (2)");
+       exit (EXIT_FAILURE);
+     }

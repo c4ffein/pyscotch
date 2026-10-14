@@ -1,0 +1,7 @@
+COR-12: whitespace counted twice in token locations (fixed upstream in e1700d7, verified).
+  cd ../common
+  S1='   r  {   sep   =  m  { asc  = b{x} } }'            # x is at 1-based column 34
+  S3="r{sep=m{asc=b{$(printf '%*s' 280 '')x}}}"          # 298 chars, x at column 295
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine "$S1"   -> 'invalid method parameter name "x", line 1, column 34, before "x} } }"'
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine "$S3"   -> 'line 1, column 295, before "x}}}"'  (7.0.16 reported ~2x the column and read past the string)
+  Same output with LD_LIBRARY_PATH=$WORK/build/lib. No other explicit parserLocationUpdate() call remains in parser_ll.l (only YY_USER_ACTION).

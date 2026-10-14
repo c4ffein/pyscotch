@@ -1,0 +1,29 @@
+--- a/src/libscotch/dgraph_gather_all.c
++++ b/src/libscotch/dgraph_gather_all.c
+@@ -49,7 +49,7 @@
+ /**                # Version 6.1  : from : 18 jun 2021     **/
+ /**                                 to   : 04 dec 2021     **/
+ /**                # Version 7.0  : from : 04 aug 2018     **/
+-/**                                 to   : 29 sep 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # The definitions of MPI_Gather and     **/
+ /**                  MPI_Gatherv indicate that elements in **/
+@@ -188,6 +188,7 @@
+     edgelocnbr = dgrfptr->edgelocnbr;
+   }
+ 
++  recvcnttab = NULL;                              /* In case of error */
+   if (cheklocval == 0) {
+     if (memAllocGroup ((void **) (void *)
+                        &recvcnttab, (size_t) (dgrfptr->procglbnbr * sizeof (Gnum)), /* Allocated for non-roots too but don't care as these are very small */
+@@ -209,7 +210,8 @@
+   if (chekglbval != 0) {
+     if (recvcnttab != NULL)
+       memFree (recvcnttab);
+-    if (cgrfptr->verttax != NULL) {
++    if ((cgrfptr != NULL) &&                      /* Non-root processes have no centralized graph */
++        (cgrfptr->verttax != NULL)) {
+       if (cgrfptr->edgetax != NULL)
+         memFree (cgrfptr->edgetax);               /* Arrays are not based yet */
+       memFree (cgrfptr->verttax);

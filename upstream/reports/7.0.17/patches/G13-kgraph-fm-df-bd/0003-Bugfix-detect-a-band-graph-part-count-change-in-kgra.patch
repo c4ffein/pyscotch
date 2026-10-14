@@ -1,0 +1,65 @@
+From 883ce906127eefb53b82f12c70897bcb1ee4b669 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:09:39 +0000
+Subject: [PATCH] Bugfix: detect a band-graph part-count change in
+ `kgraphMapBd()' [report R. Perry]
+
+`kgraphMapBd()' wrote the band graph's part count into the original graph before
+testing whether it had changed, so the test `bndgrafdat.m.domnnbr !=
+orggrafptr->m.domnnbr' compared a value with its own copy and never fired; a band
+strategy that changes the number of parts left the original graph with an
+inconsistent part count and load arrays instead of being rejected. The count is
+now compared against the `domnnbr' captured at routine entry, and
+orggrafptr->m.domnnbr is left untouched until the test has passed.
+
+The `orgflagtab' allocation-failure path also returned without freeing bndvnumtax
+or exiting the band graph, unlike the other failure paths of the routine; it now
+frees both.
+
+Refs: GRA-20
+---
+ src/libscotch/kgraph_map_bd.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/libscotch/kgraph_map_bd.c b/src/libscotch/kgraph_map_bd.c
+index 245f1f1..778b21e 100644
+--- a/src/libscotch/kgraph_map_bd.c
++++ b/src/libscotch/kgraph_map_bd.c
+@@ -50,7 +50,7 @@
+ /**                # Version 6.1  : from : 30 jun 2021     **/
+ /**                                 to   : 16 jul 2021     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 07 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # Since only edges from local vertices  **/
+ /**                  to local anchors are created in       **/
+@@ -178,7 +178,6 @@ const KgraphMapBdParam * const      paraptr)      /*+ Method parameters +*/
+   o = kgraphMapSt (&bndgrafdat, paraptr->stratbnd); /* Partition band graph */
+ 
+   orggrafptr->m.domntab = bndgrafdat.m.domntab;   /* Transfer (potentially updated) mapping domain array back to original graph */
+-  orggrafptr->m.domnnbr = bndgrafdat.m.domnnbr;
+   orggrafptr->m.domnmax = bndgrafdat.m.domnmax;
+   bndgrafdat.m.domntab  = NULL;
+ 
+@@ -188,7 +187,7 @@ const KgraphMapBdParam * const      paraptr)      /*+ Method parameters +*/
+     kgraphExit  (&bndgrafdat);
+     return (1);
+   }
+-  if (bndgrafdat.m.domnnbr != orggrafptr->m.domnnbr) {
++  if (bndgrafdat.m.domnnbr != domnnbr) {          /* Compare with the untouched number of parts of the original graph */
+     errorPrint  ("kgraphMapBd: change in band graph number of parts not supported");
+     memFree     (bndvnumtax + bndgrafdat.s.baseval);
+     kgraphExit  (&bndgrafdat);
+@@ -267,6 +266,8 @@ const KgraphMapBdParam * const      paraptr)      /*+ Method parameters +*/
+ 
+   if ((orgflagtab = memAlloc (kgraphMapBdFlagSize (orggrafptr->s.vertnnd) * sizeof (unsigned int))) == NULL) {
+     errorPrint ("kgraphMapBd: out of memory (2)");
++    memFree    (bndvnumtax + bndgrafdat.s.baseval);
++    kgraphExit (&bndgrafdat);
+     return (1);
+   }
+ 
+-- 
+2.47.3
+

@@ -1,0 +1,138 @@
+From 3a7028f515926d7f62e23b992afc7b1ceabe312d Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:01:11 +0000
+Subject: [PATCH 6/9] Bugfix: synchronize threads and use local pseudo-random
+ contexts in `bgraphBipartGa()` [report R. Perry]
+
+No barrier separated the offspring creation loop of one generation from
+the cost computation loop of the next one, so that a fast thread could
+overwrite entries of the shared sort array while slower threads were
+still reading them to find their parents. All threads also drew from
+the shared pseudo-random generator, which is a data race and makes
+results depend on thread scheduling.
+Add the missing barrier. Give each worker thread a local pseudo-random
+context, spawned sequentially before threads are launched, as in
+`bgraphBipartGg()`; thread 0 keeps using the context generator. The
+thread data block now holds only the local random context, as its
+former fields were never used.
+
+Refs: SEP-12
+---
+ src/libscotch/bgraph_bipart_ga.c | 25 +++++++++++++++++++++----
+ src/libscotch/bgraph_bipart_ga.h | 11 ++---------
+ 2 files changed, 23 insertions(+), 13 deletions(-)
+
+diff --git a/src/libscotch/bgraph_bipart_ga.c b/src/libscotch/bgraph_bipart_ga.c
+index de36473..f9d1001 100644
+--- a/src/libscotch/bgraph_bipart_ga.c
++++ b/src/libscotch/bgraph_bipart_ga.c
+@@ -119,6 +119,8 @@ bgraphBipartGaLoop (
+ ThreadDescriptor * restrict const   descptr,
+ BgraphBipartGaData * restrict const loopptr)
+ {
++  Context             contdat;                    /* Local context, only used for its random section     */
++  Context *           contptr;                    /* Pointer to active local context                     */
+   GraphPart *         demetab;                    /* Parent and offspring local population arrays        */
+   GraphPart *         demeptr[2];                 /* Pointers to current parent and offspring sub-arrays */
+   INT                 passnum;
+@@ -162,6 +164,13 @@ BgraphBipartGaData * restrict const loopptr)
+     return;
+   }
+ 
++  if (thrdnum == 0)                               /* Thread 0 uses provided context    */
++    contptr = grafptr->contptr;
++  else {                                          /* Other threads use spawned context */
++    contdat.randptr = &loopptr->thrdtab[thrdnum].randdat;
++    contptr = &contdat;
++  }
++
+   demeptr[0] = demetab;                           /* Point to initial and future demes */
+   demeptr[1] = demetab + demesiz;
+ 
+@@ -174,7 +183,7 @@ BgraphBipartGaData * restrict const loopptr)
+     UINT                randval;                  /* Integer random value to slice into bits       */
+     Gnum                randnbr;                  /* Number of slices to use in a random value     */
+ 
+-    randval = contextIntRandVal2 (grafptr->contptr); /* Get UINT random value */
++    randval = contextIntRandVal2 (contptr);       /* Get UINT random value */
+     randnbr = MIN (sizeof (UINT), partnum);       /* Compute useable slices   */
+     while (randnbr -- > 0) {
+       demetab[-- partnum] = (GraphPart) (randval & 1); /* Use lowest bit value as part value */
+@@ -236,18 +245,22 @@ BgraphBipartGaData * restrict const loopptr)
+       Gnum                vecridx;                /* Crossover point for individuals to be mated          */
+       Gnum                vemuidx;                /* Mutation point for individuals                       */
+ 
+-      vecridx = 1 + contextIntRandVal (grafptr->contptr, vertnbr - 2); /* Crossing-over preserves at least one vertex in each segment */
++      vecridx = 1 + contextIntRandVal (contptr, vertnbr - 2); /* Crossing-over preserves at least one vertex in each segment */
+ 
+       memCpy (parttab, sorttab[matetab[sortnum]].parttab, vecridx);
+       memCpy (parttab + vecridx, sorttab[matetab[sortnum + 1]].parttab + vecridx, vertnbr - vecridx);
+       parttab += vertnbr;                         /* Move to next offspring */
+       memCpy (parttab, sorttab[matetab[sortnum + 1]].parttab, vecridx);
+       memCpy (parttab + vecridx, sorttab[matetab[sortnum]].parttab + vecridx, vertnbr - vecridx);
+-      vemuidx = contextIntRandVal (grafptr->contptr, vertnbr); /* Perform mutation on every other offspring */
++      vemuidx = contextIntRandVal (contptr, vertnbr); /* Perform mutation on every other offspring */
+       parttab[vemuidx] ^= 1;
+       parttab += vertnbr;                         /* Move to next offspring */
+     }
+ 
++#ifndef BGRAPHBIPARTGANOTHREAD
++    threadBarrier (descptr);                      /* Wait until all parents have been read before sort array is overwritten */
++#endif /* BGRAPHBIPARTGANOTHREAD */
++
+     demetmp    = demeptr[0];                      /* Swap pointers for current and new demes */
+     demeptr[0] = demeptr[1];
+     demeptr[1] = demetmp;
+@@ -281,8 +294,9 @@ Bgraph * restrict const           grafptr,        /* Active graph      */
+ const BgraphBipartGaParam * const paraptr)        /* Method parameters */
+ {
+   BgraphBipartGaData  loopdat;
+-
+ #ifndef BGRAPHBIPARTGANOTHREAD
++  int                 thrdnum;
++
+   const int                 thrdnbr = contextThreadNbr (grafptr->contptr);
+ #else /* BGRAPHBIPARTGANOTHREAD */
+   const int                 thrdnbr = 1;
+@@ -308,6 +322,9 @@ const BgraphBipartGaParam * const paraptr)        /* Method parameters */
+   loopdat.abrtval = 0;                            /* No reason to abort (yet) */
+ 
+ #ifndef BGRAPHBIPARTGANOTHREAD
++  for (thrdnum = 1; thrdnum < thrdnbr; thrdnum ++) /* Spawn local random contexts before threads are launched */
++    intRandSpawn (grafptr->contptr->randptr, thrdnum, &loopdat.thrdtab[thrdnum].randdat);
++
+   contextThreadLaunch (grafptr->contptr, (ThreadFunc) bgraphBipartGaLoop, (void *) &loopdat);
+ #else /* BGRAPHBIPARTGANOTHREAD */
+   bgraphBipartGaLoop (NULL, &loopdat);
+diff --git a/src/libscotch/bgraph_bipart_ga.h b/src/libscotch/bgraph_bipart_ga.h
+index 694fa6e..9d6ba0a 100644
+--- a/src/libscotch/bgraph_bipart_ga.h
++++ b/src/libscotch/bgraph_bipart_ga.h
+@@ -41,7 +41,7 @@
+ /**                bipartitioning method.                  **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 15 feb 2023     **/
+-/**                                 to   : 31 may 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -63,14 +63,7 @@ typedef struct BgraphBipartGaParam_ {
+ /*+ The thread-specific data block. +*/
+ 
+ typedef struct BgraphBipartGaThread_ {
+-  Gnum                      fronnnd[2];           /*+ After-last frontier vertex index; [2] for scan +*/
+-  Gnum                      compload1[2];         /*+ State return values to aggregate               +*/
+-  Gnum                      compsize1[2];
+-  Gnum                      commloadextn[2];
+-  Gnum                      commloadintn[2];
+-  Gnum                      commgainextn[2];
+-  Gnum                      veexsum;              /*+ Area for reducing sums of external gains       +*/
+-  Gnum                      veexsum1;
++  IntRandContext            randdat;              /*+ Local random context +*/
+ } BgraphBipartGaThread;
+ 
+ /*+ The sort structure. +*/
+-- 
+2.47.3
+

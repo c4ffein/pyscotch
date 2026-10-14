@@ -1,0 +1,187 @@
+From 8684c0a7ce13097075311cb49d3259c4d953009e Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:50:46 +0000
+Subject: [PATCH] Bugfix: stop `dgraphGhst2()` after a local allocation failure
+ [report R. Perry]
+
+A process that could not allocate its ghost edge array or its work
+arrays performed the error agreement with the other processes, as
+intended, but then went on: it cleared arrays that did not exist and
+performed a second reduction that no other process matched.
+
+Return after the agreement. Allocate the work arrays before the ghost
+edge array, so that a graph is not modified when its edge array was to
+be replaced and the work arrays cannot be allocated. Attach the send
+index array to the graph only once all processes have agreed that the
+ghost edge array is valid, so that it is not leaked when some other
+process fails, and check the result of its shrinking.
+
+Refs: DGR-08
+---
+ src/libscotch/dgraph_ghst.c | 79 ++++++++++++++++---------------------
+ 1 file changed, 35 insertions(+), 44 deletions(-)
+
+diff --git a/src/libscotch/dgraph_ghst.c b/src/libscotch/dgraph_ghst.c
+index 7f199b1..7affc78 100644
+--- a/src/libscotch/dgraph_ghst.c
++++ b/src/libscotch/dgraph_ghst.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2009,2011,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2009,2011,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -54,7 +54,7 @@
+ /**                # Version 6.0  : from : 21 nov 2011     **/
+ /**                                 to   : 21 nov 2011     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 22 mar 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -94,6 +94,7 @@ const int                   flagval)              /* Replacement flag */
+   int * restrict            procsndtab;
+   Gnum                      procsndnbr;
+   int * restrict            procsidtab;           /* Send index array                            */
++  int *                     procsidtmp;           /* Pointer to shrunk send index array, if any  */
+   int                       procsidnbr;           /* Number of entries in send index array       */
+   Gnum                      vertsidnum;           /* Last vertex index in send index array       */
+   Gnum                      vertlocmin;           /* Smallest index of local vertices            */
+@@ -108,7 +109,6 @@ const int                   flagval)              /* Replacement flag */
+   Gnum *                    edgegsttax;           /* Pointer to ghost edge array, maybe the same */
+   Gnum                      reduloctab[3];        /* Gnum to perform a maxsum operator           */
+   Gnum                      reduglbtab[3];
+-  int                       cheklocval;
+ 
+   const Gnum * restrict const procvrttab = grafptr->procvrttab;
+   const Gnum * restrict const vertloctax = grafptr->vertloctax;
+@@ -118,17 +118,28 @@ const int                   flagval)              /* Replacement flag */
+   if ((grafptr->flagval & DGRAPHHASEDGEGST) != 0) /* If ghost edge array already computed, do nothing */
+     return (0);
+ 
+-  cheklocval = 0;
++  reduloctab[0] = 1;                              /* Assume memory error and prepare data for aborting */
++  reduloctab[1] =
++  reduloctab[2] = 0;
++  if (memAllocGroup ((void **) (void *)           /* Allocate work arrays first, so that graph is not modified on error */
++                     &procsidtab, (size_t) ((grafptr->edgelocnbr + grafptr->vertlocnbr) * sizeof (int)),
++                     &vertsidtab, (size_t) (grafptr->procglbnbr                         * sizeof (Gnum)),
++                     &sortloctab, (size_t) ((grafptr->edgelocnbr + 1)                   * sizeof (DgraphGhstSort)), NULL) == NULL) {
++    errorPrint ("dgraphGhst: out of memory (1)");
++fail:                                             /* TRICK: Processes not on error will perform collective communication at end of routine */
++    if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0)
++      errorPrint ("dgraphGhst: communication error (1)");
++    return (1);
++  }
+   if (grafptr->edgegsttax == NULL) {              /* If ghost edge array not allocated yet                          */
+     if ((flagval == 0) || ((grafptr->flagval & DGRAPHFREETABS) == 0)) { /* If no replacement or cannot modify array */
+       if ((grafptr->edgegsttax = (Gnum *) memAlloc (grafptr->edgelocsiz * sizeof (Gnum))) == NULL) {
+-        errorPrint ("dgraphGhst: out of memory (1)");
+-        cheklocval = 1;
+-      }
+-      else {
+-        grafptr->edgegsttax -= grafptr->baseval;
+-        grafptr->flagval |= DGRAPHFREEEDGEGST;    /* Free array on exit */
++        errorPrint ("dgraphGhst: out of memory (2)");
++        memFree (procsidtab);                     /* Free group leader */
++        goto fail;
+       }
++      grafptr->edgegsttax -= grafptr->baseval;
++      grafptr->flagval |= DGRAPHFREEEDGEGST;      /* Free array on exit */
+     }
+     else {                                        /* Replace edgeloctab by edgegsttab */
+       grafptr->edgegsttax = grafptr->edgeloctax;
+@@ -137,24 +148,6 @@ const int                   flagval)              /* Replacement flag */
+         grafptr->flagval |= DGRAPHFREEEDGEGST;    /* It is edgegsttax which will free edloloctax if edge arrays are grouped */
+     }
+   }
+-  if ((cheklocval == 0) &&
+-      (memAllocGroup ((void **) (void *)
+-                      &procsidtab, (size_t) ((grafptr->edgelocnbr + grafptr->vertlocnbr) * sizeof (int)),
+-                      &vertsidtab, (size_t) (grafptr->procglbnbr                         * sizeof (Gnum)),
+-                      &sortloctab, (size_t) ((grafptr->edgelocnbr + 1)                   * sizeof (DgraphGhstSort)), NULL) == NULL)) {
+-    errorPrint ("dgraphGhst: out of memory (2)");
+-    cheklocval = 1;
+-  }
+-
+-  reduloctab[0] = 1;                              /* Assume memory error and prepare data for aborting */
+-  reduloctab[1] =
+-  reduloctab[2] = 0;
+-  if (cheklocval != 0) {                          /* TRICK: Processes not on error will perform collective communication at end of routine */
+-    if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0) {
+-      errorPrint ("dgraphGhst: communication error (1)");
+-      return (1);
+-    }
+-  }
+ 
+   vertlocmin = procvrttab[grafptr->proclocnum];
+   vertlocmax = procvrttab[grafptr->proclocnum + 1];
+@@ -177,10 +170,8 @@ const int                   flagval)              /* Replacement flag */
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+       if ((vertlocend < grafptr->baseval) || (vertlocend >= (procvrttab[grafptr->procglbnbr]))) {
+         errorPrint ("dgraphGhst: invalid edge array");
+-        if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0)
+-          errorPrint ("dgraphGhst: communication error (2)");
+         memFree (procsidtab);                     /* Free group leader */
+-        return  (1);
++        goto fail;
+       }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
+@@ -243,19 +234,16 @@ const int                   flagval)              /* Replacement flag */
+         if ((procngbnum > grafptr->procglbnbr) || /* If we have skipped a neighbor to which we have to send something */
+             (procsndtab[procngbnum] != 0)) {
+           errorPrint ("dgraphGhst: internal error (1)");
+-          if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0)
+-            errorPrint ("dgraphGhst: communication error (3)");
+           memFree (procsidtab);                   /* Free group leader */
+-          return  (1);
++          goto fail;
+         }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+       }
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+       if (procsndtab[procngbnum] == 0) {          /* If we had in fact no edges to send to this neighbor */
+         errorPrint ("dgraphGhst: internal error (2)");
+-        if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0)
+-          errorPrint ("dgraphGhst: communication error (4)");
+-        return (1);
++        memFree (procsidtab);                     /* Free group leader */
++        goto fail;
+       }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+       procsndnbr += procsndtab[procngbnum];       /* Sum-up vertices to send               */
+@@ -281,19 +269,22 @@ const int                   flagval)              /* Replacement flag */
+   grafptr->procngbnbr = procngbnbr;
+   grafptr->procsndnbr = procsndnbr;
+ 
+-  grafptr->procsidtab = memRealloc (procsidtab, procsidnbr * sizeof (int)); /* Reallocate send index array */
+-  grafptr->procsidnbr = procsidnbr;
+-
+   reduloctab[0] = 0;                              /* No memory error                 */
+   reduloctab[1] =                                 /* Set maximum number of neighbors */
+-  reduloctab[2] = grafptr->procngbnbr;
++  reduloctab[2] = procngbnbr;
+   if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0) {
+-    errorPrint ("dgraphGhst: communication error (5)");
+-    return (1);
++    errorPrint ("dgraphGhst: communication error (2)");
++    reduglbtab[0] = 1;
+   }
+-  if (reduglbtab[0] != 0)                         /* If error, propagated by some previous reduction operator */
++  if (reduglbtab[0] != 0) {                       /* If error, propagated by some previous reduction operator */
++    memFree (procsidtab);                         /* Free group leader */
+     return (1);
++  }
+ 
++  if ((procsidtmp = memRealloc (procsidtab, procsidnbr * sizeof (int))) != NULL) /* Shrink send index array; keep it as is if shrinking fails */
++    procsidtab = procsidtmp;
++  grafptr->procsidtab = procsidtab;
++  grafptr->procsidnbr = procsidnbr;
+   grafptr->procngbmax = reduglbtab[1];
+   grafptr->flagval   |= DGRAPHFREEPSID | DGRAPHHASEDGEGST; /* Graph now has a valid ghost edge array */
+ #ifndef SCOTCH_COMM_COLL
+-- 
+2.47.3
+

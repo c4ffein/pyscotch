@@ -1,0 +1,73 @@
+# COR-08 option B (first pass's preferred): keep a process-global linked list of the
+# (de)compression structures whose child is running; every forked child first closes
+# the parent-held pipe end recorded in each list entry; _exit() in children.
+# Equivalent effect to option A, but adds two fields, a module-global variable shared by
+# common_file_compress.c and common_file_decompress.c (hence SCOTCH_NAME_INTERN entries in
+# module.h), and list maintenance in fileCompressExit(). Sketch, compiled but not run.
+--- a/src/libscotch/common_file_compress.h
++++ b/src/libscotch/common_file_compress.h
+@@ -78,6 +78,8 @@ typedef struct FileCompress_ {
+   pthread_t                 thrdval;              /*+ Spawned thread ID            +*/
+ #else /* COMMON_PTHREAD_FILE */
+   int                       procval;              /*+ Forked process ID            +*/
++  int                       oufdnum;              /*+ Outer file handle (pipe end) +*/
++  struct FileCompress_ *    nextptr;              /*+ Next running task            +*/
+ #endif /* COMMON_PTHREAD_FILE */
+ } FileCompress;
+ 
+@@ -121,3 +123,7 @@ void                        fileCompressExit    (File * const);
+ int                         fileCompressType    (const char * const);
+ int                         fileDecompress      (File * const, const FileCompressType);
+ int                         fileDecompressType  (const char * const);
++#ifndef COMMON_PTHREAD_FILE
++extern FileCompress *       filecompressforkptr; /*+ List of running (de)compression tasks +*/
++void                        fileCompressForkClose (void);
++#endif /* COMMON_PTHREAD_FILE */
+--- a/src/libscotch/common_file_compress.c
++++ b/src/libscotch/common_file_compress.c
+@@ -116,8 +116,19 @@ File * const                fileptr)
+ #ifdef COMMON_PTHREAD_FILE
+   pthread_join (fileptr->compptr->thrdval, NULL); /* Wait for (de)compression thread to terminate */
+ #else /* COMMON_PTHREAD_FILE */
++  {
++    FileCompress **     compptr;
++
++    for (compptr = &filecompressforkptr; *compptr != NULL; compptr = &(*compptr)->nextptr) { /* Unlink task from list */
++      if (*compptr == fileptr->compptr) {
++        *compptr = (*compptr)->nextptr;
++        break;
++      }
++    }
++  }
+   waitpid (fileptr->compptr->procval, NULL, 0);
+ #endif /* COMMON_PTHREAD_FILE */
++
++#ifndef COMMON_PTHREAD_FILE
++FileCompress *              filecompressforkptr = NULL; /* List of running (de)compression tasks */
++
++void
++fileCompressForkClose (void)                      /* Called by forked children before processing */
++{
++  FileCompress *      compptr;
++
++  for (compptr = filecompressforkptr; compptr != NULL; compptr = compptr->nextptr)
++    close (compptr->oufdnum);
++}
++#endif /* COMMON_PTHREAD_FILE */
+@@ (fileCompress, fork branch)
+     case 0 :                                      /* We are the son process    */
+       fclose (writptr);                           /* Close writer pipe stream  */
++      fileCompressForkClose ();                   /* Close ends of other tasks */
+       fileCompress2 (compptr);                    /* Perform compression       */
+-      exit (EXIT_SUCCESS);                        /* Exit gracefully           */
++      _exit (EXIT_SUCCESS);                       /* Do not flush father's stdio buffers */
+     default :                                     /* We are the father process */
+       close (filetab[0]);                         /* Close the reader pipe end */
++      compptr->oufdnum = filetab[1];
++      compptr->nextptr = filecompressforkptr;     /* Link task in list of running tasks */
++      filecompressforkptr = compptr;
+   }
+--- a/src/libscotch/common_file_decompress.c  (same three hunks, with filetab[0] as oufdnum)
+--- a/src/libscotch/module.h
++#define fileCompressForkClose       SCOTCH_NAME_INTERN (fileCompressForkClose)
++#define filecompressforkptr         SCOTCH_NAME_INTERN (filecompressforkptr)

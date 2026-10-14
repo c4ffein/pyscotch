@@ -1,0 +1,17 @@
+--- a/src/libscotch/arch_dist.c
++++ b/src/libscotch/arch_dist.c
+@@ -91,12 +91,8 @@
+   }
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+-  if (intLoad (stream, &archptr->crloval) != 1) {
+-    errorPrint ("archDistArchLoad: bad input");
+-    return (1);
+-  }
+-
+-  return (archLoad (archptr->archptr, stream));   /* Load sub-architecture */
++  errorPrint ("archDistArchLoad: pseudo-architecture cannot be loaded from a file");
++  return (1);
+ }
+ 
+ /* This routine saves the

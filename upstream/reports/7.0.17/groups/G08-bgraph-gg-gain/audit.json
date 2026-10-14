@@ -1,0 +1,281 @@
+[
+ {
+  "id": "SEP-06",
+  "our_title": "Per-thread pass selection now compares with the thread's own recorded best",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "Reverted the three comparison lines of 2d94960 in a copy of the pristine ASan build ($WORK/build_no06) and compared single-thread deterministic runs: SCOTCH_DETERMINISTIC=1 SCOTCH_PTHREAD_NUMBER=1 gpart 4 m16x16_b100000_v.grf /dev/null -vm -> pristine 7.0.17 'CommCutSz=0.072917 (35)', reverted 'CommCutSz=0.097917 (47)'; with -M'r{sep=h{pass=20}}' and 2 parts: 17 vs 24 (same with pass=64). See repro/SEP-06/README.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Agrees with the review: silent quality loss on the default strategy (cut 47 vs 35 on the m16x16 check graph), reachable from every bipartition.",
+  "location_7_0_17": "src/libscotch/bgraph_bipart_gg.c:269-276",
+  "evidence": "269: if ((passnum == 0) || 270: ( (thrdptr->cmloval >  cmloval) || 271: ((thrdptr->cmloval == cmloval) && 272: (ABS (thrdptr->cpl0dlt) > ABS (cpl0dlt))))) { ... 275: thrdptr->cmloval = cmloval; 276: thrdptr->cpl0dlt = cpl0dlt;",
+  "upstream_change": "2d94960 Bugfix: select best local partiton with respect to current thread optimum [report R. Perry] (7 oct 2026)",
+  "review_accuracy": "accurate",
+  "first_pass_critique": "Status and location right, but method was source-read only; the regression is measurable (cut 47 -> 35 single-threaded) and that is the evidence the maintainer's report should carry. The first pass did not notice that the sequential twin vgraph_separate_gg.c:263-270 still compares against the graph's own fields, which is correct there because that routine updates them on every saved pass (no twin defect).",
+  "extra_instances": [],
+  "fix_options": [],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Complete in 7.0.17. The twin vgraph_separate_gg.c (sequential, not threaded) compares against grafptr->compload[2]/comploaddlt which it writes back on every improvement (lines 264-270), so it does not have the defect."
+ },
+ {
+  "id": "SEP-11",
+  "our_title": "Cross-thread reduction prefers the most underloaded part 0 on communication-load ties",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/SEP-11/sep11.c (complete graph K_n, vertex loads 1..50, strategy r{sep=h{pass=64}}, 2 parts, 8 threads). Race-free comparison with the same binary against $WORK/build (series) and $WORK/build_no11 (series with the 0001 line reverted): n=60: mean |load0-load1| 15.95 (max 20) without vs 3.15 (max 14) with the fix, patched better in 39 of 40 seeds and never worse; n=200: 21.70 vs 21.10. Pristine 7.0.17 (racy) n=200: 22.00 (max 34). Commands in repro/SEP-11/README.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Agrees with the review: wrong (less balanced) result on ties, only when threads > 1; the balance target is still honored by later refinement in the default strategy.",
+  "location_7_0_17": "src/libscotch/bgraph_bipart_gg.c:375-377",
+  "evidence": "375: if ( (passdat.thrdtab[thrdnum].cmloval <  cmloval) || /* If better partition */ 376: ((passdat.thrdtab[thrdnum].cmloval == cmloval) && 377: (passdat.thrdtab[thrdnum].cpl0dlt <  cpl0dlt))) {",
+  "upstream_change": "",
+  "review_accuracy": "accurate; the suggested fix (ABS on both deltas) is the right one and matches the per-thread test two screens above.",
+  "first_pass_critique": "Status, location and preferred option right. Its evidence came from test-only instrumentation of the reduction and a statistical run on the racy pristine library; a race-free, same-seed comparison (series with and without the line) is what proves the effect: 39/40 seeds better, 0 worse. Its second option (macro) was not compiled; it compiles (alt/SEP-11-b) but is not what the maintainer does: he fixed the per-thread test in 2d94960 in place, without factoring.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "a: ABS in the reduction (as in the per-thread test)",
+    "summary": "Compare ABS (cpl0dlt) of the candidate and of the current best, mirroring line 272.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/patches/0001-Bugfix-compare-absolute-imbalances-when-selecting-be.patch",
+    "tested": "32-bit and 64-bit builds, 0 warnings; check_scotch_graph_map, check_prog_gpart, check_prog_gmap, check_common_random, check_common_thread, check_scotch_context pass on both; repro/SEP-11 race-free comparison (39/40 seeds better, 0 worse at n=60).",
+    "tradeoffs": "Behaviour change only on exact communication-load ties between threads; no ABI change; no cost.",
+    "preferred": true,
+    "maintainer_fit": "Exactly what 2d94960 did for the per-thread test one function above (bgraph_bipart_gg.c:272); one-line fix in his idiom (ABS macro from common.h, f545452)."
+   },
+   {
+    "label": "b: one comparison macro for both tests",
+    "summary": "Define BGRAPHBIPARTGGBETTER(cm,cd,bcm,bcd) in bgraph_bipart_gg.h and use it for the per-thread test and the reduction so they cannot diverge again.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/alt/SEP-11-b-comparison-macro.diff",
+    "tested": "compile-checked only (gcc -c with the pristine headers, 0 diagnostics); not run.",
+    "tradeoffs": "Prevents the class of divergence, but larger diff, a macro with four arguments in a header, and the two sites have opposite argument orders (thread-best vs candidate), which the macro hides.",
+    "preferred": false,
+    "maintainer_fit": "Not his style for this module: no such comparison macros exist in bgraph_*.h; bgraph_bipart_st.c:359-371 writes the comparisons out in full."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/patches/0001-Bugfix-compare-absolute-imbalances-when-selecting-be.patch"
+  ],
+  "cleanup_done": "none needed (patch also re-aligns three pre-existing col-49 line comments of the same function flagged by stylecheck.py, as 2d94960 cleaned a trailing-whitespace line in passing)",
+  "test_added": "; no natural home: src/check has no test of partition balance on ties, and the effect needs >= 2 threads and a tie-heavy weighted graph; the reproducer is in repro/SEP-11.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Sequential twin vgraph_separate_gg.c has no cross-thread reduction. The sign convention: cpl0dlt = compload0 - compload0avg, so the signed minimum prefers the most underloaded part 0."
+ },
+ {
+  "id": "SEP-13",
+  "our_title": "Worker generators seeded from the shared state while thread 0 is already drawing",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "ThreadSanitizer (-O1 -fsanitize=thread, 4 threads) on pristine 7.0.17: 'WARNING: ThreadSanitizer: data race ... Write of size 8 by main thread: #0 _SCOTCHintRandVal3 common_integer.c:443 #1 _SCOTCHintRandVal #2 bgraphBipartGg2 bgraph_bipart_gg.c:196 ... Previous read by thread T3: #0 _SCOTCHintRandSpawn common_integer.c:296 #1 bgraphBipartGg2 bgraph_bipart_gg.c:177' (1 per run, 3/3 runs). Fresh-process determinism, SCOTCH_DETERMINISTIC=1, gpart 4 m16x16_b100000_v.grf, 30 runs: pristine thr=2 -> 3 distinct partitions (24/4/2), thr=4 -> 1 (racy side varies per run); after 0002 alone: thr=1/2/4 -> 1 distinct each but three different partitions (1d497d7d, d02c4de7, 944fb99a); after 0001-0004: thr=2/4/8 -> 1 distinct, all e180dfcf; 64-bit build the same. Patched TSan: 0 reports with SCOTCH_DETERMINISTIC=1 (5 runs), and with =0 only the intentional lock-free matching in graph_match_scan.c (5 runs). repro/SEP-13/README.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Higher than the review's Medium: the race is reachable from the default strategy (bgraphBipartFm and bgraphBipartEx fall back to bgraphBipartGg) and breaks the documented contract of SCOTCH_OPTIONNUMDETERMINISTIC ('deterministic behavior across multiple runs, for any number of threads', s_l.tex:7900-7908), a 7.0.16 regression against 7.0.13-7.0.15.",
+  "location_7_0_17": "src/libscotch/bgraph_bipart_gg.c:177 (spawn in worker), :196 (thread 0 draws), :308 and :328 (thread count / pass sharing ignore the deterministic option)",
+  "evidence": "177: intRandSpawn (grafptr->contptr->randptr, thrdnum, &randdat); /* Create fake local context */ ; 196: vexxptr = vexxtax + (grafptr->s.baseval + contextIntRandVal (contptr, grafptr->s.vertnbr)); ; common_integer.c:296: seedval = roldptr->statdat.randtab[0]; /* Get value from state of old generator */ ; 328: passdat.passnbr = (paraptr->passnbr + (thrdnbr - 1)) / thrdnbr; /* Share passes across threads */",
+  "upstream_change": "",
+  "review_accuracy": "Mechanism, location and fix line are accurate. Incomplete for its own claim 'non-reproducible runs even in deterministic mode': spawning before the launch makes runs reproducible for a fixed thread count only; the documented contract is independence from the thread count, which needs the option to be honored (second commit).",
+  "first_pass_critique": "Status and TSan evidence right; the sketch (spawn loop in the launcher, randdat in BgraphBipartGgThread) is what 0002 does. It called the deterministic-option half 'handled elsewhere by the parent' and never audited PyScotch's shipped patch; that patch is questioned here: (1) its '(descptr != NULL) ? threadNum (descptr) : 0' guard exists only because it calls bgraphBipartGg2 (NULL, ...) in the threaded build; the tree's idiom for 'deterministic => sequential' is graphMatch() (graph_match.c:286-291): launch all threads, non-zero threads return at once, so 0003 adds a working-thread count to BgraphBipartGgData instead and leaves the launch and the descriptor alone; (2) collapsing to one working thread is required (the doc promises thread-count independence), as PyScotch did, but through contextThreadNbr-sized tables, not by changing thrdnbr; (3) the '#include \"context.h\"' is needed (CONTEXTOPTIONNUMDETERMINISTIC lives there, as in graph_match.c:57); (4) contdat/contptr juggling stays: thread 0 must keep using the caller's context so that the sequential and deterministic results coincide (verified: thr=1 result unchanged, 1d497d7d, after the series). Its option 'derive the spawn seed from the stable seed' is wrong as written: successive calls in one context would give identical worker streams (alt/SEP-13-c, not recommended).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/bgraph_bipart_gg.c:308,328 (option ignored: passes shared across all threads whatever CONTEXTOPTIONNUMDETERMINISTIC)",
+    "quote": "const int thrdnbr = contextThreadNbr (grafptr->contptr); ... passdat.passnbr = (paraptr->passnbr + (thrdnbr - 1)) / thrdnbr;",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/kgraph_map_rb_part.c:316 (same contract broken one level up: context split regardless of the option; see extra PS2-G08-2)",
+    "quote": "if (contextThreadLaunchSplit (contptr, (ContextSplitFunc) kgraphMapRbPart2, &spltdat) != 0) /* If counld not split context to run concurrently */",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a: spawn all local contexts in the launcher before contextThreadLaunch (0002) + honor the deterministic option the graphMatch way (0003)",
+    "summary": "0002: IntRandContext randdat moves into BgraphBipartGgThread, the launcher spawns thrdtab[1..n-1].randdat sequentially, the worker uses &thrdptr->randdat. 0003: read CONTEXTOPTIONNUMDETERMINISTIC, store the number of working threads in BgraphBipartGgData.thrdnbr (1 if deterministic), share passes over it, non-working threads return at once with parttab = NULL (already the 'skip' marker of the reduction).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/patches/0002-Bugfix-spawn-thread-pseudo-random-contexts-before-th.patch and /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/patches/0003-Bugfix-honor-deterministic-option-in-bgraphBipartGg-.patch",
+    "tested": "32/64-bit builds 0 warnings; six check targets pass on both; TSan 0 reports (det=1) / only graph_match_scan.c (det=0); 30 fresh processes x {2,4,8} threads -> one partition each, identical across 2/4/8; debug build (-DSCOTCH_DEBUG_ALL) gpart 1 and 4 threads ok.",
+    "tradeoffs": "Non-deterministic mode: results now depend only on the thread count (same seeds as the first scheduling of pristine). Deterministic mode: GG runs on one thread (slower, as the doc says 'albeit sometimes slower'); idle threads cost a launch and a barrier. +32 bytes per thread in the internal thread block; no ABI change.",
+    "preferred": true,
+    "maintainer_fit": "0002 is the review's own fix and intRandSpawn's header comment already asks for it ('spawning can be performed in parallel ... The routine itself is not thread-safe'). 0003 copies graphMatchInit/graphMatch (graph_match.c:205-212, 286-291: 'Only thread 0 will perform the work') and the Gnum deteval + contextValuesGetInt idiom used in all three existing users of the option."
+   },
+   {
+    "label": "b: PyScotch's shipped patch (collapse thrdnbr to 1 and call bgraphBipartGg2 (NULL, ...) directly)",
+    "summary": "Same pre-spawning, but when deterministic sets thrdnbr = 1, calls the thread routine with a NULL descriptor and guards threadNum() with 'descptr != NULL'.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/alt/SEP-13-b-pyscotch-null-descriptor.diff",
+    "tested": "Not re-run here; PyScotch reports 3 x 30 fresh processes, 2 and 4 threads, one partition (QUESTIONS_FOR_SCOTCH_TEAM.md). Behaviourally equivalent to (a) in deterministic mode.",
+    "tradeoffs": "Works, but introduces a NULL-descriptor convention in a threaded build that no other module has (NULL is only ever passed in *NOTHREAD builds where threadNum is not called), and a ternary on every thread entry.",
+    "preferred": false,
+    "maintainer_fit": "He would rewrite it into (a): graphMatch keeps the launch and lets non-zero threads return."
+   },
+   {
+    "label": "c: make intRandSpawn seed from seedval instead of the live state",
+    "summary": "common_integer.c: seedval = roldptr->seedval, so spawning never reads mutable state.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/alt/SEP-13-c-spawn-from-seed.diff",
+    "tested": "compile-checked only (0 diagnostics); not run because it is wrong by design (see tradeoffs).",
+    "tradeoffs": "Race-free at every caller, but every call of bgraphBipartGg() in the same context gives worker k the same stream (seedval never changes), so all bipartitions of a recursive bisection would grow from the same root sequence; needs a per-context call counter, i.e. a new field in IntRandContext.",
+    "preferred": false,
+    "maintainer_fit": "Changes the semantics of a common routine for one caller; he fixed callers, not common_integer.c, in this range."
+   },
+   {
+    "label": "d: barrier inside the thread routine after spawning",
+    "summary": "Workers spawn first, all threads hit threadBarrier before any draw; spawn moved before the allocation so the barrier is reached on every path.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/alt/SEP-13-d-barrier.diff",
+    "tested": "compile-checked only (0 diagnostics); not run.",
+    "tradeoffs": "One more barrier per call; the barrier must stay before every early return (allocation failure) or the call deadlocks; does nothing for the deterministic option.",
+    "preferred": false,
+    "maintainer_fit": "More fragile than spawning in the launcher, where contextThreadLaunchSplit (common_context.c:298-299) already seeds the second sub-context before launching."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/patches/0002-Bugfix-spawn-thread-pseudo-random-contexts-before-th.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/patches/0003-Bugfix-honor-deterministic-option-in-bgraphBipartGg-.patch"
+  ],
+  "cleanup_done": "0002 removes the local 'IntRandContext randdat' of bgraphBipartGg2 and its worker-side intRandSpawn call; the 'Create fake local context' comment is replaced. intRandSpawn keeps its single caller (the launcher). Nothing else orphaned (git grep).",
+  "test_added": "; a '1 thread == N threads with the option set' test in test_scotch_context.c would be the natural home, but it fails on pristine+series for a reason outside this module (PS2-G08-2: kgraph_map_rb_part.c splits the context with a second random stream whenever >= 2 threads exist), so adding it would pin a contract the library does not yet meet; a same-thread-count reproducibility test would be flaky-detecting on pristine (fails in ~1 run of 5) and the maintainer does not ship probabilistic tests.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Measured contract after the series: SCOTCH_DETERMINISTIC=1 gives one partition per thread count (30/30) and 2 == 4 == 8 threads; 1 thread still differs on some graphs because of PS2-G08-2 (not this module). Default/non-deterministic mode remains non-reproducible by design (lock-free matching)."
+ },
+ {
+  "id": "SEP-19",
+  "our_title": "Debug bipartition check result now returned instead of overwritten",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "Two -DSCOTCH_DEBUG_ALL builds with an injected fault (grafptr->commload ++ before the check): 7.0.17 code -> 'ERROR: bgraphCheck: invalid communication loads', 'ERROR: bgraphBipartGg: inconsistent graph data', 'ERROR: kgraphMapRbPart2: cannot bipartition graph', SCOTCH_graphPart returned 1; with 2a6fd07 reverted -> same two messages then SCOTCH_graphPart returned 0. Control build without fault: returned 0. Driver repro/SEP-19/sep19.c (linked with the non-exiting libscotcherr; gpart's exiting handler masks the difference).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Agrees with the review: debug builds only, diagnostic value.",
+  "location_7_0_17": "src/libscotch/bgraph_bipart_gg.c:437-443",
+  "evidence": "437: o = 0; /* Everyhting went well */ 438: #ifdef SCOTCH_DEBUG_BGRAPH2 439: if (bgraphCheck (grafptr) != 0) { 440: errorPrint (\"bgraphBipartGg: inconsistent graph data\"); 441: o = 1; 442: } 443: #endif",
+  "upstream_change": "2a6fd07 Bugfix: take graph bipartition check into account [report R. Perry] (8 oct 2026)",
+  "review_accuracy": "accurate",
+  "first_pass_critique": "Right status; source-read only with 'needs: debug-build'. It is cheap to run: one injected fault and a non-exiting driver show the return value flipping 0 -> 1. Not noted by either: the same 'o = 0 after the debug block' pattern does not occur elsewhere in the bgraph/vgraph/kgraph methods (checked bgraph_bipart_*.c, vgraph_separate_*.c, kgraph_map_*.c: all set the return value before or inside the #ifdef block).",
+  "extra_instances": [],
+  "fix_options": [],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Typo 'Everyhting' in the comment at :437 is pre-existing and left alone (cosmetic, outside the series' scope)."
+ },
+ {
+  "id": "SEP-20",
+  "our_title": "libc abs() on Gnum deltas replaced by ABS in every sequential partitioner",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "git grep -n -E '\\\\b(abs|labs|llabs) ?\\\\(' over src/ at v7.0.17: no hit left in src/libscotch, src/libscotchmetis, src/scotch (amk_hy.h:76 and amk_m2.h:102 define their own abs macro on ints), src/esmumps; two hits in src/check tests (below). 64-bit Gnum build (-DINTSIZE64 -DIDXSIZE64) of the whole tree with the series: 0 warnings; check_scotch_graph_map, check_prog_gpart, check_prog_gmap, check_common_random, check_common_thread, check_scotch_context pass; gpart determinism identical to 32-bit (repro/SEP-13/final64).",
+  "read_only": "The review's claim that loads >= 2^31 give wrong comparisons on 7.0.16 was not reproduced with such loads (no graph with loads above 2^31 built); the pattern's absence was verified by grep and the 64-bit build/tests exercised.",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Agrees with the review: needs 64-bit Gnum and loads beyond 2^31.",
+  "location_7_0_17": "src/libscotch/bgraph_bipart_gg.c:221,272; bgraph_bipart_ga.c; bgraph_bipart_fm.c; bgraph_bipart_st.c:364-370; vgraph_separate_fm.c; vmesh_separate_fm.c; wgraph_part_rb.c:293",
+  "evidence": "bgraph_bipart_gg.c:221: if ((ABS (cpl0dlt - veloval) >= ABS (cpl0dlt)) && ; :272: (ABS (thrdptr->cpl0dlt) > ABS (cpl0dlt))))) { ; bgraph_bipart_st.c:364: (ABS (savetab[0].compload0dlt) > ABS (grafptr->compload0dlt))))",
+  "upstream_change": "f545452 Bugfix: use size-agnostic macro instead of bounded-size library ABS routine [report R. Perry]; 813ef60 Bugfix: variable type [report R. Perry] (wgraph_part_rb.c indvertnbr)",
+  "review_accuracy": "accurate",
+  "first_pass_critique": "Right status; it did not build 64-bit ('needs: 64bit-build') and only checked the listed sites. The tree-wide grep adds two test-program sites it missed (src/check, below); int-typed locals in the seven files are all part numbers or flags (partval, partdlt, moveflag...), none holds a load.",
+  "extra_instances": [
+   {
+    "location": "src/check/test_arch_deco.c:192 (Anum termnum, termend; abs() truncates on 64-bit Anum, values are tiny in the test)",
+    "quote": "if (distval != abs (termnum - termend)) {",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/check/test_scotch_arch_build.c:354 (SCOTCH_Num labltab[]; same pattern)",
+    "quote": "if (abs (darcptr->labltab[domnnum] - darcptr->labltab[domnnum - 1]) != 1) {",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The two src/check sites are test code with values far below 2^31 and no access to the internal ABS macro (they include scotch.h only); left as information, not patched, since f545452 deliberately touched libscotch only."
+ },
+ {
+  "id": "PS-SEP-3",
+  "our_title": "All gain tables share one file-static sentinel link written by every thread",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "TSan pristine 7.0.17, gpart 4 m16x16_b100000_v.grf, 4 threads: 14 of 19 reports per run are 'Write of size 8 ... #0 _SCOTCHgainTablAddLog gain.c:311 #1 bgraphBipartGg2 bgraph_bipart_gg.c:246 ... Previous write ... #0 bgraphBipartGg2 bgraph_bipart_gg.c:216 ... Location is global gainLinkDummy of size 24'; one report pairs bgraphBipartFm (bgraph_bipart_fm.c:524, gainTablDel macro) in one split sub-context with bgraphBipartGg2 in the other. Patched TSan (series): 0 reports in 5 deterministic runs, and no report in gain.c / bgraph_bipart_*.c in 5 non-deterministic runs nor in a bump.grf k=9 run. Debug build with -DSCOTCH_DEBUG_ALL -DSCOTCH_DEBUG_GAIN3 (exercises the new gainTablCheck signatures): gpart ok, check_scotch_graph_map/check_prog_gpart/check_scotch_context pass.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "The written field (prev of the sentinel) is never read, so no wrong result today; still a formal data race (UB), a shared cache line hammered by every thread's gain-table insert/delete (false sharing on a hot path), and it crosses independent split contexts, not only GG workers.",
+  "location_7_0_17": "src/libscotch/gain.c:76 (static sentinel), :257 (gainTablAddLin write), :311 (gainTablAddLog write), :343 (gainTablDel write); gain.h:129 (gainTablDel macro writes it from every FM/GG module)",
+  "evidence": "76: static GainLink gainLinkDummy; /*+ Dummy link space for fast linked list operations +*/ ; 311: entrptr->next->prev = linkptr; /* Link vertex in gain list: TRICK */ ; 343: linkptr->next->prev = linkptr->prev; /* TRICK: may write in dummy link area */ ; gain.h:129: #define gainTablDel(tabl,link) (((GainLink *) (link))->next->prev = ((GainLink *) (link))->prev, ...",
+  "upstream_change": "",
+  "review_accuracy": "not in the review (PyScotch finding).",
+  "first_pass_critique": "Right finding and right preferred option, but 'not compiled' and it missed that the write also happens through the gainTablDel macro in gain.h (bgraph_bipart_gg.c:216/245, bgraph_bipart_fm.c:524 in the TSan output), which decides between the options: a conditional write cannot be done in that macro without exporting the static sentinel (alt b shows the cost), and a thread-local sentinel breaks tables whose init and use are in different threads. It also missed the debug checkers gainTablCheck/gainTablCheck2 that need the table pointer once the sentinel is per table (caught here by compiling with -DSCOTCH_DEBUG_GAIN3).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/gain.c:257 (gainTablAddLin, same write)",
+    "quote": "headptr->next->prev = linkptr; /* Link vertex in gain list: TRICK */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/gain.c:343 (gainTablDel debug function)",
+    "quote": "linkptr->next->prev = linkptr->prev; /* TRICK: may write in dummy link area */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/gain.h:129 (gainTablDel macro, used by bgraph_bipart_fm/gg, kgraph_map_fm, vgraph_separate_fm/gg, vmesh_separate_fm/gg, wgraph_part_fm)",
+    "quote": "#define gainTablDel(tabl,link) (((GainLink *) (link))->next->prev = ((GainLink *) (link))->prev,",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a: per-table dummy link embedded in GainTabl (linkdat)",
+    "summary": "GainTabl gets 'GainLink linkdat; /*+ Dummy link for fast list operations +*/'; gain.c compares against &tablptr->linkdat; the static is deleted; the debug checkers take the table pointer.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/patches/0004-Bugfix-use-per-table-dummy-gain-link-to-avoid-concur.patch",
+    "tested": "32/64-bit builds 0 warnings; gain.c also compiled with -DSCOTCH_DEBUG_GAIN1/2/3; full -DSCOTCH_DEBUG_ALL -DSCOTCH_DEBUG_GAIN3 build runs gpart and three check targets; TSan clean for gain.c; six check targets pass on both widths.",
+    "tradeoffs": "+24 bytes per table; the branch-free TRICK is kept; writes now land in the owning table's memory; no behaviour change.",
+    "preferred": true,
+    "maintainer_fit": "His own idiom: fibo.h:104 'FiboNode rootdat; /*+ Dummy node for fast root insertion +*/' with '!= &treeptr->rootdat' comparisons in fibo.c; keeps the gain.h macro untouched and the sentinel private."
+   },
+   {
+    "label": "b: conditional writes, sentinel exported for the gain.h macro",
+    "summary": "Guard the three writes with 'if (x->next != &gainLinkDummy)'; the macro in gain.h needs the sentinel, so it becomes a non-static exported symbol (module.h rename) and the macro a do/while.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/alt/PS-SEP-3-b-conditional-write.diff",
+    "tested": "compile-checked only (gain.c and bgraph_bipart_gg.c with the modified gain.h, 0 diagnostics); not run.",
+    "tradeoffs": "Adds a branch on the hottest path of every FM/GG (the TRICK exists to avoid it), exports a new internal symbol, changes a statement-expression macro into a do/while that no longer composes in expressions.",
+    "preferred": false,
+    "maintainer_fit": "Defeats the explicit 'TRICK' design comment; he would not add a branch there."
+   },
+   {
+    "label": "c: thread-local sentinel",
+    "summary": "static _Thread_local GainLink gainLinkDummy;",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/alt/PS-SEP-3-c-thread-local.diff",
+    "tested": "compile-checked only (0 diagnostics); not run.",
+    "tradeoffs": "Two lines, but pointer identity differs per thread: a table initialized by one thread (entries = &dummy_A) and used by another compares against &dummy_B and sees every slot as non-empty; needs C11 or compiler extensions (_Thread_local / __declspec(thread)), which the tree does not use anywhere.",
+    "preferred": false,
+    "maintainer_fit": "Introduces a portability dependency and a latent semantic trap for a 24-byte saving."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/patches/0004-Bugfix-use-per-table-dummy-gain-link-to-avoid-concur.patch"
+  ],
+  "cleanup_done": "Removes the file-static gainLinkDummy and its 'static variables' section; nothing else references it (git grep: only gain.c; module.h never renamed it). Also removes a pre-existing trailing-whitespace line in gainTablMove (gain.c:457 '}     ') flagged by stylecheck.py.",
+  "test_added": "; no natural home: src/check has no gain-table unit test and the defect is only visible under ThreadSanitizer.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The race also exists between the two sub-contexts of kgraphMapRbPart (FM in one, GG in the other), so it predates 7a934a8 for any strategy running two bipartitions concurrently; 0004 covers all users since every table now owns its sentinel."
+ }
+]

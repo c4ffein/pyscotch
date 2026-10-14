@@ -1,0 +1,8 @@
+SEP-09: FM keeps probing the hash table it just freed after a failed resize.
+Resizing only happens on ordinary inputs in debug builds (hashnbr = 2 * fronnbr + 1); fault injection on realloc:
+  export LD_LIBRARY_PATH=$WORK/builddbg/lib ASAN_OPTIONS=detect_leaks=0:verify_asan_link_order=0
+  ST='r{sep=h{pass=1}f{move=200,pass=-1,bal=0.1}}'
+  FAIL_REALLOC_NTH=16 LD_PRELOAD=../common/failnth.so ../common/partgrid_builddbg 30 1 2 "$ST"
+  pristine (realloc_scan.log): ERROR: bgraphBipartFmResize: out of memory / bgraphBipartFm: out of memory (2)
+           AddressSanitizer: heap-use-after-free READ of size 4 ... bgraph_bipart_fm.c:604, freed at :601
+  patched  (patched_N16.log): same two errors, then "kgraphMapRbPart2: cannot bipartition graph", rc=1, no sanitizer report.

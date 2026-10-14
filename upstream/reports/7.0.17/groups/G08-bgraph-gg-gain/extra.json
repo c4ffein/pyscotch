@@ -1,0 +1,76 @@
+[
+ {
+  "local_id": "PS2-G08-1",
+  "our_title": "bgraphBipartGg() shares passes across all threads whatever the deterministic option",
+  "severity": "high",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "With 0002 alone (race fixed), SCOTCH_DETERMINISTIC=1, gpart 4 m16x16_b100000_v.grf, 30 fresh processes each: thr=1 -> 1d497d7d, thr=2 -> d02c4de7, thr=4 -> 944fb99a (one partition per thread count, three different partitions). With 0003: thr=2/4/8 -> e180dfcf. Doc contract: s_l.tex:7900-7908 'deterministic behavior across multiple runs, for any number of threads'. repro/SEP-13/README (spawn_only/ vs final/).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/bgraph_bipart_gg.c:308,328,359",
+  "evidence": "308: const int thrdnbr = contextThreadNbr (grafptr->contptr); 328: passdat.passnbr = (paraptr->passnbr + (thrdnbr - 1)) / thrdnbr; /* Share passes across threads */ 359: contextThreadLaunch (grafptr->contptr, (ThreadFunc) bgraphBipartGg2, (void *) &passdat); -- no contextValuesGetInt (..., CONTEXTOPTIONNUMDETERMINISTIC, ...) in the file (the only users are graph_match.c:205, dgraph_band_grow.c:403, dgraph_match_sync_ptop.c:222).",
+  "related_ids": [
+   "SEP-13"
+  ],
+  "fix_options": [
+   {
+    "label": "a: thread 0 does all passes when the option is set (graphMatch idiom)",
+    "summary": "Gnum deteval; contextValuesGetInt(); passdat.thrdnbr = (deteval != 0) ? 1 : thrdnbr; passes shared over passdat.thrdnbr; bgraphBipartGg2 returns at once (parttab = NULL) for thrdnum >= passptr->thrdnbr; spawn loop bounded by passdat.thrdnbr.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/patches/0003-Bugfix-honor-deterministic-option-in-bgraphBipartGg-.patch",
+    "tested": "as for SEP-13: 32/64-bit builds, six check targets, 30-process determinism at 1/2/4/8 threads, TSan, debug build.",
+    "tradeoffs": "Deterministic mode runs GG sequentially (documented 'albeit sometimes slower'); the thrdtab is still sized by the launched thread count (idle entries only hold parttab = NULL).",
+    "preferred": true,
+    "maintainer_fit": "graph_match.c:205-212 and :286-291 ('Only thread 0 will perform the work') are the exact precedent; same variable name, type and comment wording as his."
+   },
+   {
+    "label": "b: PyScotch's shipped patch (thrdnbr = 1, direct call with NULL descriptor)",
+    "summary": "see alt/SEP-13-b-pyscotch-null-descriptor.diff",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/alt/SEP-13-b-pyscotch-null-descriptor.diff",
+    "tested": "not re-run here (PyScotch: 3 x 30 processes, one partition).",
+    "tradeoffs": "Equivalent result; introduces a NULL-descriptor convention in the threaded build.",
+    "preferred": false,
+    "maintainer_fit": "Not the tree's idiom (NULL descriptors only exist in *NOTHREAD builds)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/patches/0003-Bugfix-honor-deterministic-option-in-bgraphBipartGg-.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G08-2",
+  "our_title": "Recursive bipartitioning splits the context (second random stream) even when deterministic",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Series applied, SCOTCH_DETERMINISTIC=1, gpart on m16x16_b100000_v.grf: -M'r{sep=h{pass=20}}' thr1=44898414 thr2=82e36d44 thr4=82e36d44; -M'r{sep=h{pass=20}f{bal=0.01,move=120}}' thr1=59817023 thr2=e282946f thr4=e282946f; 2 parts (single bisection job, no split) thr1=7a18bd8b thr2=7a18bd8b; default strategy on m4x4.grf, bump_b100000.grf, m16x16_b100000_v.grf: 1 thread differs from 2/4/8, which agree. repro/PS2-G08-2/README, repro/SEP-13/strat.",
+  "read_only": "The split code path (kgraph_map_rb_part.c:316 and common_context.c:280-299) was read, not instrumented; the 1-vs-N difference was shown to track the number of bisection jobs (k=2 agrees), which is the split's signature.",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/kgraph_map_rb_part.c:316; src/libscotch/common_context.c:290-299",
+  "evidence": "kgraph_map_rb_part.c:316: if (contextThreadLaunchSplit (contptr, (ContextSplitFunc) kgraphMapRbPart2, &spltdat) != 0) /* If counld not split context to run concurrently */ ; common_context.c:290: spltdat.conttab[1].randptr = &randdat; /* Set independent pseudo-random generator for sub-context 1 */ ; :298-299: intRandProc (&randdat, (int) intRandVal2 (contptr->randptr)); intRandSeed (&randdat, intRandVal2 (contptr->randptr)); -- no test of CONTEXTOPTIONNUMDETERMINISTIC on this path.",
+  "related_ids": [
+   "SEP-13"
+  ],
+  "fix_options": [
+   {
+    "label": "a: do not split the context when the deterministic option is set",
+    "summary": "In kgraphMapRbPart() (and kgraphMapRbMap() if it splits too), read CONTEXTOPTIONNUMDETERMINISTIC and skip contextThreadLaunchSplit when set, falling through to the sequential job processing; results then equal the 1-thread ones for any thread count.",
+    "diff_file": "",
+    "tested": "untested: outside this group's files and a design decision (the maintainer may instead want 1-thread runs to mimic the split's two streams, or document 'for any number of threads >= 2').",
+    "tradeoffs": "Loses the two-way concurrency of recursive bisection in deterministic mode (each bisection still uses the threaded methods); the sub-context random seeding (common_context.c) would also have to be made independent of the split order if concurrency is kept.",
+    "preferred": true,
+    "maintainer_fit": "Same idiom as graphMatchInit; but he must decide which of the two behaviours is the reference."
+   },
+   {
+    "label": "b: document the contract as thread-count independent for >= 2 threads only",
+    "summary": "Amend s_l.tex:7903-7905 and INSTALL.txt.",
+    "diff_file": "",
+    "tested": "untested: documentation.",
+    "tradeoffs": "No code change; the measured behaviour (2 == 4 == 8, 1 differs) becomes the contract.",
+    "preferred": false,
+    "maintainer_fit": "Weaker than the current promise; only if (a) is rejected."
+   }
+  ],
+  "patch_files": []
+ }
+]

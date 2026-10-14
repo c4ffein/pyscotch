@@ -1,0 +1,14 @@
+Alternative (not committed): free the partial column block tree of hgraphOrderCc() on error instead
+of initializing all cells first (sub-trees already built for the ordered components would leak).
+--- a/src/libscotch/hgraph_order_cc.c
++++ b/src/libscotch/hgraph_order_cc.c
+@@ -196,6 +196,9 @@
+ 
+     if (o != 0) {
+       errorPrint ("hgraphOrderCc: cannot compute ordering on induced graph");
++      memFree (cblkptr->cblktab);                 /* Free partial tree so that orderExit() does not read uninitialized cells */
++      cblkptr->cblktab = NULL;
++      cblkptr->cblknbr = 0;
+       break;
+     }
+   }

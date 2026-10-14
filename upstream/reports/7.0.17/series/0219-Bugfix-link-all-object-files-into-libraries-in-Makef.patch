@@ -1,0 +1,72 @@
+From 28d1dc126754a853e0643296070d7758e36092c9 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:08:03 +0000
+Subject: [PATCH 219/240] Bugfix: link all object files into libraries in
+ Makefile's [report PyScotch]
+
+The library rules of "libscotch/Makefile" and "esmumps/Makefile" pass
+"$(?)" to "$(AR)", that is, only the object files that are newer than
+the library. This is the archive idiom for "ar -ru", but with the
+"*.shlib" Makefile.inc's, where "$(AR)" is "gcc" and "$(ARFLAGS)" is
+"-shared -o", an incremental build after a source change produces a
+shared library that contains only the recompiled objects, and every
+program then fails to link against it. Use "$(^)" instead, as
+"libscotchmetis/Makefile" already does, which is correct for both
+static archives and shared libraries.
+---
+ src/esmumps/Makefile   |  2 +-
+ src/libscotch/Makefile | 12 ++++++------
+ 2 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/src/esmumps/Makefile b/src/esmumps/Makefile
+index a4803d5..33e154d 100644
+--- a/src/esmumps/Makefile
++++ b/src/esmumps/Makefile
+@@ -203,7 +203,7 @@ symbol_fax_graph$(OBJ)		:	symbol_fax_graph.c			\
+ 					fax.h
+ 
+ libesmumps$(LIB)		:	$(LIBESMUMPSDEPS)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ test_esmumps$(EXE)		:	test_esmumps.c				\
+diff --git a/src/libscotch/Makefile b/src/libscotch/Makefile
+index 2340570..c6d7f90 100644
+--- a/src/libscotch/Makefile
++++ b/src/libscotch/Makefile
+@@ -3581,25 +3581,25 @@ ptscotchf.h			:	ptdummysizes$(EXE)			\
+ 					./ptdummysizes$(EXE) -s$(SCOTCH_NAME_SUFFIX) library_pt_f.h ptscotchf.h
+ 
+ libscotch$(LIB)			:	$(LIBSCOTCHDEPS)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ libscotcherr$(LIB)		:	library_error$(OBJ)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ libscotcherrexit$(LIB)		:	library_error_exit$(OBJ)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ libptscotch$(LIB)		:	$(LIBPTSCOTCHDEPS)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ libptscotcherr$(LIB)		:	library_error_pt$(OBJ)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ libptscotcherrexit$(LIB)	:	library_error_exit_pt$(OBJ)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+-- 
+2.47.3
+

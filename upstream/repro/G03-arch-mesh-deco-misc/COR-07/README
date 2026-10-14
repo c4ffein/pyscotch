@@ -1,0 +1,9 @@
+COR-07 (meshXD half) -- meshXD/torusXD accept a dimension count < 1; 'meshXD 0' reads c[-1].
+Build: $WORK/build is the ASan+UBSan 7.0.17 tree. export LD_LIBRARY_PATH=$WORK/build/lib
+PRISTINE (fails):
+  $WORK/build/bin/gmap m4x4.grf meshx0.tgt /dev/null
+    -> AddressSanitizer: heap-buffer-overflow READ in _SCOTCHarchMeshXDomNum arch_mesh.c:843
+  same for meshxm1.tgt ('meshXD -1') and torusx0.tgt ('torusXD 0').
+PATCHED (rejected cleanly):
+  gmap ... meshx0.tgt -> "archMeshXArchLoad: bad input (1)"
+Fixed by patch 0002 (arch_mesh.c: reject dimnnbr < 1). The tleaf half of COR-07 belongs to group G02.

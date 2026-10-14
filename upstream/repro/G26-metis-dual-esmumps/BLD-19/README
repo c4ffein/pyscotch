@@ -1,0 +1,5 @@
+BLD-19: ESMUMPS_HAS_ESMUMPSV is defined nowhere (grep over the whole tree: only test_libesmumps.c:181,196),
+so esmumpsv() was never tested. Patch 0007 removes the guard. Verification: check_libesmumps on the
+32-bit and 64-bit ASan trees (data/bump.grf has no weights; data/bump_imbal_32.grf exercises esmumpsv()),
+and `make escheck` at the top level; see $WORK/build.check_esmumps.log, build64.check_esmumps.log,
+build.escheck.log, build64.escheck.log.

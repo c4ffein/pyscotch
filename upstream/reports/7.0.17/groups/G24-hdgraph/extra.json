@@ -1,0 +1,190 @@
+[
+ {
+  "local_id": "PS2-G24-1",
+  "our_title": "Local failures before the first collective of SCOTCH_dgraphOrderComputeList hang the other processes",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "scans/basefi_np3_r*.txt and scans/buildfi_np3_r*.txt (orderfi, np 3, default strategy, mode user): every allocation #1-#56 of any rank (contextThreadInit2/threadContextInit of CONTEXTINIT, yyalloc/yyrealloc/yyparse of the default strategy build SCOTCH_stratDgraphOrderBuild) -> the failing rank prints e.g. \"(0): ERROR: stratParserParse: out of memory (5)\" / \"SCOTCH_stratDgraphOrder: error in ordering strategy\", returns 1, and the other ranks never return (HANG, 15 s timeout) on both trees. Also read: the memAlloc of vnumloctab at library_dgraph_order.c:294-297 (\"goto fail\" while the other processes enter dorderNew/MPI_Scan).",
+  "read_only": "library_dgraph_order.c:190-213 (CONTEXTINIT, strategy build), :294-297 (vnumloctab)",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/library_dgraph_order.c:190-193, :210-213, :294-297 (and the same pattern in the other PT-Scotch API routines that build a default strategy or allocate before their first collective, e.g. library_dgraph_map.c:173-186)",
+  "evidence": "library_dgraph_order.c:210-213: \"if (*((Strat **) straptr) == NULL) {            /* Set default ordering strategy if necessary */\\n    if (SCOTCH_stratDgraphOrderBuild (straptr, SCOTCH_STRATQUALITY, srcgrafptr->procglbnbr, 0, 0.2))\\n      goto fail;\\n  }\"",
+  "related_ids": [
+   "DMO-06",
+   "PS2-G18-3",
+   "PS-DGR-4"
+  ],
+  "fix_options": [
+   {
+    "label": "A: agree on the local status once before the first collective of the API routine",
+    "summary": "cheklocval after the context/strategy/allocation steps, MPI_Allreduce MAX on srcgrafptr->proccomm before dorderFrst (which is collective), return 1 everywhere on failure.",
+    "diff_file": "",
+    "tested": "untested: design only; library_dgraph_order.c is outside this group (G23/API groups)",
+    "tradeoffs": "one small collective per API call",
+    "preferred": true,
+    "maintainer_fit": "same policy as the unconditional agreements of this series"
+   },
+   {
+    "label": "B: document that API-level allocation failures are fatal for the job",
+    "summary": "no code change",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "hang stays",
+    "preferred": false,
+    "maintainer_fit": "not his direction in 7.0.17"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G24-2",
+  "our_title": "dgmap cannot read a centralized target architecture file with more than one process",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "LD_LIBRARY_PATH=$WORK/build/lib mpirun --oversubscribe -np 2 $WORK/build/bin/dgmap $WORK/scotch/src/check/data/m16x16.grf $INFRA/asan/tgt/h3.tgt /dev/null -> \"dgmap(1): ERROR: main: target architecture file not provided\" (rank 1), job aborted; the same with a cmplt target file ($C/sub.tgt or any file); np 1 works (and then fails in kdgraphMapRbMap for non-complete targets, DMO-17). dgpart (no target file) works at any np.",
+  "read_only": "src/scotch/dgmap.c:361-379 and src/libscotch/common_file.c fileBlockOpenDist (centralized streams are removed on non-root processes, then dgmap requires C_filepntrtgtinp on every process)",
+  "why_not_run": "",
+  "location_7_0_17": "src/scotch/dgmap.c:376-379; src/check/Makefile (no check_prog_dgmap target, only check_prog_dgpart)",
+  "evidence": "dgmap.c:377-378: \"if (C_filepntrtgtinp == NULL)\\n      errorPrint (\\\"main: target architecture file not provided\\\");\"; common_file.c fileBlockOpenDist: \"if (proclocnum != protglbnum) {             /* If not root process   */\\n        filetab[i].nameptr = NULL;                /* Remove stream         */\\n        filetab[i].fileptr = NULL;\"",
+  "related_ids": [
+   "DMO-17",
+   "CLI-01"
+  ],
+  "fix_options": [
+   {
+    "label": "A: load the target architecture on the root and broadcast it (SCOTCH_archLoad on root, serialize/broadcast), or let every process open the target file (mark the target stream as not centralized)",
+    "summary": "the simplest correct behaviour for a small text file is to open it on every process: in dgmap.c, open the target file independently of fileBlockOpenDist (every process has the file name) and load it everywhere.",
+    "diff_file": "",
+    "tested": "untested: tools group file (G27/G28)",
+    "tradeoffs": "every process reads the file (small)",
+    "preferred": true,
+    "maintainer_fit": "dgord opens its centralized output only on the root the same way; the maintainer should decide the intended semantics"
+   },
+   {
+    "label": "B: add check_prog_dgmap to src/check/Makefile and CMakeLists.txt so that the tool is exercised",
+    "summary": "a dgmap run on a cmplt target file at np 3",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "none",
+    "preferred": false,
+    "maintainer_fit": "the test would fail today"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G24-3",
+  "our_title": "dorderSave waits forever on an incomplete distributed ordering",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "With this series, after an agreed failure of SCOTCH_dgraphOrderCompute() (rc=1 on every rank): $C/one.sh $WORK/buildfi/lib $C/bin_buildfi/orderfi 3 0 76 all -> SCOTCH_dgraphOrderPerm() rc=0 on every rank (identity permutation: the ordering holds no leaf), then SCOTCH_dgraphOrderSave() never returns (HANG): the root broadcasts the index of the missing fragment and waits in MPI_Recv for a process that does not exist. Reachable only when a user ignores the failure status (the review's DMO-06 scenario).",
+  "read_only": "src/libscotch/dorder_io.c dorderSave: the fragment search loop \"for (vertnum = 0; vertnum < ordeptr->vnodglbnbr; )\" has no termination when no process holds the fragment; dorderPerm, by contrast, first reduces the fragment sizes and returns \"invalid parameters (2)\" when they do not sum to vertglbnbr (dorder_perm.c:115-119)",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/dorder_io.c:154-186 (dorderSave fragment collection loop)",
+  "evidence": "dorder_io.c: \"if (linkptr == &ordeptr->linkdat) {         /* If fragment not found locally */ ... MPI_Bcast (&vertnum, ...) ... MPI_Recv (peritab + vertnum, ordeptr->vnodglbnbr - vertnum, GNUM_MPI, MPI_ANY_SOURCE, DORDERTAGPERI, ...)\"",
+  "related_ids": [
+   "DMO-06"
+  ],
+  "fix_options": [
+   {
+    "label": "A: reduce the fragment sizes first, as dorderPerm does, and fail collectively when they do not cover vnodglbnbr",
+    "summary": "MPI_Allreduce SUM of the local leaf vnodlocnbr before the collection loop; errorPrint \"dorderSave: incomplete ordering\"; return 1 on every process.",
+    "diff_file": "",
+    "tested": "untested: dorder_io.c is G23's file",
+    "tradeoffs": "one Allreduce per save",
+    "preferred": true,
+    "maintainer_fit": "dorderPerm already has exactly this check (dorder_perm.c:115-119)"
+   },
+   {
+    "label": "B: leave as is (an ordering whose computation failed must not be saved)",
+    "summary": "documentation",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "hang on misuse",
+    "preferred": false,
+    "maintainer_fit": "the symmetric routine dorderPerm checks, so should dorderSave"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G24-4",
+  "our_title": "Remaining release-build hangs on the parallel ordering path outside this group: vdgraphGatherAll and dgraphHaloSync2",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "scans/buildfi_np3_r{0,1,2}.txt (this series applied): every injected allocation failure that still hangs the job (15 s timeout, mode user) on the default ordering path and is not the API-level case of PS2-G24-1: rank 0 #66, #67, #104, #105 \"_SCOTCHvdgraphGatherAll\" (vdgraph_gather_all.c), #74, #80, #92, #112, #118, #127 = dgraphHaloSync2 (dgraph_halo.c:221, resolved with addr2line from $C/filog3_m16_np3.txt offsets); same indices on rank 1; rank 2 #66, #67, #74, #80, #88. All other failing points of the path return 1 on every rank.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/vdgraph_gather_all.c (allocation of the gathered separator graph: local failure without agreement); src/libscotch/dgraph_halo.c:221 (dgraphHaloSync2 request/buffer allocation, local return)",
+  "evidence": "observed hangs listed above; G18 already noted the dgraphHaloSync2 case (\"Redist fault injection still hangs at one point inside dgraphHaloSync2\")",
+  "related_ids": [
+   "PS-DGR-4",
+   "DMO-02",
+   "DMO-05"
+  ],
+  "fix_options": [
+   {
+    "label": "A: agree on the allocation status before the collective in each routine (G23 vdgraph files; dgraph_halo.c)",
+    "summary": "cheklocval/chekglbval idiom",
+    "diff_file": "",
+    "tested": "untested: other groups' files",
+    "tradeoffs": "one collective each",
+    "preferred": true,
+    "maintainer_fit": "same policy as the series"
+   },
+   {
+    "label": "B: leave",
+    "summary": "",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "hangs stay",
+    "preferred": false,
+    "maintainer_fit": "no"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G24-5",
+  "our_title": "Leaf failures of parallel recursive bipartitioning were not agreed upon: other processes hung in dmapTerm",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Deterministic per-routine injection ($C/onef.sh, FI_FUNC), mapfi cmplt:5, np 3, m16x16.grf: base-combined: kgraphInit#0/#1 on rank 0, kgraphInit#0 on rank 2, kdgraphMapRbAdd2#0/#1 on rank 0 -> \"(0): ERROR: kgraphInit: out of memory\" / \"kdgraphMapRbPartSequ: cannot initialize centralized graph\" (or \"kdgraphMapRbAdd2: out of memory (1)\"), the failing rank returns 1, HANG (the others wait in dmapTerm). Patched (patches/0008): rc=1 on every rank, 0 live blocks on every rank ($C/targeted_map2.txt). Same with the MPI_Init_thread drivers ($C/reverify_thread.txt).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/kdgraph_map_rb_part.c:445 (kdgraphMapRbPart returns kdgraphMapRbPart2 without agreement); leaves run kdgraphMapRbPartSequ on single processes and kdgraphMapRbAddPart/AddBoth/AddOne locally",
+  "evidence": "kdgraph_map_rb_part.c:445: \"return (kdgraphMapRbPart2 (&grafdat, &datadat)); /* Perform DRB */\"; library_dgraph_map.c:190-193: \"if (((o = kdgraphMapSt (&mapgrafdat, &mapmappdat, mapstraptr)) == 0) && /* Perform mapping */\n      (srcmappptr->termloctab != NULL))\n    o = dmapTerm (&srcmappptr->m, &mapgrafdat.s, srcmappptr->termloctab);\" (dmapTerm is collective and skipped by the failing process)",
+  "related_ids": [
+   "DMO-16",
+   "PS2-G18-3"
+  ],
+  "fix_options": [
+   {
+    "label": "A: agree on the status at the end of kdgraphMapRbPart (recommended, committed)",
+    "summary": "MPI_Allreduce MAX of the local status on grafptr->s.proccomm, as hdgraphOrderNd now does.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0008-Bugfix-agree-on-the-status-of-parallel-recursive-bip.patch",
+    "tested": "injections kgraphInit#0/#1, kdgraphMapRbAdd2#0/#1 (ranks 0 and 2) base HANG -> patched rc=1 on every rank; check_prog_dgpart np 1-4 and ptcheck",
+    "tradeoffs": "one Allreduce per parallel mapping",
+    "preferred": true,
+    "maintainer_fit": "same design as patches/0002 for ordering"
+   },
+   {
+    "label": "B: agree in SCOTCH_dgraphMapCompute before dmapTerm",
+    "summary": "Allreduce of o in the API routine",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "library_dgraph_map.c is outside this group; fixes the API symptom only",
+    "preferred": false,
+    "maintainer_fit": "producer-side fix preferred"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0008-Bugfix-agree-on-the-status-of-parallel-recursive-bip.patch"
+  ]
+ }
+]

@@ -1,0 +1,128 @@
+From 8efc51ac4a2cf6052f28c6749d1488903362bbdf Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:16:15 +0000
+Subject: [PATCH 5/9] Bugfix: check validity of terminal domain numbers when
+ building domains from part arrays [report R. Perry]
+
+`mapBuild3()` and `kgraphMapRbVfloMerge()` did not check the return
+value of `archDomTerm()`: an invalid terminal domain number in an old
+mapping or in a fixed vertex part array left an uninitialized domain in
+the domain array, which was later used by cost computations, and the
+mapping routine returned success. Fail with an error, as
+`kgraphMapRbBgraph()` already does.
+
+While at it, route all error paths of `kgraphMapRbVfloMerge()` through
+a single exit point, so that the hash table is freed on error too.
+
+Refs: GRA-23
+---
+ src/libscotch/kgraph_map_rb.c | 22 +++++++++++++++-------
+ src/libscotch/mapping.c       |  9 ++++++---
+ 2 files changed, 21 insertions(+), 10 deletions(-)
+
+diff --git a/src/libscotch/kgraph_map_rb.c b/src/libscotch/kgraph_map_rb.c
+index 15f4356..f69106b 100644
+--- a/src/libscotch/kgraph_map_rb.c
++++ b/src/libscotch/kgraph_map_rb.c
+@@ -402,6 +402,7 @@ const Anum * restrict const pfixtax)              /*+ Array of fixed vertex term
+   Gnum                            hashsiz;        /* Size of hash table                      */
+   Gnum                            hashnum;
+   Gnum                            hashmsk;        /* Mask for access to hash table           */
++  int                             o;
+ 
+   const Arch * restrict const archptr = mappptr->archptr;
+   Anum * restrict const       parttax = mappptr->parttax;
+@@ -425,6 +426,7 @@ const Anum * restrict const pfixtax)              /*+ Array of fixed vertex term
+   }
+   memSet (hashtab, ~0, hashsiz * sizeof (KgraphMapRbVfloHash)); /* Set all vertex numbers to ~0 */
+ 
++  o = 1;                                          /* Assume loop will fail */
+   for (domnnum = 0; domnnum < mappptr->domnnbr; domnnum ++) { /* Load all existing domains into hash table */
+     Anum                termnum;
+ 
+@@ -448,7 +450,7 @@ const Anum * restrict const pfixtax)              /*+ Array of fixed vertex term
+ #ifdef SCOTCH_DEBUG_KGRAPH2
+       if (mappptr->parttax[vertnum] < 0) {        /* If vertex has not been mapped */
+         errorPrint ("kgraphMapRbVfloMerge: internal error (1)");
+-        return (1);
++        goto fail;
+       }
+ #endif /* SCOTCH_DEBUG_KGRAPH2 */
+       continue;                                   /* Skip to next vertex */
+@@ -457,7 +459,7 @@ const Anum * restrict const pfixtax)              /*+ Array of fixed vertex term
+ #ifdef SCOTCH_DEBUG_KGRAPH2
+     if (mappptr->parttax[vertnum] >= 0) {         /* If fixed vertex has been mapped */
+       errorPrint ("kgraphMapRbVfloMerge: internal error (2)");
+-      return (1);
++      goto fail;
+     }
+ #endif /* SCOTCH_DEBUG_KGRAPH2 */
+ 
+@@ -468,10 +470,13 @@ const Anum * restrict const pfixtax)              /*+ Array of fixed vertex term
+         if (domnnum >= mappptr->domnmax) {
+           if (mapResize (mappptr, mappptr->domnmax + (mappptr->domnmax >> 2) + 8) != 0) { /* Increase size by 25% */
+             errorPrint ("kgraphMapRbVfloMerge: out of memory (2)");
+-            return (1);
++            goto fail;
+           }
+         }
+-        archDomTerm (archptr, &mappptr->domntab[domnnum], pfixval); /* Add new domain to domain array */
++        if (archDomTerm (archptr, &mappptr->domntab[domnnum], pfixval) != 0) { /* Add new domain to domain array */
++          errorPrint ("kgraphMapRbVfloMerge: invalid fixed part array");
++          goto fail;
++        }
+ 
+         hashtab[hashnum].termnum = pfixval;       /* Create slot */
+         hashtab[hashnum].domnnum = domnnum;
+@@ -481,11 +486,14 @@ const Anum * restrict const pfixtax)              /*+ Array of fixed vertex term
+     }
+     parttax[vertnum] = hashtab[hashnum].domnnum;  /* Assign fixed vertex to existing domain */
+   }
+-  mappptr->domnnbr = domnnum;
++  o = 0;                                          /* Success */
++
++fail:
++  mappptr->domnnbr = domnnum;                     /* Set updated number of domains */
+ 
+-  memFree (hashtab);
++  memFree (hashtab);                              /* Free hash table */
+ 
+-  return (0);
++  return (o);
+ }
+ 
+ /*****************************************/
+diff --git a/src/libscotch/mapping.c b/src/libscotch/mapping.c
+index c6cefba..306a681 100644
+--- a/src/libscotch/mapping.c
++++ b/src/libscotch/mapping.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007-2009,2011,2012,2014,2018,2021,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007-2009,2011,2012,2014,2018,2021,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -67,7 +67,7 @@
+ /**                # Version 6.0  : from : 04 mar 2011     **/
+ /**                                 to   : 26 fev 2018     **/
+ /**                # Version 7.0  : from : 15 jul 2021     **/
+-/**                                 to   : 19 jul 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -386,7 +386,10 @@ const Anum * restrict const   termtax)            /*+ Terminal array to load +*/
+             goto fail;
+           domntab = mappptr->domntab;             /* Re-read pointer in case it changed */
+         }
+-        archDomTerm (archptr, &domntab[domnnbr], termnum); /* Create slot with terminal number domain */
++        if (archDomTerm (archptr, &domntab[domnnbr], termnum) != 0) { /* Create slot with terminal number domain */
++          errorPrint ("mapBuild3: invalid terminal array");
++          goto fail;
++        }
+         domnnum = domnnbr ++;                     /* Get position of new slot; one more slot created  */
+         break;
+       }
+-- 
+2.47.3
+

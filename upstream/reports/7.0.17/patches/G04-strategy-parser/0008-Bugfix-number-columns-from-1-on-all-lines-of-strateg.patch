@@ -1,0 +1,31 @@
+From b927668e41fe2315f8dcf10288a04f885c41c6b3 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:31:13 +0000
+Subject: [PATCH 08/10] Bugfix: number columns from 1 on all lines of strategy
+ strings [report PyScotch]
+
+The column counter was reset to 0 after a newline, while it starts at
+1 on the first line, so that error messages reported 0-based columns
+on all lines but the first one.
+
+Refs: PS2-G04-strategy-parser-2
+---
+ src/libscotch/parser.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/libscotch/parser.c b/src/libscotch/parser.c
+index 3e22453..aa6df72 100644
+--- a/src/libscotch/parser.c
++++ b/src/libscotch/parser.c
+@@ -649,7 +649,7 @@ const char * const          textptr)
+ 
+   for (textidx = 0; textptr[textidx] != '\0'; textidx ++) {
+     if (textptr[textidx] == '\n') {
+-      locaptr->coennum = 0;
++      locaptr->coennum = 1;
+       locaptr->liennum ++;
+     }
+     else
+-- 
+2.47.3
+

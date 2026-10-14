@@ -1,0 +1,23 @@
+--- a/src/libscotch/dgraph_redist.c
++++ b/src/libscotch/dgraph_redist.c
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 6.0  : from : 10 may 2010     **/
+ /**                                 to   : 13 sep 2012     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -351,9 +351,8 @@
+            dstveloloctax  = ((srcgrafptr->veloloctax != NULL) ? dstveloloctax - baseval : NULL),
+            dstvlblloctax -= baseval,
+            memAllocGroup ((void **) (void *)
+-                          &dstedgeloctax, (size_t) ((dstedlolocsiz +  /* TRICK: extra space required only if edge loads                                */
+-                                                     MAX (dstedgelocdlt, srcgrafptr->degrglbmax)) * sizeof (Gnum)), /* TRICK: degrmax to avoid overlap */
+-                          &dsnddattab,    (size_t) (dsnddatnbr * sizeof (Gnum)), /* TRICK: send space will be edgeloctab or edloloctab                 */
++                          &dstedgeloctax, (size_t) ((dstedgelocsiz + dstedlolocsiz) * sizeof (Gnum)), /* Full-size edge arrays: never overlap receive area */
++                          &dsnddattab,    (size_t) (dsnddatnbr * sizeof (Gnum)), /* TRICK: send space will be freed by final realloc                 */
+                           &drcvdattab,    (size_t) (drcvdatnbr * sizeof (Gnum)), NULL) == NULL) { /* TRICK: Remaining space will be freed              */
+     errorPrint ("dgraphRedist2: out of memory (3)");
+     cheklocval = 1;

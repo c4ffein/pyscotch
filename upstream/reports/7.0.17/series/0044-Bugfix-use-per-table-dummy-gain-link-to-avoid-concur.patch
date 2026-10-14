@@ -1,0 +1,265 @@
+From 84622af6f74012ab855b1fcfbf3ef55dbd38ff24 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:08:20 +0000
+Subject: [PATCH 044/240] Bugfix: use per-table dummy gain link to avoid
+ concurrent writes [report PyScotch]
+
+All gain tables shared a single, file-static dummy link, in which the
+list insertion and deletion routines write the "prev" field as a
+trick to avoid a branch. Since gain tables are now used concurrently
+by several threads, within `bgraphBipartGg()` and across split
+contexts, this resulted in a data race on the dummy link, reported by
+ThreadSanitizer. Embed the dummy link in each gain table structure,
+like the dummy root node of Fibonacci heaps.
+---
+ src/libscotch/gain.c | 62 +++++++++++++++++++++-----------------------
+ src/libscotch/gain.h |  9 ++++---
+ 2 files changed, 34 insertions(+), 37 deletions(-)
+
+diff --git a/src/libscotch/gain.c b/src/libscotch/gain.c
+index e38ed03..968bc01 100644
+--- a/src/libscotch/gain.c
++++ b/src/libscotch/gain.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2020,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2020,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -49,7 +49,7 @@
+ /**                # Version 6.0  : from : 20 aug 2020     **/
+ /**                                 to   : 26 aug 2020     **/
+ /**                # Version 7.0  : from : 18 jan 2023     **/
+-/**                                 to   : 18 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # Most of the contents of this module   **/
+ /**                  comes from "map_b_fm" of the SCOTCH   **/
+@@ -69,12 +69,6 @@
+ 
+ /* #define SCOTCH_DEBUG_GAIN3 */
+ 
+-/*
+-**  The static variables.
+-*/
+-
+-static GainLink             gainLinkDummy;        /*+ Dummy link space for fast linked list operations +*/
+-
+ /*************************************************/
+ /*                                               */
+ /* These routines deal with generic gain tables. */
+@@ -93,13 +87,14 @@ static GainLink             gainLinkDummy;        /*+ Dummy link space for fast
+ static
+ int
+ gainTablCheck2 (
++const GainTabl * const      tablptr,
+ GainEntr * const            entrptr,
+ GainLink * const            linkptr)
+ {
+   GainLink *          nextptr;
+   int                 o;
+ 
+-  if (linkptr->next == &gainLinkDummy)            /* If end of list successfully reached */
++  if (linkptr->next == &tablptr->linkdat)         /* If end of list successfully reached */
+     return (0);
+   if (linkptr->next == NULL)                      /* If loop discovered */
+     return (1);
+@@ -107,10 +102,10 @@ GainLink * const            linkptr)
+   if (linkptr->tabl != entrptr)
+     return (1);
+ 
+-  nextptr       = linkptr->next;                  /* Save pointer to next cell    */
+-  linkptr->next = NULL;                           /* Flag cell as already visited */
+-  o             = gainTablCheck2 (entrptr, nextptr); /* Process next cell         */
+-  linkptr->next = nextptr;                        /* Restore cell state           */
++  nextptr       = linkptr->next;                  /* Save pointer to next cell     */
++  linkptr->next = NULL;                           /* Flag cell as already visited  */
++  o             = gainTablCheck2 (tablptr, entrptr, nextptr); /* Process next cell */
++  linkptr->next = nextptr;                        /* Restore cell state            */
+ 
+   return (o);
+ }
+@@ -118,13 +113,14 @@ GainLink * const            linkptr)
+ static
+ int
+ gainTablCheck (
++const GainTabl * const      tablptr,
+ GainEntr * const            entrptr)
+ {
+-  if (entrptr->next == &gainLinkDummy)            /* If end of list successfully reached */
++  if (entrptr->next == &tablptr->linkdat)         /* If end of list successfully reached */
+     return (0);
+ 
+   if ((entrptr->next == NULL) ||                  /* If problem with link */
+-      (gainTablCheck2 (entrptr, entrptr->next) != 0)) {
++      (gainTablCheck2 (tablptr, entrptr, entrptr->next) != 0)) {
+     errorPrint ("gainTablCheck: bad linked list");
+     return (1);
+   }
+@@ -181,7 +177,7 @@ const INT                   subbits)
+ 
+   for (entrptr  = tablptr->tabk;                  /* Initialize gain table entries */
+        entrptr <= tablptr->tend; entrptr ++)
+-    entrptr->next = &gainLinkDummy;               /* Point to dummy link area */
++    entrptr->next = &tablptr->linkdat;            /* Point to dummy link area */
+ 
+   return (tablptr);
+ }
+@@ -212,7 +208,7 @@ GainTabl * const            tablptr)
+ 
+   for (entrptr  = tablptr->tmin;                  /* Flush only used area */
+        entrptr <= tablptr->tmax; entrptr ++)
+-    entrptr->next = &gainLinkDummy;               /* Point to dummy link area */
++    entrptr->next = &tablptr->linkdat;            /* Point to dummy link area */
+ 
+   tablptr->tmin = tablptr->tend;                  /* Entries of extremal gain */
+   tablptr->tmax = tablptr->tabk;
+@@ -299,12 +295,12 @@ const INT                   gain)                 /*+ Gain value              +*
+     tablptr->tmax = entrptr;
+ 
+ #ifdef SCOTCH_DEBUG_GAIN3
+-  if ((entrptr->next != &gainLinkDummy) &&
++  if ((entrptr->next != &tablptr->linkdat) &&
+       (entrptr->next->prev != (GainLink *) entrptr)) {
+     errorPrint ("gainTablAddLog: bad first element");
+     return;
+   }
+-  if (gainTablCheck (entrptr) != 0)
++  if (gainTablCheck (tablptr, entrptr) != 0)
+     errorPrint ("gainTablAddLog: bad chaining");
+ #endif /* SCOTCH_DEBUG_GAIN3 */
+ 
+@@ -329,12 +325,12 @@ GainLink * const            linkptr)              /*+ Pointer to link to delete
+ {
+ #ifdef SCOTCH_DEBUG_GAIN3
+   if (linkptr->tabl != NULL) {
+-    if ((linkptr->tabl->next != &gainLinkDummy) &&
++    if ((linkptr->tabl->next != &tablptr->linkdat) &&
+         (linkptr->tabl->next->prev != (GainLink *) linkptr->tabl)) {
+       errorPrint ("gainTablDel: bad first element");
+       return;
+     }
+-    if (gainTablCheck (linkptr->tabl) != 0) {
++    if (gainTablCheck (tablptr, linkptr->tabl) != 0) {
+       errorPrint ("gainTablDel: bad chaining");
+       return;
+     }
+@@ -359,9 +355,9 @@ GainTabl * const            tablptr)
+   GainEntr *          entrptr;
+ 
+   entrptr = tablptr->tmin;
+-  if (entrptr->next != &gainLinkDummy) {
++  if (entrptr->next != &tablptr->linkdat) {
+ #ifdef SCOTCH_DEBUG_GAIN3
+-    if (gainTablCheck (entrptr) != 0) {
++    if (gainTablCheck (tablptr, entrptr) != 0) {
+       errorPrint ("gainTablFrst: bad chaining (1)");
+       return     (NULL);
+     }
+@@ -370,10 +366,10 @@ GainTabl * const            tablptr)
+   }
+ 
+   for (entrptr ++; entrptr <= tablptr->tend; entrptr ++) {
+-    if (entrptr->next != &gainLinkDummy) {        /* If found non-empty slot */
++    if (entrptr->next != &tablptr->linkdat) {     /* If found non-empty slot */
+       tablptr->tmin = entrptr;                    /* Record its position     */
+ #ifdef SCOTCH_DEBUG_GAIN3
+-      if (gainTablCheck (entrptr) != 0) {
++      if (gainTablCheck (tablptr, entrptr) != 0) {
+         errorPrint ("gainTablFrst: bad chaining (2)");
+         return     (NULL);
+       }
+@@ -401,9 +397,9 @@ const GainLink * const      linkptr)
+ {
+   GainEntr *          entrptr;
+ 
+-  if (linkptr->next != &gainLinkDummy) {
++  if (linkptr->next != &tablptr->linkdat) {
+ #ifdef SCOTCH_DEBUG_GAIN3
+-    if (gainTablCheck (linkptr->tabl) != 0) {
++    if (gainTablCheck (tablptr, linkptr->tabl) != 0) {
+       errorPrint ("gainTablNext: bad chaining (1)");
+       return     (NULL);
+     }
+@@ -413,9 +409,9 @@ const GainLink * const      linkptr)
+ 
+   for (entrptr = linkptr->tabl + 1;
+        entrptr < tablptr->tend; entrptr ++) {
+-    if (entrptr->next != &gainLinkDummy) {
++    if (entrptr->next != &tablptr->linkdat) {
+ #ifdef SCOTCH_DEBUG_GAIN3
+-      if (gainTablCheck (entrptr) != 0) {
++      if (gainTablCheck (tablptr, entrptr) != 0) {
+         errorPrint ("gainTablNext: bad chaining (2)");
+         return     (NULL);
+       }
+@@ -447,24 +443,24 @@ const ptrdiff_t             addrdlt)
+     GainLink *          linkptr;
+     GainLink *          prevptr;
+ 
+-    if (entrptr->next == &gainLinkDummy)          /* If slot is empty, skip it */
++    if (entrptr->next == &tablptr->linkdat)       /* If slot is empty, skip it */
+       continue;
+ 
+     linkptr = (GainLink *) ((byte *) entrptr->next + addrdlt); /* Get skewed address of new first slot */
+     entrptr->next = linkptr;                      /* Update entry pointer to first slot                */
+ 
+-    for (prevptr = linkptr; prevptr->next != &gainLinkDummy; prevptr = linkptr) { /* For all remaining links of this table entry */
++    for (prevptr = linkptr; prevptr->next != &tablptr->linkdat; prevptr = linkptr) { /* For all remaining links of this table entry */
+       linkptr = (GainLink *) ((byte *) prevptr->next + addrdlt); /* Get new address of link from its predecessor                 */
+       prevptr->next = linkptr;                    /* Skew forward chaining of previous link                                      */
+       linkptr->prev = prevptr;                    /* Skew backward chaining of current link                                      */
+-    }     
++    }
+ 
+ #ifdef SCOTCH_DEBUG_GAIN3
+     if (entrptr->next->prev != (GainLink *) entrptr) {
+       errorPrint ("gainTablMove: bad first element");
+       return;
+     }
+-    if (gainTablCheck (entrptr) != 0)
++    if (gainTablCheck (tablptr, entrptr) != 0)
+       errorPrint ("gainTablMove: bad chaining");
+ #endif /* SCOTCH_DEBUG_GAIN3 */
+   }
+diff --git a/src/libscotch/gain.h b/src/libscotch/gain.h
+index 19556a1..ad9da32 100644
+--- a/src/libscotch/gain.h
++++ b/src/libscotch/gain.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2018,2020,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2018,2020,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -47,7 +47,7 @@
+ /**                # Version 6.0  : from : 07 jun 2018     **/
+ /**                                 to   : 20 aug 2020     **/
+ /**                # Version 7.0  : from : 18 jan 2023     **/
+-/**                                 to   : 18 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # Most of the contents of this module   **/
+ /**                  comes from "map_b_fm" of the SCOTCH   **/
+@@ -95,6 +95,7 @@ typedef struct GainTabl_ {
+   GainEntr *                tmin;                 /*+ Non-empty entry of minimum gain        +*/
+   GainEntr *                tmax;                 /*+ Non-empty entry of maximum gain        +*/
+   GainEntr *                tend;                 /*+ Last valid gain entry                  +*/
++  GainLink                  linkdat;              /*+ Dummy link for fast list operations    +*/
+   GainEntr *                tabl;                 /*+ Gain table structure is.. [SIZE - ADJ] +*/
+   GainEntr                  tabk[1];              /*+ Split in two for relative access [ADJ] +*/
+ } GainTabl;
+@@ -114,8 +115,8 @@ GainLink *                  gainTablNext        (GainTabl * const, const GainLin
+ void                        gainTablMove        (GainTabl * const, const ptrdiff_t);
+ #ifdef SCOTCH_DEBUG_GAIN3
+ #ifdef SCOTCH_GAIN
+-static int                  gainTablCheck       (GainEntr * const);
+-static int                  gainTablCheck2      (GainEntr * const, GainLink * const);
++static int                  gainTablCheck       (const GainTabl * const, GainEntr * const);
++static int                  gainTablCheck2      (const GainTabl * const, GainEntr * const, GainLink * const);
+ #endif /* SCOTCH_GAIN */
+ #endif /* SCOTCH_DEBUG_GAIN3 */
+ 
+-- 
+2.47.3
+

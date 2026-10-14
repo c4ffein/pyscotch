@@ -1,0 +1,45 @@
+Alternative (not committed): keep orderPeri(), validate after reading with a separate pass.
+--- a/src/libscotch/order_io.c
++++ b/src/libscotch/order_io.c
+@@ -82,6 +82,8 @@
+ {
+   Gnum * restrict     permtab;
+   Gnum                vertnum;
++  Gnum                vnodnbr;
++  Gnum                permval;
+ 
+   if (vlbltax != NULL) {
+     errorPrint ("orderLoad: vertex labels not yet supported");
+@@ -93,7 +95,8 @@
+     return     (1);
+   }
+ 
+-  if (intLoad (stream, &ordeptr->vnodnbr) != 1) {
++  if ((intLoad (stream, &vnodnbr) != 1) ||
++      (vnodnbr != ordeptr->vnodnbr)) {            /* Number of ordering lines must be that of vertices */
+     errorPrint ("orderLoad: bad input (1)");
+     memFree    (permtab);
+     return     (1);
+@@ -117,6 +120,24 @@
+     }
+   }
+ 
++  memSet (ordeptr->peritab, ~0, ordeptr->vnodnbr * sizeof (Gnum)); /* Use inverse permutation as flag array */
++  for (vertnum = 0; vertnum < ordeptr->vnodnbr; vertnum ++) { /* Check that values form a permutation */
++    permval = permtab[vertnum] - ordeptr->baseval;
++    if ((permval < 0) || (permval >= ordeptr->vnodnbr)) {
++      errorPrint ("orderLoad: invalid permutation value");
++      memFree    (permtab);
++      return     (1);
++    }
++    if (ordeptr->peritab[permval] != ~0) {
++      errorPrint ("orderLoad: duplicate permutation value");
++      memFree    (permtab);
++      return     (1);
++    }
++    ordeptr->peritab[permval] = 0;
++  }
++
+   orderPeri (permtab, ordeptr->baseval, ordeptr->vnodnbr, ordeptr->peritab, ordeptr->baseval); /* Compute inverse permutation */
+ 
+   memFree (permtab);

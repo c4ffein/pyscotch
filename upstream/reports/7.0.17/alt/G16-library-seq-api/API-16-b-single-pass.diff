@@ -1,0 +1,75 @@
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -269,7 +269,7 @@
+ 
+   if (libmapoptr != NULL) {
+     lmaoptr = (LibMapping *) libmapoptr;
+-    parotax = lmaoptr->parttab;
++    parotax = lmaoptr->parttab - grafptr->baseval; /* Use based array */
+   }
+   else {
+     lmaoptr = NULL;
+@@ -454,6 +454,10 @@
+   commdilat =
+   commexpan = 0;
+ 
++  migrnbr = 0;                                    /* Initialize variables unconditionally to avoid compiler warnings */
++  migrdistavg = 0;
++  migrloadavg = 0;
++  migrcostsum = 0;
+   parttax -= grafptr->baseval;
+   edloval  = 1;
+   for (vertnum = grafptr->baseval; vertnum < grafptr->vertnnd; vertnum ++) {
+@@ -461,11 +465,20 @@
+ 
+     if (parttax[vertnum] == ~0)                   /* Skip unmapped vertices */
+       continue;
++    archDomTerm (archptr, &domnorg, parttax[vertnum]); /* Get terminal domain of vertex once */
++    if ((lmaoptr != NULL) &&                      /* If remapping and vertex migrated */
++        (parotax[vertnum] != -1) &&
++        (parotax[vertnum] != parttax[vertnum])) {
++      migrnbr ++;
++      archDomTerm (archptr, &domnold, parotax[vertnum]);
++      migrdistavg += archDomDist (archptr, &domnorg, &domnold);
++      migrloadavg += (grafptr->velotax == NULL) ? 1 : grafptr->velotax[vertnum];
++      migrcostsum += emraval * ((vmlotax != NULL) ? vmlotax[vertnum] : 1);
++    }
+     for (edgenum = verttax[vertnum];
+          edgenum < vendtax[vertnum]; edgenum ++) {
+       if (parttax[edgetax[edgenum]] == ~0)
+         continue;
+-      archDomTerm (archptr, &domnorg, parttax[vertnum]); /* Get terminal domains */
+       archDomTerm (archptr, &domnend, parttax[edgetax[edgenum]]);
+       distval = archDomDist (archptr, &domnorg, &domnend);
+       if (edlotax != NULL)                        /* Get edge weight if any */
+@@ -477,27 +490,9 @@
+     }
+   }
+ 
+-  migrnbr = 0;                                    /* Initialize variables unconditionally to avoid compiler warnings */
+-  migrdistavg = 0;
+-  migrloadavg = 0;
+-  migrcostsum = 0;
+-  if (lmaoptr != NULL) {
+-    for (vertnum = grafptr->baseval; vertnum < grafptr->vertnnd; vertnum ++) {
+-      if ((parttax[vertnum] == -1) || (parotax[vertnum] == -1))
+-        continue;
+-      if (parotax[vertnum] != parttax[vertnum]) {
+-        migrnbr ++;
+-        archDomTerm (archptr, &domnorg, parotax[vertnum]); /* Get terminal domains */
+-        archDomTerm (archptr, &domnold, parotax[vertnum]);
+-        migrdistavg += archDomDist (archptr, &domnorg, &domnold);
+-        migrloadavg += (grafptr->velotax == NULL) ? 1 : grafptr->velotax[vertnum];
+-        migrcostsum += emraval * ((vmlotax != NULL) ? vmlotax[vertnum] : 1);
+-      }
+-    }
+-    if (migrnbr > 0) {
+-      migrdistavg /= migrnbr;
+-      migrloadavg /= migrnbr;
+-    }
++  if (migrnbr > 0) {
++    migrdistavg /= migrnbr;
++    migrloadavg /= migrnbr;
+   }
+ 
+   if (flagval == 0) {

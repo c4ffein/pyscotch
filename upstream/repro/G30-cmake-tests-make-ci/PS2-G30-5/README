@@ -1,0 +1,9 @@
+PS2-G30-5: test_scotch_arch_build never frees the strategy created by SCOTCH_archBuild0() in its
+SCOTCH_Strat argument, nor the built architectures: under ASan with leak detection the test fails.
+Pristine 7.0.17 (INFRA/asan libs + INFRA/v7.0.17 test source, compiled in scratch):
+  ./t ./arch3.tgt -> rc=1, "SUMMARY: AddressSanitizer: 26544 byte(s) leaked in 240 allocation(s)"
+  (allocation stacks: _SCOTCHyyparse <- _SCOTCHstratParserParse <- _SCOTCHstratInit <- SCOTCH_archBuild0
+   <- C_archBuild test_scotch_arch_build.c:206)
+Same in the combined series (make check stops there in both the 32- and 64-bit ASan trees: verify.status;
+make -k check shows it is the only failing target: verify-build-check-k.status).
+Patch 0013 (SCOTCH_stratExit + SCOTCH_archExit): make check_scotch_arch_build with leak detection ON -> rc=0.

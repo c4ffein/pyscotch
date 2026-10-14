@@ -1,0 +1,48 @@
+From f8ffb92713316f27ddd379c60f6027c436ead79e Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:08:34 +0000
+Subject: [PATCH 11/11] Bugfix: detect Open MPI when configuring CMake tests
+ [report R. Perry]
+
+The regular expression used to detect Open MPI required a space before
+and after "Open MPI", whereas the library version string begins with
+"Open MPI v...". Hence, Open MPI was never detected, the
+"--oversubscribe" flag was never added to MPIEXEC_PREFLAGS, and the
+MPI tests failed for lack of slots on hosts with fewer cores than
+requested processes.
+
+Also, `if(NOT ${found_suite} STREQUAL "")` was expanded with an empty,
+unquoted operand when nothing matched, and `string(REGEX MATCHALL)`
+failed with a fatal error when the version string was empty. Use
+plain `if(... MATCHES ...)` tests for Open MPI and for Intel MPI.
+
+Refs: BLD-06
+Refs: PS-BLD-2
+---
+ src/CMakeLists.txt | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 24acb04..d60e500 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -178,13 +178,11 @@ if(BUILD_PTSCOTCH)
+   if(NOT MPI_C_FOUND)
+     message(FATAL_ERROR "MPI required to compile PT-Scotch\n Rerun cmake with -DBUILD_PTSCOTCH=OFF")
+   else()
+-    string(REGEX MATCHALL "\( Open MPI \)+" found_suite ${MPI_C_LIBRARY_VERSION_STRING})
+-    if(NOT ${found_suite} STREQUAL "")
+-      message(STATUS "Found OpenMPI: using '--oversubscribe' policy for testing")
++    if(MPI_C_LIBRARY_VERSION_STRING MATCHES "Open MPI")
++      message(STATUS "Found Open MPI: using '--oversubscribe' policy for testing")
+       set(MPIEXEC_PREFLAGS ${MPIEXEC_PREFLAGS} --oversubscribe)
+     endif()
+-    string(REGEX MATCHALL "\(Intel\)+" found_suite ${MPI_C_LIBRARY_VERSION_STRING})
+-    if(NOT ${found_suite} STREQUAL "")
++    if(MPI_C_LIBRARY_VERSION_STRING MATCHES "Intel")
+       message(STATUS "Found Intel MPI: using '-genv=I_MPI_PIN_DOMAIN=core' for testing")
+       set(MPIEXEC_PREFLAGS ${MPIEXEC_PREFLAGS} -genv=I_MPI_PIN_DOMAIN=core)
+     endif()
+-- 
+2.47.3
+

@@ -1,0 +1,6 @@
+PS2-G30-6: test_scotch_arch_build.c includes only "scotch.h"; every other check program includes
+"../libscotch/module.h" and "../libscotch/common.h" first, which map the plain type names onto the
+suffixed ones when SCOTCH_NAME_SUFFIX is set. Found by the new CI job (BLD-14):
+  test_scotch_arch_build.c:106:3: error: unknown type name 'SCOTCH_Num'; did you mean 'SCOTCH_Num_64'?
+  (verify-cm64-build2.log). Same in pristine 7.0.17 (same includes, added in 6d0d392 for 7.0.14).
+Patch 0012. After it the suffixed CMake build completes (verify-cm64.status).

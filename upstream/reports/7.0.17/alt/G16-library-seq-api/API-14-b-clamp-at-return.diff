@@ -1,0 +1,37 @@
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -126,11 +126,11 @@
+   for (passnum = 1, rootnum = grafptr->baseval; ; passnum ++) { /* For all connected components */
+     Gnum                diamnum;                  /* Vertex which achieves diameter             */
+ 
+-    while ((rootnum < grafptr->vertnbr) &&
++    while ((rootnum < grafptr->vertnnd) &&
+            ((vexxtax[rootnum].passnum != 0) ||    /* Find first unallocated vertex */
+             (parttax[rootnum] != partval)))
+       rootnum ++;
+-    if (rootnum >= grafptr->vertnbr)              /* Exit if all of graph processed */
++    if (rootnum >= grafptr->vertnnd)              /* Exit if all of graph processed */
+       break;
+ 
+     connval = ++ distmax;                         /* Start from previous distance */
+@@ -176,7 +176,7 @@
+ 
+   memFree (queudat.qtab);                         /* Free group leader */
+ 
+-  return (distmax);
++  return ((distmax > 0) ? (distmax - 1) : 0);     /* Distances were counted from one */
+ }
+ 
+ /* This routine writes standard or raw
+@@ -538,7 +538,10 @@
+     do {
+       Gnum                diamval;
+ 
+-      diamval  = graphMapView3 (grafptr, pidxtax, mapnum);
++      if ((diamval = graphMapView3 (grafptr, pidxtax, mapnum)) < 0) { /* If could not compute part diameter */
++        memFree (domntab);                        /* Free group leader */
++        return (1);
++      }
+       diamsum += diamval;
+       if (diamval < diammin)
+         diammin = diamval;

@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scotch {{ ver }} status report</title>
+<style>{{ fonts_css | safe }}</style>
+<style>{{ css | safe }}</style>
+<style>@page { @bottom-left { content: "PyScotch · Scotch {{ ver }} status report"; } }</style>
+</head>
+<body><div class="wrap">
+
+{% macro status(s) -%}
+<span class="badge {{ {'fixed':'s-fixed','partially-fixed':'s-partial','still-present':'s-present','not-a-bug':'s-nobug','inconclusive':'s-open'}.get(s, 's-open') }}"><i></i>{{ labels.get(s, s) }}</span>
+{%- endmacro %}
+{% macro idlink(i) -%}<a href="#{{ i }}"><code>{{ i }}</code></a>{%- endmacro %}
+{% macro method(m) -%}
+<span class="badge {{ 'm-part' if m == 'partly-run' else ('m-read' if m == 'source-read' else 'm-run') }}">{{ 'source read only' if m == 'source-read' else ('partly ran' if m == 'partly-run' else 'ran it') }}</span>
+{%- endmacro %}
+{% macro patchblock(f) -%}
+{% if f.patch_files %}
+<div class="patch"><b>Recommended patch{{ 'es' if f.patch_files|length > 1 }}</b> — ready to <code>git am</code> on v{{ ver }}: {% for p in f.patch_files %}<a href="{{ p }}"><code>{{ p.split('/')[-1] }}</code></a>{{ ', ' if not loop.last }}{% endfor %}
+  {% if f.cleanup_done and f.cleanup_done|lower != 'none needed' %}<div class="small">Also removed in the same commit: {{ f.cleanup_done }}</div>{% endif %}
+  {% if f.test_added %}<div class="small">Test: {{ f.test_added }}</div>{% endif %}
+  {% if f.docs_updated %}<div class="small">Documentation: {{ f.docs_updated }}</div>{% endif %}
+  {% for p in f.patch_files %}<details><summary>{{ p.split('/')[-1] }}</summary><pre>{{ read_patch(p) }}</pre></details>{% endfor %}
+</div>
+{% endif %}
+{%- endmacro %}
+{% macro options(f) -%}
+{% if f.fix_options %}
+<h4>Fix options ({{ f.fix_options|length }})</h4>
+{% for o in f.fix_options | sort(attribute='preferred', reverse=true) %}
+  <div class="opt {{ 'pref' if o.preferred }}"><b>{{ 'Recommended · ' if o.preferred }}{{ o.label }}</b> — {{ o.summary }}
+    {% if o.maintainer_fit %}<div class="small">Why{{ '' if o.preferred else ' not' }} this one: {{ o.maintainer_fit }}</div>{% endif %}
+    {% if o.tested %}<div class="small muted">Tested: {{ o.tested }}</div>{% endif %}
+    {% if o.tradeoffs %}<div class="small muted">Trade-offs: {{ o.tradeoffs }}</div>{% endif %}
+    {% if o.diff_file and not o.preferred %}<details><summary>diff · {{ o.diff_file.split('/')[-1] }}</summary><pre>{{ read_patch(o.diff_file) }}</pre></details>{% elif o.patch_sketch %}<details><summary>patch sketch</summary><pre>{{ o.patch_sketch }}</pre></details>{% endif %}</div>
+{% endfor %}
+{% endif %}
+{%- endmacro %}
+
+<section class="cover">
+  <div class="eyebrow">PyScotch · independent QA for Scotch</div>
+  <h1>Scotch {{ ver }} — where the {{ prev.version }} findings stand</h1>
+  <p class="muted">Generated {{ generated }} · {{ total }} leads from an external review of {{ prev.version }} (commit <code>{{ prev.commit }}</code>), each re-checked against {{ ver }}{% if new|length %}, plus {{ new|length }} defects found while checking{% endif %}.</p>
+  <p class="small">Every finding below links from the index; patch sketches open with a click (the PDF prints them open).</p>
+  <div class="credit">
+    <b>Credit.</b> The leads come from <b>{{ review.author }}</b>’s review of Scotch {{ prev.version }} ({{ review.date }}). We cite its identifiers
+    (<code>COR-01</code> …) and re-state every defect in our own words; we do not reproduce the review. Everything below the identifier —
+    status in {{ ver }}, evidence, reproducers, fix options — is PyScotch’s own verification{% if verifier %} ({{ verifier }}){% endif %}.
+    Items marked <i>PS-…</i> were not in the review.
+  </div>
+  <div class="tiles">
+    <div class="tile"><b>{{ counts.total }}</b><span>leads re-checked</span></div>
+    <div class="tile"><b style="color:var(--st-fixed)">{{ counts.fixed }}</b><span>fixed in {{ ver }}</span></div>
+    <div class="tile"><b>{{ counts.partial }}</b><span>partially fixed</span></div>
+    <div class="tile"><b style="color:var(--st-present)">{{ counts.present }}</b><span>still present</span></div>
+    <div class="tile"><b>{{ counts.nobug }}</b><span>not a bug</span></div>
+  </div>
+  {% if audited %}<p class="small muted">{{ patched }} of the open leads{% if patched_new %} and {{ patched_new }} of our own findings{% endif %} come with a patch written to be applied as is (<code>git am</code> on v{{ ver }}): one commit per defect, twins fixed in the same series, whatever the fix makes unused removed, a regression test where <code>src/check</code> has a natural home, header dates bumped, built warning-free with 32-bit and 64-bit integers and run through the relevant <code>check_*</code> targets. The <a href="#series">patch series</a> lists them in apply order.</p>{% endif %}
+  <p class="small muted">Of the {{ counts.total }}: {{ vcount.run }} were checked by running something against {{ ver }} (a reproducer, a sanitizer build, fault injection); {{ vcount.read }} were settled by reading the {{ ver }} source only. “Ran it” does not mean the rest was unread: every finding was read in the source, and where part of a claim could only be read (an error path, a platform), the evidence says so.
+  “Still present” means present in {{ ver }}; it is not a claim about exploitability.</p>
+</section>
+
+<h2>Status by area</h2>
+<div class="legend">
+  <span>{{ status('fixed') }}</span><span>{{ status('partially-fixed') }}</span><span>{{ status('still-present') }}</span><span>{{ status('not-a-bug') }}</span>
+</div>
+<div class="bars" role="img" aria-label="Status of findings per area; the table below has the same numbers">
+{% for a in areas %}
+  <div><a href="#area-{{ a.prefix }}">{{ a.name }}</a></div>
+  <div class="bar">
+    {% for key, cls, lab in (('fixed','f','fixed'),('partial','p','partially fixed'),('present','x','still present'),('nobug','b','not a bug'),('open','o','inconclusive')) %}{% if a[key] %}<div class="{{ cls }}" style="flex:{{ a[key] }}" title="{{ a.name }}: {{ a[key] }} {{ lab }}"></div>{% endif %}{% endfor %}
+  </div>
+  <div class="small muted" style="text-align:right">{{ a.total }}</div>
+{% endfor %}
+</div>
+<table>
+  <tr><th>Area</th><th class="n">fixed</th><th class="n">partial</th><th class="n">present</th><th class="n">not a bug</th><th class="n">ran it</th><th class="n">read only</th><th class="n">total</th></tr>
+  {% for a in areas %}<tr><td><a href="#area-{{ a.prefix }}">{{ a.name }}</a></td><td class="n">{{ a.fixed }}</td><td class="n">{{ a.partial }}</td><td class="n">{{ a.present }}</td><td class="n">{{ a.nobug }}</td><td class="n">{{ a.run }}</td><td class="n">{{ a.read }}</td><td class="n"><b>{{ a.total }}</b></td></tr>{% endfor %}
+</table>
+
+
+<h2 id="index" class="break">Index of all findings</h2>
+<p class="muted small">One row per finding, grouped by area, high severity first; click an identifier for its details. “Review severity” is the original rating.</p>
+{% for a in areas %}
+<h3>{{ a.name }}</h3>
+<table class="index">
+  <tr><th>ID</th><th>What</th><th>Severity</th><th>Status in {{ ver }}</th><th>Verified</th><th>Patch</th></tr>
+  {% for f in a.findings %}<tr><td>{{ idlink(f.id) }}</td><td>{% if f.our_title %}{{ f.our_title }}{% else %}<span class="pending">title pending</span>{% endif %}</td><td>{{ f.claimed_severity }}{% if f.severity and f.severity != f.claimed_severity %} <span class="muted">(ours: {{ f.severity }})</span>{% endif %}</td><td>{{ status(f.status) }}</td><td>{{ method(f.method) }}</td><td>{{ 'yes' if f.patch_files else '' }}</td></tr>
+  {% endfor %}
+</table>
+{% endfor %}
+{% if new %}
+<h3>Found while verifying (not in the review)</h3>
+<table class="index">
+  <tr><th>ID</th><th>What</th><th>Severity (ours)</th><th>Status in {{ ver }}</th><th>Verified</th></tr>
+  {% for f in new %}<tr><td>{{ idlink(f.local_id) }}</td><td>{{ f.our_title }}</td><td>{{ f.severity }}</td><td>{{ status(f.status) }}</td><td>{{ method(f.method) }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% if highlights %}
+<h2>Our own items</h2>
+<ul>{% for h in highlights %}<li>{{ h }}</li>{% endfor %}</ul>
+{% endif %}
+
+<h2>What changed in {{ ver }}</h2>
+<p class="muted small">Findings whose status moved since {{ prev.version }}.</p>
+<table>
+  <tr><th>ID</th><th>Status</th><th>What</th><th>Upstream change</th></tr>
+  {% for f in changed %}<tr><td>{{ idlink(f.id) }}</td><td>{{ status(f.status) }}</td><td>{{ f.our_title or '—' }}</td><td class="small">{{ f.upstream_change or '—' }}</td></tr>{% endfor %}
+</table>
+
+<h2>Fix first</h2>
+<p class="muted small">Still-present or partially-fixed items the review rated high, those we ran first.</p>
+<table>
+  <tr><th>ID</th><th>What</th><th>Where ({{ ver }})</th><th>Verified</th></tr>
+  {% for f in fixfirst %}<tr><td>{{ idlink(f.id) }}</td><td>{{ f.our_title or '—' }}</td><td class="small"><code>{{ (f.location or '')[:80] }}</code></td><td>{{ method(f.method) }}</td></tr>{% endfor %}
+</table>
+
+{% if new %}
+<h2 class="break">Found while verifying (not in the review)</h2>
+<p class="muted small">Defects we observed in {{ ver }} that the review did not list. Severity is our own judgement.</p>
+{% for f in new %}
+<div class="f-card" id="{{ f.local_id }}">
+  <div class="f-head"><span class="f-id">{{ f.local_id }}</span><span class="f-title">{{ f.our_title }}</span>{{ status(f.status) }}{{ method(f.method) }}</div>
+  <div class="f-meta">severity (ours): {{ f.severity }} · <code>{{ f.location_7_0_17 }}</code>{% if f.related_review_ids %} · related to {% for r in f.related_review_ids %}{{ idlink(r) }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}</div>
+  <h4>Evidence</h4><pre>{{ f.evidence }}</pre>
+  {{ patchblock(f) }}
+  {{ options(f) }}
+</div>
+{% endfor %}
+{% endif %}
+
+<h2 class="break">All findings</h2>
+<p class="muted small">Grouped by area, high severity first. Severity is the review’s rating. “Where” is the {{ ver }} location; line numbers differ from {{ prev.version }}.</p>
+{% for a in areas %}
+<h3 id="area-{{ a.prefix }}">{{ a.name }} <span class="muted small">· {{ a.total }}</span></h3>
+{% for f in a.findings %}
+<div class="f-card" id="{{ f.id }}">
+  <div class="f-head"><span class="f-id">{{ f.id }}</span>
+    <span class="f-title">{% if f.our_title %}{{ f.our_title }}{% else %}<span class="pending">title pending</span>{% endif %}</span>
+    {{ status(f.status) }}{{ method(f.method) }}</div>
+  <div class="f-meta">review severity: {{ f.claimed_severity }}{% if f.severity %} · ours: <span class="sev-ours">{{ f.severity }}</span>{% if f.severity_note %} ({{ f.severity_note }}){% endif %}{% endif %} · history: reported in {{ prev.version }}, {{ labels.get(f.status, f.status) }} in {{ ver }} · <code>{{ f.location or '—' }}</code></div>
+  {% if f.needs %}<div class="f-meta"><b>Not run:</b> {{ needs_labels.get(f.needs, f.needs) }}{% if f.needs_note %} — {{ f.needs_note }}{% endif %}</div>{% endif %}
+  {% if f.upstream_change %}<h4>Upstream change</h4><p class="small">{{ f.upstream_change }}</p>{% endif %}
+  <h4>Evidence</h4><pre>{{ f.evidence }}</pre>
+  {% if f.ran %}<h4>What we ran</h4><pre>{{ f.ran }}</pre>{% endif %}
+  {% if f.read_only %}<div class="f-meta"><b>Only read:</b> {{ f.read_only }}</div>{% endif %}
+  {% if f.extra_instances %}<h4>Same defect elsewhere</h4><ul class="small">{% for x in f.extra_instances %}<li><code>{{ x.location }}</code> — {{ x.quote }}{% if x.covered_by_patch is defined %} ({{ 'covered by the patch' if x.covered_by_patch else 'not covered' }}){% endif %}</li>{% endfor %}</ul>{% endif %}
+  {% if f.review_accuracy and f.review_accuracy.strip().lower() != 'accurate' %}<h4>Compared with the review’s description</h4><p class="small">{{ f.review_accuracy }}</p>{% endif %}
+  {{ patchblock(f) }}
+  {{ options(f) }}
+  {% if f.notes %}<h4>Notes</h4><p class="small">{{ f.notes }}</p>{% endif %}
+  {% if internal and f.first_pass_critique %}<div class="internal"><b>Internal · first pass compared:</b> {{ f.first_pass_critique }}{% if f.first_pass %} (first pass said {{ f.first_pass.status }} / {{ f.first_pass.method }}{% if f.first_pass.preferred_fix %}, preferred “{{ f.first_pass.preferred_fix }}”{% endif %}){% endif %}</div>{% endif %}
+</div>
+{% endfor %}
+{% endfor %}
+
+{% if series %}
+<h2 id="series" class="break">Patch series</h2>
+<p class="muted small">{{ distinct }} distinct commits, grouped by the source files they touch.{% if combined.count %} They are also delivered as one series of {{ combined.count }} patches in <a href="{{ combined.dir }}/"><code>{{ combined.dir }}/</code></a>, numbered in the order below, which applies on v{{ ver }} with a plain <code>git am</code>{% if not combined.plain_apply %} (<b>verification failed</b>){% endif %}.{% endif %}{% if combined.conflicts %} <b>{{ combined.conflicts|length }} patch(es) do not apply after the earlier groups and need a rebase.</b>{% endif %} Credits in the subjects follow the review’s identifiers and can be changed before sending.</p>
+<table class="series">
+  <tr><th>Group</th><th>Patch</th><th>Subject</th><th>Findings</th></tr>
+  {% for s in series %}<tr{% if s.duplicate_of %} class="muted"{% endif %}><td class="small">{{ s.group }}</td><td><a href="{{ s.file }}"><code>{{ s.file.split('/')[-1] }}</code></a>{% if s.combined_file %} <a href="{{ s.combined_file }}" class="small">#{{ s.combined_file.split('/')[-1][:4] }}</a>{% endif %}</td><td>{{ s.subject }}{% if s.duplicate_of %} <span class="small">(same fix as <code>{{ s.duplicate_of.split('/')[-2] }}/{{ s.duplicate_of.split('/')[-1][:4] }}</code>, not repeated in the series)</span>{% endif %}</td><td>{% for i in s.ids %}{{ idlink(i) }}{{ ' ' if not loop.last }}{% endfor %}</td></tr>{% endfor %}
+</table>
+{% endif %}
+
+<p class="small muted" style="margin-top:2rem">Method. Each lead was re-checked against an unmodified Scotch {{ ver }} tree; where possible we ran a reproducer against an AddressSanitizer/UBSan build (sequential and PT-Scotch), otherwise we read the {{ ver }} source and say so. {% if audited %}Every open finding was then re-audited by a second, independent pass working per source file: it re-ran or re-read each lead, hunted for the same pattern elsewhere in the tree, wrote at least two real diffs, and turned the recommended one into a commit built and tested as described on the cover.{% else %}A “fix option” is a sketch; the ones marked preferred were compiled and run against the reproducer unless the card says otherwise.{% endif %}</p>
+</div></body></html>

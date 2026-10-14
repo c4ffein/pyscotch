@@ -1,0 +1,21 @@
+COR-17 / PS-COR-2: comm.c large-count wrappers return on one rank before the collective
+=======================================================================================
+Needs sizeof (Gnum) != sizeof (int): $WORK/build64 (ASan, -DINTSIZE64) and $WORK/buildfi64 (plain -O0 -g 64-bit, for
+the LD_PRELOAD malloc shim ../common/fishim.c, which ASan builds cannot preload).
+commtest.c : calls commGatherv / commScatterv / commAllgatherv directly (internal API via module.h, 3 ranks, 4 Mi-element
+  rendezvous-size messages). Cases: g1 root recvcnttab[1]=2^33; g2 rank 1 sendcntnbr=2^33 (the 7.0.17 "(2)" check);
+  s1 root sendcnttab[1]=2^33; s2 rank 1 recvcntnbr=2^33 (unchecked cast); a1 rank 1 sendcntnbr=2^33 in commAllgatherv
+  (unchecked implicit cast); ok/s0/a0 valid gather/scatter/allgather for malloc injection (FI_RANK, FI_NTH=0).
+Build: mpicc $CF -DSCOTCH_PTSCOTCH -I$B/src/libscotch -I$B/include commtest.c -o commtest -L$B/lib -lptscotch -lscotch -lptscotcherr -lz -lm -pthread [-ldl]
+Run:   ASAN_OPTIONS=detect_leaks=0 timeout 25 mpirun --oversubscribe -np 3 ./commtest64 <case>
+       timeout 25 mpirun --oversubscribe -np 3 -x LD_PRELOAD=$WORK/repro/common/fishim.so -x FI_RANK=0 -x FI_NTH=0 ./commtest_fi64 ok
+
+Pristine 7.0.17 (pristine64.txt, pristine_fi64.txt):
+  g1: "(0): ERROR: commGatherv: communication indices out of range (1)", 0 ret=13, ranks 1,2 never return -> rc=124
+  g2: "(1): ERROR: ... out of range (2)", 1 ret=13, ranks 0,2 hang -> rc=124  (PS-COR-2)
+  s1: root ret=13, others hang -> rc=124
+  s2: rank 1 ret=0 (count silently truncated to 0), others hang -> rc=124
+  a1: ALL ranks ret=0 with rank 1's count truncated to 0: silent wrong result, no error at all
+  malloc failure on root (gather, scatter, allgather) or on rank 1 (allgather): failing rank ret=16, others hang -> rc=124
+Patched (patch 0004; patched64.txt, patched_fi64.txt): every case returns on every rank with the same code
+  (13 = MPI_ERR_ARG for g1/g2/s1/s2/a1, 16 = MPI_ERR_OTHER for the injected allocation failures), rc=0; ok/s0/a0 ret=0.

@@ -1,0 +1,43 @@
+--- a/src/libscotchmetis/metis_graph_part.c
++++ b/src/libscotchmetis/metis_graph_part.c
+@@ -550,16 +550,16 @@
+   SCOTCH_Num          baseval;
+   double              kbalval;
+ 
+-  kbalval = 0.01;
++  kbalval = (ubvec != NULL) ? (ubvec[0] - 1.0) : 0.01; /* MeTiS imbalance ratio (e.g. 1.05) is a Scotch tolerance (e.g. 0.05) */
+   baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;
+ 
+   return ((vsize == NULL)
+           ? _SCOTCH_METIS_PartGraph (nvtxs, ncon, xadj, adjncy, vwgt, adjwgt,
+                                      &baseval, nparts, tpwgts, options, objval, part,
+-                                     SCOTCH_STRATDEFAULT, (ubvec != NULL) ? ubvec : &kbalval)
++                                     SCOTCH_STRATDEFAULT, &kbalval)
+           : _SCOTCH_METIS_PartGraph_Volume (nvtxs, ncon, xadj, adjncy, vwgt, vsize,
+                                             &baseval, nparts, tpwgts, options, objval, part,
+-                                            SCOTCH_STRATDEFAULT, (ubvec != NULL) ? ubvec : &kbalval));
++                                            SCOTCH_STRATDEFAULT, &kbalval));
+ }
+ 
+ /*
+@@ -583,16 +583,18 @@
+ SCOTCH_Num * const          part)
+ {
+   SCOTCH_Num          baseval;
++  double              kbalval;
+ 
++  kbalval = (ubvec != NULL) ? (ubvec[0] - 1.0) : 0.01; /* MeTiS imbalance ratio (e.g. 1.05) is a Scotch tolerance (e.g. 0.05) */
+   baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;
+ 
+   return ((vsize == NULL)
+           ? _SCOTCH_METIS_PartGraph (nvtxs, ncon, xadj, adjncy, vwgt, adjwgt,
+                                      &baseval, nparts, tpwgts, options, objval, part,
+-                                     SCOTCH_STRATRECURSIVE, ubvec)
++                                     SCOTCH_STRATRECURSIVE, &kbalval)
+           : _SCOTCH_METIS_PartGraph_Volume (nvtxs, ncon, xadj, adjncy, vwgt, vsize,
+                                             &baseval, nparts, tpwgts, options, objval, part,
+-                                            SCOTCH_STRATRECURSIVE, ubvec));
++                                            SCOTCH_STRATRECURSIVE, &kbalval));
+ }
+ 
+ /*******************/

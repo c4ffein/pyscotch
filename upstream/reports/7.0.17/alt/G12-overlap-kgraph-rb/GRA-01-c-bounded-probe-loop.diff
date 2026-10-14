@@ -1,0 +1,24 @@
+--- a/src/libscotch/kgraph_map_rb.c
++++ b/src/libscotch/kgraph_map_rb.c
+@@ -402,6 +402,7 @@
+   Gnum                            hashsiz;        /* Size of hash table                      */
+   Gnum                            hashnum;
+   Gnum                            hashmsk;        /* Mask for access to hash table           */
++  Gnum                            probnbr;        /* Number of probes in current search      */
+ 
+   const Arch * restrict const archptr = mappptr->archptr;
+   Anum * restrict const       parttax = mappptr->parttax;
+@@ -453,7 +454,12 @@
+     }
+ #endif /* SCOTCH_DEBUG_KGRAPH2 */
+ 
+-    for (hashnum = (pfixval * KGRAPHMAPRBVFLOHASHPRIME) & hashmsk; ; hashnum = (hashnum + 1) & hashmsk) {
++    for (hashnum = (pfixval * KGRAPHMAPRBVFLOHASHPRIME) & hashmsk, probnbr = 0; ; hashnum = (hashnum + 1) & hashmsk, probnbr ++) {
++      if (probnbr >= hashsiz) {                   /* If table is full   */
++        errorPrint ("kgraphMapRbVfloMerge: hash table full");
++        memFree    (hashtab);
++        return (1);
++      }
+       if (hashtab[hashnum].termnum == pfixval)    /* If hash slot found */
+         break;
+       if (hashtab[hashnum].termnum == ~0) {       /* If hash slot empty */

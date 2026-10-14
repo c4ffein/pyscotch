@@ -1,0 +1,14 @@
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -300,6 +300,11 @@
+   pidxtax -= grafptr->baseval;
+ 
+   for (vertnum = 0; vertnum < grafptr->vertnbr; vertnum ++) {
++    if (parttax[vertnum] == ~0) {                 /* Statistics cannot be computed on partial mappings */
++      errorPrint (STRINGIFY (SCOTCH_graphMapView) ": unmapped vertex in mapping");
++      memFree    (domntab);                       /* Free group leader */
++      return (1);
++    }
+     domntab[vertnum].labl = parttax[vertnum];     /* Un-based array at this stage    */
+     domntab[vertnum].peri = vertnum + grafptr->baseval; /* Build inverse permutation */
+   }

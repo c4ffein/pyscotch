@@ -723,6 +723,33 @@ changes, each needed on its own:
    cut of 43 on m16x16 where 7.0.15 gives 35, because a single thread then
    runs all 20 passes through the broken comparison.
 
+**Status (7.0.17 audit, 2026-10-12):** v7.0.17 fixes change 3 (best-pass
+selection: `bgraph_bipart_gg.c` now compares against `thrdptr->cmloval` /
+`thrdptr->cpl0dlt`, exactly as proposed) but not changes 1 and 2. The pristine
+7.0.17 still fails `test_reproducibility.py`: with `SCOTCH_DETERMINISTIC=1`
+the 4-thread run gave 2 distinct partitions over 12 fresh processes in one
+audit, and the 2-thread run gave 2 in another (the racy side varies from run
+to run). The same patch minus the already-merged change 3
+(`pyscotch/_scotch_patches/scotch-7.0.17-bgraph-bipart-gg-determinism.patch`,
+against the v7.0.17 tarball) restores a single partition: 3 x 30 fresh
+processes, 2 and 4 threads, plus the `h` strategy and the PT-Scotch legs.
+
+ThreadSanitizer cross-check on v7.0.17 (`-O1 -g -fsanitize=thread`, `gpart 4
+m16x16_b100000_v.grf`, 4 threads, 5 runs each): the unpatched build reports the
+seeding race every time (`intRandVal3`, `common_integer.c`, 8 report lines per
+run); the patched build reports none. With `SCOTCH_DETERMINISTIC=1` the patched
+build gives cut 35 at 1 and at 4 threads (as 7.0.15 does); the unpatched one
+gives 35 and 34.
+
+*Separate lead, not fixed by the patch:* TSAN also flags
+`gainTablAddLog()` (`gain.c`, `entrptr->next->prev = linkptr`) from
+`bgraphBipartGg2()` and `bgraphBipartFm()`, in the unpatched build as well. At
+the end of a gain-list slot `entrptr->next` is the file-static sentinel
+`gainLinkDummy`, so concurrent threads write its `prev` field. The code only
+ever compares `next` against `&gainLinkDummy`, so it looks benign in practice,
+but it is a formal data race introduced by running gain tables from several
+threads, and a per-table (or thread-local) sentinel would remove it.
+
 Measured with the patch applied to v7.0.16 (same setup as above, m16x16, 4
 parts, edge cut of the result in parentheses):
 

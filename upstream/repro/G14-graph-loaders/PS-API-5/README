@@ -1,0 +1,6 @@
+PS-API-5  graphCheck accepts duplicate vertex labels
+  gcc -I<build>/include tl.c -L<build>/lib -lscotch -lscotcherr -lz -lpthread -lm -o tl
+  LD_LIBRARY_PATH=<build>/lib ./tl 0   (unique labels)  -> graphCheck=0
+  LD_LIBRARY_PATH=<build>/lib ./tl 1   (vlbltab {0,0,1,2})
+PRISTINE: ./tl 1 -> graphCheck=0 (duplicate accepted); graphTabLoad then mis-assigns a part.
+PATCHED : ./tl 1 -> "graphCheck: duplicate vertex label", graphCheck=1. ./tl 0 still 0.

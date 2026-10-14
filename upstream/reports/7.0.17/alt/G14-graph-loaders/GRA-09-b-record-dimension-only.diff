@@ -1,0 +1,18 @@
+Alternative for GRA-09: record the dimension but keep the conditional
+allocation; refuse (error) to reuse a Geom whose stored dimension differs
+from the file. Smallest change, never reallocates caller memory, but
+cannot reuse a Geom across different dimensions.
+
+--- a/src/libscotch/graph_io_scot.c
++++ b/src/libscotch/graph_io_scot.c
+@@ -116,6 +116,12 @@
++  if ((geomptr->geomtab != NULL) && (geomptr->dimnnbr != (int) dimnnbr)) {
++    errorPrint ("graphGeomLoadScot: inconsistent geometry dimension");
++    return     (1);
++  }
++  geomptr->dimnnbr = (int) dimnnbr;
+   if ((geomptr->geomtab == NULL) &&               /* Allocate geometry if necessary */
+       ((geomptr->geomtab = (double *) memAlloc (grafptr->vertnbr * dimnnbr * sizeof (double))) == NULL)) {
+     errorPrint ("graphGeomLoadScot: out of memory (1)");
+     return     (1);
+   }

@@ -1,0 +1,138 @@
+From df0be1a35213c7190f4f683abd768f1c039e824e Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:52:45 +0000
+Subject: [PATCH 2/9] Bugfix: validate ordering data read by esMUMPS
+ `orderLoad()` and keep write errors in `orderSave()` [report R. Perry]
+
+The esMUMPS ordering loader built the inverse permutation from the
+permutation values read from the file without checking them, so that
+an out-of-range value wrote outside of the inverse permutation array;
+a negative number of column blocks was accepted and led to an
+undersized range array being read; duplicate permutation values and
+inconsistent range arrays were silently accepted.
+
+Reject negative column block counts, range arrays that do not
+partition [baseval, baseval + vertnbr[ into non-empty blocks, and
+permutation values that are out of range or duplicated, using the
+inverse permutation array itself as flag array, as `orderCheck()`
+does.
+
+In `orderSave()`, the status of the last `intSave()` of each array
+overwrote that of the preceding ones, and the last permutation value
+was read even when there were no vertices at all. Keep the error
+status once set, and do not read from an empty permutation array.
+
+Refs: CLI-23
+---
+ src/esmumps/order_io.c | 57 +++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 48 insertions(+), 9 deletions(-)
+
+diff --git a/src/esmumps/order_io.c b/src/esmumps/order_io.c
+index 0d9f55b..d730404 100644
+--- a/src/esmumps/order_io.c
++++ b/src/esmumps/order_io.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2020,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2020,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 2.0  : from : 28 feb 2004     **/
+ /**                                 to     28 feb 2004     **/
+ /**                # Version 7.0  : from : 21 apr 2022     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -75,6 +75,7 @@ Order * const               ordeptr,
+ FILE * const                stream)
+ {
+   INT                 versval;                    /* Version number */
++  INT                 baseval;                    /* Base value     */
+   INT                 cblknbr;
+   INT                 cblknum;
+   INT                 vertnbr;
+@@ -88,6 +89,7 @@ FILE * const                stream)
+        intLoad (stream, &cblknbr) +
+        intLoad (stream, &vertnbr) != 3) ||
+       (versval != 0)                    ||
++      (cblknbr < 0)                     ||
+       (cblknbr > vertnbr)) {
+     errorPrint ("orderLoad: bad input (1)");
+     return (1);
+@@ -116,11 +118,46 @@ FILE * const                stream)
+     return (1);
+   }
+ 
+-  permtax = ordeptr->permtab - ordeptr->rangtab[0];
+-  peritax = ordeptr->peritab - ordeptr->rangtab[0];
+-  for (vertnum = ordeptr->rangtab[0], vertnnd = vertnum + vertnbr; /* Build inverse permutation */
+-       vertnum < vertnnd; vertnum ++)
+-    peritax[permtax[vertnum]] = vertnum;
++  baseval = ordeptr->rangtab[0];                  /* Get base value */
++  vertnnd = baseval + vertnbr;
++  if ((baseval < 0) ||                            /* Column block ranges must partition the vertex range */
++      (ordeptr->rangtab[cblknbr] != vertnnd)) {
++    errorPrint ("orderLoad: bad input (3)");
++    orderExit  (ordeptr);
++    orderInit  (ordeptr);
++    return (1);
++  }
++  for (cblknum = 0; cblknum < cblknbr; cblknum ++) {
++    if (ordeptr->rangtab[cblknum] >= ordeptr->rangtab[cblknum + 1]) { /* Column blocks must not be empty */
++      errorPrint ("orderLoad: bad input (4)");
++      orderExit  (ordeptr);
++      orderInit  (ordeptr);
++      return (1);
++    }
++  }
++
++  memSet (ordeptr->peritab, ~0, vertnbr * sizeof (INT)); /* Mark all ranks as not yet assigned */
++  permtax = ordeptr->permtab - baseval;
++  peritax = ordeptr->peritab - baseval;
++  for (vertnum = baseval; vertnum < vertnnd; vertnum ++) { /* Build inverse permutation */
++    INT                 permval;
++
++    permval = permtax[vertnum];
++    if ((permval < baseval) ||                    /* Rank must be within range */
++        (permval >= vertnnd)) {
++      errorPrint ("orderLoad: invalid permutation value");
++      orderExit  (ordeptr);
++      orderInit  (ordeptr);
++      return (1);
++    }
++    if (peritax[permval] != ~0) {                 /* If rank already assigned to another vertex */
++      errorPrint ("orderLoad: duplicate permutation value");
++      orderExit  (ordeptr);
++      orderInit  (ordeptr);
++      return (1);
++    }
++    peritax[permval] = vertnum;
++  }
+ 
+   return (0);
+ }
+@@ -166,14 +203,16 @@ FILE * const                stream)
+     o = intSave (stream, ordeptr->rangtab[cblknum]);
+     putc (((cblknum & 7) == 7) ? '\n' : '\t', stream);
+   }
+-  o = intSave (stream, ordeptr->rangtab[cblknum]);
++  if (o == 1)                                     /* Do not overwrite error status */
++    o = intSave (stream, ordeptr->rangtab[cblknum]);
+   putc ('\n', stream);
+ 
+   for (vertnum = 0; (o == 1) && (vertnum < (vertnbr - 1)); vertnum ++) { /* Save direct permutation */
+     o = intSave (stream, ordeptr->permtab[vertnum]);
+     putc (((vertnum & 7) == 7) ? '\n' : '\t', stream);
+   }
+-  o = intSave (stream, ordeptr->permtab[vertnum]);
++  if ((o == 1) && (vertnbr > 0))                  /* Do not overwrite error status nor read past empty array */
++    o = intSave (stream, ordeptr->permtab[vertnum]);
+   putc ('\n', stream);
+ 
+   if (o != 1)
+-- 
+2.47.3
+

@@ -1,0 +1,16 @@
+PS2-G21-2 (new): unchecked shrinking reallocations of the coarse edge arrays and of the multinode array (patch 0009)
+All reproducers use the shared driver repro/common/g21fi.c and the LD_PRELOAD fault shim repro/common/fishim.c (from G18).
+Trees: $WORK/pristinefi = v7.0.17, $WORK/basefi = combined series (base), $WORK/buildfi = base + this series; all built
+with CFLAGS "-O0 -g -fsanitize=undefined -ftrivial-auto-var-init=pattern" (ASan cannot be preloaded), see repro/common/build.sh.
+  cd $WORK/repro/common && ./build.sh $WORK/pristinefi && ./build.sh $WORK/basefi && ./build.sh $WORK/buildfi
+  ./scan.sh LIBDIR BIN NP FAILRANK NTH_FROM NTH_TO -- MODE TOPO BASE NL [ARGS]   (one line per failed allocation index; HANG = 15 s timeout)
+Full scan outputs: repro/common/scans/pri_* (v7.0.17), base_* (combined base), fix1_*/fix2_* (patched).
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 26 27 -- coarsen ring 0 8 0
+    nth=26 exit=1 :: MPI_ERRORS_ARE_FATAL (edge array replaced by NULL - baseval, then used by dgraphBuild4/dgraphGhst)
+    nth=27 exit=0 :: (0)/(1): ERROR: dgraphCheck: inconsistent global graph data (2); rank 0,1: coarsen rc=0   <- SILENT WRONG RESULT: edge load array lost on one rank, rc=0
+    (on the combined base, scans/base_coarsen_ring_b0.txt: nth=26 -> dgraph_check.c:309:22: runtime error: load of null pointer; nth=27 same silent result)
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 13 13 -- coarsen ring 1 8 1
+    nth=13 exit=139 :: dgraph_coarsen.c:908:51: runtime error: member access within null pointer of type 'const struct DgraphCoarsenMulti' (multinode array lost)
+  (base 1: nth=28,29 -> dgraph_coarsen.c:1270/1272: applying non-zero offset to null pointer, SEGV)
+Patched (buildfi): nth=20,21 (same reallocs, fewer allocations before them after patch 0007/0008) -> rank 0,1: coarsen vertglbnbr=10 vertlocnbr=5 check=0, rc=0;
+                   fold nth=8 -> rc=0, receiver check=0.

@@ -1,0 +1,85 @@
+total allocations: 194
+N=90 rc=1: ASAN :: SEP-03/sep03.c:13:37: runtime error: store to null pointer of type 'Num'
+N=91 rc=1: ASAN :: SEP-03/sep03.c:13:86: runtime error: store to null pointer of type 'Num'
+N=92 rc=1: ASAN :: ==1498194==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000dec (pc 0x562009410635 bp 0x7ffcd2247bf0 sp 0x7ff
+N=93 rc=1: ASAN :: SEP-03/sep03.c:25:84: runtime error: load of null pointer of type 'Num'
+N=95 rc=1: LEAK :: ERROR: contextThreadInit2: out of memory
+N=100 rc=1: LEAK :: ==1498252==ERROR: LeakSanitizer: detected memory leaks
+N=102 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=103 rc=1: LEAK :: ERROR: stratParserParse: out of memory (15)
+N=104 rc=1: LEAK :: ERROR: stratParserParse: out of memory (14)
+N=105 rc=1: LEAK :: ERROR: stratParserParse: out of memory (9)
+N=106 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=107 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=108 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=109 rc=1: LEAK :: ERROR: stratParserParse: out of memory (2)
+N=110 rc=1: LEAK :: ERROR: stratParserParse: out of memory (4)
+N=111 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=112 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=113 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=114 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=115 rc=1: LEAK :: ERROR: stratParserParse: out of memory (15)
+N=116 rc=1: LEAK :: ERROR: stratParserParse: out of memory (14)
+N=117 rc=1: LEAK :: ERROR: stratParserParse: out of memory (9)
+N=118 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=119 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=120 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=121 rc=1: LEAK :: ERROR: stratParserParse: out of memory (2)
+N=122 rc=1: LEAK :: ERROR: stratParserParse: out of memory (4)
+N=123 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=124 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=125 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=135 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (1)
+N=136 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (2)
+N=137 rc=1: ASAN :: hmesh_induce.c:363:25: runtime error: applying non-zero offset 18446744073709551612 to null pointer
+N=138 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=142 rc=1: LEAK :: ERROR: vmeshSeparateGg: out of memory (1)
+N=143 rc=1: LEAK :: ERROR: vmeshSeparateGg: out of memory (1)
+N=144 rc=1: LEAK :: ERROR: vmeshSeparateGg: out of memory (2)
+N=145 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (2)
+N=146 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (1)
+N=147 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (2)
+N=148 rc=1: ASAN :: hmesh_induce.c:363:25: runtime error: applying non-zero offset 18446744073709551612 to null pointer
+N=149 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=150 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (1)
+N=151 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (2)
+N=152 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (3)
+N=153 rc=1: LEAK :: ERROR: hgraphOrderHd: out of memory
+N=154 rc=1: LEAK :: ERROR: hallOrderHxBuild: out of memory
+N=155 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (1)
+N=156 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (2)
+N=157 rc=1: ASAN :: hmesh_induce.c:363:25: runtime error: applying non-zero offset 18446744073709551612 to null pointer
+N=158 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=159 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (1)
+N=160 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (2)
+N=161 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (3)
+N=162 rc=1: LEAK :: ERROR: hgraphOrderHd: out of memory
+N=163 rc=1: LEAK :: ERROR: hallOrderHxBuild: out of memory
+N=164 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (1)
+N=165 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (2)
+N=166 rc=1: ASAN :: hmesh_induce.c:363:25: runtime error: applying non-zero offset 18446744073709551612 to null pointer
+N=167 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=171 rc=1: LEAK :: ERROR: vmeshSeparateGg: out of memory (1)
+N=172 rc=1: LEAK :: ERROR: vmeshSeparateGg: out of memory (1)
+N=173 rc=1: LEAK :: ERROR: vmeshSeparateGg: out of memory (2)
+N=174 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (2)
+N=175 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (1)
+N=176 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (2)
+N=177 rc=1: ASAN :: hmesh_induce.c:363:25: runtime error: applying non-zero offset 18446744073709551612 to null pointer
+N=178 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=179 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (1)
+N=180 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (2)
+N=181 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (3)
+N=182 rc=1: LEAK :: ERROR: hgraphOrderHd: out of memory
+N=183 rc=1: LEAK :: ERROR: hallOrderHxBuild: out of memory
+N=184 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (1)
+N=185 rc=1: LEAK :: ERROR: hmeshInducePart: out of memory (2)
+N=186 rc=1: ASAN :: hmesh_induce.c:363:25: runtime error: applying non-zero offset 18446744073709551612 to null pointer
+N=187 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=188 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (1)
+N=189 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (2)
+N=190 rc=1: LEAK :: ERROR: hmeshHgraph: out of memory (3)
+N=191 rc=1: LEAK :: ERROR: hgraphOrderHd: out of memory
+N=192 rc=1: LEAK :: ERROR: hallOrderHxBuild: out of memory
+N=194 rc=1: ASAN :: ==1499118==ERROR: AddressSanitizer: SEGV on unknown address 0x00000000037b (pc 0x564337f132c9 bp 0x7ffc040784d0 sp 0x7ff
+runs with sanitizer findings: 83 / 194

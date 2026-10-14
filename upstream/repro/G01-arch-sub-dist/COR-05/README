@@ -1,0 +1,6 @@
+COR-05: archDistArchLoad() passed a never-allocated inner Arch to archLoad(): every "dist" file crashed.
+Cases: dist_ok "dist 2 cmplt 4", dist_bad "dist 2 cmplt abc", dist_var "dist 2 varcmplt", dist_sub "dist 3 sub 2 0 1 cmplt 4",
+       dist_zero "dist 0 cmplt 4", dist_subsub "dist 7 sub 2 1 0 sub 3 0 5 7 hcub 3".
+Pristine: UBSan "member access within null pointer of type struct Arch" at arch.c:209 then SEGV, for every file.
+Patched (0003): dist_ok/dist_var/dist_sub/dist_subsub load, save and reload (archtrip), var flag inherited (dist_var: var=1);
+          dist_bad/dist_zero return 1 with "archDistArchLoad: bad input" or the inner error; no sanitizer or leak report.

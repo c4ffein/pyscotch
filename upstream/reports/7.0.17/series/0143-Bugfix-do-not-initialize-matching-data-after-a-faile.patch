@@ -1,0 +1,114 @@
+From 9582da8e54b5c89d46ba5428d5ca8119dc3f9a2e Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:14:19 +0000
+Subject: [PATCH 143/240] Bugfix: do not initialize matching data after a
+ failed coarsening initialization in `dgraphCoarsen()` [report PyScotch]
+
+When `dgraphCoarsenInit()` failed, `dgraphCoarsen()` still called
+`dgraphMatchInit()`, which dereferenced the fine graph pointer that
+had not been set yet, and then called `dgraphMatchExit()` on an
+uninitialized structure and `dgraphCoarsenExit()` on data that
+`dgraphCoarsenInit()` had already freed.
+
+Initialize the matching data only when the coarsening data exists, and
+leave all cleanup to `dgraphCoarsen()`, after all processes have agreed
+on the error.
+
+Refs: PS-DGR-1
+---
+ src/libscotch/dgraph_coarsen.c | 34 ++++++++++++++++++++++------------
+ 1 file changed, 22 insertions(+), 12 deletions(-)
+
+diff --git a/src/libscotch/dgraph_coarsen.c b/src/libscotch/dgraph_coarsen.c
+index 09540aa..f6055f9 100644
+--- a/src/libscotch/dgraph_coarsen.c
++++ b/src/libscotch/dgraph_coarsen.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2012,2014,2018-2021,2023-2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2012,2014,2018-2021,2023-2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -52,7 +52,7 @@
+ /**                # Version 6.1  : from : 17 jun 2021     **/
+ /**                                 to   : 27 dec 2021     **/
+ /**                # Version 7.0  : from : 14 jan 2020     **/
+-/**                                 to   : 29 sep 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -75,6 +75,17 @@
+ /*                            */
+ /******************************/
+ 
++/* This routine initializes the coarsening data
++** structure. On error, the structure is left in
++** a state that allows dgraphCoarsenExit() to be
++** called on it, so that cleanup is performed by
++** the caller after all processes have agreed on
++** the error.
++** It returns:
++** - 0   : on success.
++** - !0  : on error.
++*/
++
+ static
+ int
+ dgraphCoarsenInit (
+@@ -133,8 +144,7 @@ Dgraph * restrict const             coargrafptr)  /*+ Coarse graph to build
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
+     if ((coarptr->multloctab = memAlloc (multlocsiz * sizeof (DgraphCoarsenMulti))) == NULL) {
+-      errorPrint        ("dgraphCoarsenInit: out of memory (2)");
+-      dgraphCoarsenExit (coarptr);
++      errorPrint ("dgraphCoarsenInit: out of memory (2)");
+       return (1);
+     }
+     coarptr->multloctmp = coarptr->multloctab;    /* Array will have to be freed on error */
+@@ -150,8 +160,7 @@ Dgraph * restrict const             coargrafptr)  /*+ Coarse graph to build
+                      &coarptr->coargsttax, (size_t) (vertgstnbr * sizeof (Gnum)),
+                      &coarptr->procgsttax, (size_t) (vertrcvnbr * sizeof (int)), /* TRICK: Only purely ghost part of array will be used */
+                      &coarptr->vrcvdattab, (size_t) (vertrcvnbr * sizeof (DgraphCoarsenVert)), NULL) == NULL) {
+-    errorPrint        ("dgraphCoarsenInit: out of memory (3)");
+-    dgraphCoarsenExit (coarptr);
++    errorPrint ("dgraphCoarsenInit: out of memory (3)");
+     return (1);
+   }
+ 
+@@ -163,8 +172,7 @@ Dgraph * restrict const             coargrafptr)  /*+ Coarse graph to build
+                      &coarptr->dcntloctab, (size_t) (procglbnbr * sizeof (DgraphCoarsenCount)),
+                      &coarptr->dcntglbtab, (size_t) (procglbnbr * sizeof (DgraphCoarsenCount)),
+                      &coarptr->vsnddattab, (size_t) (vertsndnbr * sizeof (DgraphCoarsenVert)), NULL) == NULL) {
+-    errorPrint        ("dgraphCoarsenInit: out of memory (4)");
+-    dgraphCoarsenExit (coarptr);
++    errorPrint ("dgraphCoarsenInit: out of memory (4)");
+     return (1);
+   }
+   coarptr->nrcvreqtab = (MPI_Request *) (void *) bufftab; /* TRICK: point-to-point requests and collective arrays share same space */
+@@ -1356,16 +1364,18 @@ Context * restrict const              contptr)    /*+ Execution context
+   matedat.c.flagval    = flagval;
+   matedat.c.multloctab = *multlocptr;             /* Propagate the provided multinode array or NULL if it has to be allocated */
+   matedat.c.contptr    = contptr;                 /* Set execution context as it might be needed for initialization           */
+-  cheklocval  = dgraphCoarsenInit (&matedat.c, finegrafptr, coargrafptr);
+-  cheklocval |= dgraphMatchInit   (&matedat, 0.5F);
++  cheklocval = dgraphCoarsenInit (&matedat.c, finegrafptr, coargrafptr);
++  if (cheklocval == 0)                            /* Matching data depends on coarsening data */
++    cheklocval = dgraphMatchInit (&matedat, 0.5F);
+ 
+   thrdlocmin = (cheklocval != 0) ? -1 : contextThreadNbr (contptr); /* TRICK: negative value on error */
+   if (MPI_Allreduce (&thrdlocmin, &thrdglbmin, 1, MPI_INT, MPI_MIN, finegrafptr->proccomm) != MPI_SUCCESS) {
+     errorPrint ("dgraphCoarsen: communication error (1)");
+-    return (2);
++    thrdglbmin = -1;
+   }
+   if (thrdglbmin < 0) {                           /* On error */
+-    dgraphMatchExit   (&matedat);
++    if (cheklocval == 0)                          /* If matching data was initialized */
++      dgraphMatchExit (&matedat);
+     dgraphCoarsenExit (&matedat.c);
+     return (2);
+   }
+-- 
+2.47.3
+

@@ -1,0 +1,11 @@
+SEP-12: GA threads race on the sort table and share one random generator.
+ThreadSanitizer build (infra/tsan/pristine for pristine, $WORK/tsan for patched), 4 threads:
+  LD_LIBRARY_PATH=<tsan lib> TSAN_OPTIONS="halt_on_error=0" ./partgrid_tsan_pristine 20 4 2 'r{sep=a{pass=8,pop=32}}' 3
+  pristine: 32-37 "WARNING: ThreadSanitizer: data race" per run (tsan_ga_pristine_*.log, tsan_pristine.log):
+            _SCOTCHintRandVal3 common_integer.c:441-446 (shared generator state, from bgraphBipartGaLoop :177/:239/:246)
+            bgraphBipartGaLoop bgraph_bipart_ga.c:205 (write of sorttab) vs :241/:242 (read of parents) and memcpy of parents
+  patched:  0 reports in 3 runs (tsan_ga_patched_*.log); with 'h{pass=3}a{...}' the remaining 5-7 reports are all in
+            bgraph_bipart_gg.c / gain.c (G08's SEP-13 / PS-SEP-3), none in bgraph_bipart_ga.c (tsan_patched_*.log).
+Determinism (release build, patched, determinism_patched.log), GA alone from the zero partition:
+  ../common/partgrid_build 20 <thr> 2 'r{sep=a{pass=20,pop=32}}' 5     thr=1,2,4: three different hashes (each run-to-run stable)
+  DET=1 ../common/partgrid_build 20 <thr> 2 'r{sep=a{pass=20,pop=32}}' 5   thr=1,2,4,8: one hash (4156740609988307832); 64-bit idem.

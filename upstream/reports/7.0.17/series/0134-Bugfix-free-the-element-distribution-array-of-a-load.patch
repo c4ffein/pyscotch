@@ -1,0 +1,49 @@
+From 571818a5ecb47c08f288b1e445c1b3f1fdc44899 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:59:40 +0000
+Subject: [PATCH 134/240] Bugfix: free the element distribution array of a
+ loaded distributed mesh [report R. Perry]
+
+`dmeshLoadAdm()` allocated `prelvrttab` and stored it in the mesh, but
+set only `DMESHFREETABS`. `dmeshFree2()` frees `prelvrttab` under
+`DMESHFREEPRIV`, so the array leaked on every `dmeshExit()`.
+
+Set `DMESHFREEPRIV` as well, as `dmeshBuildAdm()` already does when it
+allocates the same array.
+
+Refs: DGR-15
+---
+ src/libscotch/dmesh_io_load.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/libscotch/dmesh_io_load.c b/src/libscotch/dmesh_io_load.c
+index d28ce5a..d501be1 100644
+--- a/src/libscotch/dmesh_io_load.c
++++ b/src/libscotch/dmesh_io_load.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -40,7 +40,7 @@
+ /**                distributed mesh.                       **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 11 jan 2024     **/
+-/**                                 to   : 09 aug 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -367,7 +367,7 @@ fail:
+     return (1);
+   }
+ 
+-  meshptr->flagval   |= DMESHFREETABS;
++  meshptr->flagval   |= DMESHFREETABS | DMESHFREEPRIV; /* Private array freed under DMESHFREEPRIV, as in dmeshBuildAdm() */
+   meshptr->baseval    = baseval;
+   meshptr->velmglbnbr = reduglbtab[3];
+   meshptr->velmglbmax = reduglbtab[10];
+-- 
+2.47.3
+

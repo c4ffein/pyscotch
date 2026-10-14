@@ -1,0 +1,10 @@
+PS2-G15-6 (forwarded from G15): gotst ignores the return value of SCOTCH_graphOrderLoad() (src/scotch/gotst.c:167).
+Run:  B=$TREE/bin; export LD_LIBRARY_PATH=$TREE/lib
+  $B/gotst p.grf bad.ord /dev/null; echo rc=$?        # p.grf = gmk_m2 4 4; bad.ord has 16 lines with permutation value 99
+Observed (pristine and patched, 32/64-bit): "gotst: ERROR: orderLoad: bad input (3)", rc=1, nothing else runs.
+Reason: all Scotch programs are linked with libscotcherrexit (src/scotch/Makefile LIBSCOTCH, CMakeLists.txt target_link_libraries
+scotcherrexit), whose SCOTCH_errorPrint() exits with EXIT_FAILURE; every failure path of orderLoad() / SCOTCH_graphOrderLoad()
+calls errorPrint() first (G15's patch keeps that property). The program never reaches SCOTCH_graphOrderCheck() with a partial
+ordering. Same for the unchecked SCOTCH_graphLoad() in every tool. G15 observed "continues into orderCheck" with a harness linked
+against libscotcherr. Status: not-a-bug in the shipped link configuration; alt/PS2-G15-6-a-gotst-check-load-status.diff is the
+harmless hardening if wanted.

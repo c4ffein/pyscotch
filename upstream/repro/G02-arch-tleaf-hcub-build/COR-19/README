@@ -1,0 +1,9 @@
+COR-19 / PS-API-3: int shifts by the hypercube dimension
+
+Pristine 32-bit: 'hcub 31'/'hcub 32' rejected by c5baef9's bound; 'hcub 30' loads (fixed on 32-bit).
+Pristine 64-bit (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/build64 before patching, see ../fuzz/pristine64.txt and the session log):
+  ./archload64 'hcub 31' -> UBSan arch_hcub.c:261 'left shift of 1 by 31 places', size=-2147483648
+  ./archload64 'hcub 40' -> 'shift exponent 40 is too large for 32-bit type int', size=256; 'hcub 62' -> size=1073741824
+  ./archbuild64 3 40 (SCOTCH_archHcub) -> same
+Patched (patches/0003): 64-bit 'hcub 31' size=2147483648, 'hcub 40' size=1099511627776, 'hcub 62' size=4611686018427387904, 'hcub 63' rejected; no UBSan.
+  32-bit unchanged ('hcub 30' ok, 31 rejected). check_prog_amk/atst/gmk/gmap and check_scotch_arch* pass on both.

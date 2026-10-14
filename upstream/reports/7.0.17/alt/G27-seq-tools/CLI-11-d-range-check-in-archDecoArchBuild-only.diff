@@ -1,0 +1,21 @@
+diff --git a/src/libscotch/arch_deco_build.c b/src/libscotch/arch_deco_build.c
+index 58b6eda..bf7830f 100644
+--- a/src/libscotch/arch_deco_build.c
++++ b/src/libscotch/arch_deco_build.c
+@@ -161,6 +161,16 @@ Context * const             contptr)              /*+ Execution context
+   if (termdomnbr == 0)                            /* If nothing to do */
+     return (0);
+ 
++  if (tgtlisttab != NULL) {                       /* If vertex list given, check its contents */
++    for (termdomnum = 0; termdomnum < termdomnbr; termdomnum ++) {
++      if ((tgtlisttab[termdomnum] <  tgtgrafptr->baseval) ||
++          (tgtlisttab[termdomnum] >= tgtgrafptr->vertnnd)) {
++        errorPrint ("archDecoArchBuild: invalid vertex number in vertex list");
++        return (1);
++      }
++    }
++  }
++
+   invedlosiz = (tgtedlotax != NULL) ? tgtgrafptr->edgenbr : 0;
+   if ((memAllocGroup ((void **) (void *)
+                       &jobtab,     (size_t) (termdomnbr * sizeof (ArchDecoBuildJob)),

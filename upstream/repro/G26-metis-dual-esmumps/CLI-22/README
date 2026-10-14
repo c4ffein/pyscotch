@@ -1,0 +1,9 @@
+CLI-22: test_esmumps.c only fails on ncmpa < 0, while esmumps2() returns +1 on error (and MUMPS itself
+tests NCMPA .NE. 0: MUMPS 5.7.3 src/ana_orderings_wrappers_m.F:445 and :575); %d used for an INT.
+Files: test_esmumps_pristine.c (base-combined version), test_esmumps_patched.c, inc/ (esMUMPS headers).
+Both are linked against the PATCHED libesmumps (which now returns 1 on a failed ordering, CLI-10) and the
+non-exiting error library (the shipped Makefile and CMake link test_esmumps with -lscotcherrexit, which
+exits at the first errorPrint and hides this defect):
+  gcc -g -O0 -Iinc -I$P/src/libscotch -I$P/include test_esmumps_X.c -o test_esmumps_X -L$P/lib -lesmumps -lscotch -lscotcherr -lz -lm -lrt -pthread
+  LD_LIBRARY_PATH=$P/lib FAILMALLOC_AT=10 LD_PRELOAD=../tools/failmalloc.so ./test_esmumps_X $SRC/check/data/bump.grf
+  pristine driver: prints the two ERROR lines, exit=0 (error missed); patched driver: "test_esmumps: error in ESMUMPSF (1)", exit=1.

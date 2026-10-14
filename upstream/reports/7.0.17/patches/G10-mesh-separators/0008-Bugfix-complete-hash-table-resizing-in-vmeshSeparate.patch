@@ -1,0 +1,355 @@
+From a5bc0a82536c1fd488f983c1daa0f62848de99b0 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 20:35:21 +0000
+Subject: [PATCH] Bugfix: complete hash table resizing in `vmeshSeparateFm()`
+ [report PyScotch]
+
+`vmeshSeparateFmResize()` was unfinished: after re-allocating the
+arrays and rebuilding the node hash table, it printed a message and
+called `exit(1)`. The main routine shielded it by allocating hash
+tables four times larger than estimated, so any mesh whose refinement
+touched more elements or nodes than that killed the calling process.
+Also, the old node table was addressed through a mis-cast pointer, the
+element re-hashing loop could not terminate, and the move array, sized
+to hold one record per element, could overflow since both an element
+and a node record can be saved for every table slot in use.
+
+Complete the resizing as in `vgraphSeparateFmResize()`: move the save
+array, rebuild the node table, re-hash the elements in place in two
+segments, re-link the elements that were in the gain table and rebuild
+the lists of locked and chained elements, then translate the vertex
+numbers of the save array back into hash indices. A distinct state
+tells elements chained for re-linking from locked ones, and elements
+inserted when filling the tables are set as locked. Size the move
+array for both tables. Remove the four-fold shield, and halve the
+table size in debug mode to exercise resizing, as for graphs. Remove
+the consistency checks that were placed right after each resize, as
+the structures are transiently inconsistent at these points.
+
+Refs: PS-SEP-2
+---
+ src/libscotch/vmesh_separate_fm.c | 167 +++++++++++++++---------------
+ src/libscotch/vmesh_separate_fm.h |  11 +-
+ 2 files changed, 92 insertions(+), 86 deletions(-)
+
+diff --git a/src/libscotch/vmesh_separate_fm.c b/src/libscotch/vmesh_separate_fm.c
+index de390b5..21a8968 100644
+--- a/src/libscotch/vmesh_separate_fm.c
++++ b/src/libscotch/vmesh_separate_fm.c
+@@ -97,22 +97,27 @@ VmeshSeparateFmElement **                 lockptr, /*+ Pointer to list of locked
+ VmeshSeparateFmElement **                 sepaptr, /*+ Pointer to list of separator elements, if any +*/
+ const Gnum                                hashold) /*+ Maximum number of vertices in hash structures +*/
+ {
+-  Gnum                              hashsiz;      /* Size of hash table                   */
+-  Gnum                              hashmsk;      /* Mask for access to hash table        */
+-  Gnum                              hashmax;      /* Maximum number of objects in tables  */
+-  VmeshSeparateFmSave * restrict    movetab;      /* Pointer to move array                */
+-  VmeshSeparateFmElement * restrict helmtab;      /* Element hash table                   */
+-  VmeshSeparateFmNode *             hnodtab;      /* Node hash table                      */
+-  size_t                            addradj;      /* Address adjustment                   */
+-  Gnum                              helmold;
+-  VmeshSeparateFmNode *             hnodtld;
++  Gnum                              hashsiz;      /* Size of hash table                          */
++  Gnum                              hashmsk;      /* Mask for access to hash table               */
++  Gnum                              hashmax;      /* Maximum number of objects in tables         */
++  Gnum                              helmsiz;      /* Size of old hash tables                     */
++  VmeshSeparateFmSave * restrict    movetab;      /* Pointer to move array                       */
++  VmeshSeparateFmElement * restrict helmtab;      /* Element hash table                          */
++  VmeshSeparateFmNode *             hnodtab;      /* Node hash table                             */
++  VmeshSeparateFmNode *             hnodtld;      /* Pointer to old node hash table in new array */
++  VmeshSeparateFmElement *          locktab;      /* Re-built list of locked elements            */
++  VmeshSeparateFmElement *          sepatab;      /* Re-built list of separator elements         */
++  Gnum                              helmbas;      /* Start index of range of hash indices to move */
++  Gnum                              helmnnd;      /* End index of range of hash indices to move   */
++  Gnum                              helmnum;
+   Gnum                              hnodold;
+   VmeshSeparateFmSave * restrict    savetab;
+   Gnum                              savenum;
+ 
+-  hashmax = 2 * hashold;                          /* Set new number */
+-  hashsiz = 4 * hashmax;                          /* Set new size   */
++  hashmax = 2 * hashold;                          /* Set new number       */
++  hashsiz = 4 * hashmax;                          /* Set new size         */
+   hashmsk = hashsiz - 1;
++  helmsiz = 4 * hashold;                          /* Size of old hash tables */
+ 
+   savetab = *saveptr;                             /* Point to old move array                  */
+   for (savenum = 0; savenum < savenbr; savenum ++) { /* Turn hash indices into vertex indices */
+@@ -125,7 +130,7 @@ const Gnum                                hashold) /*+ Maximum number of vertice
+   if (memReallocGroup ((void *) *helmptr,         /* Get old group leader */
+         &helmtab, (size_t) (hashsiz * sizeof (VmeshSeparateFmElement)),
+         &hnodtab, (size_t) (hashsiz * sizeof (VmeshSeparateFmNode)),
+-        &movetab, (size_t) (hashmax * sizeof (VmeshSeparateFmSave)), NULL) == NULL) {
++        &movetab, (size_t) (2 * hashmax * sizeof (VmeshSeparateFmSave)), NULL) == NULL) {
+     errorPrint ("vmeshSeparateFmResize: cannot resize arrays");
+     return (1);                                   /* If cannot reallocate */
+   }
+@@ -139,9 +144,9 @@ const Gnum                                hashold) /*+ Maximum number of vertice
+   memMov (movetab, ((byte *) helmtab) + ((byte *) *saveptr - (byte *) *helmptr), savenbr * sizeof (VmeshSeparateFmSave)); /* Old array may have moved but arrays cannot overlap */
+ 
+   memSet (hnodtab, ~0, hashsiz * sizeof (VmeshSeparateFmNode)); /* Cannot overlap */
+-  hnodtld = (VmeshSeparateFmNode *) ((byte *) helmtab) + ((byte *) *hnodptr - (byte *) *helmptr); /* Point to old node array */
+-  for (hnodold = 0; hnodold < (hashold * 4); hnodold ++) { /* For all old allocated nodes */
+-    Gnum                              hnodnew;
++  hnodtld = (VmeshSeparateFmNode *) (((byte *) helmtab) + ((byte *) *hnodptr - (byte *) *helmptr)); /* Point to old node array */
++  for (hnodold = 0; hnodold < helmsiz; hnodold ++) { /* For all old allocated nodes */
++    Gnum                hnodnew;
+ 
+     if (hnodtld[hnodold].vnodnum == ~0)           /* If unallocated slot */
+       continue;                                   /* Skip to next slot   */
+@@ -151,61 +156,68 @@ const Gnum                                hashold) /*+ Maximum number of vertice
+     hnodtab[hnodnew] = hnodtld[hnodold];          /* Move node data to new position */
+   }
+ 
+-/* TODO */
+-  fprintf (stderr, "hertnum no longer valid !\n");
+-  exit    (1);
+-
+-  addradj = (byte *) helmtab - (byte *) (*helmptr); /* Compute address difference */
++  memSet (helmtab + helmsiz, ~0, helmsiz * sizeof (VmeshSeparateFmElement)); /* Old node and move arrays are no longer needed */
+ 
+   gainTablFree (tablptr);                         /* Reset gain table */
+-  memSet (helmtab + hashold, ~0, hashold * 2 * sizeof (VmeshSeparateFmElement));
+-  for (helmold = 0; helmold < (hashold * 4); helmold ++) { /* For all old allocated elements */
+-    Gnum                helmnew;
++  locktab =                                       /* Rebuild lists    */
++  sepatab = NULL;
+ 
+-    if (helmtab[helmold].velmnum == ~0)           /* If unallocated slot */
+-      continue;                                   /* Skip to next slot   */
++  for (helmbas = helmsiz - 1; helmtab[helmbas].velmnum != ~0; helmbas --) ; /* Find start index of last block   */
++  helmnnd = helmsiz;                              /* First segment to reconsider ends at the end of the old array */
++
++  while (helmnnd != helmbas) {                    /* For each of the two segments to consider                */
++    for (helmnum = helmbas; helmnum < helmnnd; helmnum ++) { /* Re-compute position of elements in new table */
++      VmeshSeparateFmElement *  velmptr;
++      Gnum                      velmnum;
++      Gnum                      helmnew;
+ 
+-    for (helmnew = (helmtab[helmold].velmnum * VMESHSEPAFMHASHPRIME) & hashmsk; ; helmnew = (helmnew + 1) & hashmsk) {
+-      if (helmtab[helmnew].velmnum == ~0) {
+-        helmtab[helmnew].velmnum     = helmtab[helmold].velmnum;
+-        helmtab[helmnew].vertpart    = helmtab[helmold].vertpart;
+-        helmtab[helmnew].ncmpcut2    = helmtab[helmold].ncmpcut2;
+-        helmtab[helmnew].ncmpgain2   = helmtab[helmold].ncmpgain2;
+-        helmtab[helmnew].ncmpgaindlt = helmtab[helmold].ncmpgaindlt;
+-        helmtab[helmnew].mswpnum     = helmtab[helmold].mswpnum;
+-        helmtab[helmold].velmnum     = ~0;        /* Free old slot      */
+-        helmtab[helmold].mswpnum     = ~0;        /* Reset sweep number */
+-        break;
++      velmnum = helmtab[helmnum].velmnum;
++      if (velmnum == ~0)                          /* If hash slot not used */
++        continue;
++
++      for (helmnew = (velmnum * VMESHSEPAFMHASHPRIME) & hashmsk; ; helmnew = (helmnew + 1) & hashmsk) {
++        if (helmnew == helmnum)                   /* If hash slot is the same */
++          break;                                  /* There is nothing to do   */
++        if (helmtab[helmnew].velmnum == ~0) {     /* If new slot is empty     */
++#ifdef SCOTCH_DEBUG_VMESH2
++          if ((helmnew > helmnum) && (helmnew < helmnnd)) { /* If element is not moved either before its old position or after the end of the segment */
++            errorPrint ("vmeshSeparateFmResize: internal error (2)");
++            return (1);
++          }
++#endif /* SCOTCH_DEBUG_VMESH2 */
++          helmtab[helmnew] = helmtab[helmnum];    /* Copy data to new slot         */
++          helmtab[helmnum].mswpnum = ~0;          /* TRICK: not tested at creation */
++          helmtab[helmnum].velmnum = ~0;          /* Make old slot empty           */
++          break;
++        }
++      }
++
++      velmptr = &helmtab[helmnew];
++      if (velmptr->gainlink.next >= VMESHSEPAFMSTATELINK) /* If element was linked, re-link it */
++        gainTablAdd (tablptr, &velmptr->gainlink, velmptr->ncmpgain2);
++      else if (velmptr->gainlink.next == VMESHSEPAFMSTATEUSED) { /* Re-lock locked elements */
++        velmptr->gainlink.prev = (GainLink *) locktab;
++        locktab = velmptr;
++      }
++      else if (velmptr->gainlink.next == VMESHSEPAFMSTATESEPA) { /* Re-chain separator elements */
++        velmptr->gainlink.prev = (GainLink *) sepatab;
++        sepatab = velmptr;
+       }
+-      if (helmtab[helmnew].velmnum != helmtab[helmold].velmnum) /* If element not found */
+-        continue;                                 /* Go on searching                    */
+-    }
+-    if (helmtab[helmold].gainlink.next >= VMESHSEPAFMSTATELINK) /* If element was linked               */
+-      gainTablAdd (tablptr, (GainLink *) &helmtab[helmnew], helmtab[helmnew].ncmpgain2); /* Re-link it */
+-    else {                                        /* Element may be chained in some list               */
+-      helmtab[helmnew].gainlink.next = helmtab[helmold].gainlink.next; /* Save it                      */
+-      helmtab[helmnew].gainlink.prev = (GainLink *) ((byte *) helmtab[helmold].gainlink.prev + addradj);
+     }
+-  }
+ 
+-  if (*lockptr != NULL)
+-    *lockptr = (VmeshSeparateFmElement *) ((byte *) (*lockptr) + addradj);
+-  if (sepaptr != NULL) {
+-    if (*sepaptr != NULL)
+-      *sepaptr = (VmeshSeparateFmElement *) ((byte *) (*sepaptr) + addradj);
+-  }
++    helmnnd = helmbas;                            /* End of second segment to consider is start of first one    */
++    helmbas = 0;                                  /* Start of second segment is beginning of array              */
++  }                                               /* After second segment, helmbas = helmnnd = 0 and loop stops */
+ 
+   for (savenum = 0; savenum < savenbr; savenum ++) { /* Turn vertex indices back into hash indices */
+     Gnum                vertnum;
+ 
+     vertnum = movetab[savenum].hertnum;           /* Read vertex index */
+     if (vertnum >= 0) {                           /* If element vertex */
+-      Gnum                helmnum;
+-
+       for (helmnum = (vertnum * VMESHSEPAFMHASHPRIME) & hashmsk; ; helmnum = (helmnum + 1) & hashmsk) {
+ #ifdef SCOTCH_DEBUG_VMESH2
+         if (helmtab[helmnum].velmnum == ~0) {     /* We should always find the elements */
+-          errorPrint ("vmeshSeparateFmResize: internal error (2)");
++          errorPrint ("vmeshSeparateFmResize: internal error (3)");
+           return (1);
+         }
+ #endif /* SCOTCH_DEBUG_VMESH2 */
+@@ -221,17 +233,24 @@ const Gnum                                hashold) /*+ Maximum number of vertice
+       for (hnodnum = (vertnum * VMESHSEPAFMHASHPRIME) & hashmsk; ; hnodnum = (hnodnum + 1) & hashmsk) {
+ #ifdef SCOTCH_DEBUG_VMESH2
+         if (hnodtab[hnodnum].vnodnum == ~0) {     /* We should always find the nodes */
+-          errorPrint ("vmeshSeparateFmResize: internal error (3)");
++          errorPrint ("vmeshSeparateFmResize: internal error (4)");
+           return (1);
+         }
+ #endif /* SCOTCH_DEBUG_VMESH2 */
+-        if (hnodtab[hnodnum].vnodnum == vertnum)  /* If element found */
++        if (hnodtab[hnodnum].vnodnum == vertnum)  /* If node found */
+           break;
+       }
+       movetab[savenum].hertnum = -1 - hnodnum;    /* Save node hash index */
+     }
+   }
+ 
++  *helmptr = helmtab;
++  *hnodptr = hnodtab;
++  *saveptr = movetab;
++  *lockptr = locktab;
++  if (sepaptr != NULL)
++    *sepaptr = sepatab;
++
+   return (0);
+ }
+ 
+@@ -357,10 +376,12 @@ const VmeshSeparateFmParam * restrict const paraptr) /*+ Method parameters    +*
+ 
+   vertnbr = meshptr->m.velmnbr + meshptr->m.vnodnbr;
+   hashnbr = 2 * ((meshptr->fronnbr + paraptr->movenbr) * (1 + (Gnum) ((float) meshptr->m.edgenbr / (float) vertnbr)));
++#ifdef SCOTCH_DEBUG_VMESH2
++  hashnbr /= 8;                                   /* Ensure resizing routine will be called */
++#endif /* SCOTCH_DEBUG_VMESH2 */
+   if (hashnbr > vertnbr)                          /* Set bound on hash table */
+     hashnbr = vertnbr;
+   for (hashmax = 256; hashmax < hashnbr; hashmax <<= 1) ; /* Get upper power of two */
+-/* TODO */ hashmax *= 4;
+   hashsiz = 4 * hashmax;
+   hashmsk = hashsiz - 1;
+ 
+@@ -368,7 +389,7 @@ const VmeshSeparateFmParam * restrict const paraptr) /*+ Method parameters    +*
+       (memAllocGroup ((void **) (void *)
+                       &helmtab, (size_t) (hashsiz * sizeof (VmeshSeparateFmElement)),
+                       &hnodtab, (size_t) (hashsiz * sizeof (VmeshSeparateFmNode)),
+-                      &movetab, (size_t) (hashmax * sizeof (VmeshSeparateFmSave)), NULL) == NULL)) {
++                      &movetab, (size_t) (2 * hashmax * sizeof (VmeshSeparateFmSave)), NULL) == NULL)) { /* TRICK: each element and node can be recorded once per sweep */
+     if (tablptr != NULL) {
+       errorPrint   ("vmeshSeparateFm: out of memory (1)");
+       gainTablExit (tablptr);
+@@ -446,17 +467,12 @@ const VmeshSeparateFmParam * restrict const paraptr) /*+ Method parameters    +*
+             hashmax <<= 1;
+             hashsiz <<= 1;
+             hashmsk   = (hashmsk << 1) | 1;
+-#ifdef SCOTCH_DEBUG_VMESH3
+-            if (vmeshSeparateFmCheck (meshptr, helmtab, hnodtab, hashmsk, ncmpload2, ncmploaddlt) != 0) {
+-              errorPrint ("vmeshSeparateFm: internal error (3)");
+-              return (1);
+-            }
+-#endif /* SCOTCH_DEBUG_VMESH3 */
+ 
+             for (helmnum = (velmnum * VMESHSEPAFMHASHPRIME) & hashmsk; /* Re-compute position in table */
+                  helmtab[helmnum].velmnum != ~0; helmnum = (helmnum + 1) & hashmsk) ;
+           }
+-          helmtab[helmnum].gainlink.prev = (GainLink *) lockptr; /* Link it */
++          helmtab[helmnum].gainlink.next = VMESHSEPAFMSTATEUSED; /* Lock it */
++          helmtab[helmnum].gainlink.prev = (GainLink *) lockptr;
+           lockptr = &helmtab[helmnum];
+           helmtab[helmnum].velmnum  = velmnum;    /* Insert it */
+           helmtab[helmnum].vertpart = meshptr->parttax[velmnum] & 1; /* Separator elements to part 0 */
+@@ -657,12 +673,6 @@ const VmeshSeparateFmParam * restrict const paraptr) /*+ Method parameters    +*
+               hashmax <<= 1;
+               hashsiz <<= 1;
+               hashmsk   = (hashmsk << 1) | 1;
+-#ifdef SCOTCH_DEBUG_VMESH3
+-              if (vmeshSeparateFmCheck (meshptr, helmtab, hnodtab, hashmsk, ncmpload2, ncmploaddlt) != 0) {
+-                errorPrint ("vmeshSeparateFm: internal error (8)");
+-                return (1);
+-              }
+-#endif /* SCOTCH_DEBUG_VMESH3 */
+               for (helmnum = (velmnum * VMESHSEPAFMHASHPRIME) & hashmsk; /* Re-compute positions in tables */
+                    helmtab[helmnum].velmnum != velmnum; helmnum = (helmnum + 1) & hashmsk) ;
+               velmptr = helmtab + helmnum;
+@@ -761,12 +771,6 @@ const VmeshSeparateFmParam * restrict const paraptr) /*+ Method parameters    +*
+                 hashmax <<= 1;
+                 hashsiz <<= 1;
+                 hashmsk   = (hashmsk << 1) | 1;
+-#ifdef SCOTCH_DEBUG_VMESH3
+-                if (vmeshSeparateFmCheck (meshptr, helmtab, hnodtab, hashmsk, ncmpload2, ncmploaddlt) != 0) {
+-                  errorPrint ("vmeshSeparateFm: internal error (14)");
+-                  return (1);
+-                }
+-#endif /* SCOTCH_DEBUG_VMESH3 */
+                 for (helmnum = (velmnum * VMESHSEPAFMHASHPRIME) & hashmsk; /* Re-compute positions in tables */
+                      helmtab[helmnum].velmnum != velmnum; helmnum = (helmnum + 1) & hashmsk) ;
+                 velmptr = helmtab + helmnum;
+@@ -836,10 +840,11 @@ const VmeshSeparateFmParam * restrict const paraptr) /*+ Method parameters    +*
+             savenbr ++;                           /* One more move recorded */
+           }
+ 
+-          if (helmtab[helmend].gainlink.next != VMESHSEPAFMSTATEUSED) { /* If element available */
+-            if (helmtab[helmend].gainlink.next >= VMESHSEPAFMSTATELINK) /* If element linked    */
+-              gainTablDel (tablptr, &helmtab[helmend].gainlink); /* Unlink element              */
+-            helmtab[helmend].gainlink.next = VMESHSEPAFMSTATEUSED; /* Chain neighbor elements   */
++          if ((helmtab[helmend].gainlink.next != VMESHSEPAFMSTATEUSED) && /* If element not locked      */
++              (helmtab[helmend].gainlink.next != VMESHSEPAFMSTATESEPA)) { /* Nor already chained          */
++            if (helmtab[helmend].gainlink.next >= VMESHSEPAFMSTATELINK) /* If element linked             */
++              gainTablDel (tablptr, &helmtab[helmend].gainlink); /* Unlink element                       */
++            helmtab[helmend].gainlink.next = VMESHSEPAFMSTATESEPA; /* Chain neighbor elements            */
+             helmtab[helmend].gainlink.prev = (GainLink *) sepaptr;
+             sepaptr                        = &helmtab[helmend];
+           }
+diff --git a/src/libscotch/vmesh_separate_fm.h b/src/libscotch/vmesh_separate_fm.h
+index de02df9..051ba84 100644
+--- a/src/libscotch/vmesh_separate_fm.h
++++ b/src/libscotch/vmesh_separate_fm.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 31 may 2018     **/
+ /**                                 to   : 31 may 2018     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 20 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -62,9 +62,10 @@
+ 
+ /*+ Gain table vertex status. +*/
+ 
+-#define VMESHSEPAFMSTATEFREE        ((GainLink *) 0) /*+ Element is free or separator-chained +*/
+-#define VMESHSEPAFMSTATEUSED        ((GainLink *) 1) /*+ Element already swapped              +*/
+-#define VMESHSEPAFMSTATELINK        ((GainLink *) 2) /*+ Currently in gain table if higher    +*/
++#define VMESHSEPAFMSTATEFREE        ((GainLink *) 0) /*+ Element is free                        +*/
++#define VMESHSEPAFMSTATEUSED        ((GainLink *) 1) /*+ Element already swapped or locked      +*/
++#define VMESHSEPAFMSTATESEPA        ((GainLink *) 2) /*+ Element chained for re-linking         +*/
++#define VMESHSEPAFMSTATELINK        ((GainLink *) 3) /*+ Currently in gain table if higher      +*/
+ 
+ /*
+ **  The type and structure definitions.
+-- 
+2.47.3
+

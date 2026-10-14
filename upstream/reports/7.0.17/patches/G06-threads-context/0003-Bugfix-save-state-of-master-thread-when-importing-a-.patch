@@ -1,0 +1,104 @@
+From ff399b7d606e9dd60cc80f1ddb4aae2134cadb2c Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:55:01 +0000
+Subject: [PATCH] Bugfix: save state of master thread when importing a thread
+ context [report R. Perry]
+
+`threadContextImport1()` never saved the state of the master thread,
+while `threadContextExit()`, which is called when the context is
+destroyed, restores it. Hence, the affinity mask of the master thread
+of an imported thread pool was set from uninitialized data.
+Save the master thread state on import, as `threadContextInit()` does.
+The context test now checks that the affinity mask of the leader
+thread is preserved across the life of an imported context.
+
+Refs: COR-11
+---
+ src/check/test_scotch_context.c | 22 ++++++++++++++++++++--
+ src/libscotch/common_thread.c   |  2 ++
+ 2 files changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/src/check/test_scotch_context.c b/src/check/test_scotch_context.c
+index 2d1d142..4cb3afc 100644
+--- a/src/check/test_scotch_context.c
++++ b/src/check/test_scotch_context.c
+@@ -48,6 +48,9 @@
+ **  The defines and includes.
+ */
+ 
++#ifndef _GNU_SOURCE
++#define _GNU_SOURCE                               /* For sched_getaffinity() */
++#endif /* _GNU_SOURCE */
+ #ifndef _XOPEN_SOURCE
+ #define _XOPEN_SOURCE               600
+ #endif /* _XOPEN_SOURCE */
+@@ -198,6 +201,9 @@ char *              argv[])
+   int                 thrdnum;
+   SCOTCH_Graph        graftab[2];                 /* Original graph and context container */
+   int *               coretab;
++#ifdef COMMON_PTHREAD_AFFINITY_LINUX
++  cpu_set_t           cpustab[2];                 /* Affinity masks before and after import */
++#endif /* COMMON_PTHREAD_AFFINITY_LINUX */
+ 
+   SCOTCH_errorProg (argv[0]);
+ 
+@@ -299,7 +305,7 @@ char *              argv[])
+   free (coretab);
+ 
+   SCOTCH_graphInit (&graftab[1]);
+-  if (SCOTCH_contextBindGraph (&contdat, &graftab[0], &graftab[1]) != 0) { /* graftab[1] is the context graph */
++  if (SCOTCH_contextBindGraph (&contdat, &graftab[0], &graftab[1]) != 0) { /* Graftab[1] is the context graph */
+     SCOTCH_errorPrint ("main: cannot bind context (4)");
+     exit (EXIT_FAILURE);
+   }
+@@ -320,6 +326,10 @@ char *              argv[])
+     thrdtab[thrdnum].thrdnum = thrdnum;           /* All threads know their index in their thread group */
+   }
+ 
++#ifdef COMMON_PTHREAD_AFFINITY_LINUX
++  sched_getaffinity (0, sizeof (cpu_set_t), &cpustab[0]); /* Record affinity mask of leader thread */
++#endif /* COMMON_PTHREAD_AFFINITY_LINUX */
++
+   SCOTCH_contextInit          (&contdat);         /* Leader thread creates the context                */
+   SCOTCH_contextThreadImport1 (&contdat, thrdnbr); /* Leader thread calls "Import1" before any others */
+ 
+@@ -337,7 +347,7 @@ char *              argv[])
+   SCOTCH_contextThreadImport2 (&contdat, 0);      /* Leader thread calls "Import2" along with all other threads */
+ 
+   SCOTCH_graphInit (&graftab[1]);
+-  if (SCOTCH_contextBindGraph (&contdat, &graftab[0], &graftab[1]) != 0) { /* graftab[1] is the context graph */
++  if (SCOTCH_contextBindGraph (&contdat, &graftab[0], &graftab[1]) != 0) { /* Graftab[1] is the context graph */
+     SCOTCH_errorPrint ("main: cannot bind context (5)");
+     exit (EXIT_FAILURE);
+   }
+@@ -347,6 +357,14 @@ char *              argv[])
+   SCOTCH_graphExit   (&graftab[1]);
+   SCOTCH_contextExit (&contdat);                  /* Worker threads are released when the context is destroyed */
+ 
++#ifdef COMMON_PTHREAD_AFFINITY_LINUX
++  sched_getaffinity (0, sizeof (cpu_set_t), &cpustab[1]); /* Affinity mask of leader thread must not have changed */
++  if (! CPU_EQUAL (&cpustab[0], &cpustab[1])) {
++    SCOTCH_errorPrint ("main: affinity mask of imported leader thread changed");
++    exit (EXIT_FAILURE);
++  }
++#endif /* COMMON_PTHREAD_AFFINITY_LINUX */
++
+   free (thrdtab);
+ 
+   SCOTCH_graphExit (&graftab[0]);
+diff --git a/src/libscotch/common_thread.c b/src/libscotch/common_thread.c
+index 1bdf1dc..d93ce35 100644
+--- a/src/libscotch/common_thread.c
++++ b/src/libscotch/common_thread.c
+@@ -591,6 +591,8 @@ threadContextImport1 (
+ ThreadContext * const       contptr,
+ const int                   thrdnbr)
+ {
++  threadProcessStateSave (contptr);               /* Save state of master thread */
++
+   contptr->thrdnbr = thrdnbr;
+   contptr->paraptr = NULL;
+   contptr->funcptr = NULL;
+-- 
+2.47.3
+

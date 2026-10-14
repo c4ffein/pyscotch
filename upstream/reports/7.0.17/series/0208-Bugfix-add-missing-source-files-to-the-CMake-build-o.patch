@@ -1,0 +1,96 @@
+From fabe4f19e1d9f41b78eff909632f3c5a7ebdbc4f Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:06:22 +0000
+Subject: [PATCH 208/240] Bugfix: add missing source files to the CMake build
+ of libScotch [report R. Perry]
+
+The Makefile of libScotch compiles "hgraph_dump.c",
+"library_context_mesh.c", "library_context_mesh_f.c",
+"library_graph_induce_f.c" and "library_memory_f.c", but none of them
+was listed in "src/libscotch/CMakeLists.txt". Hence, a CMake-built
+libScotch had no `SCOTCH_contextBindMesh()`, which is declared in
+"scotch.h", nor the Fortran wrappers "scotchfcontextbindmesh",
+"scotchfgraphinducelist", "scotchfgraphinducepart" and
+"scotchfnumsizeof", so that user programs calling them could not be
+linked.
+
+Add the missing files to SCOTCH_C_SOURCES, remove a duplicate entry
+for "bgraph_cost.c" and put "library_graph_induce.c" at its place in
+the list, so that the list follows the order of the Makefile.
+
+Refs: BLD-01
+---
+ src/libscotch/CMakeLists.txt | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/src/libscotch/CMakeLists.txt b/src/libscotch/CMakeLists.txt
+index f67caea..c50981b 100644
+--- a/src/libscotch/CMakeLists.txt
++++ b/src/libscotch/CMakeLists.txt
+@@ -41,7 +41,7 @@
+ ##   DATES      : # Version 6.0  : from : 01 sep 2014     ##
+ ##                                 to     01 sep 2021     ##
+ ##                # Version 7.0  : from : 01 sep 2021     ##
+-##                                 to     11 aug 2025     ##
++##                                 to     13 oct 2026     ##
+ ##                                                        ##
+ ############################################################
+ 
+@@ -201,7 +201,6 @@ set(SCOTCH_C_SOURCES
+   bgraph_bipart_st.h
+   bgraph_bipart_zr.c
+   bgraph_bipart_zr.h
+-  bgraph_cost.c
+   bgraph_check.c
+   bgraph_cost.c
+   bgraph_store.c
+@@ -245,7 +244,6 @@ set(SCOTCH_C_SOURCES
+   graph_dump.c
+   graph_dump.h
+   graph_ielo.c
+-  library_graph_induce.c
+   graph_induce.c
+   graph_induce.h
+   graph_io.c
+@@ -270,6 +268,8 @@ set(SCOTCH_C_SOURCES
+   hgraph.c
+   hgraph.h
+   hgraph_check.c
++  hgraph_dump.c
++  hgraph_dump.h
+   hgraph_induce.c
+   hgraph_induce.h
+   hgraph_order_bl.c
+@@ -357,9 +357,11 @@ set(SCOTCH_C_SOURCES
+   library_common.c
+   library_common_f.c
+   library_context.c
++  library_context_f.c
+   library_context_graph.c
+   library_context_graph_f.c
+-  library_context_f.c
++  library_context_mesh.c
++  library_context_mesh_f.c
+   #library_errcom.c
+   #library_error.c
+   #library_error_exit.c
+@@ -379,6 +381,8 @@ set(SCOTCH_C_SOURCES
+   library_graph_diam_f.c
+   library_graph_dump.c
+   library_graph_f.c
++  library_graph_induce.c
++  library_graph_induce_f.c
+   library_graph_io_chac.c
+   library_graph_io_chac_f.c
+   library_graph_io_habo.c
+@@ -402,6 +406,7 @@ set(SCOTCH_C_SOURCES
+   library_mapping.c
+   library_mapping.h
+   library_memory.c
++  library_memory_f.c
+   library_mesh.c
+   library_mesh_f.c
+   library_mesh_graph.c
+-- 
+2.47.3
+

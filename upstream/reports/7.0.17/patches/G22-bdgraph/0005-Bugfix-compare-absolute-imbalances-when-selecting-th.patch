@@ -1,0 +1,49 @@
+From 4d6f4c843292b4e3d4213f900c618caad0a16ee3 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:17:04 +0000
+Subject: [PATCH 5/8] Bugfix: compare absolute imbalances when selecting the
+ best distributed bipartition [report R. Perry]
+
+The reduction operators of `bdgraphBipartMlUncoarsen()` and
+`bdgraphBipartSq()` broke ties between partitions of equal
+communication load on the signed load difference, so that a heavily
+underloaded part 0 was preferred to a slightly overloaded one, whereas
+the sequential selection in `bdgraphBipartSt()` compares absolute
+values. Reduce the absolute value of the load difference, which is also
+what the error sentinel assumed.
+
+Refs: DMO-11
+---
+ src/libscotch/bdgraph_bipart_ml.c | 2 +-
+ src/libscotch/bdgraph_bipart_sq.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/bdgraph_bipart_ml.c b/src/libscotch/bdgraph_bipart_ml.c
+index 1e79452..f0794ce 100644
+--- a/src/libscotch/bdgraph_bipart_ml.c
++++ b/src/libscotch/bdgraph_bipart_ml.c
+@@ -332,7 +332,7 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Multinode array +*/
+     reduloctab[1] = (Gnum) finegrafptr->s.proclocnum; /* Set rank according to global order on both sub-communicators */
+     reduloctab[2] = (Gnum) coargrafptr->s.pkeyglbval; /* Set color key according to coarse graph sub-communicator     */
+     reduloctab[3] = coargrafptr->commglbload;
+-    reduloctab[4] = coargrafptr->compglbload0dlt;
++    reduloctab[4] = ABS (coargrafptr->compglbload0dlt); /* Compare absolute imbalances */
+   }
+ 
+   if ((MPI_Type_contiguous (6, GNUM_MPI, &besttypedat)                              != MPI_SUCCESS) ||
+diff --git a/src/libscotch/bdgraph_bipart_sq.c b/src/libscotch/bdgraph_bipart_sq.c
+index 54d8c16..30de0ce 100644
+--- a/src/libscotch/bdgraph_bipart_sq.c
++++ b/src/libscotch/bdgraph_bipart_sq.c
+@@ -179,7 +179,7 @@ const BdgraphBipartSqParam * const  paraptr)      /*+ Method parameters +*/
+     reduloctab[0] = ((cgrfdat.fronnbr != 0) || ((cgrfdat.compsize0 != 0) && ((cgrfdat.s.vertnbr - cgrfdat.compsize0) != 0)))
+                     ? cgrfdat.commload
+                     : GNUMMAX; /* Partitions with empty bipartitions unwanted if they are completely unbalanced */
+-    reduloctab[1] = cgrfdat.compload0dlt;
++    reduloctab[1] = ABS (cgrfdat.compload0dlt);   /* Compare absolute imbalances */
+   }
+ 
+   if (dgrfptr->partgsttax == NULL) {              /* If partition array not yet allocated           */
+-- 
+2.47.3
+

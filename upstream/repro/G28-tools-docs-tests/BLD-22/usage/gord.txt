@@ -1,0 +1,24 @@
+Usage is:
+  gord [<input source file> [<output ordering file> [<output log file>]]] <options>
+    -C<opt>    : Choose execution context options according to one or several of <opt>:
+                   d  : deterministic behavior (even across multiple threads; implies 'f')
+                   f  : fixed random seed
+                   r  : variable random seed
+                   u  : undeterministic behavior (may be faster with several threads)
+                   Default behavior depends on compilation flags
+    -c<opt>    : Choose default ordering strategy according to one or several of <opt>:
+                   b  : enforce load balance as much as possible
+                   d  : manage disconnected graphs more efficiently
+                   q  : privilege quality over speed (default)
+                   s  : privilege speed over quality
+                   t  : enforce safety
+    -h         : Display this help
+    -m<file>   : Save column block mapping data to <file>
+    -o<strat>  : Set ordering strategy (see user's manual)
+    -t<file>   : Save partitioning tree data to <file>
+    -V         : Print program version and copyright
+    -v<verb>   : Set verbose mode to <verb> :
+                   s  : strategy information
+                   t  : timing information
+  
+  See default strategy with option '-vs'

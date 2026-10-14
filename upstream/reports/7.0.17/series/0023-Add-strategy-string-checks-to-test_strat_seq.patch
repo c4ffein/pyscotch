@@ -1,0 +1,136 @@
+From f23554dbf815237871cb87d3a8dc0e47fa998e7a Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:35:00 +0000
+Subject: [PATCH 023/240] Add strategy string checks to `test_strat_seq`
+
+Check that a saved strategy with a conditional test re-parses to
+itself, and that invalid strategy strings (syntax error within a
+nested strategy, strategy value for an integer parameter, out-of-range
+literal, unterminated value) are rejected.
+
+Refs: COR-01, COR-13, COR-22, COR-23, COR-26
+---
+ src/check/test_strat_seq.c | 87 +++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 86 insertions(+), 1 deletion(-)
+
+diff --git a/src/check/test_strat_seq.c b/src/check/test_strat_seq.c
+index 8854772..affdd35 100644
+--- a/src/check/test_strat_seq.c
++++ b/src/check/test_strat_seq.c
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 6.0  : from : 08 jan 2012     **/
+ /**                                 to   : 14 jul 2018     **/
+ /**                # Version 7.0  : from : 04 jul 2025     **/
+-/**                                 to   : 26 mar 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -60,6 +60,57 @@
+ 
+ #include "scotch.h"
+ 
++/*
++**  The static variables.
++*/
++
++static const char *         stratbadtab[] = {     /* Invalid strategy strings that must be rejected */
++                              "r{sep=m{asc=b{:width=3}}}", /* Syntax error within nested strategy     */
++                              "r{sep=m{vert=}}",  /* Strategy value for integer parameter             */
++                              "r{sep=m{vert=/(vert>1)?f;f}}",
++                              "r{sep=m{vert=99999999999999999999}}", /* Out-of-range integer literal   */
++                              "(m{vert=100}|m{vert=)",
++                              NULL };
++
++/*************************/
++/*                       */
++/* The auxiliary routine */
++/*                       */
++/*************************/
++
++/* This routine saves a strategy into
++** a string buffer.
++** It returns:
++** - 0   : on success.
++** - !0  : on error.
++*/
++
++static
++int
++stratSaveString (
++const SCOTCH_Strat * const  straptr,
++char * const                buffptr,
++const size_t                buffsiz)
++{
++  FILE *              fileptr;
++  size_t              bufflen;
++
++  if ((fileptr = tmpfile ()) == NULL)             /* Open temporary file for strategy output */
++    return (1);
++
++  if (SCOTCH_stratSave (straptr, fileptr) != 0) {
++    fclose (fileptr);
++    return (1);
++  }
++
++  rewind (fileptr);
++  bufflen = fread (buffptr, 1, buffsiz - 1, fileptr);
++  buffptr[bufflen] = '\0';
++  fclose (fileptr);
++
++  return (0);
++}
++
+ /*********************/
+ /*                   */
+ /* The main routine. */
+@@ -72,6 +123,8 @@ int                 argc,
+ char *              argv[])
+ {
+   SCOTCH_Strat        stradat;
++  char                strabuftab[2][1024];
++  int                 i;
+   int                 o;
+ 
+   SCOTCH_errorProg (argv[0]);
+@@ -149,5 +202,37 @@ char *              argv[])
+   o |= SCOTCH_stratGraphOrderBuild (&stradat, SCOTCH_STRATSEPASIMPLE, 3, 0.2);
+   SCOTCH_stratExit (&stradat);
+ 
++  printf ("Sequential mapping strategy, save and re-parse\n");
++
++  SCOTCH_stratInit (&stradat);
++  if ((SCOTCH_stratGraphMap (&stradat, "/(vert>(10+2)*3)?r;") != 0) ||
++      (stratSaveString (&stradat, strabuftab[0], 1024) != 0)) {
++    SCOTCH_errorPrint ("main: cannot save strategy (1)");
++    exit (EXIT_FAILURE);
++  }
++  SCOTCH_stratExit (&stradat);
++  SCOTCH_stratInit (&stradat);
++  if ((SCOTCH_stratGraphMap (&stradat, strabuftab[0]) != 0) || /* Re-parse saved strategy */
++      (stratSaveString (&stradat, strabuftab[1], 1024) != 0)) {
++    SCOTCH_errorPrint ("main: cannot save strategy (2)");
++    exit (EXIT_FAILURE);
++  }
++  SCOTCH_stratExit (&stradat);
++  if (strcmp (strabuftab[0], strabuftab[1]) != 0) { /* Saved strategy must re-parse to itself */
++    SCOTCH_errorPrint ("main: saved strategy differs: \"%s\" vs. \"%s\"", strabuftab[0], strabuftab[1]);
++    o |= 1;
++  }
++
++  printf ("Sequential mapping strategy, invalid strings (error messages expected)\n");
++
++  for (i = 0; stratbadtab[i] != NULL; i ++) {
++    SCOTCH_stratInit (&stradat);
++    if (SCOTCH_stratGraphMap (&stradat, stratbadtab[i]) == 0) {
++      SCOTCH_errorPrint ("main: invalid strategy accepted: \"%s\"", stratbadtab[i]);
++      o |= 1;
++    }
++    SCOTCH_stratExit (&stradat);
++  }
++
+   exit ((o == 0) ? EXIT_SUCCESS : EXIT_FAILURE);
+ }
+-- 
+2.47.3
+

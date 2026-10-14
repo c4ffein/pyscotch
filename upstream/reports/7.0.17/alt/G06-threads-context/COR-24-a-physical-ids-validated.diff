@@ -1,0 +1,30 @@
+--- a/src/libscotch/common_thread.c
++++ b/src/libscotch/common_thread.c
+@@ -137,7 +137,17 @@
+   for (thrdnum = 1; thrdnum < thrdnbr; thrdnum ++) { /* Launch threads from 1 to (thrdnbr - 1) */
+     desctab[thrdnum].contptr = contptr;
+     desctab[thrdnum].thrdnum = thrdnum;
+-    corenum = (coretab != NULL) ? (coretab[thrdnum] % corenbr) : threadProcessCoreNum (contptr, thrdnum);
++    corenum = (coretab != NULL) ? coretab[thrdnum] : threadProcessCoreNum (contptr, thrdnum);
++#ifdef COMMON_PTHREAD_AFFINITY_LINUX
++    if ((coretab != NULL) && (corenum >= 0) &&    /* If explicit core number not in process mask */
++        ((corenum >= CPU_SETSIZE) || (! CPU_ISSET (corenum, &contptr->savedat.cpusdat)))) {
++      errorPrint ("threadContextInit: invalid core number (%d)", corenum);
++      contptr->thrdnbr = thrdnum;
++      threadContextExit (contptr);
++      memFree (desctab);
++      return (1);
++    }
++#endif /* COMMON_PTHREAD_AFFINITY_LINUX */
+ 
+     if (threadCreate (&desctab[thrdnum], thrdnum, corenum) != 0) {
+       errorPrint ("threadContextInit: cannot create thread (%d)", thrdnum);
+@@ -148,7 +158,7 @@
+   }
+   desctab[0].contptr = contptr;
+   desctab[0].thrdnum = 0;
+-  corenum = (coretab != NULL) ? (coretab[0] % corenbr) : threadProcessCoreNum (contptr, 0);
++  corenum = (coretab != NULL) ? coretab[0] : threadProcessCoreNum (contptr, 0);
+   threadCreate (&desctab[0], 0, corenum);         /* Set affinity of local thread (slaves use saved main thread mask) */
+ 
+   threadContextBarrier (contptr);                 /* Ensure all slave threads have started before cleaning-up resources */

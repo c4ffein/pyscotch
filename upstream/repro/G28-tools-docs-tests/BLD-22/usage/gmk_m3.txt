@@ -1,0 +1,8 @@
+Usage is:
+  gmk_m3 <dimX> [<dimY> [<dimZ> [<output source file>]]] <options>
+    -b<val>   : Set base value for output (0 or 1)
+    -g<file>  : Output the geometry to <file>
+    -h        : Display this help
+    -t        : Build a torus rather than a grid
+    -V        : Print program version and copyright
+    -y        : Invert y coordinate in geometry

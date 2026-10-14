@@ -1,0 +1,10 @@
+PS2-G29-3: misspelt dependency rules in src/libscotch/Makefile.
+
+  awk scan of "<target>$(OBJ) : <source>.c" rules whose stems differ (see audit.json):
+    libscotch/Makefile:800:  rule arch_vcpmlt builds arch_vcmplt.c      <- phantom target: arch_vcmplt.o loses its header dependencies
+    libscotch/Makefile:2171: rule library_arch_dom builds library_arch.c  <- wrong first prerequisite (object still compiled from library_arch_dom.c by the %$(OBJ): %.c pattern rule, $< being the pattern's stem)
+    (library_error_pt / library_error_exit_pt are intentional: same source, different object)
+  Effect, pristine Makefile build:
+    touch src/libscotch/arch_vcmplt.h; make -C src/libscotch -n arch_vcmplt.o | grep -c arch_vcmplt.c -> 0 (nothing to do)
+  Patched ($WORK/build/src/libscotch): same commands -> 1 (recompiles)
+  Builds: make -j4 scotch ptscotch esmumps, 32-bit (ASan tree) and INTSIZE64 tree: rc 0, 0 warnings; make check: see SUMMARY.md

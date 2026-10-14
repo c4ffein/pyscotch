@@ -1,0 +1,654 @@
+From c033df9c5015e83947bf7a1873aeefc5fd69993b Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:58:17 +0000
+Subject: [PATCH 007/240] Bugfix: validate tree-leaf architectures in one place
+ for file loaders and library builders [report R. Perry]
+
+The "tleaf" and "ltleaf" target file loaders and the `SCOTCH_archTleaf()`
+and `SCOTCH_archLtleaf()` routines each filled the architecture body on
+their own, with different checks. The loaders accepted zero or negative
+numbers of levels, which led to out-of-bounds reads in
+`archTleafMatchInit()`, let the number of terminal domains overflow, and
+checked the size of the label permutation against level boundaries and
+the uniqueness of its indices in debug mode only, so that an invalid
+permutation led to out-of-bounds reads in `archTleafDomDist()` or to
+lost terminal domains. The builders performed no check at all, so that
+an out-of-range permutation index led to an out-of-bounds write, and
+they left the class pointer set with dangling arrays when an allocation
+failed.
+
+Move all checks and allocations into the new `archTleafArchBuild()` and
+`archLtleafArchBuild()` routines, which the loaders and the builders
+both use, as `archCmpltwArchBuild()` is used. Level counts, level sizes,
+link costs, the number of terminal domains, and the permutation size,
+range and uniqueness are now checked unconditionally; a permutation
+index that is already used is detected while building the inverse
+permutation. Architecture fields are set only on success, and
+`archTleafArchFree()` leaves an empty architecture and accepts one, so
+that a failed build can always be followed by `archExit()`. Loaders read
+their data into temporary arrays and free nothing of the architecture
+body, which `archLoad()` frees through the class hook.
+
+Add a labeled tree-leaf architecture, the permutation of which spans
+two levels, to `test_scotch_arch`.
+
+Refs: COR-06, COR-07, API-10, PS-API-4
+---
+ src/check/test_scotch_arch.c |   9 +-
+ src/libscotch/arch_tleaf.c   | 327 +++++++++++++++++++++++++++--------
+ src/libscotch/arch_tleaf.h   |   6 +-
+ src/libscotch/library_arch.c |  47 +----
+ src/libscotch/module.h       |   2 +
+ 5 files changed, 278 insertions(+), 113 deletions(-)
+
+diff --git a/src/check/test_scotch_arch.c b/src/check/test_scotch_arch.c
+index b824b99..b151d99 100644
+--- a/src/check/test_scotch_arch.c
++++ b/src/check/test_scotch_arch.c
+@@ -61,7 +61,7 @@
+ 
+ #include "scotch.h"
+ 
+-#define ARCHNBR                     27
++#define ARCHNBR                     29
+ 
+ /*********************/
+ /*                   */
+@@ -83,6 +83,8 @@ char *              argv[])
+   SCOTCH_Num          levlnbr = 3;
+   SCOTCH_Num          sizetab[3] = { 6, 3, 4 };
+   SCOTCH_Num          linktab[3] = { 20, 5, 1 };
++  SCOTCH_Num          permnbr = 12;
++  SCOTCH_Num          permtab[12] = { 0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11 };
+   SCOTCH_Num          wghttab[8] = { 1, 1, 3, 3, 5, 1, 4, 2 };
+   int                 archnbr = 0;
+   int                 i;
+@@ -136,6 +138,11 @@ char *              argv[])
+     exit (EXIT_FAILURE);
+   }
+ 
++  if (SCOTCH_archLtleaf (&archtab[archnbr ++], levlnbr, sizetab, linktab, permnbr, permtab) != 0) { /* Permutation spans the two lowest levels */
++    SCOTCH_errorPrint ("main: cannot create ltleaf architecture");
++    exit (EXIT_FAILURE);
++  }
++
+   if (SCOTCH_archTorus2 (&archtab[archnbr ++], 2, 4) != 0) {
+     SCOTCH_errorPrint ("main: cannot create torus2D architecture");
+     exit (EXIT_FAILURE);
+diff --git a/src/libscotch/arch_tleaf.c b/src/libscotch/arch_tleaf.c
+index ee9977f..51770a0 100644
+--- a/src/libscotch/arch_tleaf.c
++++ b/src/libscotch/arch_tleaf.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2010-2012,2015,2018,2019,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2010-2012,2015,2018,2019,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -66,7 +66,7 @@
+ /**                # Version 6.0  : from : 14 feb 2011     **/
+ /**                                 to   : 03 may 2019     **/
+ /**                # Version 7.0  : from : 19 feb 2018     **/
+-/**                                 to   : 17 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # The ltleaf architecture was proposed  **/
+ /**                  by Emmanuel Jeannot and Francois      **/
+@@ -89,6 +89,54 @@
+ /*                                         */
+ /*******************************************/
+ 
++/* This routine reads the tree structure
++** of a tree leaf architecture into a
++** temporary array, which comprises the
++** level size array followed by the level
++** link cost array.
++** It returns:
++** - 0   : if the tree structure has been successfully read.
++** - !0  : on error.
++*/
++
++static
++int
++archTleafArchLoad2 (
++FILE * restrict const       stream,
++Anum * restrict const       levlptr,              /*+ Number of levels                  +*/
++Anum ** restrict const      sizeptr)              /*+ Pointer to temporary size array   +*/
++{
++  Anum * restrict     sizetab;
++  Anum                levlnbr;
++  Anum                levlnum;
++
++  if ((intLoad (stream, &levlnbr) != 1) ||
++      (levlnbr < 1)                     ||
++      (levlnbr > (Anum) ((sizeof (Anum) << 3) - 2))) { /* Each level at least doubles the number of terminal domains */
++    errorPrint ("archTleafArchLoad2: bad input (1)");
++    return (1);
++  }
++
++  if ((sizetab = memAlloc (levlnbr * 2 * sizeof (Anum))) == NULL) {
++    errorPrint ("archTleafArchLoad2: out of memory");
++    return (1);
++  }
++
++  for (levlnum = 0; levlnum < levlnbr; levlnum ++) {
++    if ((intLoad (stream, &sizetab[levlnum])           != 1) ||
++        (intLoad (stream, &sizetab[levlnbr + levlnum]) != 1)) {
++      errorPrint ("archTleafArchLoad2: bad input (2)");
++      memFree    (sizetab);
++      return (1);
++    }
++  }
++
++  *levlptr = levlnbr;
++  *sizeptr = sizetab;
++
++  return (0);
++}
++
+ /* This routine loads the
+ ** tree leaf architecture.
+ ** It returns:
+@@ -101,8 +149,9 @@ archTleafArchLoad (
+ ArchTleaf * restrict const  archptr,
+ FILE * restrict const       stream)
+ {
+-  Anum                sizeval;
+-  Anum                levlnum;
++  Anum *              sizetab;                    /* Temporary array of level sizes and link costs */
++  Anum                levlnbr;
++  int                 o;
+ 
+ #ifdef SCOTCH_DEBUG_ARCH1
+   if ((sizeof (ArchTleaf)    > sizeof (ArchDummy)) ||
+@@ -112,32 +161,17 @@ FILE * restrict const       stream)
+   }
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+-  if (intLoad (stream, &archptr->levlnbr) != 1) {
+-    errorPrint ("archTleafArchLoad: bad input (1)");
+-    return (1);
+-  }
++  archptr->sizetab =                              /* Assume nothing allocated yet */
++  archptr->permtab = NULL;
+ 
+-  if ((archptr->sizetab = memAlloc ((archptr->levlnbr * 2 + 1) * sizeof (Anum))) == NULL) { /* TRICK: One more slot for linktab[-1] */
+-    errorPrint ("archTleafArchLoad: out of memory");
++  if (archTleafArchLoad2 (stream, &levlnbr, &sizetab) != 0) /* Read tree structure */
+     return (1);
+-  }
+-  archptr->linktab     = archptr->sizetab + archptr->levlnbr + 1; /* TRICK: One more slot     */
+-  archptr->linktab[-1] = 0;                       /* Dummy slot for for level-0 communication */
+-  archptr->permtab     = NULL;                    /* Assume no permutation array              */
+ 
+-  for (levlnum = 0, sizeval = 1; levlnum < archptr->levlnbr; levlnum ++) {
+-    if ((intLoad (stream, &archptr->sizetab[levlnum]) != 1) ||
+-        (intLoad (stream, &archptr->linktab[levlnum]) != 1) ||
+-        (archptr->sizetab[levlnum] < 2)                     ||
+-        (archptr->linktab[levlnum] < 1)) {
+-      errorPrint ("archTleafArchLoad: bad input (2)");
+-      return (1);
+-    }
+-    sizeval *= archptr->sizetab[levlnum];
+-  }
+-  archptr->termnbr = sizeval;
++  o = archTleafArchBuild (archptr, levlnbr, sizetab, sizetab + levlnbr);
+ 
+-  return (0);
++  memFree (sizetab);
++
++  return (o);
+ }
+ 
+ /* This routine frees the tree
+@@ -159,15 +193,14 @@ ArchTleaf * const           archptr)
+   }
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+-  memFree (archptr->sizetab);                     /* Free group leader */
+-  if (archptr->permtab != NULL)
+-    memFree (archptr->permtab);                   /* Free group leader */
++  if (archptr->sizetab != NULL)                   /* If architecture was built */
++    memFree (archptr->sizetab);                   /* Free group leader         */
++  if (archptr->permtab != NULL)                   /* If permutation was built  */
++    memFree (archptr->permtab);                   /* Free group leader         */
+ 
+-#ifdef SCOTCH_DEBUG_ARCH2
+-  archptr->sizetab =
++  archptr->sizetab =                              /* Architecture is now empty */
+   archptr->linktab =
+   archptr->permtab = NULL;
+-#endif /* SCOTCH_DEBUG_ARCH2 */
+ 
+   return (0);
+ }
+@@ -217,6 +250,70 @@ FILE * restrict const       stream)
+   return (0);
+ }
+ 
++/* This routine builds the tree leaf
++** architecture from its level size and
++** link cost arrays. Architecture fields
++** are set only on success.
++** It returns:
++** - 0   : if the architecture has been successfully built.
++** - !0  : on error.
++*/
++
++int
++archTleafArchBuild (
++ArchTleaf * restrict const  archptr,
++const Anum                  levlnbr,              /*+ Number of levels                            +*/
++const Anum * restrict const sizetab,              /*+ Size array, by increasing level number      +*/
++const Anum * restrict const linktab)              /*+ Link cost array, by increasing level number +*/
++{
++  Anum * restrict     sizetmp;
++  Anum                termnbr;
++  Anum                levlnum;
++
++#ifdef SCOTCH_DEBUG_ARCH1
++  if ((sizeof (ArchTleaf)    > sizeof (ArchDummy)) ||
++      (sizeof (ArchTleafDom) > sizeof (ArchDomDummy))) {
++    errorPrint ("archTleafArchBuild: invalid type specification");
++    return (1);
++  }
++#endif /* SCOTCH_DEBUG_ARCH1 */
++
++  if (levlnbr < 1) {
++    errorPrint ("archTleafArchBuild: invalid number of levels");
++    return (1);
++  }
++  for (levlnum = 0, termnbr = 1; levlnum < levlnbr; levlnum ++) { /* Check level data before allocating */
++    Anum                sizeval;
++
++    sizeval = sizetab[levlnum];
++    if ((sizeval < 2) || (linktab[levlnum] < 1)) {
++      errorPrint ("archTleafArchBuild: invalid level size or link cost");
++      return (1);
++    }
++    if (termnbr > (ANUMMAX / sizeval)) {          /* If number of terminal domains would overflow */
++      errorPrint ("archTleafArchBuild: too many terminal domains");
++      return (1);
++    }
++    termnbr *= sizeval;
++  }
++
++  if ((sizetmp = memAlloc ((levlnbr * 2 + 1) * sizeof (Anum))) == NULL) { /* TRICK: One more slot for linktab[-1] */
++    errorPrint ("archTleafArchBuild: out of memory");
++    return (1);
++  }
++
++  archptr->termnbr     = termnbr;                 /* Set architecture fields only on success */
++  archptr->levlnbr     = levlnbr;
++  archptr->sizetab     = sizetmp;
++  archptr->linktab     = sizetmp + levlnbr + 1;   /* TRICK: One more slot                     */
++  archptr->linktab[-1] = 0;                       /* Dummy slot for level-0 communication     */
++  archptr->permtab     = NULL;                    /* Assume no permutation array              */
++  memCpy (archptr->sizetab, sizetab, levlnbr * sizeof (Anum));
++  memCpy (archptr->linktab, linktab, levlnbr * sizeof (Anum));
++
++  return (0);
++}
++
+ /* This routine initializes the matching
+ ** data structure according to the number
+ ** of vertices to be managed.
+@@ -666,77 +763,135 @@ const ArchTleafDom * const  dom1ptr)
+ /*                                 */
+ /***********************************/
+ 
+-/* This routine loads the labeled
+-** tree leaf architecture.
++/* This routine builds the label permutation
++** of a labeled tree leaf architecture, the
++** tree structure of which has already been
++** built. Architecture fields are set only
++** on success.
+ ** It returns:
+-** - 0   : if the architecture has been successfully read.
++** - 0   : if the permutation has been successfully built.
+ ** - !0  : on error.
+ */
+ 
++static
+ int
+-archLtleafArchLoad (
++archLtleafArchBuild2 (
+ ArchTleaf * restrict const  archptr,
+-FILE * restrict const       stream)
++const Anum                  permnbr,              /*+ Number of permutation indices +*/
++const Anum * restrict const permtab)              /*+ Permutation array             +*/
+ {
++  Anum * restrict     permtmp;
++  Anum * restrict     peritab;
+   Anum                permnum;
+ 
+-  if (archTleafArchLoad (archptr, stream) != 0)   /* Read tree part */
+-    return (1);
+-
+-  if ((intLoad (stream, &archptr->permnbr) != 1) ||
+-      (archptr->permnbr <= 0)) {
+-    errorPrint ("archLtleafArchLoad: bad input (1)");
++  if (permnbr < 1) {
++    errorPrint ("archLtleafArchBuild2: invalid permutation size");
+     return (1);
+   }
+-
+-#ifdef SCOTCH_DEBUG_ARCH2
+-  if (archptr->permnbr != 1) {                    /* Valid empty permutation is of size 1 */
++  if (permnbr != 1) {                             /* Valid empty permutation is of size 1 */
+     Anum                levlnum;
+     Anum                sizeval;
+ 
+-    for (levlnum = archptr->levlnbr - 1, sizeval = archptr->sizetab[levlnum];
+-         sizeval != archptr->permnbr; levlnum --, sizeval *= archptr->sizetab[levlnum]) {
+-      if (levlnum < 0) {
+-        errorPrint ("archLtleafArchLoad: permutation size does not match level boundaries");
++    for (levlnum = archptr->levlnbr - 1, sizeval = archptr->sizetab[levlnum]; /* Permutation size must match a level boundary */
++         sizeval != permnbr; ) {
++      if ((sizeval > permnbr) || (levlnum <= 0)) {
++        errorPrint ("archLtleafArchBuild2: permutation size does not match level boundaries");
+         return (1);
+       }
++      levlnum --;
++      sizeval *= archptr->sizetab[levlnum];
+     }
+   }
+-#endif /* SCOTCH_DEBUG_ARCH2 */
+ 
+-  if ((archptr->permtab = memAlloc (archptr->permnbr * 2 * sizeof (Anum))) == NULL) { /* TRICK: space for peritab too */
+-    errorPrint ("archLtleafArchLoad: out of memory");
++  if ((permtmp = memAlloc (permnbr * 2 * sizeof (Anum))) == NULL) { /* TRICK: space for peritab too */
++    errorPrint ("archLtleafArchBuild2: out of memory");
+     return (1);
+   }
++  peritab = permtmp + permnbr;
++  memSet (peritab, ~0, permnbr * sizeof (Anum));  /* No inverse permutation index set yet */
+ 
+-  for (permnum = 0; permnum < archptr->permnbr; permnum ++) {
+-#ifdef SCOTCH_DEBUG_ARCH2
+-    Anum                permtmp;
+-#endif /* SCOTCH_DEBUG_ARCH2 */
++  for (permnum = 0; permnum < permnbr; permnum ++) {
++    Anum                permval;
+ 
+-    if ((intLoad (stream, &archptr->permtab[permnum]) != 1) ||
+-        (archptr->permtab[permnum] < 0)                     ||
+-        (archptr->permtab[permnum] >= archptr->permnbr)) {
+-      errorPrint ("archLtleafArchLoad: bad input (2)");
++    permval = permtab[permnum];
++    if ((permval < 0) || (permval >= permnbr)) {
++      errorPrint ("archLtleafArchBuild2: invalid permutation index");
++      memFree    (permtmp);
+       return (1);
+     }
+-#ifdef SCOTCH_DEBUG_ARCH2
+-    for (permtmp = 0; permtmp < permnum; permtmp ++) {
+-      if (archptr->permtab[permtmp] == archptr->permtab[permnum]) {
+-        errorPrint ("archLtleafArchLoad: duplicate permutation index");
+-        return (1);
+-      }
++    if (peritab[permval] != ~0) {                 /* If index already used */
++      errorPrint ("archLtleafArchBuild2: duplicate permutation index");
++      memFree    (permtmp);
++      return (1);
+     }
+-#endif /* SCOTCH_DEBUG_ARCH2 */
++    permtmp[permnum] = permval;
++    peritab[permval] = permnum;                   /* Build inverse permutation */
+   }
+ 
+-  archptr->peritab = archptr->permtab + archptr->permnbr;
+-  for (permnum = 0; permnum < archptr->permnbr; permnum ++) /* Build inverse permutation */
+-    archptr->peritab[archptr->permtab[permnum]] = permnum;
++  archptr->permnbr = permnbr;                     /* Set architecture fields only on success */
++  archptr->permtab = permtmp;
++  archptr->peritab = peritab;
+ 
+   return (0);
+ }
+ 
++/* This routine loads the labeled
++** tree leaf architecture.
++** It returns:
++** - 0   : if the architecture has been successfully read.
++** - !0  : on error.
++*/
++
++int
++archLtleafArchLoad (
++ArchTleaf * restrict const  archptr,
++FILE * restrict const       stream)
++{
++  Anum *              sizetab;                    /* Temporary array of level sizes and link costs */
++  Anum *              permtab;                    /* Temporary permutation array                   */
++  Anum                levlnbr;
++  Anum                permnbr;
++  Anum                permnum;
++  int                 o;
++
++  archptr->sizetab =                              /* Assume nothing allocated yet */
++  archptr->permtab = NULL;
++
++  if (archTleafArchLoad2 (stream, &levlnbr, &sizetab) != 0) /* Read tree structure */
++    return (1);
++
++  o = archTleafArchBuild (archptr, levlnbr, sizetab, sizetab + levlnbr); /* Build tree part */
++  memFree (sizetab);
++  if (o != 0)                                     /* On error, caller will clean up by calling archLtleafArchFree() */
++    return (1);
++
++  if ((intLoad (stream, &permnbr) != 1) ||
++      (permnbr < 1)                     ||
++      (permnbr > archptr->termnbr)) {
++    errorPrint ("archLtleafArchLoad: bad input (1)");
++    return (1);
++  }
++
++  if ((permtab = memAlloc (permnbr * sizeof (Anum))) == NULL) {
++    errorPrint ("archLtleafArchLoad: out of memory");
++    return (1);
++  }
++
++  for (permnum = 0; permnum < permnbr; permnum ++) {
++    if (intLoad (stream, &permtab[permnum]) != 1) {
++      errorPrint ("archLtleafArchLoad: bad input (2)");
++      memFree    (permtab);
++      return (1);
++    }
++  }
++
++  o = archLtleafArchBuild2 (archptr, permnbr, permtab); /* Build permutation part */
++
++  memFree (permtab);
++
++  return (o);
++}
++
+ /* This routine saves the labeled
+ ** tree leaf architecture.
+ ** It returns:
+@@ -776,6 +931,36 @@ FILE * restrict const       stream)
+   return (0);
+ }
+ 
++/* This routine builds the labeled tree
++** leaf architecture from its level size,
++** link cost and label permutation arrays.
++** Architecture fields are set only on
++** success.
++** It returns:
++** - 0   : if the architecture has been successfully built.
++** - !0  : on error.
++*/
++
++int
++archLtleafArchBuild (
++ArchTleaf * restrict const  archptr,
++const Anum                  levlnbr,              /*+ Number of levels                            +*/
++const Anum * restrict const sizetab,              /*+ Size array, by increasing level number      +*/
++const Anum * restrict const linktab,              /*+ Link cost array, by increasing level number +*/
++const Anum                  permnbr,              /*+ Number of permutation indices               +*/
++const Anum * restrict const permtab)              /*+ Permutation array                           +*/
++{
++  if (archTleafArchBuild (archptr, levlnbr, sizetab, linktab) != 0) /* Build tree part */
++    return (1);
++
++  if (archLtleafArchBuild2 (archptr, permnbr, permtab) != 0) { /* Build permutation part */
++    archTleafArchFree (archptr);                  /* Free tree part                   */
++    return (1);
++  }
++
++  return (0);
++}
++
+ /* This function returns the smallest number
+ ** of terminal domain included in the given
+ ** domain.
+diff --git a/src/libscotch/arch_tleaf.h b/src/libscotch/arch_tleaf.h
+index 5829c05..bde3316 100644
+--- a/src/libscotch/arch_tleaf.h
++++ b/src/libscotch/arch_tleaf.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2010-2012,2014,2015,2018 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2010-2012,2014,2015,2018,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -65,7 +65,7 @@
+ /**                # Version 6.0  : from : 14 feb 2011     **/
+ /**                                 to   : 28 may 2018     **/
+ /**                # Version 7.0  : from : 19 feb 2018     **/
+-/**                                 to   : 19 feb 2018     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -122,6 +122,7 @@ typedef struct ArchTleafMatch_ {
+ int                         archTleafArchLoad   (ArchTleaf * restrict const, FILE * restrict const);
+ int                         archTleafArchSave   (const ArchTleaf * const, FILE * restrict const);
+ int                         archTleafArchFree   (ArchTleaf * restrict const);
++int                         archTleafArchBuild  (ArchTleaf * restrict const, const Anum, const Anum * restrict const, const Anum * restrict const);
+ 
+ int                         archTleafMatchInit  (ArchTleafMatch * restrict const, const ArchTleaf * restrict const);
+ void                        archTleafMatchExit  (ArchTleafMatch * restrict const);
+@@ -141,6 +142,7 @@ int                         archTleafDomIncl    (const ArchTleaf * const, const
+ int                         archLtleafArchLoad  (ArchTleaf * restrict const, FILE * restrict const);
+ int                         archLtleafArchSave  (const ArchTleaf * const, FILE * restrict const);
+ #define archLtleafArchFree          archTleafArchFree
++int                         archLtleafArchBuild (ArchTleaf * restrict const, const Anum, const Anum * restrict const, const Anum * restrict const, const Anum, const Anum * restrict const);
+ 
+ #define archLtleafMatchInit archTleafMatchInit
+ #define archLtleafMatchExit archTleafMatchExit
+diff --git a/src/libscotch/library_arch.c b/src/libscotch/library_arch.c
+index 9c1fc3a..d07c15d 100644
+--- a/src/libscotch/library_arch.c
++++ b/src/libscotch/library_arch.c
+@@ -57,7 +57,7 @@
+ /**                # Version 6.1  : from : 15 mar 2021     **/
+ /**                                 to   : 15 mar 2021     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 06 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -492,10 +492,7 @@ const SCOTCH_Num            levlnbr,              /*+ Number of levels in archit
+ const SCOTCH_Num * const    sizetab,              /*+ Size array, by increasing level number      +*/
+ const SCOTCH_Num * const    linktab)              /*+ Link cost array, by increasing level number +*/
+ {
+-  Anum                levlnum;
+-  Anum                sizeval;
+   Arch *              tgtarchptr;
+-  ArchTleaf *         tgtarchdatptr;
+ 
+   if (sizeof (SCOTCH_Num) != sizeof (Gnum)) {
+     errorPrint (STRINGIFY (SCOTCH_archTleaf) ": internal error");
+@@ -503,27 +500,10 @@ const SCOTCH_Num * const    linktab)              /*+ Link cost array, by increa
+   }
+ 
+   tgtarchptr          = (Arch *) archptr;
+-  tgtarchdatptr       = (ArchTleaf *) (void *) (&tgtarchptr->data);
+   tgtarchptr->clasptr = archClass ("tleaf");
+   tgtarchptr->flagval = tgtarchptr->clasptr->flagval; /* Copy architecture flag */
+ 
+-  if ((tgtarchdatptr->sizetab = memAlloc ((levlnbr * 2 + 1) * sizeof (Anum))) == NULL) { /* TRICK: One more slot for linktab[-1] */
+-    errorPrint (STRINGIFY (SCOTCH_archTleaf) ": out of memory");
+-    return (1);
+-  }
+-  tgtarchdatptr->levlnbr     = (Anum) levlnbr;
+-  tgtarchdatptr->linktab     = tgtarchdatptr->sizetab + tgtarchdatptr->levlnbr + 1;
+-  tgtarchdatptr->linktab[-1] = 0;                 /* TRICK: Dummy slot for for level-0 communication */
+-  tgtarchdatptr->permtab     = NULL;              /* Assume no permutation array                     */
+-
+-  for (levlnum = 0, sizeval = 1; levlnum < tgtarchdatptr->levlnbr; levlnum ++) {
+-    tgtarchdatptr->sizetab[levlnum] = sizetab[levlnum];
+-    tgtarchdatptr->linktab[levlnum] = linktab[levlnum];
+-    sizeval *= tgtarchdatptr->sizetab[levlnum];
+-  }
+-  tgtarchdatptr->termnbr = sizeval;
+-
+-  return (0);
++  return (archTleafArchBuild ((ArchTleaf *) (void *) (&tgtarchptr->data), levlnbr, sizetab, linktab));
+ }
+ 
+ /*
+@@ -539,29 +519,18 @@ const SCOTCH_Num * const    linktab,              /*+ Link cost array, by increa
+ const SCOTCH_Num            permnbr,              /*+ Number of permutation indices               +*/
+ const SCOTCH_Num * const    permtab)              /*+ Permutation array                           +*/
+ {
+-  Anum                permnum;
+   Arch *              tgtarchptr;
+-  ArchTleaf *         tgtarchdatptr;
+-
+-  if (SCOTCH_archTleaf (archptr, levlnbr, sizetab, linktab) != 0) /* Build tree part */
+-    return (1);
+-  tgtarchptr          = (Arch *) archptr;
+-  tgtarchdatptr       = (ArchTleaf *) (void *) (&tgtarchptr->data);
+-  tgtarchptr->clasptr = archClass ("ltleaf");     /* Override class */
+ 
+-  if ((tgtarchdatptr->permtab = memAlloc (permnbr * 2 * sizeof (Anum))) == NULL) { /* TRICK: space for peritab too */
+-    errorPrint (STRINGIFY (SCOTCH_archLtleaf) ": out of memory");
++  if (sizeof (SCOTCH_Num) != sizeof (Gnum)) {
++    errorPrint (STRINGIFY (SCOTCH_archLtleaf) ": internal error");
+     return (1);
+   }
+-  tgtarchdatptr->permnbr = (Anum) permnbr;
+-  tgtarchdatptr->peritab = tgtarchdatptr->permtab + permnbr;
+ 
+-  for (permnum = 0; permnum < tgtarchdatptr->permnbr; permnum ++)
+-    tgtarchdatptr->permtab[permnum] = permtab[permnum];
+-  for (permnum = 0; permnum < tgtarchdatptr->permnbr; permnum ++) /* Build inverse permutation */
+-    tgtarchdatptr->peritab[tgtarchdatptr->permtab[permnum]] = permnum;
++  tgtarchptr          = (Arch *) archptr;
++  tgtarchptr->clasptr = archClass ("ltleaf");
++  tgtarchptr->flagval = tgtarchptr->clasptr->flagval; /* Copy architecture flag */
+ 
+-  return (0);
++  return (archLtleafArchBuild ((ArchTleaf *) (void *) (&tgtarchptr->data), levlnbr, sizetab, linktab, permnbr, permtab));
+ }
+ 
+ /*
+diff --git a/src/libscotch/module.h b/src/libscotch/module.h
+index 944aa00..cbcc451 100644
+--- a/src/libscotch/module.h
++++ b/src/libscotch/module.h
+@@ -538,6 +538,7 @@
+ #define archHcubDomMpiType          SCOTCH_NAME_INTERN (archHcubDomMpiType)
+ #define archLtleafArchLoad          SCOTCH_NAME_INTERN (archLtleafArchLoad)
+ #define archLtleafArchSave          SCOTCH_NAME_INTERN (archLtleafArchSave)
++#define archLtleafArchBuild         SCOTCH_NAME_INTERN (archLtleafArchBuild)
+ #define archLtleafDomNum            SCOTCH_NAME_INTERN (archLtleafDomNum)
+ #define archLtleafDomTerm           SCOTCH_NAME_INTERN (archLtleafDomTerm)
+ #define archMesh2ArchLoad           SCOTCH_NAME_INTERN (archMesh2ArchLoad)
+@@ -618,6 +619,7 @@
+ #define archTermDomMpiType          SCOTCH_NAME_INTERN (archTermDomMpiType)
+ #define archTleafArchLoad           SCOTCH_NAME_INTERN (archTleafArchLoad)
+ #define archTleafArchFree           SCOTCH_NAME_INTERN (archTleafArchFree)
++#define archTleafArchBuild          SCOTCH_NAME_INTERN (archTleafArchBuild)
+ #define archTleafArchSave           SCOTCH_NAME_INTERN (archTleafArchSave)
+ #define archTleafMatchInit          SCOTCH_NAME_INTERN (archTleafMatchInit)
+ #define archTleafMatchExit          SCOTCH_NAME_INTERN (archTleafMatchExit)
+-- 
+2.47.3
+

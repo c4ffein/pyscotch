@@ -1,0 +1,52 @@
+From 0bfb5ff1bd0aa004919443422a8df6caab1778df Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 14:13:34 +0000
+Subject: [PATCH 7/7] Base the edge array before the element-count check in
+ `dmeshLoadAdm()` [report R. Perry]
+
+On the `bad input (2)` path, `dmeshLoadAdm()` did `goto fail` before
+`eelmloctax` was rebased, yet the fail block frees `eelmloctax + baseval`;
+for a non-zero base this would free a pointer inside the block. The
+branch is currently unreachable (the earlier header-consistency check
+forces the element-count sum to match), so this is latent, but the free
+of an unbased pointer is fragile.
+
+Rebase the edge array right after the distribution array is built, before
+the element-count check, so both the check's fail path and the normal
+path free the based pointer. All arrays are known to be allocated at that
+point (a prior allocation failure returns earlier).
+
+Refs: DGR-16
+---
+ src/libscotch/dmesh_io_load.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/src/libscotch/dmesh_io_load.c b/src/libscotch/dmesh_io_load.c
+index d501be1..6630c5d 100644
+--- a/src/libscotch/dmesh_io_load.c
++++ b/src/libscotch/dmesh_io_load.c
+@@ -315,15 +315,17 @@ const DmeshFlag             flagval)              /* Mesh loading flags
+     preldspadj += preldspval;
+   }
+   prelvrttab[procnum] = preldspadj;               /* Set end of displacement array */
+-  if (preldspadj != (velmglbnbr + baseval)) {
++
++  vnodglbnnd  = vnodglbnbr + baseval;
++  eelmloctax -= baseval;                          /* Base edge array with new base (all arrays allocated by now) */
++  eelmlocnnd  = eelmlocnbr + baseval;
++
++  if (preldspadj != (velmglbnbr + baseval)) {     /* After basing, so that the fail path frees the based array */
+     errorPrint ("dmeshLoadAdm: bad input (2)");
+     reduloctab[0] = 1;
+     goto fail;
+   }
+ 
+-  vnodglbnnd  = vnodglbnbr + baseval;
+-  eelmloctax -= baseval;                          /* Base edge array with new base */
+-  eelmlocnnd  = eelmlocnbr + baseval;
+   for (velmlocnum = 0, eelmlocnum = baseval; velmlocnum < velmlocnbr; velmlocnum ++) {
+     Gnum                degrval;                  /* Number of neighbors for element */
+ 
+-- 
+2.47.3
+

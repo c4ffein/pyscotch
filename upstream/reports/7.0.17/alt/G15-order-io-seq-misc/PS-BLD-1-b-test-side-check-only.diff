@@ -1,0 +1,29 @@
+Alternative (not committed): leave SCOTCH_graphOrderCheck() as is and make the test program's own
+checkOrder() exit on error (BLD-04, owned by group G28). Library users get no check of permtab.
+--- a/src/check/test_scotch_graph_order.c
++++ b/src/check/test_scotch_graph_order.c
+@@ -92,16 +92,22 @@
+ 
+     permval = permtab[vertnum];
+     if ((permval <  baseval) ||
+-        (permval >= vertnnd))
++        (permval >= vertnnd)) {
+       SCOTCH_errorPrint ("checkOrder: invalid permutation value");
++      exit (EXIT_FAILURE);
++    }
+ 
+     perival = peritab[vertnum];
+     if ((perival <  baseval) ||
+-        (perival >= vertnnd))
++        (perival >= vertnnd)) {
+       SCOTCH_errorPrint ("checkOrder: invalid inverse permutation value");
++      exit (EXIT_FAILURE);
++    }
+ 
+-    if (peritab[permval - baseval] != (vertnum + baseval))
++    if (peritab[permval - baseval] != (vertnum + baseval)) {
+       SCOTCH_errorPrint ("checkOrder: invalid permutation pair");
++      exit (EXIT_FAILURE);
++    }
+   }
+ }

@@ -1,0 +1,41 @@
+diff --git a/src/libscotch/dgraph_match_check.c b/src/libscotch/dgraph_match_check.c
+index 05a7983..aa8d0d9 100644
+--- a/src/libscotch/dgraph_match_check.c
++++ b/src/libscotch/dgraph_match_check.c
+@@ -81,7 +81,6 @@ DgraphMatchData * restrict const    mateptr)
+   int                 procngbnum;
+   Gnum                multlocnbr;
+   Gnum                multlocnum;
+-  Gnum                vertlocnbr;
+   Gnum                vertlocnnd;
+   Gnum                vertlocnum;
+   Gnum                vertlocadj;
+@@ -110,15 +109,6 @@ DgraphMatchData * restrict const    mateptr)
+     cheklocval = 1;
+   }
+ 
+-  vertlocnbr = grafptr->vertlocnbr;
+-  for (vertlocnum = baseval; vertlocnum < vertlocnbr; vertlocnum ++) {
+-    if (mategsttax[vertlocnum] < 0) {
+-      errorPrint ("dgraphMatchCheck: unmatched local vertex");
+-      cheklocval = 1;
+-      break;
+-    }
+-  }
+-
+   if ((flaggsttax = memAlloc (grafptr->vertgstnbr * sizeof (Gnum))) == NULL) {
+     errorPrint ("dgraphMatchCheck: out of memory");
+     cheklocval = 1;
+@@ -256,6 +246,12 @@ DgraphMatchData * restrict const    mateptr)
+       }
+     }
+   }
++  for (vertlocnum = baseval; vertlocnum < vertlocnnd; vertlocnum ++) { /* All local vertices must belong to some multinode */
++    if (flaggsttax[vertlocnum] == -1) {
++      errorPrint ("dgraphMatchCheck: unmatched local vertex");
++      goto fail;
++    }
++  }
+   cheklocval = -1;
+ fail:
+   cheklocval ++;

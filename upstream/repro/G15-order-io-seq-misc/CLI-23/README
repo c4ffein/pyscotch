@@ -1,0 +1,10 @@
+CLI-23: esMUMPS orderLoad()/orderSave() validation and lost write errors
+Build: gcc -O0 -g -fsanitize=address,undefined -I<tree>/include oio.c -o oio -L<tree>/lib -lesmumps -lscotch -lscotcherr -lz -lm -lpthread
+Run (LD_LIBRARY_PATH=<tree>/lib UBSAN_OPTIONS=print_stacktrace=1 (pristine tree: INFRA/asan; patched: $WORK/build or $WORK/build64)): for m in 0 1 2 3 4 5 6; do ./oio $m; done
+Pristine: mode 0 (rank 7 for 3 vertices) -> ASan heap-buffer-overflow WRITE in _ESMUMPSorderLoad (order_io.c:123);
+mode 1 (cblknbr=-1) -> SEGV; mode 2 (duplicate rank) and mode 3 (unsorted range array) -> load ret=0 (accepted),
+only orderCheck() rejects them; mode 4 (save with vertnbr == 0) -> ASan heap-buffer-overflow READ in _ESMUMPSorderSave
+(order_io.c:176); mode 5 round trip ok; mode 6 (stream full) -> error reported (the lost-status case needs a transient
+failure, source-read only: order_io.c:169 and :176 overwrite o).
+Patched: modes 0-3 rejected ("invalid permutation value", "bad input (1)", "duplicate permutation value", "bad input (4)"),
+mode 4 save ret=0 without sanitizer report, mode 5 round trip ok.

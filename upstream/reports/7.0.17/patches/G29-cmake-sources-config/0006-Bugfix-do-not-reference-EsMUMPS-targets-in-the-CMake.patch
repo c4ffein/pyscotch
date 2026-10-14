@@ -1,0 +1,78 @@
+From 7b94a9533aeddd4fa291567d8393c8f48d2470f8 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:08:34 +0000
+Subject: [PATCH 06/11] Bugfix: do not reference EsMUMPS targets in the CMake
+ package config when they are not built [report R. Perry]
+
+When SCOTCH_NAME_SUFFIX is set, "src/CMakeLists.txt" skips the
+"esmumps" directory, hence neither "esmumpsTargets.cmake" nor
+"ptesmumpsTargets.cmake" are installed. Yet, BUILD_LIBESMUMPS stayed
+ON, so that the installed "SCOTCHConfig.cmake" still included both
+files, and `find_package(SCOTCH)` failed for every user of a suffixed
+installation.
+
+Decide once, in the top-level CMake file, that EsMUMPS is not built
+when symbols are suffixed, by turning BUILD_LIBESMUMPS off with a
+status message. The package config file then follows.
+
+Refs: BLD-02
+---
+ CMakeLists.txt     | 8 ++++++--
+ src/CMakeLists.txt | 6 +++---
+ 2 files changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 83907ec..b4434ec 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,7 +37,7 @@
+ ##   FUNCTION   : Top-level CMake configuration file      ##
+ ##                                                        ##
+ ##   DATES      : # Version 7.0  : from : 18 jan 2022     ##
+-##                                 to     03 oct 2026     ##
++##                                 to     13 oct 2026     ##
+ ##                                                        ##
+ ############################################################
+ 
+@@ -95,8 +95,12 @@ option(MPI_THREAD_MULTIPLE "Use multi-threading with MPI in PT-Scotch" ON)
+ # Build PT-Scotch
+ option(BUILD_PTSCOTCH "Build PT-Scotch" ON)
+ 
+-# Build libESMUMPS
++# Build libESMUMPS: not possible when symbols are suffixed
+ option(BUILD_LIBESMUMPS "Build EsMUMPS library" ON)
++if(BUILD_LIBESMUMPS AND USE_SUFFIX)
++  message(STATUS "EsMUMPS library not built because SCOTCH_NAME_SUFFIX is set")
++  set(BUILD_LIBESMUMPS OFF)
++endif()
+ 
+ # Build libScotchMeTiS
+ option(BUILD_LIBSCOTCHMETIS "Build ScotchMeTiS library" ON)
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 50a488e..6be99d5 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -42,7 +42,7 @@
+ ##   DATES      : # Version 6.0  : from : 01 sep 2014     ##
+ ##                                 to     01 sep 2021     ##
+ ##                # Version 7.0  : from : 01 sep 2021     ##
+-##                                 to     05 jun 2026     ##
++##                                 to     13 oct 2026     ##
+ ##                                                        ##
+ ############################################################
+ 
+@@ -221,9 +221,9 @@ add_subdirectory(libscotch)
+ add_subdirectory(scotch)
+ 
+ # Build EsMUMPS library
+-if(BUILD_LIBESMUMPS AND NOT USE_SUFFIX)
++if(BUILD_LIBESMUMPS)
+   add_subdirectory(esmumps)
+-endif(BUILD_LIBESMUMPS AND NOT USE_SUFFIX)
++endif(BUILD_LIBESMUMPS)
+ 
+ # Build ScotchMeTiS library
+ if(BUILD_LIBSCOTCHMETIS)
+-- 
+2.47.3
+

@@ -1,0 +1,13 @@
+diff --git a/src/libscotch/bgraph_bipart_ga.c b/src/libscotch/bgraph_bipart_ga.c
+index c681f1e..0ffd3bc 100644
+--- a/src/libscotch/bgraph_bipart_ga.c
++++ b/src/libscotch/bgraph_bipart_ga.c
+@@ -287,7 +287,7 @@ const BgraphBipartGaParam * const paraptr)        /* Method parameters */
+ #else /* BGRAPHBIPARTGANOTHREAD */
+   const int                 thrdnbr = 1;
+ #endif /* BGRAPHBIPARTGANOTHREAD */
+-  const Gnum                demenbr = DEMENBR (paraptr->popunbr, thrdnbr); /* Size of thread local deme */
++  const Gnum                demenbr = DEMENBR (MAX (paraptr->popunbr, 1), thrdnbr); /* Size of thread local deme; at least one individual */
+   const Gnum                sortnbr = demenbr * thrdnbr; /* Overall number of individuals to sort       */
+ 
+   if (grafptr->s.vertnbr < 2)                     /* If less than two vertices, no crossing-over possible and nothing relevant to do */

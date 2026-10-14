@@ -1,0 +1,5 @@
+Alternative for PS2-G12-2: in kgraphMapSt, errorPrint and return 1 when the
+mapping part array is NULL for a refinement method, instead of pre-allocating a
+trivial mapping. Rejected: needs a per-method "requires initial mapping" flag in
+the strategy table, and returns an error where the trivial mapping is a usable
+result; the chosen fix mirrors kgraph_map_ml.c exactly. No minimal diff.

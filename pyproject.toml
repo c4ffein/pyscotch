@@ -45,6 +45,10 @@ dev = [
     "ruff>=0.8",
     "mypy",
 ]
+report = [
+    "jinja2",
+    "playwright",
+]
 docs = [
     "sphinx",
     "sphinx-rtd-theme",
@@ -99,6 +103,9 @@ version = {attr = "pyscotch._version.__version__"}
 line-length = 120
 extend-exclude = [
     "external",   # the Scotch submodule (C) and anything a build drops there
+    "upstream/reports",  # per-version report data: the auditors' reproducer scripts are evidence, not project code
+    "upstream/repro",    # the reproducer kits (auditors' scripts, evidence)
+    "docs/out",   # the built site (copies of those scripts end up there)
     "build",      # disposable patched Scotch source copy
     "scotchpy",   # upstream's own bindings, checked out for differential tests
 ]

@@ -1,0 +1,92 @@
+# DGR-07 option B (NOT preferred): the callee frees the index array on error in both variants; callers stop freeing it; SCOTCH_dgraphGrow() copies the user part array (costs a copy of vertgstnbr Gnums per call, and a partgsttab == NULL caller is no longer handled gracefully). Untested beyond compilation of the idea; kept as a sketch of the ownership-inversion option.
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/dgraph_band.c b/src/libscotch/dgraph_band.c
+index 2b3bad8..964e5b8 100644
+--- a/src/libscotch/dgraph_band.c
++++ b/src/libscotch/dgraph_band.c
+@@ -162,11 +162,8 @@ Context *                           contptr)      /*+ Execution context
+   }
+ 
+   if ((((grafptr->flagval & DGRAPHCOMMPTOP) != 0) ? dgraphBand2Ptop : dgraphBand2Coll)
+-      (grafptr, fronlocnbr, fronloctab, distmax, bandvnumgsttax, &bandvertlvlnum, &bandvertlocnbr, &bandedgelocnbr, contptr) != 0) {
+-    if (bandvnumgsttax != NULL)
+-      memFree (bandvnumgsttax + grafptr->baseval);
+-    return (1);
+-  }
++      (grafptr, fronlocnbr, fronloctab, distmax, bandvnumgsttax, &bandvertlvlnum, &bandvertlocnbr, &bandedgelocnbr, contptr) != 0)
++    return (1);                                   /* Index array freed by dgraphBand2*() */
+ 
+   if (bandvertlvlptr != NULL)
+     *bandvertlvlptr = bandvertlvlnum;
+diff --git a/src/libscotch/dgraph_band_grow.c b/src/libscotch/dgraph_band_grow.c
+index 05840dd..9aa0f9f 100644
+--- a/src/libscotch/dgraph_band_grow.c
++++ b/src/libscotch/dgraph_band_grow.c
+@@ -158,6 +158,8 @@ Context *                         contptr)        /*+ Execution context
+   if (reduglbtab[0] != 0) {
+     if (procvgbtab != NULL)
+       memFree (procvgbtab);                       /* Free group leader */
++    if (vnumgsttax != NULL)
++      memFree (vnumgsttax + grafptr->baseval);    /* Free index array of caller */
+     return (1);
+   }
+ 
+@@ -392,11 +394,10 @@ Context *                         contptr)        /*+ Execution context
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH1 */
+   if (reduglbtab[0] != 0) {
+-    if (vnumgsttax != NULL) {
+-      if (procvgbtab != NULL)
+-        memFree (procvgbtab);                     /* Free group leader */
+-      memFree (vnumgsttax);
+-    }
++    if (procvgbtab != NULL)
++      memFree (procvgbtab);                       /* Free group leader */
++    if (vnumgsttax != NULL)
++      memFree (vnumgsttax + grafptr->baseval);    /* Free index array of caller */
+     return (1);
+   }
+ 
+diff --git a/src/libscotch/library_dgraph_band.c b/src/libscotch/library_dgraph_band.c
+index aa7c997..250fcd6 100644
+--- a/src/libscotch/library_dgraph_band.c
++++ b/src/libscotch/library_dgraph_band.c
+@@ -148,11 +148,8 @@ SCOTCH_Dgraph * const       bndgrafptr)
+   }
+ 
+   if ((((grafptr->flagval & DGRAPHCOMMPTOP) != 0) ? dgraphBand2Ptop : dgraphBand2Coll)
+-      (grafptr, fronlocnbr, fronloctab, distval, bandvnumgsttax, &bandvertlvlnum, &bandvertlocnbr, &bandedgelocsiz, CONTEXTGETDATA (orggrafptr)) != 0) {
+-    if (bandvnumgsttax != NULL)
+-      memFree (bandvnumgsttax + grafptr->baseval);
+-    goto fail;
+-  }
++      (grafptr, fronlocnbr, fronloctab, distval, bandvnumgsttax, &bandvertlvlnum, &bandvertlocnbr, &bandedgelocsiz, CONTEXTGETDATA (orggrafptr)) != 0)
++    goto fail;                                    /* Index array freed by dgraphBand2*() */
+ 
+   vertloctax = grafptr->vertloctax;
+   vendloctax = grafptr->vendloctax;
+diff --git a/src/libscotch/library_dgraph_grow.c b/src/libscotch/library_dgraph_grow.c
+index 9ec15f1..33bd138 100644
+--- a/src/libscotch/library_dgraph_grow.c
++++ b/src/libscotch/library_dgraph_grow.c
+@@ -126,10 +126,19 @@ SCOTCH_Num * const          partgsttab)
+     return (1);
+   }
+ 
+-  bandpartgsttax = (partgsttab != NULL) ? (Gnum *) partgsttab - grafdat.baseval : NULL;
++  if ((bandpartgsttax = memAlloc (grafdat.vertgstnbr * sizeof (Gnum))) == NULL) /* Work on a copy, as dgraphGrow2*() frees it on error */
++    errorPrint (STRINGIFY (SCOTCH_dgraphGrow) ": out of memory"); /* Error will be propagated by dgraphGrow2*() */
++  else {
++    memCpy (bandpartgsttax, partgsttab, grafdat.vertgstnbr * sizeof (Gnum));
++    bandpartgsttax -= grafdat.baseval;
++  }
+ 
+   o = (((grafdat.flagval & DGRAPHCOMMPTOP) != 0) ? dgraphGrow2Ptop : dgraphGrow2Coll)
+         (&grafdat, seedlocnbr, seedloctab, distmax, bandpartgsttax, &bandvertlvlnum, &bandvertlocnbr, &bandedgelocsiz, CONTEXTGETDATA (orggrafptr));
++  if (o == 0) {
++    memCpy  (partgsttab, bandpartgsttax + grafdat.baseval, grafdat.vertgstnbr * sizeof (Gnum));
++    memFree (bandpartgsttax + grafdat.baseval);
++  }
+ 
+   dgraphExit (&grafdat);                          /* Free ghost edge arrays if any */
+ fail:

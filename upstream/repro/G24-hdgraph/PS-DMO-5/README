@@ -1,0 +1,11 @@
+PS-DMO-5: hdgraphOrderSq() returns only the root's status  (patches/0002)
+========================================================================
+At np 3 the sequential leaves are single-process (hdgraphOrderSq on a 1-process communicator), so the root-only status cannot be
+observed with np 3 on the default strategy; observed indirectly through the halves disagreement (see PS2-G18-3) and read in the
+source: hdgraph_order_sq.c:96-102 'o = 0; if (cgrfptr != NULL) o = hdgraphOrderSq2 (...)'. With the strategy "q" at the top level,
+hdgraphOrderSq() runs on the whole communicator: rank 0 allocation failures inside hdgraphOrderSq2 (orderInit, hgraphOrderNd...):
+base:    $C/one.sh $WORK/basefi/lib  $C/bin_basefi/orderfi  3 0 <n> rc  with strategy "q" -> see targeted_q.txt
+patched: all ranks return 1 (MPI_Bcast of the root's status).
+
+Results (targeted_q.txt): #11 (orderInit of hdgraphOrderSq2 on the root): base -> rank 0 rc=1, ranks 1,2 rc=0 (DISAGREE);
+patched -> rc=1 on every rank, 0 live blocks. #7-#10 (hdgraphGather (1)-(4)): rc=1 everywhere on both trees (hdgraphGather agrees itself).

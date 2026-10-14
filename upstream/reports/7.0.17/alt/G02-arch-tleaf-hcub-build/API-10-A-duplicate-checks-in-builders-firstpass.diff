@@ -1,0 +1,84 @@
+--- a/src/libscotch/library_arch.c
++++ b/src/libscotch/library_arch.c
+@@ -348,6 +348,12 @@
+     return (1);
+   }
+ 
++  if ((dimnnbr < 1) ||                            /* Same checks as in archHcubArchLoad() */
++      (dimnnbr > (SCOTCH_Num) ((sizeof (Anum) << 3) - 2))) {
++    errorPrint (STRINGIFY (SCOTCH_archHcub) ": invalid number of dimensions");
++    return (1);
++  }
++
+   tgtarchptr    = (Arch *) archptr;
+   tgtarchdatptr = (ArchHcub *) (void *) (&tgtarchptr->data);
+ 
+@@ -502,6 +508,18 @@
+     return (1);
+   }
+ 
++  if (levlnbr < 0) {                              /* Same checks as in archTleafArchLoad() */
++    errorPrint (STRINGIFY (SCOTCH_archTleaf) ": invalid number of levels");
++    return (1);
++  }
++  for (levlnum = 0; levlnum < (Anum) levlnbr; levlnum ++) {
++    if ((sizetab[levlnum] < 2) ||
++        (linktab[levlnum] < 1)) {
++      errorPrint (STRINGIFY (SCOTCH_archTleaf) ": invalid level size or link cost");
++      return (1);
++    }
++  }
++
+   tgtarchptr          = (Arch *) archptr;
+   tgtarchdatptr       = (ArchTleaf *) (void *) (&tgtarchptr->data);
+   tgtarchptr->clasptr = archClass ("tleaf");
+@@ -543,23 +561,46 @@
+   Arch *              tgtarchptr;
+   ArchTleaf *         tgtarchdatptr;
+ 
++  if (permnbr <= 0) {                             /* Same checks as in archLtleafArchLoad() */
++    errorPrint (STRINGIFY (SCOTCH_archLtleaf) ": invalid permutation size");
++    return (1);
++  }
++  for (permnum = 0; permnum < (Anum) permnbr; permnum ++) {
++    if ((permtab[permnum] < 0) ||
++        (permtab[permnum] >= permnbr)) {
++      errorPrint (STRINGIFY (SCOTCH_archLtleaf) ": invalid permutation index");
++      return (1);
++    }
++  }
++
+   if (SCOTCH_archTleaf (archptr, levlnbr, sizetab, linktab) != 0) /* Build tree part */
+     return (1);
+   tgtarchptr          = (Arch *) archptr;
+   tgtarchdatptr       = (ArchTleaf *) (void *) (&tgtarchptr->data);
+-  tgtarchptr->clasptr = archClass ("ltleaf");     /* Override class */
+ 
+   if ((tgtarchdatptr->permtab = memAlloc (permnbr * 2 * sizeof (Anum))) == NULL) { /* TRICK: space for peritab too */
+     errorPrint (STRINGIFY (SCOTCH_archLtleaf) ": out of memory");
++    memFree    (tgtarchdatptr->sizetab);          /* Undo tree part construction */
++    tgtarchptr->clasptr = NULL;
+     return (1);
+   }
++  tgtarchptr->clasptr    = archClass ("ltleaf");  /* Override class */
+   tgtarchdatptr->permnbr = (Anum) permnbr;
+   tgtarchdatptr->peritab = tgtarchdatptr->permtab + permnbr;
+ 
+   for (permnum = 0; permnum < tgtarchdatptr->permnbr; permnum ++)
++    tgtarchdatptr->peritab[permnum] = ~0;         /* Detect duplicate indices */
++  for (permnum = 0; permnum < tgtarchdatptr->permnbr; permnum ++) {
+     tgtarchdatptr->permtab[permnum] = permtab[permnum];
+-  for (permnum = 0; permnum < tgtarchdatptr->permnbr; permnum ++) /* Build inverse permutation */
+-    tgtarchdatptr->peritab[tgtarchdatptr->permtab[permnum]] = permnum;
++    if (tgtarchdatptr->peritab[permtab[permnum]] != ~0) { /* If index already used */
++      errorPrint (STRINGIFY (SCOTCH_archLtleaf) ": duplicate permutation index");
++      memFree    (tgtarchdatptr->permtab);
++      memFree    (tgtarchdatptr->sizetab);
++      tgtarchptr->clasptr = NULL;
++      return (1);
++    }
++    tgtarchdatptr->peritab[permtab[permnum]] = permnum; /* Build inverse permutation */
++  }
+ 
+   return (0);
+ }

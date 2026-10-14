@@ -1,0 +1,32 @@
+--- a/src/esmumps/Makefile
++++ b/src/esmumps/Makefile
+@@ -58,14 +58,16 @@
+ 					test_esmumps$(EXE)			\
+ 					test_fax$(EXE)
+ 
+-ptscotch			:	scotch
++ptscotch			:
++					$(MAKE) CC="$(CCS)" CCD="$(CCS)"	\
++					libesmumps$(LIB)
+ 
+ install				:	scotch					\
+ 					library.h
+ 					-$(CP) library.h $(SCOTCHINCLUDEDIR)/esmumps.h
+ 					-$(CP) libesmumps$(LIB) $(SCOTCHLIBDIR)
+ 
+-ptinstall			:	scotch					\
++ptinstall			:	ptscotch				\
+ 					library.h
+ 					-$(CP) library.h $(SCOTCHINCLUDEDIR)/esmumps.h
+ 					-$(CP) libesmumps$(LIB) $(SCOTCHLIBDIR)/libptesmumps$(LIB)
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -125,7 +125,7 @@
+ escheck				:	esmumps
+ 					(cd check ; $(MAKE) escheck)
+ 
+-ptesmumps			:	scotch	ptscotch
++ptesmumps			:	esmumps	ptscotch
+ 					(cd esmumps ; $(MAKE) ptscotch && $(MAKE) ptinstall)
+ 
+ install				:	required	$(bindir)	$(includedir)	$(libdir)	$(mandir)/man1

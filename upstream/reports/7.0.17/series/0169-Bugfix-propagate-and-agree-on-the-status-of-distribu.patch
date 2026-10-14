@@ -1,0 +1,190 @@
+From 80d5f6fe3b0a6933be809c8fd7608a0e589bdde8 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:16:10 +0000
+Subject: [PATCH 169/240] Bugfix: propagate and agree on the status of
+ distributed ordering routines [report R. Perry and PyScotch]
+
+The status of the leaf ordering of `hdgraphOrderNd2()` and of the
+identity ordering of empty strategies in `hdgraphOrderSt()` were
+dropped, so that `SCOTCH_dgraphOrderCompute()` reported success with
+a missing permutation fragment: `SCOTCH_dgraphOrderPerm()` then failed
+on every process, and `SCOTCH_dgraphOrderSave()` waited forever for
+the fragment.
+
+Moreover, the status of the distributed ordering routines was not
+the same on all processes: `hdgraphOrderSq()` only returned the status
+of the root process, `hdgraphOrderSi2()` and `hdgraphOrderNd2()` only
+agreed on allocation errors in debug mode, and the two halves of a
+nested dissection, which run on disjoint communicators, never agreed
+at all. A process that failed alone returned while the other ones
+proceeded with the next collective operations, and a user that tested
+the return value before calling the next collective routine hung.
+
+Return the leaf statuses, agree on local errors before any further
+collective operation, broadcast the status of the sequential
+ordering, and agree on the status of the whole nested dissection on
+the communicator of the graph being ordered.
+
+Refs: DMO-06, PS-DMO-5, PS2-G18-3
+---
+ src/libscotch/hdgraph_order_nd.c | 24 ++++++++++++++----------
+ src/libscotch/hdgraph_order_si.c | 15 ++++-----------
+ src/libscotch/hdgraph_order_sq.c |  8 ++++++--
+ src/libscotch/hdgraph_order_st.c |  2 +-
+ 4 files changed, 25 insertions(+), 24 deletions(-)
+
+diff --git a/src/libscotch/hdgraph_order_nd.c b/src/libscotch/hdgraph_order_nd.c
+index 35166de..1253380 100644
+--- a/src/libscotch/hdgraph_order_nd.c
++++ b/src/libscotch/hdgraph_order_nd.c
+@@ -298,14 +298,10 @@ const HdgraphOrderNdParam * restrict const  paraptr)
+     errorPrint ("hdgraphOrderNd2: out of memory (2)");
+     cheklocval = 1;
+   }
+-#ifdef SCOTCH_DEBUG_HDGRAPH1                      /* Communication cannot be merged with a useful one */
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->s.proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->s.proccomm) != MPI_SUCCESS) { /* No process must proceed if some process cannot */
+     errorPrint  ("hdgraphOrderNd2: communication error (1)");
+     goto fail;
+   }
+-#else /* SCOTCH_DEBUG_HDGRAPH1 */
+-  chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_HDGRAPH1 */
+   if (chekglbval != 0)
+     goto fail;
+ 
+@@ -322,10 +318,10 @@ const HdgraphOrderNdParam * restrict const  paraptr)
+     memFree (vspgrafdat.partgsttax + vspgrafdat.s.baseval); /* Free useless space */
+     memFree (vspgrafdat.fronloctab);
+ 
+-    hdgraphOrderSt (grafptr, cblkptr, paraptr->ordstratlea); /* Order this leaf */
+-    hdgraphExit    (grafptr);                     /* Free graph at this level   */
+-    dorderDispose  (cblkptr);                     /* Clean up column block      */
+-    return (0);                                   /* Leaf has been processed    */
++    o = hdgraphOrderSt (grafptr, cblkptr, paraptr->ordstratlea); /* Order this leaf */
++    hdgraphExit   (grafptr);                      /* Free graph at this level   */
++    dorderDispose (cblkptr);                      /* Clean up column block      */
++    return (o);                                   /* Leaf has been processed    */
+   }
+ 
+   vspvnumtab[0] = vspgrafdat.fronloctab + vspgrafdat.complocsize[2]; /* TRICK: build vertex lists within frontier array */
+@@ -470,6 +466,8 @@ DorderCblk * restrict const                 cblkptr,
+ const HdgraphOrderNdParam * restrict const  paraptr)
+ {
+   Hdgraph             grafdat;                    /* Cloned graph */
++  int                 cheklocval;
++  int                 chekglbval;
+ 
+   if (dgraphGhst (&grafptr->s) != 0) {            /* Compute ghost edge array on un-cloned graph */
+     errorPrint ("hdgraphOrderNd: cannot compute ghost edge array");
+@@ -480,5 +478,11 @@ const HdgraphOrderNdParam * restrict const  paraptr)
+   grafdat.s.flagval &= ~HDGRAPHFREEALL;           /* Avoid freeing their data in nested dissection */
+   grafdat.levlnum    = 0;                         /* Nested dissection level 0                     */
+ 
+-  return (hdgraphOrderNd2 (&grafdat, cblkptr, paraptr));
++  cheklocval = hdgraphOrderNd2 (&grafdat, cblkptr, paraptr);
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->s.proccomm) != MPI_SUCCESS) { /* Processes of both folded halves must agree on the result */
++    errorPrint ("hdgraphOrderNd: communication error");
++    return (1);
++  }
++
++  return (chekglbval);
+ }
+diff --git a/src/libscotch/hdgraph_order_si.c b/src/libscotch/hdgraph_order_si.c
+index 7632ce2..1bf3598 100644
+--- a/src/libscotch/hdgraph_order_si.c
++++ b/src/libscotch/hdgraph_order_si.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2023-2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2023-2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 5.0  : from : 15 apr 2006     **/
+ /**                                 to   : 25 jul 2007     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 12 sep 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -82,30 +82,23 @@ MPI_Comm                    proccomm)
+   Gnum *              periloctab;
+   Gnum * restrict     periloctax;
+   Gnum                vertlocnum;
+-#ifdef SCOTCH_DEBUG_HDGRAPH1
+   int                 cheklocval;
+   int                 chekglbval;
+ 
+   cheklocval = 0;
+-#endif /* SCOTCH_DEBUG_HDGRAPH1 */
+   if ((periloctab = (Gnum *) memAlloc (vertlocnbr * sizeof (Gnum))) == NULL) { /* Allocate local fragment */
+     errorPrint ("hdgraphOrderSi2: out of memory");
+-#ifndef SCOTCH_DEBUG_HDGRAPH1
+-    return (1);
+-  }
+-#else /* SCOTCH_DEBUG_HDGRAPH1 */
+     cheklocval = 1;                               /* Indicate an error */
+   }
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, proccomm) != MPI_SUCCESS) { /* Communication cannot be merged with a useful one */
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, proccomm) != MPI_SUCCESS) { /* All processes must agree on the result */
+     errorPrint ("hdgraphOrderSi2: communication error");
+-    return (1);
++    chekglbval = 1;
+   }
+   if (chekglbval != 0) {
+     if (periloctab != NULL)
+       memFree (periloctab);
+     return (1);
+   }
+-#endif /* SCOTCH_DEBUG_HDGRAPH1 */
+ 
+   cblkptr->typeval = DORDERCBLKLEAF;              /* Fill node as leaf */
+   cblkptr->data.leaf.ordelocval = cblkptr->ordeglbval + procdspval - baseval;
+diff --git a/src/libscotch/hdgraph_order_sq.c b/src/libscotch/hdgraph_order_sq.c
+index 615e6d3..7303472 100644
+--- a/src/libscotch/hdgraph_order_sq.c
++++ b/src/libscotch/hdgraph_order_sq.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2008,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2008,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -43,7 +43,7 @@
+ /**   DATES      : # Version 5.1  : from : 11 nov 2008     **/
+ /**                                 to   : 11 nov 2008     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 17 jan 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -98,6 +98,10 @@ const HdgraphOrderSqParam * restrict const  paraptr)
+     o = hdgraphOrderSq2 (&cgrfdat, cblkptr, paraptr->ordstratseq);
+     hgraphFree (&cgrfdat);
+   }
++  if (MPI_Bcast (&o, 1, MPI_INT, 0, grafptr->s.proccomm) != MPI_SUCCESS) { /* All processes must know the result of the root process */
++    errorPrint ("hdgraphOrderSq: communication error");
++    return (1);
++  }
+ 
+   return (o);
+ }
+diff --git a/src/libscotch/hdgraph_order_st.c b/src/libscotch/hdgraph_order_st.c
+index c6f4a6c..2f03f46 100644
+--- a/src/libscotch/hdgraph_order_st.c
++++ b/src/libscotch/hdgraph_order_st.c
+@@ -205,7 +205,7 @@ const Strat * restrict const  straptr)            /*+ Graph ordering strategy +*
+       }
+       break;
+     case STRATNODEEMPTY :
+-      hdgraphOrderSi (grafptr, cblkptr);          /* Always maintain a consistent ordering */
++      o = hdgraphOrderSi (grafptr, cblkptr);      /* Always maintain a consistent ordering */
+       break;
+     case STRATNODESELECT :
+       errorPrint ("hdgraphOrderSt: selection operator not available for graph ordering strategies");
+-- 
+2.47.3
+

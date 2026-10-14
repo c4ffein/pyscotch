@@ -1,0 +1,54 @@
+From 3dec131a9cbef40116d2fdcd03d9468656bf4110 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:14:36 +0000
+Subject: [PATCH 030/240] Bugfix: always keep a valid part array in
+ `graphMapCompute2()' [report PyScotch]
+
+`graphMapCompute2()' ran the mapping strategy on a `Kgraph' whose mapping part
+array had only been declared by `kgraphInit()', not allocated: the multilevel
+and recursive-bipartitioning methods allocate it themselves, but a strategy
+whose first method is a refinement method (`f', `b', `d', ...) dereferenced the
+NULL part array and crashed (confirmed with `SCOTCH_graphMap()' and strategies
+such as `f{bal=0.05}'). On the error path the result was also copied back to the
+user array unconditionally, exposing an unset or partial mapping.
+
+Allocate and initialise the part array to the trivial single-domain mapping
+right after `kgraphInit()', as `kgraphMapMlUncoarsen()' does, so every method
+starts from a consistent mapping, and copy the result back only on success.
+
+Refs: PS2-G12-2, PS2-G13-1
+---
+ src/libscotch/library_graph_map.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/src/libscotch/library_graph_map.c b/src/libscotch/library_graph_map.c
+index 5bbb903..b3b4e1c 100644
+--- a/src/libscotch/library_graph_map.c
++++ b/src/libscotch/library_graph_map.c
+@@ -272,6 +272,13 @@ SCOTCH_Strat * const        straptr)              /*+ Mapping strategy
+   if (kgraphInit (&mapgrafdat, grafptr, lmapptr->archptr, &domnorg, vfixnbr, pfixtax, crloval, cmloval, vmlotax) != 0)
+     goto fail;
+ 
++  if (mapAlloc (&mapgrafdat.m) != 0) {            /* Set an initial mapping for methods that do not compute one */
++    errorPrint ("graphMapCompute2: cannot allocate mapping array");
++    kgraphExit (&mapgrafdat);
++    goto fail;
++  }
++  kgraphFrst (&mapgrafdat);                       /* Assign all vertices to the initial domain */
++
+   if (lmaoptr != NULL) {                          /* If we are doing a repartitioning, fill old mapping structure */
+     if (mapAlloc (&mapgrafdat.r.m) != 0) {        /* Allocate part and domain arrays                              */
+       errorPrint ("kgraphInit: cannot initialize remapping (1)");
+@@ -292,7 +299,8 @@ SCOTCH_Strat * const        straptr)              /*+ Mapping strategy
+   mapgrafdat.contptr = CONTEXTGETDATA (actgrafptr);
+ 
+   o = kgraphMapSt (&mapgrafdat, mapstraptr);
+-  mapTerm (&mapgrafdat.m, lmapptr->parttab - baseval); /* Propagate mapping result to part array */
++  if (o == 0)                                     /* Propagate mapping result to part array only on success */
++    mapTerm (&mapgrafdat.m, lmapptr->parttab - baseval); /* (do not expose a partial mapping after an error) */
+ 
+   kgraphExit (&mapgrafdat);
+ 
+-- 
+2.47.3
+

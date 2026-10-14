@@ -21,6 +21,7 @@ Design notes:
 import hashlib
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -33,12 +34,13 @@ from . import _store
 
 # ---------------------------------------------------------------------------
 # Known upstream releases (GitLab archive tarballs). Checksums recorded
-# 2026-07-15 (7.0.13: 2026-08-08; 7.0.14-7.0.16: 2026-10-08); override with
+# 2026-07-15 (7.0.13: 2026-08-08; 7.0.14-7.0.16: 2026-10-08; 7.0.17: 2026-10-12); override with
 # --sha256 for other versions/patches or if GitLab regenerates an archive.
 # --url overrides the source entirely.
 # ---------------------------------------------------------------------------
 _GITLAB = "https://gitlab.inria.fr/scotch/scotch/-/archive/v{v}/scotch-v{v}.tar.gz"
 _KNOWN_VERSIONS = {
+    "7.0.17": "d8bc97540e83520f5218ebc6ed44ee370e0faa1e9c68d5e3c4cd8db0c683d48b",
     "7.0.16": "76557a986c2bbcc08a122e21113f77266e08b584bc2d2d3a0dede39572d1af78",
     "7.0.15": "5f8b558caa30eb5455fd896b763ad911822281c402e76b4afcd17c64eebc2898",
     "7.0.14": "35e9d27edba28497876be3c338ff2ac5fa2835a3f15ce8196085f3cb669491b1",
@@ -48,8 +50,19 @@ _KNOWN_VERSIONS = {
 }
 
 
+_VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[-._]?(alpha|a|beta|b|rc)[-._]?(\d*))?$")
+_PRERELEASE_RANK = {"alpha": 0, "a": 0, "beta": 1, "b": 1, "rc": 2}
+
+
 def _version_key(version: str):
-    return tuple(int(part) for part in version.split("."))
+    """Sort key: a pre-release (7.0.18rc1) sorts before its release (7.0.18),
+    and rc2 after rc1."""
+    m = _VERSION_RE.match(version)
+    if m is None:
+        raise ValueError(f"unrecognised Scotch version {version!r} (expected X.Y.Z or X.Y.Z[-]rcN)")
+    major, minor, patch, stage, num = m.groups()
+    rank = _PRERELEASE_RANK[stage] if stage else 3  # a release outranks every pre-release
+    return (int(major), int(minor), int(patch), rank, int(num or 0))
 
 
 # Catalogued releases we deliberately neither ship nor recommend: upstream
@@ -60,6 +73,13 @@ def _version_key(version: str):
 # stays green while a skipped release is upstream's newest tag. Retire an
 # entry when the next upstream release passes `make test-reproducibility`.
 _SKIPPED_VERSIONS = {
+    "7.0.17": (
+        "multi-threaded bgraphBipartGg() is still nondeterministic under "
+        "SCOTCH_DETERMINISTIC=1 (the 7.0.16 seeding race and the missing "
+        "deterministic guard are untouched; only the best-pass selection was "
+        "fixed upstream); fails `make test-reproducibility` on the pristine "
+        "build (QUESTIONS_FOR_SCOTCH_TEAM.md 2026-10-08, 7.0.17 status)"
+    ),
     "7.0.16": (
         "multi-threaded bgraphBipartGg() is nondeterministic even under "
         "SCOTCH_DETERMINISTIC=1 (upstream commit 7a934a8; fails `make "
@@ -151,6 +171,18 @@ _PATCH_VERIFY = {
 # retired the day upstream ships the fix. Wheels and the repo's own default
 # builds stay pristine upstream behavior.
 _BEHAVIORAL_PATCHES = {
+    "7.0.17": [
+        (
+            "scotch-7.0.17-bgraph-bipart-gg-determinism.patch",
+            "restore reproducibility in the multi-threaded bgraphBipartGg() "
+            "(7.0.16 regression, upstream commit 7a934a8, still present in "
+            "7.0.17: worker PRNGs seeded from the shared generator mid-draw; "
+            "SCOTCH_DETERMINISTIC ignored). 7.0.17 already fixes the "
+            "best-pass selection half. See QUESTIONS_FOR_SCOTCH_TEAM.md "
+            "2026-10-08.",
+            True,
+        ),
+    ],
     "7.0.16": [
         (
             "scotch-7.0.16-bgraph-bipart-gg-determinism.patch",

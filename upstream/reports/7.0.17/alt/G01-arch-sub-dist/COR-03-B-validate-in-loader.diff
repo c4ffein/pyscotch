@@ -1,0 +1,55 @@
+--- a/src/libscotch/arch_sub.c
++++ b/src/libscotch/arch_sub.c
+@@ -88,7 +88,8 @@
+   }
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+-  if (intLoad (stream, &termnbr) != 1) {
++  if ((intLoad (stream, &termnbr) != 1) ||
++      (termnbr < 1)) {
+     errorPrint ("archSubArchLoad: bad input (1)");
+     return (1);
+   }
+@@ -113,6 +114,42 @@
+   }
+ 
+   o = archLoad (orgarchptr, stream);
++  if (o == 0) {                                   /* Check terminal list against loaded architecture */
++    ArchDom             orgdomndat;
++    Anum                orgtermnbr;
++    byte * restrict     flagtab;
++
++    archDomFrst (orgarchptr, &orgdomndat);
++    orgtermnbr = archDomSize (orgarchptr, &orgdomndat);
++    if (termnbr > orgtermnbr) {
++      errorPrint ("archSubArchLoad: invalid number of terminal domains");
++      o = 1;
++    }
++    else if ((flagtab = memAlloc (orgtermnbr * sizeof (byte))) == NULL) {
++      errorPrint ("archSubArchLoad: out of memory (3)");
++      o = 1;
++    }
++    else {
++      memSet (flagtab, 0, orgtermnbr * sizeof (byte));
++      for (termnum = 0; termnum < termnbr; termnum ++) {
++        Anum                orgtermnum;
++
++        orgtermnum = termtab[termnum];
++        if ((orgtermnum < 0) || (orgtermnum >= orgtermnbr)) {
++          errorPrint ("archSubArchLoad: invalid vertex number in vertex list");
++          o = 1;
++          break;
++        }
++        if (flagtab[orgtermnum] != 0) {
++          errorPrint ("archSubArchLoad: duplicate vertex number in vertex list");
++          o = 1;
++          break;
++        }
++        flagtab[orgtermnum] = 1;
++      }
++      memFree (flagtab);
++    }
++  }
+   if (o == 0)
+     o = archSubArchBuild (subarchptr, orgarchptr, termnbr, termtab);
+   if (o != 0) {

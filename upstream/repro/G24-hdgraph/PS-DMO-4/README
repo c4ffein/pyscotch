@@ -1,0 +1,8 @@
+PS-DMO-4: fold error exits not collective in release builds  (covered by G18's 7018b17, in the base)
+=====================================================================================================
+Rank 0's allocations #83,#84 (dgraphFoldComm) and #85..#88 (hdgraphFold2 (2)..(5)) at np 3 on m16x16.grf:
+pristine 7.0.17 ($PRI as in DMO-08/README): $C/one.sh $PRI $C/bin_basefi/orderfi 3 0 85 rc
+  -> "(0): ERROR: hdgraphFold2: out of memory (2)", rank 0: order rc=1, HANG (ranks 1 and 2 blocked)  [all six indices]
+base (G18 applied): $C/one.sh $WORK/basefi/lib $C/bin_basefi/orderfi 3 0 85 rc -> rc=1 on every rank, 0 live blocks  [all six]
+Whole-routine evidence: scans/basefi_np3_r{0,1}.txt: every hdgraphFold2/dgraphFoldComm index is "all-rc1" (compare.py).
+No duplicate commit; the fail5/fail6 agreements of hdgraphFold2 remain debug-only (only MPI calls can fail there), as G18 chose.

@@ -1,0 +1,553 @@
+[
+ {
+  "id": "DMO-05",
+  "our_title": "Fallback path of coarse-separator uncoarsening returns without freeing its exchange buffer group",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "LD_LIBRARY_PATH=buildp/lib ASAN_OPTIONS=detect_leaks=1 mpirun --oversubscribe -np 3 ./dtest_buildp 4elt.grf -1 order \"$(cat st_z.txt)\" 0 n -  (st_z: low=z so that every coarse separator has an empty part)\npristine: 6 LeakSanitizer records over the 3 ranks: '#2 ... in vdgraphSeparateMlUncoarsen .../vdgraph_separate_ml.c:399' (memAllocGroup) below '#3 ... vdgraphSeparateMl2 vdgraph_separate_ml.c:775'; all ranks OrderCompute rc=0.\npatched (build): same command, 0 records mentioning vdgraph_separate_ml.c, rc=0 on all ranks.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Same as the review: a leak of about 5 Gnum per process-count plus 2-3 Gnum per coarse vertex, on a normal fallback path repeated at every nested-dissection level where it occurs; no crash.",
+  "location_7_0_17": "src/libscotch/vdgraph_separate_ml.c:399-407 (memAllocGroup), :449-454 (return (1) without memFree)",
+  "evidence": "vdgraph_separate_ml.c:449-454: 'if (reduglbtab[0] == 1) { /* If all possible partitions are invalid */ #ifdef SCOTCH_DEBUG_BDGRAPH2 errorPrintW (...); #endif return (1); }' while the memory-error branch just above (:443-447) does 'if (vsndcnttab != NULL) memFree (vsndcnttab);'. Same routine uses SCOTCH_DEBUG_BDGRAPH1/2 (:383, :388, :390, :450, :452) instead of the VDGRAPH flags.",
+  "upstream_change": "",
+  "review_accuracy": "Mechanism, location and reproducer accurate. Its second fix option ('allocate after the check, as bdgraphBipartMlUncoarsen does') would copy the twin's weaker structure: there the post-check allocation is only agreed upon under SCOTCH_DEBUG_BDGRAPH1, so a release-mode allocation failure returns on one process only (hang); the vdgraph ordering, which piggybacks the allocation flag on the best-separator reduction, is the better of the two and should be kept.",
+  "first_pass_critique": "Status, reproducer and preferred option right. Its DMO-05 patch sketch silently mixes in an unrelated hunk (ABS on reduloctab[4], which is DMO-11), and it did not notice that the debug code of this routine is compiled under the Bdgraph debug flags (fixed in the same commit here). Its option B tradeoff text is right that the twin's second agreement is debug-only.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/vdgraph_separate_ml.c:383-390 and :450-452",
+    "quote": "#ifdef SCOTCH_DEBUG_BDGRAPH1 ... #ifdef SCOTCH_DEBUG_BDGRAPH2 (in a Vdgraph routine)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/bdgraph_bipart_ml.c:353-370 (twin)",
+    "quote": "allocation after the validity check, agreed only '#ifdef SCOTCH_DEBUG_BDGRAPH1'",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: free the group leader on the all-invalid path (and use the Vdgraph debug flags)",
+    "summary": "memFree (vsndcnttab) before the fallback return; vsndcnttab is non-NULL there since reduglbtab[5] == 0 means every allocation succeeded.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0001-Bugfix-free-the-exchange-buffers-of-vdgraphSeparateM.patch",
+    "tested": "LSan run above (0 records after), check_scotch_dgraph_order / check_prog_dgord / ptcheck 32- and 64-bit, DEBUG_ALL tree run",
+    "tradeoffs": "No behaviour change; keeps the release-mode agreement on allocation failures.",
+    "preferred": true,
+    "maintainer_fit": "Precedent: the memory-error branch three lines above frees the same leader; the maintainer's 7.0.17 fixes of this kind are one-line frees (e.g. 'free column block tree of compressed ordering on...' in the combined series, and his own 'free data buffer of forked de-compression task')."
+   },
+   {
+    "label": "B: allocate after the validity check, bdgraph structure",
+    "summary": "Move the memAllocGroup below the all-invalid return and add a second (debug-only collective) agreement on it.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/DMO-05-B-allocate-after-validity-check.diff",
+    "tested": "untested: applies cleanly (git apply --check); not built",
+    "tradeoffs": "Saves a transient allocation on the fallback path but makes a release-mode allocation failure non-collective (a failing process returns alone), i.e. trades a leak for a hang; this is the twin's DMO-03-class weakness.",
+    "preferred": false,
+    "maintainer_fit": "He would not take a change that weakens error agreement; G22 should rather align bdgraph on the vdgraph structure."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0001-Bugfix-free-the-exchange-buffers-of-vdgraphSeparateM.patch"
+  ],
+  "cleanup_done": "none needed (the debug-flag fix removes a copy-paste leftover of the twin)",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The leak fires for every ML level whose coarse separators are all invalid; with the default strategies this is rare, with low=z it is systematic. Tooling (all under repro/common/): dtest.c = driver linked with libptscotcherr (non-exiting errorPrint) and MPI_Init_thread(MPI_THREAD_MULTIPLE) (the first pass's drv.c and my first driver used MPI_Init: fold-dup coarsening then hangs at random, which invalidated several 'hang' readings until fixed); fishim.c = G18's LD_PRELOAD injector plus an FI_FUNC filter (only allocations whose backtrace contains the routine are counted), scan.sh = G18's scanner; trees: build (series, 32-bit ASan+UBSan), buildp (base-combined, same flags), build64 (series, 64-bit), buildfi/buildfip (base/series, UBSan only, for LD_PRELOAD), builddbg (series, -DSCOTCH_DEBUG_ALL). Base of every 'pristine' run is base-combined (v7.0.17 + the 142-commit combined series), which is identical to v7.0.17 for every file of this group."
+ },
+ {
+  "id": "DMO-12",
+  "our_title": "Separator store omits local part loads; restored separators carry stale anchor loads into band graphs",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Proof on the -DSCOTCH_DEBUG_ALL tree (repro/common/dmo12proof.sh, output dmo12proof.txt): strategy n{sep=(q{strat=h}|z)b{width=3,strat=q{strat=f}},ole=s,ose=s,osq=s}, np=3, 4elt.grf.\nB (base-combined vdgraph.h + vdgraph_store.c swapped into the series tree, i.e. pristine store + the new vdgraphCheck test): '(0): ERROR: vdgraphCheck: invalid local part loads' and '(0): ERROR: vdgraphStoreUpdt: inconsistent graph data' on all 3 ranks (vdgraphStoreUpdt calls vdgraphCheck under SCOTCH_DEBUG_VDGRAPH2).\nA/C (full series): no error, rc=0 on all ranks. Also run on the DEBUG tree with the default strategy: clean.",
+  "read_only": "The quality effect of the stale anchor loads on dgraphBand was not measured (as in the first pass).",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "As the review: wrong (possibly negative) anchor loads only affect the balance of the band separation after a '|' selection; no crash.",
+  "location_7_0_17": "src/libscotch/vdgraph.h:74-82 (VdgraphStore); vdgraph_store.c:117-123 (save), :146-155 (restore); vdgraph_check.c:230-236 (local sizes only); consumer vdgraph_separate_bd.c:109-110",
+  "evidence": "vdgraph.h:74-82: VdgraphStore has fronglbnbr, compglbloaddlt, compglbload[2], compglbsize0, complocsize0, fronlocnbr, datatab and no complocload; vdgraph_store.c:146-155 restores compglbload/compglbsize/complocsize only; vdgraph_check.c:238-258 reduces the recomputed complocload[] into global sums and compares them with compglbload[] but never with grafptr->complocload[].",
+  "upstream_change": "",
+  "review_accuracy": "Accurate, including the vdgraphCheck remark; its fix line is what was done.",
+  "first_pass_critique": "Status and instrumented reproduction right; its option A is the fix taken. It saved complocload[3] whereas the store convention derives the third value (as compglbload[2] and complocsize[1] are), and it left the 'vgraphCheck:' routine-name typos in the two messages next to the new test. Its 'related latent bug' (PS-DMO-1) is the same defect seen from the consumer side, see PS-DMO-1.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/vdgraph_check.c:234 and :262",
+    "quote": "errorPrint (\"vgraphCheck: invalid local part sizes\") / (\"vgraphCheck: invalid global part sizes\")",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/bdgraph.h:93-104, bdgraph_store.c:123,167 (twin)",
+    "quote": "BdgraphStore saves complocload0 (twin is complete)",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: save/restore complocload[0..1] in VdgraphStore, derive [2], check local loads in vdgraphCheck",
+    "summary": "Adds complocload[2] to VdgraphStore (between compglbsize0 and complocsize0), saves and restores it, derives complocload[2] from velolocsum as the global counterpart does, adds the local-load comparison to vdgraphCheck and fixes its two 'vgraphCheck:' messages.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0003-Bugfix-save-and-restore-the-local-part-loads-of-dist.patch",
+    "tested": "DEBUG_ALL swap proof above; check_scotch_dgraph_order, check_prog_dgord, ptcheck on 32- and 64-bit",
+    "tradeoffs": "+16 bytes per store (internal structure, no ABI); the debug check makes any future store omission visible at the first vdgraphStoreUpdt.",
+    "preferred": true,
+    "maintainer_fit": "Precedent: BdgraphStore already stores complocload0 (bdgraph.h:96) and bdgraphStoreUpdt restores it (bdgraph_store.c:167); VgraphStore saves compload[2] and derives the third (vgraph_store.c:148-150)."
+   },
+   {
+    "label": "B: recompute the local loads in vdgraphSeparateBd before dgraphBand",
+    "summary": "One pass over partgsttax/veloloctax at the consumer.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/DMO-12-B-recompute-local-loads-in-bd.diff",
+    "tested": "untested: applies cleanly; not built",
+    "tradeoffs": "Fixes the only consumer today but leaves the field stale (vdgraphCheck would still be blind) and adds an O(local n) pass to every band extraction.",
+    "preferred": false,
+    "maintainer_fit": "Not his style: stores are expected to restore a consistent graph (vdgraphStoreUpdt calls vdgraphCheck)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0003-Bugfix-save-and-restore-the-local-part-loads-of-dist.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "vdgraphCheck now compares complocload[] (debug builds); no src/check home: the strategy with a '|' selection would only be meaningful under SCOTCH_DEBUG_VDGRAPH2, which the check targets do not build with.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Fixing this changes the separator chosen after some '|' selections (and DMO-11 changes tie-breaks), so orderings differ from base-combined: e.g. dgraphOrderSaveBlock of 4elt at np=2 gives 818 column blocks instead of 802; all check targets still pass."
+ },
+ {
+  "id": "PS-DMO-1",
+  "our_title": "Zero method's global-size shortcut is correct once the store restores every local field",
+  "status": "not-a-bug",
+  "method": "ran",
+  "ran": "Same runs as DMO-12 (dmo12proof.txt): with the store fixed, the strategy (q{strat=h}|z)b{...} passes vdgraphCheck after every vdgraphStoreUpdt and after the z method on the DEBUG_ALL tree, with the shortcut in vdgraphSeparateZr unchanged.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "info",
+  "severity_note": "The observed symptom (stale complocload reaching vdgraphSeparateBd) is real but is DMO-12's defect; the shortcut itself is sound.",
+  "location_7_0_17": "src/libscotch/vdgraph_separate_zr.c:78-79; vdgraph.c:119-137 (vdgraphZero)",
+  "evidence": "vdgraph_separate_zr.c:78: 'if (grafptr->compglbsize[0] != grafptr->s.vertglbnbr) vdgraphZero (grafptr);' is the exact twin of vgraph_separate_zr.c: 'if (grafptr->compsize[0] != grafptr->s.vertnbr) vgraphZero (grafptr);'. compglbsize[0] == vertglbnbr implies all vertices are in part 0 on every process, hence complocload[0] == velolocsum etc., provided the graph is consistent, which the store now guarantees (and vdgraphCheck enforces under SCOTCH_DEBUG_VDGRAPH2).",
+  "upstream_change": "",
+  "review_accuracy": "n/a (first-pass finding)",
+  "first_pass_critique": "The finding is a restatement of DMO-12 from the consumer side. Its preferred option (always call vdgraphZero) would add a memset of the whole part array to every 'z' call to work around a store omission, and would diverge from the sequential twin; the first pass itself listed 'fix the store' as option B.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A: fix the store (DMO-12) and keep the shortcut",
+    "summary": "No change to vdgraphSeparateZr.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0003-Bugfix-save-and-restore-the-local-part-loads-of-dist.patch",
+    "tested": "see DMO-12",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "Mirrors vgraphSeparateZr; the store is the single place that must restore a consistent graph."
+   },
+   {
+    "label": "B: always call vdgraphZero",
+    "summary": "Drop the test in vdgraphSeparateZr.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/PS-DMO-1-A-always-reset-in-zr.diff",
+    "tested": "untested: applies cleanly",
+    "tradeoffs": "Hides inconsistencies instead of fixing them; extra memset per call; diverges from the sequential twin.",
+    "preferred": false,
+    "maintainer_fit": "He keeps the twins identical."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0003-Bugfix-save-and-restore-the-local-part-loads-of-dist.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Resolved by the DMO-12 commit; listed as not-a-bug because the code it points at is correct."
+ },
+ {
+  "id": "DMO-04",
+  "our_title": "Diffusion separator hides allocation failure in a summed degree and falls through after freeing",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Fault injection on the UBSan-only trees (LD_PRELOAD fishim.so, FI_FUNC=vdgraphSeparateDf, FI_RANK=1, np=3, strategy st_df.txt which puts d{pass=3} inside the band graphs of the ordering ML):\npristine (repro/common/scan_df_pristine.txt): 'nth=3 exit=139 :: (1): ERROR: vdgraphSeparateDf: out of memory; vdgraph_separate_df.c:177:28: runtime error: store to null pointer of type float; signal 11' and the same at nth=11 (second Df call). The -1 of rank 1 was swallowed by the positive degrees of ranks 0 and 2.\npatched (scan_df_patched.txt): 'nth=3 exit=0 :: (1): ERROR: vdgraphSeparateDf: out of memory; (0),(1): ERROR: vdgraphSeparateBd: cannot separate band graph; rank 0/1/2: OrderCompute rc=0' (the band separation fails on all processes of that sub-communicator and the ML low strategy takes over). nth=11 idem.",
+  "read_only": "The 'detected then fall-through' branch (sum < 0) could not be hit with 3 processes, as the first pass said; read: :141-144 has no return and :145-149 then dereferences/free()s the NULL leader.",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "As the review: needs an allocation failure, but then a NULL store on the failing process (crash) in a method used by default strategies.",
+  "location_7_0_17": "src/libscotch/vdgraph_separate_df.c:123-149 (flag :128, reduction :136, branch without return :141-144, use :147 and :177)",
+  "evidence": "vdgraph_separate_df.c:127-128: 'errorPrint (\"vdgraphSeparateDf: out of memory\"); reduloctab[0] = -1;' then :136 'MPI_Allreduce (reduloctab, reduglbtab, 4, GNUM_MPI, MPI_SUM, ...)'; :141-144 'if (reduglbtab[0] < 0) { if (ielsloctax != NULL) memFree (ielsloctax + grafptr->s.baseval); }' (no return).",
+  "upstream_change": "",
+  "review_accuracy": "Accurate for both files. Its 'reduce a separate error flag with MPI_MAX' would add a second collective where a summed slot in the existing reduction does the same.",
+  "first_pass_critique": "Right status and evidence; its option A is the design taken (5th summed slot, test first, return). Its sketch put 'reduloctab[4] = 0' before the allocation and kept it unconditional, which is fine; the committed version sets it in the else branch so that the slot is written exactly once per path. Its claim that the injected run showed 'OrderCompute/Map returns on all ranks' could not have been observed with its driver (MPI_Init without MPI_THREAD_MULTIPLE makes fold-dup coarsening hang at random), so its hang readings are unreliable.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/bdgraph_bipart_df.c:124-147 (twin, G22)",
+    "quote": "reduloctab[0] = -1; ... ielsloctax -= grafptr->s.baseval; (also on NULL) ... if (reduglbtab[0] < 0)",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/vdgraph_separate_df.c:187-191, :276-280, :299-302 (and bdgraph twin)",
+    "quote": "if (dgraphHaloSync (...) != 0) { errorPrint (...); memFree (...); return (1); } on one process only",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: dedicated summed error slot in the existing reduction, free and return on all processes",
+    "summary": "reduloctab/reduglbtab[5]; slot [4] = allocation flag (0 in the else branch where the arrays are based); after the Allreduce, 'if (reduglbtab[4] != 0) { free leader if any; return (1); }'.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0004-Bugfix-agree-on-allocation-failures-in-vdgraphSepara.patch",
+    "tested": "scans above (pristine crash, patched clean return on all processes), ptcheck 32/64, DEBUG_ALL run",
+    "tradeoffs": "+1 Gnum in the message; no extra collective. G22 must apply the identical design to bdgraphBipartDf (diff provided in alt/).",
+    "preferred": true,
+    "maintainer_fit": "Precedent: G19's 0003 (dgraphBuildGrid3D, reduloctab[12] = cheklocval tested first after the reduction) and the maintainer's own dmapSave/dgraphGhst MaxSum reductions carrying an error slot; he avoids extra collectives ('cannot be merged with a useful one')."
+   },
+   {
+    "label": "B: separate MPI_MAX allreduce of a local error flag before the data reduction",
+    "summary": "cheklocval/chekglbval agreement right after the allocation.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/DMO-04-B-separate-error-allreduce.diff",
+    "tested": "untested: applies cleanly; not built",
+    "tradeoffs": "One more collective per call on a hot path (every band graph of every level); otherwise equivalent.",
+    "preferred": false,
+    "maintainer_fit": "He would merge the flag into the existing reduction."
+   },
+   {
+    "label": "twin for G22: same 5-slot design in bdgraphBipartDf",
+    "summary": "Identical hunk shape for bdgraph_bipart_df.c (also moves the three '-= baseval' into the else branch, which currently run on NULL).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/DMO-04-twin-bdgraph_bipart_df-same-design-for-G22.diff",
+    "tested": "untested here (G22's file): applies cleanly on base-combined",
+    "tradeoffs": "Must be squashed with or kept identical to this commit.",
+    "preferred": false,
+    "maintainer_fit": "Same as A."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0004-Bugfix-agree-on-allocation-failures-in-vdgraphSepara.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "After the collective Df/Bd failure the job sometimes hangs further up (1 run in 3, pristine and patched alike, also after a collective dgraphGhst failure that never reaches the Df code): recorded as PS2-G23-5, not caused by this fix. The dgraphHaloSync failure paths of this routine (nth 4-7, 12-15: 'cannot propagate diffusion data') are non-collective and hang the other processes: that is PS-DGR-2's halo design decision (G20), listed as PS2-G23-6. Tooling (all under repro/common/): dtest.c = driver linked with libptscotcherr (non-exiting errorPrint) and MPI_Init_thread(MPI_THREAD_MULTIPLE) (the first pass's drv.c and my first driver used MPI_Init: fold-dup coarsening then hangs at random, which invalidated several 'hang' readings until fixed); fishim.c = G18's LD_PRELOAD injector plus an FI_FUNC filter (only allocations whose backtrace contains the routine are counted), scan.sh = G18's scanner; trees: build (series, 32-bit ASan+UBSan), buildp (base-combined, same flags), build64 (series, 64-bit), buildfi/buildfip (base/series, UBSan only, for LD_PRELOAD), builddbg (series, -DSCOTCH_DEBUG_ALL). Base of every 'pristine' run is base-combined (v7.0.17 + the 142-commit combined series), which is identical to v7.0.17 for every file of this group."
+ },
+ {
+  "id": "DMO-14",
+  "our_title": "Column-block count routine returns 1 on error, a valid count, contrary to its documentation",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "The error return of dorderCblkDist2 is reachable only through an MPI_Allreduce failure or a SCOTCH_DEBUG_DORDER2 internal error; neither can be forced here. Compiled (0 warnings, 32/64-bit) and the normal path checked: dtest prints CblkDist=1 at np=1 and 7 at np=3 with the default strategy, so 1 is indeed a legitimate value.",
+  "why_not_run": "the error path needs an MPI collective failure (mpi-fault)",
+  "severity": "low",
+  "severity_note": "As the review.",
+  "location_7_0_17": "src/libscotch/dorder_tree_dist.c:119-120; wrapper src/libscotch/library_dgraph_order_tree_dist.c:84; Fortran src/libscotch/library_dgraph_order_tree_dist_f.c:74",
+  "evidence": "dorder_tree_dist.c:119-120: 'if (dorderCblkDist2 (ordeptr, &dblklocnbr, &dblkglbnbr) != 0) return (1);' ; comment above dorderCblkDist2 (:66-68): '- >=0 : number of distributed column blocks. - <0 : on error.'; doc/src/ptscotch/p_l.tex:3315-3317: 'returns a positive number if ... and a negative value else'.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate; the 'callers sizing arrays overflow' consequence is the caller's, not verified.",
+  "first_pass_critique": "Right. Its option A is the fix taken.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A: return (-1)",
+    "summary": "One token; Gnum is signed, SCOTCH_Num too; the Fortran wrapper stores the value through a pointer and needs no change.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0007-Bugfix-return-a-negative-value-from-dorderCblkDist-o.patch",
+    "tested": "compiled 32/64, ptcheck, normal path values checked",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "Matches the documented contract and the code comment; minimal, his usual size for such fixes."
+   },
+   {
+    "label": "B: status-code internal API",
+    "summary": "int dorderCblkDist (const Dorder *, Gnum *) with the public wrapper translating to -1.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/DMO-14-B-status-code-internal-api.diff",
+    "tested": "untested: applies cleanly; not built",
+    "tradeoffs": "Changes an internal prototype (dorder.h) for the same effect.",
+    "preferred": false,
+    "maintainer_fit": "More churn than he would do for this."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0007-Bugfix-return-a-negative-value-from-dorderCblkDist-o.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "none needed: p_l.tex already states 'a negative value' on error (the value 1 is a legitimate count, so 'positive' there is right)",
+  "needs": "mpi-fault",
+  "needs_note": "Only an MPI_Allreduce failure (or a debug-build internal error) reaches the error return.",
+  "notes": ""
+ },
+ {
+  "id": "DMO-15",
+  "our_title": "dmapSave never rejects inconsistent vertex counts and dereferences fragments without part array",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Internal-API driver repro/common/dmaptest.c (dgraphLoad, dmapInit, one hand-made fragment per process, dmapSave), np=3, 4elt.grf:\npristine (dmaptest_buildp): mode x (root fragment claims vertlocnbr+1 vertices): rc=0 on all ranks, file header 15607 for a 15606-vertex graph, 15607 data lines; mode n (root fragment without part array): 'dmapping_io.c:196:19: runtime error: load of null pointer of type Anum' + ASan SEGV.\npatched (dmaptest_build): mode x: '(0),(1),(2): ERROR: dmapSave: invalid mapping (1)', rc=1 on all ranks, nothing written; mode n: 'dmapSave: invalid mapping (2)' on all ranks, rc=1, no hang; mode c (complete): rc=0, 15606 lines, identical to pristine.\nForwarded lead (NULL part array from a user strategy): pristine 'mpirun -np 3 build/bin/dgpart 4 4elt.grf /dev/null -m\"r{sep=q{strat=f}}\"' -> 'dmapping_io.c:256:34: runtime error: load of null pointer' + SEGV; and './dtest_buildp 4elt.grf -1 map \"r{sep=q{strat=f}}\" 4 n -' -> 'dmapping.c:224:47: runtime error: load of null pointer' + SEGV in dmapTerm (SCOTCH_dgraphMap). Patched: dgpart writes a valid 15607-line mapping file (parts 0,1,2 at np=3) and SCOTCH_dgraphMap returns 0 on all ranks (fixed at the source by patch 0010).\nG20's guard (alt/PS2-G05-dmapSave-null-parttab-guard.diff), applied to the pristine UBSan tree and run with the non-exiting error library and no user part array (so that only dmapSave sees the fragments): np=1 'dmapSave: invalid mapping (4)' rc=1; np=3: rank 2 prints the error and breaks out of its send loop, the root never returns: HANG (30 s timeout), see repro/common/redo.txt.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "The dead test itself is low (needs a corrupted mapping); the forwarded NULL-part-array crash is medium (reachable from any user 'r{...}' strategy without seq=, through SCOTCH_dgraphMap/dgpart -m), fixed at its source in patch 0010 and rejected in dmapSave in patch 0008.",
+  "location_7_0_17": "src/libscotch/dmapping_io.c:123-126 (dead test); :196 and :256 (part array dereferences); kdgraph_map_rb_part.c:133 (fragment with NULL part array)",
+  "evidence": "dmapping_io.c:123: 'if ((reduglbtab[1] < 0) && (reduglbtab[1] > grafptr->procglbnbr))' (reduloctab[1] = dmapptr->vertlocnbr, summed); the sibling dmapTerm (dmapping.c:202-211) accepts exactly 'reduglbtab[0] == 0' or '== grafptr->vertglbnbr'. kdgraph_map_rb_part.c:133: 'fragptr->parttab = kgrfdat.m.parttax + kgrfdat.s.baseval;' with parttax NULL when kgraphMapSt ran a strategy that computes no mapping (stratdummy default of 'seq').",
+  "upstream_change": "",
+  "review_accuracy": "Accurate on the dead test. Its fix ('|| and vertglbnbr') would accept partial mappings, which the sibling dmapTerm rejects; the committed test is the dmapTerm one (empty or complete).",
+  "first_pass_critique": "Right status; it preferred the range form and flagged the exact-match form as 'could reject a legitimate partial mapping' without checking dmapTerm, which already requires completeness. The forwarded PS2-G05-1 lead was located correctly by G05 but G20's guard (per-loop 'break') is wrong: on a non-root process it skips the sends the root is waiting for (hang shown above). Neither noticed that dmapTerm dereferences the same NULL array first for API users.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/dmapping.c:224 (dmapTerm)",
+    "quote": "archDomNum (&dmapptr->archdat, &fragptr->domntab[fragptr->parttab[fraglocnum]])",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/kdgraph_map_rb_part.c:133 (kdgraphMapRbPartSequ, G24's file)",
+    "quote": "fragptr->parttab = kgrfdat.m.parttax + kgrfdat.s.baseval;",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: dmapTerm's test (empty or complete) plus a collective rejection of fragments without part array",
+    "summary": "reduloctab[6] counts local fragments with parttab == NULL in the existing MaxSum reduction (op 1_6); after it: '(reduglbtab[1] != 0) && (reduglbtab[1] != grafptr->vertglbnbr)' -> invalid mapping (1); 'reduglbtab[6] != 0' -> invalid mapping (2); debug messages renumbered (3), (4).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0008-Bugfix-check-the-vertex-count-and-the-part-arrays-of.patch",
+    "tested": "dmaptest modes c/x/n above, dgpart/dgmap check targets, ptcheck 32/64",
+    "tradeoffs": "No extra collective (slot added to the existing reduction); rejects partial mappings as dmapTerm does.",
+    "preferred": true,
+    "maintainer_fit": "Precedent: dmapTerm (same file family) uses exactly this count test; the maintainer's own 4290e22 and dgraphGhst fixes carry error slots in reductions. Combined with patch 0010 it is the 'one coherent validation' asked for."
+   },
+   {
+    "label": "B: range test only ('|| and vertglbnbr'), the review's line",
+    "summary": "Rejects negative or oversized counts, accepts partial mappings.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/DMO-15-B-range-check-only.diff",
+    "tested": "untested: applies cleanly",
+    "tradeoffs": "Inconsistent with dmapTerm; leaves the NULL part array unhandled.",
+    "preferred": false,
+    "maintainer_fit": "He would keep the two routines consistent."
+   },
+   {
+    "label": "C: G20's per-loop guard",
+    "summary": "Test parttab inside the output/send loops and break.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G20-dgraph-io-dmesh/alt/PS2-G05-dmapSave-null-parttab-guard.diff",
+    "tested": "ran: hangs at np=3 (above)",
+    "tradeoffs": "Non-collective: a non-root process that gives up leaves the root waiting in MPI_Recv.",
+    "preferred": false,
+    "maintainer_fit": "Not mergeable."
+   },
+   {
+    "label": "D: fix the producer only (patch 0010) without validating in dmapSave",
+    "summary": "mapAlloc + kgraphFrst in kdgraphMapRbPartSequ.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0010-Bugfix-assign-all-vertices-to-the-initial-domain-bef.patch",
+    "tested": "ran (dgpart -m and SCOTCH_dgraphMap above)",
+    "tradeoffs": "Leaves dmapSave able to crash on a Dmapping built by any other code path.",
+    "preferred": false,
+    "maintainer_fit": "He did both for graphMapCompute2-style issues (allocate and check)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0008-Bugfix-check-the-vertex-count-and-the-part-arrays-of.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0010-Bugfix-assign-all-vertices-to-the-initial-domain-bef.patch"
+  ],
+  "cleanup_done": "none needed (DGRAPHALLREDUCEMAXSUMOP (1, 5) replaced by (1, 6), no leftover)",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Patch 0010 touches kdgraph_map_rb_part.c (G24's file, DMO-16 at :373-398 is 240 lines away); it is last in the series so it can be dropped or re-based independently. Also seen there: the memRealloc shrink of fragptr->domntab (:139) is unchecked (PS2-G23-4)."
+ },
+ {
+  "id": "DMO-02",
+  "our_title": "Label gathers of ordering writers use based displacements into un-based arrays: overflow, shifted output",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "lbl.grf = 12-vertex path, baseval 1, labels 101..112 (repro/common/).\npristine ASan tree: 'mpirun --oversubscribe -np 3 buildp/bin/dgord lbl.grf ord.out' -> ord.out: '12 / -1094795586 106 / 101 107 / 102 108 / ... / 109 -1094795586 / 110 101 / 111 102' (first column = label of the previous vertex, first entry uninitialized; same at np=1 and 2). dgord -T (dorderSaveTree2) prints correct labels by accident (reads are shifted like the writes).\nHeap overflow proof with glibc malloc (UBSan-only tree, lbl14.grf = 14 vertices so that the 168-byte group is chunk-aligned): 'mpirun -np 1 buildfi/bin/dgord lbl14.grf o.out' -> 'Fatal glibc error: malloc.c:2601 (sysmalloc): assertion failed ... Aborted'; np=3 -> 'munmap_chunk(): invalid pointer, Aborted'; 'dgord lbl14.grf /dev/null -Tt.out' (dorderSaveTree2's 56-byte array) -> same aborts at np=1 and 3.\npatched: ord.out '12 / 101 107 / 102 108 / ... / 112 103' (np=3; identity at np=1), -T output unchanged, lbl14 runs exit 0 at np=1 and 3; new check line 'dgord data/m4x4_b1_elv.grf ... -T...' passes at np=1,2,3,4 (pristine prints '-1094795586' labels on it).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Higher than the review's medium: a heap write past a malloc'ed block (glibc aborts shown) plus a silently wrong ordering file from the shipped dgord tool for every based, labeled graph.",
+  "location_7_0_17": "src/libscotch/dorder_io.c:120-123 (un-based allocation), :144-145 (gather with based procdsptab), :203 (late basing); dorder_io_tree.c:118 (allocation), :130-131 (gather), :151 (based use by orderSaveTree/orderSaveMap, whose parameter is named vlbltax)",
+  "evidence": "dorder_io.c:144-145: 'commGatherv (grafptr->vlblloctax + grafptr->baseval, grafptr->vertlocnbr, GNUM_MPI, vlbltax, grafptr->proccnttab, grafptr->procdsptab, ...)' with vlbltax straight from memAllocGroup (:123) and ':203 vlbltax -= ordeptr->baseval;' only afterwards. dmapping_io.c:170 (fixed by 4290e22): 'vlbltax -= grafptr->baseval; /* Base label array since displacement array is based */' before the same commGatherv.",
+  "upstream_change": "4290e22 (pre-7.0.16) fixed dmapping_io.c only.",
+  "review_accuracy": "Accurate; 'prints the previous vertex's label on every line' confirmed for both columns. For dorder_io_tree.c the output is right but the overflow is real (glibc abort above), which the review did not distinguish.",
+  "first_pass_critique": "Right reproduction of dorderSave; it could not show the overflow (ASan does not see MPI's copies) and stopped there, while glibc's own checks on a chunk-aligned size prove it. Its diff left dorder_io.c's vlbltax uninitialized on non-root processes and kept the name vlbltab for an array it based. The tree writer's parameter is named vlbltax, which already said it expects a based array.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/dmapping_io.c:170 (maintainer's own fix)",
+    "quote": "vlbltax -= grafptr->baseval; on the NULL pointer of non-root processes",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: base the array before the gather on the root (twin of 4290e22), rename vlbltab to vlbltax in the tree writer",
+    "summary": "dorderSave: vlbltax initialized to NULL with permtab, 'if (vlbltax != NULL) vlbltax -= ordeptr->baseval;' before commGatherv, late basing removed; dorderSaveTree2: same guard, variable renamed, memFree (vlbltax + baseval). Adds a based, labeled graph (data/m4x4_b1_elv.grf, with -T) to check_prog_dgord and its CMake twin.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0005-Bugfix-base-the-vertex-label-arrays-gathered-by-dist.patch",
+    "tested": "runs above; check_prog_dgord at np 1-4 (new line), ptcheck 32/64",
+    "tradeoffs": "The NULL guard (absent from 4290e22) avoids applying an offset to the non-root NULL pointer (UBSan, see PS2-G23-1).",
+    "preferred": true,
+    "maintainer_fit": "Precedent: commit 4290e22 'Bugfix: base properly receive label array since displacement array is based', same comment text."
+   },
+   {
+    "label": "B: over-allocate by baseval and keep un-based indexing",
+    "summary": "vnodglbnbr + baseval cells, drop the late basing in dorderSave.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/DMO-02-B-overallocate-label-arrays.diff",
+    "tested": "untested: applies cleanly; not built",
+    "tradeoffs": "No pointer arithmetic below the block, but a baseval-sized hole and a convention that differs from dmapSave and from the based parameter of orderSaveTree.",
+    "preferred": false,
+    "maintainer_fit": "Not the idiom he chose in 4290e22."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0005-Bugfix-base-the-vertex-label-arrays-gathered-by-dist.patch"
+  ],
+  "cleanup_done": "late 'vlbltax -= baseval' removed; vlbltab renamed to vlbltax (now based)",
+  "test_added": "src/check/Makefile check_prog_dgord (+ CMakeLists.txt dgord_3/dgord_4): dgord on data/m4x4_b1_elv.grf (base 1, labels) with -T; exercises dorderSave and dorderSaveTree2 on a based labeled graph (exit code only, as the other dgord lines).",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "DMO-13",
+  "our_title": "Block ordering writer leaks its range array and lets trailing writes overwrite the error status",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "pristine: 'LD_LIBRARY_PATH=buildp/lib ASAN_OPTIONS=detect_leaks=1 mpirun --oversubscribe -np 2 -x ASAN_OPTIONS ./dtest_buildp 4elt.grf -1 order \"\" 0 b blk.out' -> 'Direct leak of 62428 byte(s) in 1 object(s) allocated from: #1 dorderSaveBlock2 .../dorder_io_block.c:88 #2 dorderSaveTree2 dorder_io_tree.c:151 #3 dorderSaveBlock'; './dtest_buildp 4elt.grf -1 order \"\" 0 b /dev/full' -> 'rank 0: OrderSave(b) rc=0' (100 KB that cannot be written, reported as success).\npatched: no dorder_io_block.c leak record; /dev/full -> '(0): ERROR: dorderSaveBlock2: bad output (2)', 'rank 0: OrderSave(b) rc=1' (non-root processes return 0 as before: dorderSaveTree2 only agrees in debug builds).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "As the review.",
+  "location_7_0_17": "src/libscotch/dorder_io_block.c:88-120 (rangtab :88, early return :98, trailing writes :105-106 and :114-115, return :120)",
+  "evidence": "dorder_io_block.c:101-106: 'for (cblknum = 0, o = 1; (o == 1) && ...) { o = intSave (...); ... } o = intSave (stream, rangtab[cblknum]); putc (...);' and no memFree (rangtab) anywhere.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate on both points.",
+  "first_pass_critique": "Right; its option A is the fix taken (same shape).",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A: free on both returns, guard the two trailing writes",
+    "summary": "memFree on the 'bad output (1)' path and before the final return; 'if (o == 1) { o = intSave (...); putc (...); }' twice.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0006-Bugfix-free-the-range-array-and-report-write-errors-.patch",
+    "tested": "runs above, ptcheck 32/64",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "Minimal; same guard style as the loops themselves."
+   },
+   {
+    "label": "B: single-exit rewrite",
+    "summary": "o carries the header write status; one memFree before the final error test.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/DMO-13-B-single-exit.diff",
+    "tested": "untested: applies cleanly; not built",
+    "tradeoffs": "Slightly larger diff, drops the (1)/(2) distinction of the messages.",
+    "preferred": false,
+    "maintainer_fit": "He keeps numbered messages."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0006-Bugfix-free-the-range-array-and-report-write-errors-.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "There is no sequential twin (no orderSaveBlock in order_io.c)."
+ },
+ {
+  "id": "DMO-11",
+  "our_title": "Vdgraph best-separator reductions compare signed imbalance (vdgraph half, forwarded from G22)",
+  "status": "still-present",
+  "method": "partly-run",
+  "ran": "Compiled and exercised by every ordering run of the series (the ML and Sq reductions run in all check_scotch_dgraph_order / dgord runs, 32- and 64-bit); the changed tie-break alters which separator wins (dgraphOrderSaveBlock of 4elt at np=2: 802 column blocks on base-combined, 818 with the series).",
+  "read_only": "A case where the signed comparison picks a worse separator was not constructed (it needs two coarse separators of equal size with imbalances of opposite sign).",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "As the review.",
+  "location_7_0_17": "src/libscotch/vdgraph_separate_ml.c:422 (reduloctab[4] = compglbloaddlt) with operator :180-183; vdgraph_separate_sq.c:173 (reduloctab[1] = comploaddlt) with operator :104-107",
+  "evidence": "vdgraph_separate_ml.c:422: 'reduloctab[4] = coargrafptr->compglbloaddlt;' and :182 '(in[4] < inout[4])'; vdgraph_separate_sq.c:173: 'reduloctab[1] = cgrfdat.comploaddlt;' and :106 '(in[1] < inout[1])'; the sequential selection vdgraph_separate_st.c:320 uses 'ABS (savetab[0].compglbloaddlt) >= ABS (grafptr->compglbloaddlt)'.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate.",
+  "first_pass_critique": "The first pass hid the vdgraph_separate_ml.c half of this fix inside its DMO-05 sketch and did not list it under DMO-11.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/bdgraph_bipart_ml.c:335, bdgraph_bipart_sq.c (twins, G22)",
+    "quote": "reduloctab[4] = coargrafptr->compglbload0dlt;",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: reduce on ABS of the difference",
+    "summary": "ABS () at the two reduction inputs (the signed value is not used after the reduction); also replaces a tab in the operator.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0002-Bugfix-compare-absolute-imbalances-when-selecting-th.patch",
+    "tested": "compiled 32/64, ptcheck, orderings compared",
+    "tradeoffs": "Changes tie-breaks, hence some orderings.",
+    "preferred": true,
+    "maintainer_fit": "Precedent: G08's d9cf17b (bgraphBipartGg) in the combined series and the maintainer's f545452 (ABS macro). Identical design to G22's committed 0005."
+   },
+   {
+    "label": "B: ABS inside the operators",
+    "summary": "Compare ABS (in[4]) / ABS (in[1]) in the MPI_Op functions.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/DMO-11-B-abs-inside-operators.diff",
+    "tested": "untested: applies cleanly",
+    "tradeoffs": "Same effect, two more ABS evaluations per reduction step.",
+    "preferred": false,
+    "maintainer_fit": "Equivalent; he would take the input-side form."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0002-Bugfix-compare-absolute-imbalances-when-selecting-th.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "DMO-09 (stale 'bal' strategy variable) does not apply to vdgraph: vdgraphseparatestcondtab (vdgraph_separate_st.c:180-206) has only edge, levl, load, proc, rank, vert. The bdgraph half is G22's patch 0005 (bdgraph_bipart_ml.c / _sq.c); G22's alt/DMO-11-twin-vdgraph_separate_{ml,sq}.diff are identical in content to patch 0002 here (ABS at the two producers with the same comment); 0002 additionally replaces a tab in the ml operator."
+ },
+ {
+  "id": "DMO-18",
+  "our_title": "vdgraph half: Bdgraph debug macros in the ML uncoarsening; Sq partial-failure test reduces the wrong operand (bdgraph half is G22's)",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "ml half: part of patch 0001 (SCOTCH_DEBUG_BDGRAPH1/2 -> VDGRAPH1/2 in vdgraphSeparateMlUncoarsen), exercised by the -DSCOTCH_DEBUG_ALL tree runs (dmo12proof.txt) and ptcheck. sq half: after patch 0011, q-strategy ordering 'n{sep=m{vert=120,low=q{strat=h},asc=b{width=3,strat=q{strat=f}}},ole=s,ose=s,osq=s}' at np=3 runs clean on the 32-bit ASan, 64-bit and DEBUG_ALL trees (the DEBUG_ALL tree compiles and executes the new count test); check_scotch_dgraph_order and check_prog_dgord pass on 32- and 64-bit after 0011.",
+  "read_only": "The partial-failure case itself (sequential separation failing on some processes only) was not forced; the defect is shown by the source: the pristine debug block reduced reduglbtab[3], identical on all processes, so it could only yield 0 or procglbnbr and never fired, and it overwrote reduloctab[3].",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Debug-only code (as G22 rated it: info/low); the wrong-macro half silently dropped the release-mode agreement when only the Vdgraph debug flags were set.",
+  "location_7_0_17": "src/libscotch/vdgraph_separate_ml.c:383-390, :450-452 (SCOTCH_DEBUG_BDGRAPH1/2); vdgraph_separate_sq.c:180-189",
+  "evidence": "vdgraph_separate_sq.c:181: 'MPI_Allreduce (&reduglbtab[3], &reduloctab[3], 1, GNUM_MPI, MPI_SUM, ...)' then :185 'if ((reduloctab[3] != 0) && (reduloctab[3] != dgrfptr->s.procglbnbr))'; vdgraph_separate_ml.c:383 '#ifdef SCOTCH_DEBUG_BDGRAPH1' in a Vdgraph routine.",
+  "upstream_change": "",
+  "review_accuracy": "DMO-18 as written by the review targets bdgraph (G22); the vdgraph siblings were found by G22 and forwarded.",
+  "first_pass_critique": "The first pass did not list the vdgraph siblings.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/bdgraph_bipart_ml.c:103-109, bdgraph_bipart_sq.c (G22's 0006 and 0001)",
+    "quote": "#ifdef SCOTCH_DEBUG_BGRAPH2 default : ...",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: Vdgraph debug flags (in 0001) and a fifth summed failure-count slot in the Sq reduction, tested after it (0011)",
+    "summary": "vdgraphSeparateSqOpBest does 'inout[4] += in[4]'; reduloctab[3]/[4] set together; MPI type of 5 Gnum; the separate debug Allreduce is removed; the debug test reads reduglbtab[4] and frees the centralized graph; communication error numbers renumbered.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0011-Bugfix-count-sequential-separation-failures-in-the-r.patch",
+    "tested": "runs above",
+    "tradeoffs": "+1 Gnum in the reduction; removes a debug-only collective.",
+    "preferred": true,
+    "maintainer_fit": "Identical to the design G22 committed for bdgraphBipartSq (0001: count in slot [4], test '(reduglbtab[4] != 0) && (!= procglbnbr)' under DEBUG2 with the centralized graph freed), which is the pre-existing bdgraph operator design."
+   },
+   {
+    "label": "B: G22's sibling diff (fix the operands of the separate debug Allreduce)",
+    "summary": "Reduce reduloctab[3] into the spare reduloctab[4] and test it; vgraphExit on error.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/alt/DMO-18-sibling-vdgraph_separate_sq.diff",
+    "tested": "applies on base-combined (G22 compiled it); not run here",
+    "tradeoffs": "Keeps the extra debug-only collective and a design that differs from the bdgraph twin.",
+    "preferred": false,
+    "maintainer_fit": "He keeps the twins identical."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0001-Bugfix-free-the-exchange-buffers-of-vdgraphSeparateM.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0011-Bugfix-count-sequential-separation-failures-in-the-r.patch"
+  ],
+  "cleanup_done": "the debug-only extra Allreduce and its 'communication error (3)' message removed; later messages renumbered",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "G22's DMO-04 design note: its 0001/0002 use the existing reduction slot [5] (allocation flag) and a cheklocval/chekglbval MPI_MAX agreement in bdgraphGatherAll; its 0003 (bdgraphBipartDf) is the twin of patch 0004 here and must keep the same 5-slot layout ([4] = summed allocation flag)."
+ }
+]

@@ -1,0 +1,7 @@
+COR-23: partial strategy/test trees leaked on syntax errors (no %destructor; nested method nodes lost).
+  cd ../common  (ASAN_OPTIONS=detect_leaks=1 is the default for sequential runs)
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine '(m{vert=100}|m{vert=)'   -> 'Direct leak of 104 byte(s) ... parser_yy.y:288'
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine '/(vert>1 & '             -> 72 bytes leaked (parser_yy.y:563, :698, :738: test nodes)
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'r{sep=(m{asc=b}m{:})}'   -> 312 bytes leaked (three method nodes)
+  LD_LIBRARY_PATH=$WORK/build/lib ./st_pristine '(m{vert=100}|m{vert=)'  -> ret=1, no leak
+  Fuzz: 1853 leak hits at parser_yy.y:288 on pristine (2400 runs), 0 on patched.

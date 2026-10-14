@@ -1,0 +1,48 @@
+From 0d67eb76b3e034b21a5c741075930a2e0a316607 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:18:14 +0000
+Subject: [PATCH 082/240] Bugfix: fix vertex array overflow in Matrix Market
+ loader [report R. Perry]
+
+graphGeomLoadMmkt() filled the trailing isolated-vertex entries of the
+vertex array by comparing the based vertex index against the unbased row
+count mrownbr. With base 0 this wrote one entry past verttax; with base 2
+it left the end-of-array entry uninitialised (graphCheck reported invalid
+vertex arrays). Loop up to the based end of the array instead.
+
+Refs: GRA-07
+---
+ src/libscotch/graph_io_mmkt.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/libscotch/graph_io_mmkt.c b/src/libscotch/graph_io_mmkt.c
+index 2d89f68..1edf249 100644
+--- a/src/libscotch/graph_io_mmkt.c
++++ b/src/libscotch/graph_io_mmkt.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2008,2010,2016,2019,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2008,2010,2016,2019,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -47,7 +47,7 @@
+ /**                # Version 6.0  : from : 04 aug 2016     **/
+ /**                                 to   : 04 aug 2016     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 19 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -224,7 +224,7 @@ const char * const          dataptr)              /* Fake base value  */
+   edgetmp = edgenum - edgetmp;                    /* Compute degree and see if it is maximum degree */
+   if (edgetmp > degrmax)
+     degrmax = edgetmp;
+-  while (vertnum < mrownbr)                       /* Fill gaps with isolated vertices and mark beginning of new one */
++  while (vertnum < (grafptr->vertnnd - 1))        /* Fill gaps with isolated vertices (vertnum is based) */
+     grafptr->verttax[++ vertnum] = edgenum;
+   grafptr->verttax[++ vertnum] = edgenum;         /* Mark end of array */
+ 
+-- 
+2.47.3
+

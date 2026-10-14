@@ -1,0 +1,31 @@
+Shared fault-injection harness of G24 (reuses G18's fishim.c; fishim2.c adds live-block accounting and caller attribution)
+==========================================================================================================================
+WORK=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph
+C=$WORK/repro/common
+Trees (all built from the combined series = v7.0.17 + 142 commits of the 20 finished groups, tag base-combined):
+  $WORK/build, $WORK/build64   ASan+UBSan 32-bit / 64-bit Gnum, PATCHED with this series (were rebuilt from the base after the commits)
+  $WORK/basefi                 base-combined sources, -fsanitize=undefined -ftrivial-auto-var-init=pattern (preloadable: no ASan)
+  $WORK/buildfi                same flags, this series applied
+  $WORK/builddbg               same flags + -DSCOTCH_DEBUG_ALL, this series applied
+  $WORK/buildrev               pristine INFRA/asan 7.0.17 with upstream 4ebcc6f reverted (DMO-01 negative control)
+  G18's $W/G18-dgraph-fold-redist/pristinefi = pristine 7.0.17 with the fault-injection flags (used read-only)
+Drivers (build.sh BUILDDIR -> bin_<name>/):
+  orderfi.c  SCOTCH_dgraphOrderCompute(); modes: rc (report), user (Perm+Save only on ranks whose rc is 0, i.e. what a user
+             does: a disagreement becomes a HANG), all (Perm+Save everywhere), check (gather graph+ordering on rank 0, run
+             SCOTCH_graphOrderCheck()). Exit code is always 0 so that mpirun does not kill the other ranks before they report.
+  mapfi.c    SCOTCH_dgraphMap() with a target file loaded by every rank, or cmplt:<n>.
+Shims: fishim.so (G18's), fishim2.so (+ "fishim: rank r: live scotch blocks N" at exit: N > 0 after the driver freed everything
+  is a leak; baseline is 0 on every rank; + "failing allocation #n in <routine>"), fishim3.so (prints file offsets for static
+  routines; resolve with addr2line -f -e <lib>/libptscotch.so <offset>).
+Scripts: scan.sh (G18's, fishim), scan2.sh (fishim2, explicit nth list), scanall.sh (3 ranks in parallel over 0..136),
+  scanmap.sh (kdgraph indices), one.sh (one injected run, compact summary), summarize.py / compare.py (classify scans:
+  CRASH / HANG (15 s) / DISAGREE / all-rc1 / all-rc0, LEAK=n).
+Censuses: filog2_m16_np3.txt (orderfi, np 3, index -> routine per rank), filog3_m16_np3.txt (with offsets), filog2_map_np3.txt.
+Scans: scans/basefi_np3_r{0,1,2}.txt vs scans/buildfi_np3_r{0,1,2}.txt (orderfi, mode user, every allocation 0..136 of each rank),
+  scans/map_{basefi,buildfi}_np3_r{0,1,2}.txt (mapfi, kdgraph indices). targeted_*.txt: the runs quoted in audit.json.
+Base of the series: base-combined (v7.0.17 + 20 groups) + G23's 11 patches (tag base-g23 in $WORK/scotch; G23's 0010 touches
+kdgraph_map_rb_part.c). The build trees were rebuilt from the rebased branch G24-hdgraph-g23 before the final runs.
+Drivers: the index scans (scans/*.txt, targeted_*.txt) were made with drivers calling MPI_Init (thread level SINGLE: the folds run
+sequentially, allocation order is deterministic per rank, the baseline never hung in ~900 runs). After G23's caveat on MPI_Init,
+the drivers were switched to MPI_Init_thread(MPI_THREAD_MULTIPLE) as src/check does (the folds then run in two threads, so index-
+based injection is no longer deterministic) and the key readings were redone with per-routine injection (FI_FUNC): reverify_thread.txt.

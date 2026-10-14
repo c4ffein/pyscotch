@@ -1,0 +1,554 @@
+From 669ae4f6af1e84c31839357cf88b9e6bc0328469 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:58:52 +0000
+Subject: [PATCH 7/9] Bugfix: split column blocks according to the computed
+ ordering in `hgraphOrderBl()` and `hmeshOrderBl()` [report R. Perry]
+
+The blocking method did not do what its documentation says, that is,
+traverse the column block tree produced by its strategy and split the
+leaves "without changing the ordering that has been computed":
+
+ - when the strategy produced a tree, the recursion on the sub-blocks
+   called `hgraphOrderBl()` itself, which ran the strategy again on
+   the whole graph for every sub-block, and did not terminate for
+   tree-producing strategies such as "b{strat=n{...}}";
+ - for vertex-weighted graphs, loads were summed in local vertex
+   order (since a90b1cb, through the inverse permutation before, which
+   indexed the local load array with original vertex indices for
+   induced subgraphs), while block boundaries apply to ordering
+   positions; blocks were therefore unbalanced as soon as the ordering
+   was not the identity (e.g., "b{cmin=1200,strat=g}": block weights
+   from 24 to 16930 instead of 954 to 1577);
+ - trailing zero-weight columns were left out of all blocks, yielding
+   an inconsistent column block tree.
+
+Run the strategy once, compute the column loads in ordering order
+(directly through the inverse permutation for original graphs, by
+matching original vertex indices for induced subgraphs), and split
+the leaves of the tree recursively in a separate routine, keeping
+track of the ordering number of each sub-block. The last block of a
+weighted split receives any remaining zero-weight columns. Blocks
+that cannot be split into at least two sub-blocks are kept as leaves.
+
+Refs: GRA-22, PS2-G15-2, PS2-G15-3
+---
+ src/libscotch/hgraph_order_bl.c | 276 ++++++++++++++++++++++----------
+ src/libscotch/hgraph_order_bl.h |   8 +-
+ src/libscotch/hmesh_order_bl.c  |  82 ++++++----
+ src/libscotch/hmesh_order_bl.h  |   8 +-
+ 4 files changed, 258 insertions(+), 116 deletions(-)
+
+diff --git a/src/libscotch/hgraph_order_bl.c b/src/libscotch/hgraph_order_bl.c
+index 7311bae..995267e 100644
+--- a/src/libscotch/hgraph_order_bl.c
++++ b/src/libscotch/hgraph_order_bl.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2020,2021,2023-2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2020,2021,2023-2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -48,7 +48,7 @@
+ /**                # Version 6.1  : from : 18 jan 2020     **/
+ /**                                 to   : 18 jan 2020     **/
+ /**                # Version 7.0  : from : 26 apr 2021     **/
+-/**                                 to   : 10 oct 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -56,6 +56,8 @@
+ **  The defines and includes.
+ */
+ 
++#define SCOTCH_HGRAPH_ORDER_BL
++
+ #include "module.h"
+ #include "common.h"
+ #include "parser.h"
+@@ -85,8 +87,9 @@ const Gnum                                ordenum, /*+ Zero-based ordering numbe
+ OrderCblk * restrict const                cblkptr, /*+ Single column-block        +*/
+ const HgraphOrderBlParam * restrict const paraptr)
+ {
+-  Gnum                cblknbr;                    /* Number of column blocks for splitting */
+-  Gnum                cblksiz;                    /* Number of allocated column blocks     */
++  Gnum * restrict     vnlotab;                    /* Array of column loads, indexed by ordering number */
++  Gnum * restrict     vnlotax;                    /* Based access to column load array, or NULL        */
++  int                 o;
+ 
+   if (paraptr->cblkmin <= 0) {
+     errorPrint ("hgraphOrderBl: invalid minimum block size");
+@@ -96,103 +99,212 @@ const HgraphOrderBlParam * restrict const paraptr)
+   if (hgraphOrderSt (grafptr, ordeptr, ordenum, cblkptr, paraptr->straptr) != 0) /* Perform ordering strategy */
+     return (1);
+ 
+-  if (cblkptr->cblktab == NULL) {                 /* If single column block */
+-#ifdef SCOTCH_DEBUG_HGRAPH2
+-    if (cblkptr->vnodnbr != grafptr->vnohnbr) {
+-      errorPrint ("hgraphOrderBl: invalid column block");
++  vnlotab =
++  vnlotax = NULL;                                 /* Assume columns have no loads */
++  if (grafptr->s.velotax != NULL) {               /* If vertex loads, get column loads in ordering order */
++    Gnum                ordetmp;
++    Gnum                ordennd;
++
++    const Gnum * restrict const peritab = ordeptr->peritab;
++    const Gnum * restrict const velotax = grafptr->s.velotax;
++    const Gnum * restrict const vnumtax = grafptr->s.vnumtax;
++
++    if ((vnlotab = (Gnum *) memAlloc (grafptr->vnohnbr * sizeof (Gnum))) == NULL) {
++      errorPrint ("hgraphOrderBl: out of memory (1)");
+       return (1);
+     }
++    vnlotax = vnlotab - ordenum;
++    ordennd = ordenum + grafptr->vnohnbr;
++
++    if (vnumtax == NULL) {                        /* If graph is original graph, ordering holds vertex indices */
++      for (ordetmp = ordenum; ordetmp < ordennd; ordetmp ++)
++        vnlotax[ordetmp] = velotax[peritab[ordetmp]];
++    }
++    else {                                        /* Ordering holds original vertex indices */
++      Gnum * restrict     sorttab;                /* Pairs of original vertex indices and local vertex loads or ordering numbers */
++      Gnum * restrict     sorttmp;
++      Gnum                vertnum;
++      Gnum                sortnum;
++
++      if ((sorttab = (Gnum *) memAlloc (grafptr->vnohnbr * 4 * sizeof (Gnum))) == NULL) {
++        errorPrint ("hgraphOrderBl: out of memory (2)");
++        memFree    (vnlotab);
++        return (1);
++      }
++      sorttmp = sorttab + 2 * grafptr->vnohnbr;
++
++      for (vertnum = grafptr->s.baseval, sortnum = 0; vertnum < grafptr->vnohnnd; vertnum ++, sortnum += 2) {
++        sorttab[sortnum]     = vnumtax[vertnum];  /* Record load of each local vertex */
++        sorttab[sortnum + 1] = velotax[vertnum];
++      }
++      for (ordetmp = ordenum, sortnum = 0; ordetmp < ordennd; ordetmp ++, sortnum += 2) {
++        sorttmp[sortnum]     = peritab[ordetmp];  /* Record ordering number of each original vertex */
++        sorttmp[sortnum + 1] = ordetmp;
++      }
++      intSort2asc1 (sorttab, grafptr->vnohnbr);   /* Sort both arrays by original vertex index */
++      intSort2asc1 (sorttmp, grafptr->vnohnbr);
++
++      for (sortnum = 0; sortnum < (2 * grafptr->vnohnbr); sortnum += 2) { /* Both arrays hold the same original vertex indices */
++#ifdef SCOTCH_DEBUG_HGRAPH2
++        if (sorttab[sortnum] != sorttmp[sortnum]) {
++          errorPrint ("hgraphOrderBl: internal error");
++          memFree    (sorttab);
++          memFree    (vnlotab);
++          return (1);
++        }
+ #endif /* SCOTCH_DEBUG_HGRAPH2 */
++        vnlotax[sorttmp[sortnum + 1]] = sorttab[sortnum + 1]; /* Set load of column */
++      }
+ 
+-    if ((cblkptr->vnodnbr <= 1) ||                /* Il block has only one column    */
+-        (grafptr->vnlosum < (2 * paraptr->cblkmin))) /* Or does not need to be split */
+-      return (0);
++      memFree (sorttab);
++    }
++  }
+ 
+-    cblknbr = grafptr->vnlosum / paraptr->cblkmin; /* Get new (maximum) number of blocks */
+-    cblksiz = MIN (cblknbr, grafptr->vnohnbr);    /* No more column blocks than columns  */
++  o = hgraphOrderBl2 (ordeptr, ordenum, cblkptr, vnlotax, paraptr->cblkmin); /* Split leaves of column block tree */
+ 
+-    if ((cblkptr->cblktab = (OrderCblk *) memAlloc (cblksiz * sizeof (OrderCblk))) == NULL) {
+-      errorPrint ("hgraphOrderBl: out of memory");
+-      return (1);
++  if (vnlotab != NULL)
++    memFree (vnlotab);
++
++  return (o);
++}
++
++/* This routine splits the leaves of the
++** given column block tree into sub-blocks
++** of the wanted minimum weight, without
++** changing the ordering.
++** It returns:
++** - 0   : if the blocks could be split.
++** - !0  : on error.
++*/
++
++static
++int
++hgraphOrderBl2 (
++Order * restrict const      ordeptr,
++const Gnum                  ordenum,              /*+ Zero-based ordering number of first column of block +*/
++OrderCblk * restrict const  cblkptr,              /*+ Column block to split                               +*/
++const Gnum * restrict const vnlotax,              /*+ Column loads, indexed by ordering number, or NULL   +*/
++const Gnum                  cblkmin)              /*+ Minimum block weight                                +*/
++{
++  Gnum                cblknbr;                    /* Number of column blocks for splitting */
++  Gnum                cblksiz;                    /* Number of allocated column blocks     */
++  Gnum                vnlosum;                    /* Weight of column block                */
++
++  if (cblkptr->cblktab != NULL) {                 /* If block already partitioned, split its sub-blocks */
++    Gnum                cblknum;
++    Gnum                ordetmp;
++
++    for (cblknum = 0, ordetmp = ordenum; cblknum < cblkptr->cblknbr; cblknum ++) { /* Sub-blocks follow each other in ordering */
++      if (hgraphOrderBl2 (ordeptr, ordetmp, cblkptr->cblktab + cblknum, vnlotax, cblkmin) != 0)
++        return (1);
++      ordetmp += cblkptr->cblktab[cblknum].vnodnbr;
+     }
+ 
+-    if (grafptr->s.velotax == NULL) {             /* For unweighted graphs, split blocks evenly */
+-      Gnum                cblknum;
++    return (0);
++  }
+ 
+-      for (cblknum = 0; cblknum < cblksiz; cblknum ++) { /* No more column blocks than those allocated */
+-        cblkptr->cblktab[cblknum].typeval = ORDERCBLKLEAF;
+-        cblkptr->cblktab[cblknum].vnodnbr = DATASIZE (grafptr->vnlosum, cblknbr, cblknum);
+-        cblkptr->cblktab[cblknum].cblknbr = 0;
+-        cblkptr->cblktab[cblknum].cblktab = NULL;
+-      }
++  if (cblkptr->vnodnbr <= 1)                      /* If block has only one column */
++    return (0);
++
++  if (vnlotax == NULL)                            /* If columns have no loads */
++    vnlosum = cblkptr->vnodnbr;
++  else {
++    Gnum                ordetmp;
++    Gnum                ordennd;
++
++    for (ordetmp = ordenum, ordennd = ordenum + cblkptr->vnodnbr, vnlosum = 0; /* Compute weight of block */
++         ordetmp < ordennd; ordetmp ++)
++      vnlosum += vnlotax[ordetmp];
++  }
++  if (vnlosum < (2 * cblkmin))                    /* If block does not need to be split */
++    return (0);
++
++  cblknbr = vnlosum / cblkmin;                    /* Get new (maximum) number of blocks */
++  cblksiz = MIN (cblknbr, cblkptr->vnodnbr);      /* No more column blocks than columns */
++
++  if ((cblkptr->cblktab = (OrderCblk *) memAlloc (cblksiz * sizeof (OrderCblk))) == NULL) {
++    errorPrint ("hgraphOrderBl2: out of memory");
++    return (1);
++  }
++
++  if (vnlotax == NULL) {                          /* For unweighted graphs, split blocks evenly */
++    Gnum                cblknum;
++
++    for (cblknum = 0; cblknum < cblksiz; cblknum ++) { /* No more column blocks than those allocated */
++      cblkptr->cblktab[cblknum].typeval = ORDERCBLKLEAF;
++      cblkptr->cblktab[cblknum].vnodnbr = DATASIZE (vnlosum, cblknbr, cblknum);
++      cblkptr->cblktab[cblknum].cblknbr = 0;
++      cblkptr->cblktab[cblknum].cblktab = NULL;
+     }
+-    else {
+-      Gnum                vnlomax;                /* Maxumum weight to reach for this subblock      */
+-      Gnum                vnlosum;                /* Current accumulated weight                     */
+-      Gnum                vnodnum;                /* Current permuted node index                    */
+-      Gnum                vnodbas;                /* Starting permuted node index for current block */
+-      Gnum                cblknum;                /* Current number of column subblocks             */
+-      Gnum                cblkidx;                /* Ghost column block index for even splitting    */
+-
+-      vnlomax =
+-      vnlosum = 0;
+-      vnodbas =
+-      vnodnum = grafptr->s.baseval;
+-      cblknum =
+-      cblkidx = 0;
+-      do {                                        /* Go on filling column blocks    */
++  }
++  else {
++    Gnum                vnlomax;                  /* Maximum weight to reach for this subblock   */
++    Gnum                vnlocur;                  /* Current accumulated weight                  */
++    Gnum                ordetmp;                  /* Current ordering number                     */
++    Gnum                ordennd;                  /* End of ordering number range                */
++    Gnum                ordebas;                  /* Starting ordering number for current block  */
++    Gnum                cblknum;                  /* Current number of column subblocks          */
++    Gnum                cblkidx;                  /* Ghost column block index for even splitting */
++
++    vnlomax =
++    vnlocur = 0;
++    ordebas =
++    ordetmp = ordenum;
++    ordennd = ordenum + cblkptr->vnodnbr;
++    cblknum =
++    cblkidx = 0;
++    do {                                          /* Go on filling column blocks */
+ #ifdef SCOTCH_DEBUG_HGRAPH2
+-        if (cblknum >= cblksiz) {                 /* No more column blocks than those allocated */
+-          errorPrint ("hgraphOrderBl: internal error (1)");
+-          return (1);
+-        }
++      if (cblknum >= cblksiz) {                   /* No more column blocks than those allocated */
++        errorPrint ("hgraphOrderBl2: internal error (1)");
++        return (1);
++      }
+ #endif /* SCOTCH_DEBUG_HGRAPH2 */
+-        do {                                      /* Compute bound of next subblock */
+-          cblkidx ++;
++      do {                                        /* Compute bound of next subblock */
++        cblkidx ++;
+ #ifdef SCOTCH_DEBUG_HGRAPH2
+-          if (cblkidx > cblknbr) {                /* No more ghost indices than ghost column blocks */
+-            errorPrint ("hgraphOrderBl: internal error (2)");
+-            return (1);
+-          }
++        if (cblkidx > cblknbr) {                  /* No more ghost indices than ghost column blocks */
++          errorPrint ("hgraphOrderBl2: internal error (2)");
++          return (1);
++        }
+ #endif /* SCOTCH_DEBUG_HGRAPH2 */
+-          vnlomax = DATASCAN (grafptr->vnlosum, cblknbr, cblkidx); /* Bound of next subblock      */
+-        } while (vnlomax <= vnlosum);             /* Next bound must be higher than current state */
+-
+-        do {                                      /* Accumulate weights until bound is reached */
+-          vnlosum += grafptr->s.velotax[vnodnum];
+-          vnodnum ++;
+-        } while (vnlosum < vnlomax);
+-
+-        cblkptr->cblktab[cblknum].typeval = ORDERCBLKLEAF; /* Build relevant column block */
+-        cblkptr->cblktab[cblknum].vnodnbr = vnodnum - vnodbas;
+-        cblkptr->cblktab[cblknum].cblknbr = 0;
+-        cblkptr->cblktab[cblknum].cblktab = NULL;
+-        cblknum ++;                               /* One more effective column block */
+-        vnodbas = vnodnum;                        /* Reset base for next block       */
+-      } while (vnlosum < grafptr->vnlosum);       /* As long as columns remain       */
+-
+-      cblknbr = cblknum;                          /* Use effective number of blocks */
+-    }
++        vnlomax = DATASCAN (vnlosum, cblknbr, cblkidx); /* Bound of next subblock */
++      } while (vnlomax <= vnlocur);               /* Next bound must be higher than current state */
++
++      do {                                        /* Accumulate weights until bound is reached */
++        vnlocur += vnlotax[ordetmp];
++        ordetmp ++;
++      } while (vnlocur < vnlomax);
++      if (vnlocur >= vnlosum)                     /* If all weight has been accounted for, remaining zero-weight columns go to last block */
++        ordetmp = ordennd;
++
++      cblkptr->cblktab[cblknum].typeval = ORDERCBLKLEAF; /* Build relevant column block */
++      cblkptr->cblktab[cblknum].vnodnbr = ordetmp - ordebas;
++      cblkptr->cblktab[cblknum].cblknbr = 0;
++      cblkptr->cblktab[cblknum].cblktab = NULL;
++      cblknum ++;                                 /* One more effective column block */
++      ordebas = ordetmp;                          /* Reset base for next block       */
++    } while (ordetmp < ordennd);                  /* As long as columns remain       */
++
++    cblknbr = cblknum;                            /* Use effective number of blocks */
++  }
+ 
+-    cblkptr->typeval = ORDERCBLKSEQU;             /* Node becomes a sequence of blocks */
+-    cblkptr->cblknbr = cblknbr;
++  if (cblknbr <= 1) {                             /* If block could not be split after all */
++    memFree (cblkptr->cblktab);
++    cblkptr->cblktab = NULL;                      /* Keep it as a leaf */
++    return (0);
++  }
++
++  cblkptr->typeval = ORDERCBLKSEQU;               /* Node becomes a sequence of blocks */
++  cblkptr->cblknbr = cblknbr;
+ #ifdef SCOTCH_PTHREAD
+-    pthread_mutex_lock (&ordeptr->mutedat);
++  pthread_mutex_lock (&ordeptr->mutedat);
+ #endif /* SCOTCH_PTHREAD */
+-    ordeptr->treenbr += cblknbr;                  /* That many more tree nodes    */
+-    ordeptr->cblknbr += cblknbr - 1;              /* That many more column blocks */
++  ordeptr->treenbr += cblknbr;                    /* That many more tree nodes    */
++  ordeptr->cblknbr += cblknbr - 1;                /* That many more column blocks */
+ #ifdef SCOTCH_PTHREAD
+-    pthread_mutex_unlock (&ordeptr->mutedat);
++  pthread_mutex_unlock (&ordeptr->mutedat);
+ #endif /* SCOTCH_PTHREAD */
+-  }
+-  else {                                          /* Block already partitioned */
+-    Gnum                cblknum;
+-
+-    for (cblknum = 0; cblknum < cblkptr->cblknbr; cblknum ++) {
+-      if (hgraphOrderBl (grafptr, ordeptr, ordenum, cblkptr->cblktab + cblknum, paraptr) != 0)
+-        return (1);
+-    }
+-  }
+ 
+   return (0);
+ }
+diff --git a/src/libscotch/hgraph_order_bl.h b/src/libscotch/hgraph_order_bl.h
+index 8d7fe5a..769e9d8 100644
+--- a/src/libscotch/hgraph_order_bl.h
++++ b/src/libscotch/hgraph_order_bl.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2009,2010,2018,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2009,2010,2018,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -47,7 +47,7 @@
+ /**                # Version 6.0  : from : 05 apr 2018     **/
+ /**                                 to   : 05 apr 2018     **/
+ /**                # Version 7.0  : from : 11 sep 2024     **/
+-/**                                 to   : 11 sep 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -67,3 +67,7 @@ typedef struct HgraphOrderBlParam_ {
+ */
+ 
+ int                         hgraphOrderBl       (Hgraph * const, Order * const, const Gnum, OrderCblk * const, const HgraphOrderBlParam * const);
++
++#ifdef SCOTCH_HGRAPH_ORDER_BL
++static int                  hgraphOrderBl2      (Order * const, const Gnum, OrderCblk * const, const Gnum * const, const Gnum);
++#endif /* SCOTCH_HGRAPH_ORDER_BL */
+diff --git a/src/libscotch/hmesh_order_bl.c b/src/libscotch/hmesh_order_bl.c
+index 1f9dd9a..c716efe 100644
+--- a/src/libscotch/hmesh_order_bl.c
++++ b/src/libscotch/hmesh_order_bl.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2021,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2021,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 5.0  : from : 25 jul 2007     **/
+ /**                                 to   : 25 jul 2007     **/
+ /**                # Version 7.0  : from : 26 apr 2021     **/
+-/**                                 to   : 11 sep 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -52,6 +52,8 @@
+ **  The defines and includes.
+ */
+ 
++#define SCOTCH_HMESH_ORDER_BL
++
+ #include "module.h"
+ #include "common.h"
+ #include "parser.h"
+@@ -82,9 +84,6 @@ const Gnum                                ordenum, /*+ Zero-based ordering numbe
+ OrderCblk * restrict const                cblkptr, /*+ Single column-block        +*/
+ const HmeshOrderBlParam * restrict const  paraptr)
+ {
+-  Gnum                cblknbr;                    /* Number of old column blocks before splitting */
+-  Gnum                cblknum;                    /* Number of current column block               */
+-
+   if (paraptr->cblkmin <= 0) {
+     errorPrint ("hmeshOrderBl: invalid minimum block size");
+     return (1);
+@@ -93,39 +92,62 @@ const HmeshOrderBlParam * restrict const  paraptr)
+   if (hmeshOrderSt (meshptr, ordeptr, ordenum, cblkptr, paraptr->strat) != 0) /* Perform ordering strategy */
+     return (1);
+ 
+-  if (cblkptr->cblktab == NULL) {                 /* If single column block    */
+-    if (cblkptr->vnodnbr < (2 * paraptr->cblkmin)) /* If block cannot be split */
+-	return (0);
++  return (hmeshOrderBl2 (ordeptr, cblkptr, paraptr->cblkmin)); /* Split leaves of column block tree */
++}
++
++/* This routine splits the leaves of the
++** given column block tree into sub-blocks
++** of the wanted minimum size, without
++** changing the ordering.
++** It returns:
++** - 0   : if the blocks could be split.
++** - !0  : on error.
++*/
+ 
+-    cblknbr = cblkptr->vnodnbr / paraptr->cblkmin; /* Get new number of blocks */
++static
++int
++hmeshOrderBl2 (
++Order * restrict const      ordeptr,
++OrderCblk * restrict const  cblkptr,              /*+ Column block to split  +*/
++const Gnum                  cblkmin)              /*+ Minimum block size     +*/
++{
++  Gnum                cblknbr;                    /* Number of old column blocks before splitting */
++  Gnum                cblknum;                    /* Number of current column block               */
+ 
+-    if ((cblkptr->cblktab = (OrderCblk *) memAlloc (cblknbr * sizeof (OrderCblk))) == NULL) {
+-      errorPrint ("hmeshOrderBl: out of memory");
+-      return (1);
++  if (cblkptr->cblktab != NULL) {                 /* If block already partitioned, split its sub-blocks */
++    for (cblknum = 0; cblknum < cblkptr->cblknbr; cblknum ++) {
++      if (hmeshOrderBl2 (ordeptr, cblkptr->cblktab + cblknum, cblkmin) != 0)
++        return (1);
+     }
+-    cblkptr->typeval = ORDERCBLKSEQU;             /* Node becomes a sequence of blocks */
+-    cblkptr->cblknbr = cblknbr;
++
++    return (0);
++  }
++
++  if (cblkptr->vnodnbr < (2 * cblkmin))           /* If block cannot be split */
++    return (0);
++
++  cblknbr = cblkptr->vnodnbr / cblkmin;           /* Get new number of blocks */
++
++  if ((cblkptr->cblktab = (OrderCblk *) memAlloc (cblknbr * sizeof (OrderCblk))) == NULL) {
++    errorPrint ("hmeshOrderBl2: out of memory");
++    return (1);
++  }
++  cblkptr->typeval = ORDERCBLKSEQU;               /* Node becomes a sequence of blocks */
++  cblkptr->cblknbr = cblknbr;
+ #ifdef SCOTCH_PTHREAD
+-    pthread_mutex_lock (&ordeptr->mutedat);
++  pthread_mutex_lock (&ordeptr->mutedat);
+ #endif /* SCOTCH_PTHREAD */
+-    ordeptr->treenbr += cblknbr;                  /* These more number of tree nodes    */
+-    ordeptr->cblknbr += cblknbr - 1;              /* These more number of column blocks */
++  ordeptr->treenbr += cblknbr;                    /* These more number of tree nodes    */
++  ordeptr->cblknbr += cblknbr - 1;                /* These more number of column blocks */
+ #ifdef SCOTCH_PTHREAD
+-    pthread_mutex_unlock (&ordeptr->mutedat);
++  pthread_mutex_unlock (&ordeptr->mutedat);
+ #endif /* SCOTCH_PTHREAD */
+ 
+-    for (cblknum = 0; cblknum < cblknbr; cblknum ++) {
+-      cblkptr->cblktab[cblknum].typeval = ORDERCBLKLEAF;
+-      cblkptr->cblktab[cblknum].vnodnbr = ((cblkptr->vnodnbr + cblknbr - 1) - cblknum) / cblknbr;
+-      cblkptr->cblktab[cblknum].cblknbr = 0;
+-      cblkptr->cblktab[cblknum].cblktab = NULL;
+-    }
+-  }
+-  else {                                          /* Block already partitioned */
+-    for (cblknum = 0; cblknum < cblkptr->cblknbr; cblknum ++) {
+-      if (hmeshOrderBl (meshptr, ordeptr, ordenum, cblkptr->cblktab + cblknum, paraptr) != 0)
+-        return (1);
+-    }
++  for (cblknum = 0; cblknum < cblknbr; cblknum ++) {
++    cblkptr->cblktab[cblknum].typeval = ORDERCBLKLEAF;
++    cblkptr->cblktab[cblknum].vnodnbr = ((cblkptr->vnodnbr + cblknbr - 1) - cblknum) / cblknbr;
++    cblkptr->cblktab[cblknum].cblknbr = 0;
++    cblkptr->cblktab[cblknum].cblktab = NULL;
+   }
+ 
+   return (0);
+diff --git a/src/libscotch/hmesh_order_bl.h b/src/libscotch/hmesh_order_bl.h
+index 5634ec3..2e6bbd7 100644
+--- a/src/libscotch/hmesh_order_bl.h
++++ b/src/libscotch/hmesh_order_bl.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2009,2010,2018,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2009,2010,2018,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 07 jun 2018     **/
+ /**                                 to   : 07 jun 2018     **/
+ /**                # Version 7.0  : from : 11 sep 2024     **/
+-/**                                 to   : 11 sep 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -65,3 +65,7 @@ typedef struct HmeshOrderBlParam_ {
+ */
+ 
+ int                         hmeshOrderBl        (Hmesh * const, Order * const, const Gnum, OrderCblk * const, const HmeshOrderBlParam * const);
++
++#ifdef SCOTCH_HMESH_ORDER_BL
++static int                  hmeshOrderBl2       (Order * const, OrderCblk * const, const Gnum);
++#endif /* SCOTCH_HMESH_ORDER_BL */
+-- 
+2.47.3
+

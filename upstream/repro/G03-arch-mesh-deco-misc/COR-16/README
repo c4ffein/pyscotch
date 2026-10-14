@@ -1,0 +1,14 @@
+COR-16 -- deco loader ignores archDecoArchBuild2 result; type-1 data never validated.
+export LD_LIBRARY_PATH=$WORK/build/lib ; graph m4x4.grf included.
+PRISTINE (fails):
+  atst bad1.tgt  (type-1, domain claims size 9 with no children) -> heap-buffer-overflow archDecoDomSize arch_deco.c:485
+  gmap m4x4.grf bad1.tgt /dev/null                                -> heap-buffer-overflow archDecoDomDist arch_deco.c:511
+  atst dup0.tgt  (type-0, duplicate terminal number) -> loads OK (ret 0) though inconsistent (release: Build2 checks are debug-only)
+  gmap m4x4.grf wbig.tgt (type-0 weights 2e9) -> arch_deco.c:157 signed overflow
+  gmap m4x4.grf <type-1 file with a negative distance> -> stack-buffer-overflow graphMapView2 library_graph_map_view.c:473
+  Fuzzer: python3 -I fuzz.py $WORK/build/bin $WORK/build/lib corpus m4x4.grf 600 1  -> 43 distinct sanitizer signatures (hits_pristine.txt)
+PATCHED:
+  all of the above rejected ("bad input (7)" / "bad terminal count" / "bad input (3)/(6)"); valid files ok0/ok1 and the
+  compiled corpus/*_c1.tgt load identically to pristine. Fuzzer -> 0 memory-safety hits (hits_patched_final.txt; residual
+  UBSan signed-overflows are downstream mapping-cost arithmetic in kgraph_map_rb.c/bgraph.c, not the deco loader).
+Fixed by patch 0003.  corpus/ built from amk_* + acpl outputs; fuzz.py is the mutation harness.

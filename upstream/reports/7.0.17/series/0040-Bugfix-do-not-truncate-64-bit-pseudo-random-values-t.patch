@@ -1,0 +1,45 @@
+From 3473fb2ddbfa9fd767b25caeaf3cb00d33c3926d Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:23:51 +0000
+Subject: [PATCH 040/240] Bugfix: do not truncate 64-bit pseudo-random values
+ to UINT [report PyScotch]
+
+Since b41893e, `intRandVal2()` is declared as returning a UINT64 value,
+but it still cast the result of `intRandVal3()` to UINT, so that in
+32-bit INT builds the upper half of the returned value was always
+zero. Likewise, `intRandSpawn()` cast the 64-bit seed of the new
+generator to INT before passing it to `intRandSeed()`, which takes a
+UINT64.
+
+Remove both casts. Single-threaded pseudo-random streams are not
+affected; the seeds of the generators spawned for sub-contexts and
+threads in 32-bit INT builds are.
+---
+ src/libscotch/common_integer.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/common_integer.c b/src/libscotch/common_integer.c
+index 3600fdb..b9d8b9b 100644
+--- a/src/libscotch/common_integer.c
++++ b/src/libscotch/common_integer.c
+@@ -287,7 +287,7 @@ IntRandContext * const      rnewptr)
+ 
+   seedval = roldptr->statdat.randtab[0];          /* Get value from state of old generator */
+ 
+-  intRandSeed (rnewptr, (INT) seedval);           /* Set seed and initialize state */
++  intRandSeed (rnewptr, seedval);                 /* Set seed and initialize state */
+ }
+ 
+ /* This routine initializes the pseudo-random
+@@ -467,7 +467,7 @@ UINT64
+ intRandVal2 (
+ IntRandContext * const      contptr)              /*+ Random context to load +*/
+ {
+-  return ((UINT) intRandVal3 (&contptr->statdat));
++  return (intRandVal3 (&contptr->statdat));
+ }
+ 
+ /*********************/
+-- 
+2.47.3
+

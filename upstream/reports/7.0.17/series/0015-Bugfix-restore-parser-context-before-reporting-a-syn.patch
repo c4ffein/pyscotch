@@ -1,0 +1,68 @@
+From 38e139bbb538a1d2558fb164cfb1a6c1782c220e Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:24:35 +0000
+Subject: [PATCH 015/240] Bugfix: restore parser context before reporting a
+ syntax error within a nested strategy [report R. Perry]
+
+A syntax error inside a strategy-valued parameter is caught by the
+`error` alternative of `PARAMVAL` after the mid-rule action that
+introduces the sub-strategy has cleared `penvptr->straptr` and
+`penvptr->paraptr`; the error message dereferences both, which crashes
+on strings such as `r{sep=m{asc=b{:width=3}}}`. The saved context
+cannot be restored by the final action, because Bison discards the
+mid-rule value when it pops the stack during error recovery.
+
+Type the mid-rule value and attach a `%destructor` to it, so that the
+saved method and parameter are restored whenever the sub-strategy is
+discarded, and the error rule always reports the right parameter.
+
+Refs: COR-01
+---
+ src/libscotch/parser_yy.y | 15 ++++++++++-----
+ 1 file changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/src/libscotch/parser_yy.y b/src/libscotch/parser_yy.y
+index 742ca33..f34fd81 100644
+--- a/src/libscotch/parser_yy.y
++++ b/src/libscotch/parser_yy.y
+@@ -137,6 +137,11 @@ YY_DECL;                                          /* Definition of yylex(); Flex
+ %type <STRAT>        STRATCONCAT   STRATTEST     STRATTESTELSE STRATEMPTY
+ %type <STRAT>        STRATGROUP    STRATMETHOD   STRATSELECT
+ 
++%destructor {                                     /* Restore parser context when sub-strategy is discarded by error recovery */
++  penvptr->straptr = ($$).strat;
++  penvptr->paraptr = ($$).param;
++} <SAVE>
++
+ %start STRAT
+ 
+ %%
+@@ -455,20 +460,20 @@ PARAMVAL      : VALCASE
+                           ($1));
+                 }
+               }
+-              |
++              | <SAVE>
+               {
+                 if (penvptr->paraptr->typeval != STRATPARAMSTRAT) /* If parameter cannot hold a strategy */
+                   YYERROR;                        /* Report invalid parameter value         */
+ 
+-                ($<SAVE>$).strat = penvptr->straptr; /* Save current method and parameter */
+-                ($<SAVE>$).param = penvptr->paraptr;
++                ($$).strat = penvptr->straptr;    /* Save current method and parameter; typed value is restored by destructor on error */
++                ($$).param = penvptr->paraptr;
+                 penvptr->straptr = NULL;
+                 penvptr->paraptr = NULL;
+               }
+                 STRATSELECT
+               {
+-                penvptr->straptr = ($<SAVE>1).strat; /* Restore current method    */
+-                penvptr->paraptr = ($<SAVE>1).param; /* Restore current parameter */
++                penvptr->straptr = ($1).strat;    /* Restore current method    */
++                penvptr->paraptr = ($1).param;    /* Restore current parameter */
+ 
+                 if ((penvptr->paraptr->typeval & STRATPARAMDEPRECATED) == 0) { /* If parameter is not deprecated */
+ #ifdef SCOTCH_DEBUG_PARSER2
+-- 
+2.47.3
+

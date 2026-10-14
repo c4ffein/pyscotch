@@ -1,0 +1,15 @@
+--- a/src/libscotch/mesh_io_habo.c	2026-10-13 08:40:02.911404262 +0000
++++ b/src/libscotch/mesh_io_habo.c	2026-10-13 13:25:19.398829327 +0000
+@@ -125,8 +125,10 @@
+     habvarnbr = (Gnum) atol (&habmatbuf[2][14]);  /* NVAR */
+     habmatbuf[2][14] = '\0';
+ 
+-    if ((c = sscanf (habmatbuf[3], "(%*d%*[Ii]%d) (%*d%*[Ii]%d)",
+-                     &habcolsiz, &habnzrsiz)) != 2) {
++    if (((c = sscanf (habmatbuf[3], "(%*d%*[Ii]%d) (%*d%*[Ii]%d)",
++                      &habcolsiz, &habnzrsiz)) != 2) ||
++        (habcolsiz < 1) || (habcolsiz > 80) ||    /* Harwell-Boeing lines are at most 80 characters long */
++        (habnzrsiz < 1) || (habnzrsiz > 80)) {
+       errorPrint ("meshGeomLoadHabo: bad input (3, %d)", c);
+       return (1);
+     }

@@ -1,0 +1,22 @@
+--- a/src/scotch/gscat.c
++++ b/src/scotch/gscat.c
+@@ -70,7 +70,7 @@
+ static const char *         C_usageList[] = {     /* Usage */
+   "gscat <nparts> <input source file> <output target file pattern> <options>",
+   "  -h  : Display this help",
+-  "  -i  : Create an imbalanced distribution",
++  "  -i[<nbr>]  : Create an imbalanced distribution of <nbr> vertices per part (default: 1)",
+   "  -V  : Print program version and copyright",
+   NULL };
+ 
+@@ -120,7 +120,9 @@
+           return     (EXIT_SUCCESS);
+         case 'I' :
+         case 'i' :
+-          if ((vertlocmin = (SCOTCH_Num) atoll (argv[i] + 2)) < 1)
++          if (argv[i][2] == '\0')                /* If no number given */
++            vertlocmin = 1;
++          else if ((vertlocmin = (SCOTCH_Num) atoll (argv[i] + 2)) < 1)
+             errorPrint ("main: invalid number of vertices in graph parts '%s'", argv[i] + 2);
+           break;
+         case 'V' :

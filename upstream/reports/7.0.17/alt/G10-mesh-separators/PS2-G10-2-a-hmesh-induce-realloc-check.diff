@@ -1,0 +1,16 @@
+--- a/src/libscotch/hmesh_induce.c
++++ b/src/libscotch/hmesh_induce.c
+@@ -359,7 +359,12 @@
+       indmeshptr->m.vnumtax[indvnodnum] = orgmeshptr->m.vnumtax[indmeshptr->m.vnumtax[indvnodnum] + (orgmeshptr->m.vnodbas - orgmeshptr->m.baseval)];
+   }
+ 
+-  indmeshptr->m.edgetax  = memRealloc (indedgetax + indmeshptr->m.baseval, indmeshptr->m.edgenbr * sizeof (Gnum));
++  if ((indmeshptr->m.edgetax = memRealloc (indedgetax + indmeshptr->m.baseval, indmeshptr->m.edgenbr * sizeof (Gnum))) == NULL) {
++    errorPrint ("hmeshInducePart: out of memory (3)");
++    memFree    (indedgetax + indmeshptr->m.baseval); /* Free group leader */
++    hmeshExit  (indmeshptr);
++    return     (1);
++  }
+   indmeshptr->m.edgetax -= indmeshptr->m.baseval;
+ 
+ #ifdef SCOTCH_DEBUG_HMESH2

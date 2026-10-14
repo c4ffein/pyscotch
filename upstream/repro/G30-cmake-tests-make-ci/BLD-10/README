@@ -1,0 +1,13 @@
+BLD-10: suffix_fortran_file() depends on ${file} (undefined) and on a target instead of the .tmp file.
+Pristine (cm tree as in BLD-09):
+  touch src/check/test_scotch_mesh_build_f.f90.in; make -C cm/src/check
+  -> "[ 50%] Built target test_scotch_mesh_build_f.f90_tmp" ... tmp regenerated: NO; f90 regenerated: NO
+Patched:
+  same -> tmp regenerated: yes; f90 regenerated: yes; exe relinked: yes
+  touch test_libmetis_dual_f.f90.in -> tmp regenerated: yes; f90 regenerated: yes
+  clean configure+build (make -j4) and full ctest of the patched tree: see $W/verify-cm.status
+Note (PS2-G30-3, not fixed): with the Makefile generator, the custom commands of a generated source listed
+in several targets (the *_src custom target and the test executables) are emitted in each target's
+build.make ($W/cm/src/check/CMakeFiles/{test_scotch_mesh_build_f,test_scotch_mesh_build_f.f90_src}.dir/build.make
+both contain the cmake_sed rule, pristine and patched); a toy project ($W/cmdup) shows add_dependencies()
+does not change that. Pre-existing; benign unless "make -j" runs both copies at the same instant.

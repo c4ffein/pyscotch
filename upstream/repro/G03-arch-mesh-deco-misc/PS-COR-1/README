@@ -1,0 +1,8 @@
+PS-COR-1 -- a type-0 deco terminal that is an ancestor of other terminals overflows the distance table.
+export LD_LIBRARY_PATH=$WORK/build/lib
+PRISTINE (fails):
+  atst anc.tgt  (deco 0 4 4, terminals numbered 1..4 so terminal 1 is the tree root)
+    -> heap-buffer-overflow READ in _SCOTCHarchDecoArchBuild2 arch_deco.c:193 (distance loop uses 2*i beyond termdommax)
+PATCHED:
+  atst anc.tgt -> "archDecoArchBuild2: terminal domain is not a leaf"
+Fixed by patch 0003 (leaf check after accumulation).

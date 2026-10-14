@@ -1,0 +1,23 @@
+diff --git a/src/libscotch/dgraph_build.c b/src/libscotch/dgraph_build.c
+index 63995a6..e4787f6 100644
+--- a/src/libscotch/dgraph_build.c
++++ b/src/libscotch/dgraph_build.c
+@@ -400,11 +400,14 @@ const Gnum                  degrlocmax)
+       return (1);
+     }
+ 
+-    for (edsolocptr = edsoloctab, edsoloctnd = edsoloctab + edgelocnbr, edgelocnum = baseval;
+-         edsolocptr < edsoloctnd; edsolocptr ++, edgelocnum ++) {
+-      edsolocptr->vlblglbnum = edgeloctax[edgelocnum];
+-      edsolocptr->edgelocnum = edgelocnum;
++    for (vertlocnum = baseval, edsolocptr = edsoloctab; /* Edge array may not be compact */
++         vertlocnum < grafptr->vertlocnnd; vertlocnum ++) {
++      for (edgelocnum = vertloctax[vertlocnum]; edgelocnum < vendloctax[vertlocnum]; edgelocnum ++, edsolocptr ++) {
++        edsolocptr->vlblglbnum = edgeloctax[edgelocnum];
++        edsolocptr->edgelocnum = edgelocnum;
++      }
+     }
++    edsoloctnd = edsolocptr;
+     intSort2asc2 (edsoloctab, grafptr->edgelocnbr);
+ 
+     procrcvnum = (grafptr->proclocnum + 1) % procglbnbr; /* Compute indices of neighbors */

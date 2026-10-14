@@ -1,0 +1,346 @@
+From 632ad8f299a854024af7a1a1a7d3ae09684a9860 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:06:04 +0000
+Subject: [PATCH 061/240] Bugfix: match geometry data against node labels in
+ `meshGeomLoadScot()` [report R. Perry]
+
+`meshGeomLoadScot()` took the node labels from `vlbltax[baseval ..]`,
+that is, from the first vertices of the mesh, which are elements when
+elements are numbered first; coordinates were then matched against
+element labels ("vertex geometry data not found", or misplaced
+coordinates). For unlabeled meshes it expected the labels 0 .. vnodnbr-1
+whereas `meshGeomSaveScot()` writes the node numbers vnodbas ..
+vnodnnd-1. Like its graph twin, it also kept the geometry dimension in
+a local, so `SCOTCH_geomData()` reported dimension 0 and
+`meshGeomSaveScot()` wrote no coordinates, and it reused a pre-existing
+`geomtab` without checking its size.
+
+Index labels from `vnodbas` and use node numbers as labels for
+unlabeled meshes, (re)allocate `geomtab` to the proper size, record
+the dimension and print the missing label with the proper format.
+
+Add `test_scotch_mesh_geom`, which loads a mesh and its geometry,
+checks them and writes the geometry back for comparison.
+
+Refs: SEP-16, GRA-09
+---
+ src/check/CMakeLists.txt          |   8 ++
+ src/check/Makefile                |  11 +++
+ src/check/data/small2.xyz         |   9 ++
+ src/check/test_scotch_mesh_geom.c | 141 ++++++++++++++++++++++++++++++
+ src/libscotch/mesh_io_scot.c      |  41 +++++----
+ 5 files changed, 193 insertions(+), 17 deletions(-)
+ create mode 100644 src/check/data/small2.xyz
+ create mode 100644 src/check/test_scotch_mesh_geom.c
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index 92e8bc5..2f6eca1 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -352,6 +352,14 @@ add_test(NAME test_scotch_graph_part_ovl_1 COMMAND test_scotch_graph_part_ovl 4
+ 
+ add_test(NAME test_scotch_graph_part_ovl_2 COMMAND test_scotch_graph_part_ovl 4 ${dat}/m16x16_b100000.grf ${dev_null})
+ 
++# test_scotch_mesh_geom
++
++add_test_scotch(test_scotch_mesh_geom)
++
++add_test(NAME test_scotch_mesh_geom COMMAND ${BASH} -c
++  "'$<TARGET_FILE:test_scotch_mesh_geom>' '${dat}/small2.msh' '${dat}/small2.xyz' small2.xyz && \
++   '${CMAKE_COMMAND}' -E compare_files '${dat}/small2.xyz' small2.xyz")
++
+ # test_scotch_mesh_graph
+ 
+ add_test_scotch(test_scotch_mesh_graph)
+diff --git a/src/check/Makefile b/src/check/Makefile
+index 4c34cbc..a21c7c6 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -189,6 +189,7 @@ realclean			:	clean
+ 					test_scotch_mesh_build_f		\
+ 					test_scotch_mesh_build_f.f90		\
+ 					test_scotch_mesh_build_f.f90.tmp	\
++					test_scotch_mesh_geom			\
+ 					test_scotch_mesh_graph			\
+ 					test_strat_par				\
+ 					test_strat_seq
+@@ -218,6 +219,7 @@ CHECKSCOTCH = 		check_common_file_compress		\
+ 			check_scotch_graph_map_copy		\
+ 			check_scotch_graph_order		\
+ 			check_scotch_graph_part_ovl		\
++			check_scotch_mesh_geom			\
+ 			check_scotch_mesh_graph			\
+ 			check_libmetis_v3			\
+ 			check_libmetis_v5			\
+@@ -569,6 +571,15 @@ test_scotch_mesh_build_f	:	test_scotch_mesh_build_f.f90	\
+ 
+ ##
+ 
++check_scotch_mesh_geom		:	test_scotch_mesh_geom
++					$(EXECS) ./test_scotch_mesh_geom data/small2.msh data/small2.xyz $(TMPDIR)/small2.xyz
++					$(PROGDIFF) data/small2.xyz $(TMPDIR)/small2.xyz
++
++test_scotch_mesh_geom		:	test_scotch_mesh_geom.c		\
++					$(SCOTCHLIBDIR)/libscotch$(LIB)
++
++##
++
+ check_scotch_mesh_graph		:	test_scotch_mesh_graph
+ 					$(EXECS) ./test_scotch_mesh_graph data/ship001.msh
+ 
+diff --git a/src/check/data/small2.xyz b/src/check/data/small2.xyz
+new file mode 100644
+index 0000000..9ea5fcf
+--- /dev/null
++++ b/src/check/data/small2.xyz
+@@ -0,0 +1,9 @@
++2
++7
++6	0.000000	0.000000
++7	1.000000	0.000000
++8	2.000000	0.000000
++9	0.000000	1.000000
++10	1.000000	1.000000
++11	2.000000	1.000000
++12	0.000000	2.000000
+diff --git a/src/check/test_scotch_mesh_geom.c b/src/check/test_scotch_mesh_geom.c
+new file mode 100644
+index 0000000..1970d36
+--- /dev/null
++++ b/src/check/test_scotch_mesh_geom.c
+@@ -0,0 +1,141 @@
++/* Copyright 2026 IPB, Universite de Bordeaux, INRIA & CNRS
++**
++** This file is part of the Scotch software package for static mapping,
++** graph partitioning and sparse matrix ordering.
++**
++** This software is governed by the CeCILL-C license under French law
++** and abiding by the rules of distribution of free software. You can
++** use, modify and/or redistribute the software under the terms of the
++** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
++** URL: "http://www.cecill.info".
++**
++** As a counterpart to the access to the source code and rights to copy,
++** modify and redistribute granted by the license, users are provided
++** only with a limited warranty and the software's author, the holder of
++** the economic rights, and the successive licensors have only limited
++** liability.
++**
++** In this respect, the user's attention is drawn to the risks associated
++** with loading, using, modifying and/or developing or reproducing the
++** software by the user in light of its specific status of free software,
++** that may mean that it is complicated to manipulate, and that also
++** therefore means that it is reserved for developers and experienced
++** professionals having in-depth computer knowledge. Users are therefore
++** encouraged to load and test the software's suitability as regards
++** their requirements in conditions enabling the security of their
++** systems and/or data to be ensured and, more generally, to use and
++** operate it in the same conditions as regards security.
++**
++** The fact that you are presently reading this means that you have had
++** knowledge of the CeCILL-C license and that you accept its terms.
++*/
++/************************************************************/
++/**                                                        **/
++/**   NAME       : test_scotch_mesh_geom.c                 **/
++/**                                                        **/
++/**   AUTHOR     : PyScotch project                        **/
++/**                                                        **/
++/**   FUNCTION   : This module tests the operation of      **/
++/**                the SCOTCH_meshGeomLoadScot() and       **/
++/**                SCOTCH_meshGeomSaveScot() routines.     **/
++/**                                                        **/
++/**   DATES      : # Version 7.0  : from : 13 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
++/**                                                        **/
++/************************************************************/
++
++/*
++**  The defines and includes.
++*/
++
++#include <stdio.h>
++#if (((defined __STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) || (defined HAVE_STDINT_H))
++#include <stdint.h>
++#endif /* (((defined __STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) || (defined HAVE_STDINT_H)) */
++#include <stdlib.h>
++#include <string.h>
++
++#include "../libscotch/module.h"
++#include "../libscotch/common.h"
++
++#include "scotch.h"
++
++/*********************/
++/*                   */
++/* The main routine. */
++/*                   */
++/*********************/
++
++int
++main (
++int                 argc,
++char *              argv[])
++{
++  FILE *              fileptr;
++  FILE *              filegeoptr;
++  SCOTCH_Mesh         meshdat;
++  SCOTCH_Geom         geomdat;
++  SCOTCH_Num          dimnnbr;
++  double *            geomtab;
++
++  SCOTCH_errorProg (argv[0]);
++
++  if (argc != 4) {
++    SCOTCH_errorPrint ("usage: %s mesh_file geom_file out_geom_file", argv[0]);
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_meshInit (&meshdat) != 0) {          /* Initialize source mesh */
++    SCOTCH_errorPrint ("main: cannot initialize mesh");
++    exit (EXIT_FAILURE);
++  }
++  if (SCOTCH_geomInit (&geomdat) != 0) {          /* Initialize geometry */
++    SCOTCH_errorPrint ("main: cannot initialize geometry");
++    exit (EXIT_FAILURE);
++  }
++
++  if ((fileptr = fopen (argv[1], "r")) == NULL) {
++    SCOTCH_errorPrint ("main: cannot open file (1)");
++    exit (EXIT_FAILURE);
++  }
++  if ((filegeoptr = fopen (argv[2], "r")) == NULL) {
++    SCOTCH_errorPrint ("main: cannot open file (2)");
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_meshGeomLoadScot (&meshdat, &geomdat, fileptr, filegeoptr, NULL) != 0) { /* Read source mesh and geometry */
++    SCOTCH_errorPrint ("main: cannot load mesh");
++    exit (EXIT_FAILURE);
++  }
++
++  fclose (fileptr);
++  fclose (filegeoptr);
++
++  if (SCOTCH_meshCheck (&meshdat) != 0) {
++    SCOTCH_errorPrint ("main: invalid mesh");
++    exit (EXIT_FAILURE);
++  }
++
++  SCOTCH_geomData (&geomdat, &dimnnbr, &geomtab);
++  if ((dimnnbr < 1) || (geomtab == NULL)) {
++    SCOTCH_errorPrint ("main: invalid geometry data");
++    exit (EXIT_FAILURE);
++  }
++
++  if ((fileptr = fopen (argv[3], "w")) == NULL) {
++    SCOTCH_errorPrint ("main: cannot open file (3)");
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_meshGeomSaveScot (&meshdat, &geomdat, NULL, fileptr, NULL) != 0) { /* Write geometry back */
++    SCOTCH_errorPrint ("main: cannot save geometry");
++    exit (EXIT_FAILURE);
++  }
++
++  fclose (fileptr);
++
++  SCOTCH_geomExit (&geomdat);
++  SCOTCH_meshExit (&meshdat);
++
++  exit (EXIT_SUCCESS);
++}
+diff --git a/src/libscotch/mesh_io_scot.c b/src/libscotch/mesh_io_scot.c
+index 474ff1c..8b79c28 100644
+--- a/src/libscotch/mesh_io_scot.c
++++ b/src/libscotch/mesh_io_scot.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2010,2019,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2010,2019,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -47,7 +47,7 @@
+ /**                # Version 6.0  : from : 28 apr 2019     **/
+ /**                                 to   : 28 apr 2019     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 20 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -99,7 +99,8 @@ const char * const          dataptr)              /* No use           */
+   if ((intLoad (filegeoptr, &dimnnbr) != 1) ||    /* Read type and number of geometry items */
+       (intLoad (filegeoptr, &coornbr) != 1) ||
+       (dimnnbr < 1)                         ||
+-      (dimnnbr > 3)) {
++      (dimnnbr > 3)                         ||
++      (coornbr < 0)) {
+     errorPrint ("meshGeomLoadScot: bad input (1)");
+     return (1);
+   }
+@@ -111,10 +112,15 @@ const char * const          dataptr)              /* No use           */
+   if (meshptr->vnodnbr == 0)
+     return (0);
+ 
+-  if ((geomptr->geomtab == NULL) &&               /* Allocate geometry if necessary */
+-      ((geomptr->geomtab = (double *) memAlloc (meshptr->vnodnbr * dimnnbr * sizeof (double))) == NULL)) {
+-    errorPrint ("meshGeomLoadScot: out of memory (1)");
+-    return (1);
++  {                                               /* (Re)allocate geometry array to the proper size and record its dimension */
++    double *            geomtab;
++
++    if ((geomtab = (double *) memRealloc (geomptr->geomtab, meshptr->vnodnbr * dimnnbr * sizeof (double))) == NULL) {
++      errorPrint ("meshGeomLoadScot: out of memory (1)");
++      return (1);
++    }
++    geomptr->geomtab = geomtab;
++    geomptr->dimnnbr = (int) dimnnbr;
+   }
+ 
+   if (memAllocGroup ((void **)
+@@ -163,30 +169,31 @@ const char * const          dataptr)              /* No use           */
+     }
+   }
+ 
+-  if (meshptr->vlbltax != NULL) {                 /* If graph has vertex labels */
+-    vnodsortflag = 1;                             /* Assume graph data sorted   */
++  if (meshptr->vlbltax != NULL) {                 /* If mesh has vertex labels */
++    vnodsortflag = 1;                             /* Assume mesh data sorted   */
+     for (vnodnum = 0; vnodnum < meshptr->vnodnbr; vnodnum ++) {
+-      vnodsorttab[vnodnum].labl = meshptr->vlbltax[vnodnum + meshptr->baseval];
++      vnodsorttab[vnodnum].labl = meshptr->vlbltax[vnodnum + meshptr->vnodbas]; /* Node labels are in [vnodbas, vnodnnd[ */
+       vnodsorttab[vnodnum].num  = vnodnum;
+       if ((vnodnum > 0) &&                        /* Check if graph data sorted */
+           (vnodsorttab[vnodnum].labl < vnodsorttab[vnodnum - 1].labl))
+         vnodsortflag = 0;                         /* Graph data not sorted */
+     }
+-    if (vnodsortflag != 1)                        /* If graph data not sorted             */
++    if (vnodsortflag != 1)                        /* If mesh data not sorted              */
+       intSort2asc1 (vnodsorttab, meshptr->vnodnbr); /* Sort sort area by ascending labels */
+   }
+-  else {                                          /* Graph does not have vertex labels */
+-    for (vnodnum = 0; vnodnum < meshptr->vnodnbr; vnodnum ++)
+-      vnodsorttab[vnodnum].labl =
++  else {                                          /* Mesh does not have vertex labels */
++    for (vnodnum = 0; vnodnum < meshptr->vnodnbr; vnodnum ++) {
++      vnodsorttab[vnodnum].labl = vnodnum + meshptr->vnodbas; /* Node labels are node numbers, as written by meshGeomSaveScot() */
+       vnodsorttab[vnodnum].num  = vnodnum;
++    }
+   }
+ 
+-  for (coornum = vnodnum = 0; vnodnum < meshptr->vnodnbr; vnodnum ++) { /* For all vertices in graph */
++  for (coornum = vnodnum = 0; vnodnum < meshptr->vnodnbr; vnodnum ++) { /* For all node vertices in mesh */
+     while ((coornum < coornbr) && (coorsorttab[coornum].labl < vnodsorttab[vnodnum].labl))
+       coornum ++;                                 /* Search geometry vertex with same label                           */
+     if ((coornum >= coornbr) || (coorsorttab[coornum].labl > vnodsorttab[vnodnum].labl)) { /* If label does not exist */
+-      errorPrint ("meshGeomLoadScot: vertex geometry data not found (%d)",
+-                  vnodsorttab[vnodnum].labl);
++      errorPrint ("meshGeomLoadScot: vertex geometry data not found (" GNUMSTRING ")",
++                  (Gnum) vnodsorttab[vnodnum].labl);
+       memFree    (coorfiletab);                   /* Free group leader */
+       return (1);
+     }
+-- 
+2.47.3
+

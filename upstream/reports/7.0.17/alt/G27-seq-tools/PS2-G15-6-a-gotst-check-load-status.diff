@@ -1,0 +1,14 @@
+Option (not committed; src/scotch/gotst.c belongs to group G27): gotst ignores the return value of
+SCOTCH_graphOrderLoad() and goes on with a partially filled inverse permutation.
+--- a/src/scotch/gotst.c
++++ b/src/scotch/gotst.c
+@@ -164,7 +164,8 @@
+     errorPrint ("main: out of memory");
+ 
+   SCOTCH_graphOrderInit (&grafdat, &ordedat, permtab, peritab, NULL, NULL, NULL);
+-  SCOTCH_graphOrderLoad (&grafdat, &ordedat, C_filepntrordinp);
++  if (SCOTCH_graphOrderLoad (&grafdat, &ordedat, C_filepntrordinp) != 0)
++    errorPrint ("main: cannot load ordering");
+   if (SCOTCH_graphOrderCheck (&grafdat, &ordedat) != 0)
+     errorPrint ("main: invalid ordering");
+ 

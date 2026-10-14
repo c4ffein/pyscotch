@@ -1,0 +1,180 @@
+[
+ {
+  "local_id": "PS2-G02-arch-tleaf-hcub-build-1",
+  "our_title": "archCmpltwArchBuild2 frees the caller's weight array on an invalid weight",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/PS2-G02-1: SCOTCH_archCmpltw (&a, 4, {1,0,1,1}) on a malloc'ed array -> 'archCmpltwArchBuild2: invalid parameters (2)' then 'AddressSanitizer: attempting double-free ... freed by #1 archCmpltwArchBuild2 arch_cmpltw.c:184' when the caller frees its own array (a stack array would corrupt the stack); the freshly allocated vecwtab leaks. Patched (0004): r=1, caller frees its array, exit ok.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/arch_cmpltw.c:181-186 (archCmpltwArchBuild2)",
+  "evidence": "arch_cmpltw.c:182 'if (veloval <= 0) {' :183 'errorPrint (\"archCmpltwArchBuild2: invalid parameters (2)\");' :184 'memFree    (velotab);' where velotab is the 'const Anum * restrict const' parameter and vecwtab the array allocated at :173.",
+  "related_ids": [
+   "COR-21",
+   "API-10"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Free the right array (recommended)",
+    "summary": "memFree (vecwtab) instead of memFree (velotab).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0004-Bugfix-free-the-right-array-on-invalid-weights-in-ar.patch",
+    "tested": "repro/PS2-G02-1 pristine fails, patched passes; Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "One-token bugfix in his own idiom; the loader twin archCmpltwArchLoad2 frees its own vecwtab correctly at :212."
+   },
+   {
+    "label": "B. Validate all weights before allocating",
+    "summary": "Separate check loop, then allocate and fill without an error path.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS2-G02-1-B-check-before-alloc.diff",
+    "tested": "applies, compiles; not run",
+    "tradeoffs": "Two passes over the weights; larger diff.",
+    "preferred": false,
+    "maintainer_fit": "Fine but more than the bug needs."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0004-Bugfix-free-the-right-array-on-invalid-weights-in-ar.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G02-arch-tleaf-hcub-build-2",
+  "our_title": "Documented Fortran routine scotchfarchltleaf does not exist",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "grep -n ARCHLTLEAF src/libscotch/library_arch_f.c -> nothing; nm -D build/lib/libscotch.so | grep -i archltleaf -> only SCOTCH_archLtleaf; doc/src/scotch/s_l.tex:2179-2186 documents scotchfarchltleaf (archdat, levlnbr, sizetab, linktab, permnbr, permtab, ierr).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/library_arch_f.c:363 (ARCHTLEAF, no ARCHLTLEAF); doc/src/scotch/s_l.tex:2179",
+  "evidence": "s_l.tex:2179 'scotchfarchltleaf ( & doubleprecision (*)    & archdat, \\\\' ; library_arch_f.c has SCOTCH_FORTRAN (ARCHTLEAF, archtleaf, ... only.",
+  "related_ids": [
+   "PS-API-2",
+   "API-24"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Add the wrapper (recommended, Fortran group)",
+    "summary": "SCOTCH_FORTRAN (ARCHLTLEAF, archltleaf, ...) calling SCOTCH_archLtleaf, placed before ARCHTLEAF.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS-API-2-B-fortran-twin.diff",
+    "tested": "applies, compiles (0 diagnostics); not run from Fortran",
+    "tradeoffs": "None; depends on patch 0001 for the prototype.",
+    "preferred": true,
+    "maintainer_fit": "Every exported routine has a Fortran twin (library*_f.c); the doc already promises it."
+   },
+   {
+    "label": "B. Remove the Fortran paragraph from s_l.tex",
+    "summary": "Document only the C routine.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS-API-2-C-remove-export.diff",
+    "tested": "applies (this diff removes the whole subsection; trimming it to the Fortran tabular is trivial)",
+    "tradeoffs": "Fortran users lose a documented entry point.",
+    "preferred": false,
+    "maintainer_fit": "Unlikely."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G02-arch-tleaf-hcub-build-3",
+  "our_title": "bdgraphBipartEx shifts int 1 by the unbounded sbbt strategy parameter",
+  "severity": "low",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "bdgraph_bipart_ex.c:139-141 and the STRATPARAMINT entry 'sbbt' in bdgraph_bipart_st.c:144-146 (no range).",
+  "why_not_run": "Needs a distributed run with a hand-written strategy 'x{sbbt=40}'; outside this group's files (DMO-10's) and build matrix; alt diff provided and compiled with mpicc.",
+  "location_7_0_17": "src/libscotch/bdgraph_bipart_ex.c:139-141; src/libscotch/bdgraph_bipart_st.c:144",
+  "evidence": "bdgraph_bipart_ex.c:139 'sbbtnbr = (int) paraptr->sbbtnbr;' :140 'sbbtmsk = (1 << sbbtnbr) - 1;' :141 'gainsiz = ((sizeof (Gnum) << 3) - sbbtnbr) << (sbbtnbr + 1);' with sbbtnbr taken from the user strategy string without bounds.",
+  "related_ids": [
+   "COR-19",
+   "CLI-24",
+   "DMO-10"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Bound the parameter and shift a Gnum",
+    "summary": "Reject sbbtnbr < 0 or > bits(Gnum)-2 with an errorPrint, use ((Gnum) 1 << sbbtnbr) - 1.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS2-G02-3-sbbt-bound.diff",
+    "tested": "applies, compiles with mpicc -DSCOTCH_PTSCOTCH (0 diagnostics); not run",
+    "tradeoffs": "First range check on a strategy integer parameter in the tree; gainsiz can still be huge for large legal values.",
+    "preferred": true,
+    "maintainer_fit": "Same class as 6a00c51; he may prefer a range in the strategy parser instead."
+   },
+   {
+    "label": "B. Clamp silently",
+    "summary": "MIN (sbbtnbr, bits-2) without an error.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS2-G02-3-sbbt-bound.diff",
+    "tested": "not written separately (variant of A)",
+    "tradeoffs": "Hides a user error.",
+    "preferred": false,
+    "maintainer_fit": "He prefers explicit errors on invalid user data."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G02-arch-tleaf-hcub-build-4",
+  "our_title": "archSubArchBuild overflows orgtermnbr + 1 for an original architecture of ANUMMAX terminals",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/fuzz patched 64-bit run: 'sub 1 0 tleaf 1 9223372036854775807 1' -> 'arch_sub.c:409:18: runtime error: signed integer overflow: 9223372036854775807 + 1' (memAlloc ((orgtermnbr + 1) * sizeof (ArchSubTree))); 'sub 1 0 tleaf 1 4294967296 1' -> ASan 'out of memory: allocator is trying to allocate 0x3000000038 bytes' (a legitimate, failing allocation; non-sanitized builds get 'out of memory (2)').",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/arch_sub.c:409 (archSubArchBuild; line 403 in v7.0.17 before G01's series)",
+  "evidence": "arch_sub.c 'if ((treetab = memAlloc ((orgtermnbr + 1) * sizeof (ArchSubTree))) == NULL) { /* TRICK: One more slot to link to coarser array */' with orgtermnbr = archDomSize of the original architecture, which patch 0002 allows up to ANUMMAX for a tleaf.",
+  "related_ids": [
+   "COR-03",
+   "COR-07"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Compute the slot count in size_t",
+    "summary": "memAlloc (((size_t) orgtermnbr + 1) * sizeof (ArchSubTree)).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS2-G02-4-sub-treetab-size.diff",
+    "tested": "applies to v7.0.17; not compiled separately (one cast)",
+    "tradeoffs": "The allocation then simply fails; every other 'n * sizeof' in the tree has the same theoretical size_t wrap for n near ANUMMAX.",
+    "preferred": true,
+    "maintainer_fit": "G01's file; one-token change in the maintainer's style."
+   },
+   {
+    "label": "B. Reject original architectures of ANUMMAX terminals in archSubArchBuild",
+    "summary": "orgtermnbr >= ANUMMAX -> 'invalid number of terminal domains'.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS2-G02-4-sub-treetab-size.diff",
+    "tested": "not written (variant)",
+    "tradeoffs": "Arbitrary limit.",
+    "preferred": false,
+    "maintainer_fit": "Less natural than A."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G02-arch-tleaf-hcub-build-5",
+  "our_title": "archHcubDomLoad accepts a negative current dimension (unreachable: archDomLoad has no caller)",
+  "severity": "info",
+  "status": "not-a-bug",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "arch_hcub.c:326-331 checks dimncur > dimnnbr only; git grep 'archDomLoad (' finds the definition in arch.c:430 and no call site in src/.",
+  "why_not_run": "Unreachable from any tool or API.",
+  "location_7_0_17": "src/libscotch/arch_hcub.c:326-331; src/libscotch/arch.c:430",
+  "evidence": "arch_hcub.c:328 '(domnptr->dimncur > archptr->dimnnbr)) {' and no 'dimncur < 0' test before archHcubDomSize's '(Anum) 1 << domnptr->dimncur'.",
+  "related_ids": [
+   "COR-19"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Leave as is",
+    "summary": "No caller; note for the maintainer only.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0003-Bugfix-shift-architecture-sized-values-not-ints-by-h.patch",
+    "tested": "n/a",
+    "tradeoffs": "",
+    "preferred": true,
+    "maintainer_fit": "Dead API; not worth a change."
+   }
+  ],
+  "patch_files": []
+ }
+]

@@ -1,0 +1,11 @@
+--- a/src/libscotch/bdgraph_bipart_ml.c
++++ b/src/libscotch/bdgraph_bipart_ml.c
+@@ -100,7 +100,7 @@
+     case 2 :
+       foldval = DGRAPHCOARSENFOLDDUP;
+       break;
+-#ifdef SCOTCH_DEBUG_BGRAPH2
++#ifdef SCOTCH_DEBUG_BDGRAPH2
+     default :
+       errorPrint ("bdgraphBipartMlCoarsen: invalid parameter");
+       return (1);

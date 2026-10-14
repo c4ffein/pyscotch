@@ -1,0 +1,8 @@
+PS-API-4: builders and failed allocations
+
+Malloc-failure injection needs a non-sanitized build (ASan owns malloc): $WORK/plainpristine vs $WORK/plain, archbuild_<tree> binaries.
+  FAILMALLOC=n MALLOC_CHECK_=3 LD_PRELOAD=./failmalloc.so ./archbuild_plainpristine 9|10
+Pristine: mode 9 n=1 -> 'SCOTCH_archTleaf: out of memory' r=1 exit ok; n=2 -> 'SCOTCH_archLtleaf: out of memory' r=1 exit ok (no crash:
+  the failed memAlloc stores NULL in the field, so archExit is safe; what remains is the tree part leaking if the caller does not archExit
+  a failed build, and a half-built 'ltleaf' left behind). The first pass's 'archExit on indeterminate pointers' claim is wrong.
+Patched: n=1 -> 'archTleafArchBuild: out of memory'; n=2 -> 'archLtleafArchBuild2: out of memory', tree part freed by archLtleafArchBuild, exit ok.

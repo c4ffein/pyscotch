@@ -1,0 +1,558 @@
+From 884b9ae5bfa90b5a02f90263e60598671cd67590 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:20:46 +0000
+Subject: [PATCH 3/6] Bugfix: convert MeTiS v5 partitioning parameters into
+ Scotch ones [report R. Perry]
+
+The MeTiS v5 partitioning routines passed the `ubvec` array, which
+holds imbalance ratios greater than one (e.g. 1.05), as the Scotch
+imbalance tolerance (e.g. 0.05), so that a 5% tolerance resulted in
+partitions with parts of twice the average load. In the recursive
+routine, a NULL `ubvec` was dereferenced. With `ncon` greater than
+one, the interleaved vertex weight array was read as one weight per
+vertex.
+
+Both v5 routines now share `_SCOTCH_METIS_V5_PartGraph()`, which checks
+and converts the parameters: `ubvec[0]` is turned into a tolerance, a
+NULL `ubvec` yields the default tolerance, and the first vertex
+constraint is gathered into a temporary array, as was already done for
+target part weights. `ParMETIS_V3_PartKway()` receives the same
+treatment: `ubvec[0]` is used to build the mapping strategy, and the
+vertex and part weights of the first constraint are gathered with the
+proper stride.
+
+Refs: CLI-02, CLI-03, CLI-07
+---
+ doc/src/ptscotch/p_l.tex                  |  11 +-
+ src/check/test_libmetis.c                 |  87 +++++++++++++++-
+ src/check/test_libparmetis.c              |  28 ++++++
+ src/libscotchmetis/metis_graph_part.c     | 117 ++++++++++++++++------
+ src/libscotchmetis/parmetis_dgraph_part.c |  67 +++++++++++--
+ 5 files changed, 265 insertions(+), 45 deletions(-)
+
+diff --git a/doc/src/ptscotch/p_l.tex b/doc/src/ptscotch/p_l.tex
+index de5c1a0..61e98d8 100644
+--- a/doc/src/ptscotch/p_l.tex
++++ b/doc/src/ptscotch/p_l.tex
+@@ -5337,8 +5337,11 @@ parts to which every vertex belongs, from $0$ to $(\mbox{\tt nparts} -
+ 1)$.
+ 
+ Since \scotch\ does not handle multiple constraints, only the first
+-constraint is taken into account to define the respective weights of
+-the parts. Consequently, only the first {\tt nparts} cells of the
+-{\tt tpwgts} array are considered. The {\tt ncon}, {\tt ubvec}
+-and {\tt options} parameters are not used.
++constraint is taken into account to define the vertex weights, the
++respective weights of the parts, and the load imbalance tolerance.
++Consequently, only cells {\tt vwgt[i * ncon]} and {\tt tpwgts[i *
++ncon]} of the {\tt vwgt} and {\tt tpwgts} arrays, and the first cell
++of the {\tt ubvec} array, are considered. As in \parmetis, the
++{\tt ubvec} values are ratios greater than one, e.g. $1.05$ for a
++five percent tolerance. The {\tt options} parameter is not used.
+ \end{itemize}
+diff --git a/src/check/test_libmetis.c b/src/check/test_libmetis.c
+index 797ed96..ca0011a 100644
+--- a/src/check/test_libmetis.c
++++ b/src/check/test_libmetis.c
+@@ -142,6 +142,53 @@ const SCOTCH_Num            partnbr)
+   }
+ }
+ 
++/* This routine checks that the produced
++** partition respects the target weights
++** of the first vertex constraint, within
++** a loose tolerance.
++** It exits on error.
++*/
++
++static
++void
++checkLoad (
++const SCOTCH_Num            baseval,
++const SCOTCH_Num            vertnbr,
++const SCOTCH_Num * const    velotab,              /* Interleaved vertex loads   */
++const SCOTCH_Num            nconval,
++const SCOTCH_Num * const    parttab,
++const SCOTCH_Num            partnbr,
++const double * const        twgttab)              /* Interleaved target weights */
++{
++  double *            loadtab;
++  double              loadsum;
++  SCOTCH_Num          vertnum;
++  SCOTCH_Num          partnum;
++
++  if ((loadtab = malloc (partnbr * sizeof (double))) == NULL) {
++    SCOTCH_errorPrint ("checkLoad: out of memory");
++    exit (EXIT_FAILURE);
++  }
++  memset (loadtab, 0, partnbr * sizeof (double));
++
++  for (vertnum = 0, loadsum = 0.0; vertnum < vertnbr; vertnum ++) { /* Un-based traversal */
++    double              veloval;
++
++    veloval  = (double) velotab[vertnum * nconval]; /* Only first constraint is considered */
++    loadsum += veloval;
++    loadtab[parttab[vertnum] - baseval] += veloval;
++  }
++
++  for (partnum = 0; partnum < partnbr; partnum ++) {
++    if (loadtab[partnum] > (1.5 * loadsum * twgttab[partnum * nconval])) {
++      SCOTCH_errorPrint ("checkLoad: invalid part load");
++      exit (EXIT_FAILURE);
++    }
++  }
++
++  free (loadtab);
++}
++
+ /*********************/
+ /*                   */
+ /* The main routine. */
+@@ -174,7 +221,13 @@ char *              argv[])
+   const double        awgttab[9] = { 0.10, 0.10, 0.05, 0.10, 0.20, 0.30, 0.05, 0.05, 0.05 };
+   const double        bwgttab[9] = { 0.123457, 0.098765, 0.111111, 0.087654, 0.145678, 0.133333, 0.100001, 0.099999, 0.100002 }; /* Part weights without a small common denominator */
+   const SCOTCH_Num    nconval = 1;
+-  const double        kbaltab[1] = { 0.05 };
++  const double        kbaltab[1] = { 1.05 };      /* MeTiS imbalance ratios are greater than 1.0 */
++  const SCOTCH_Num    ncontwo = 2;
++  const double        kbaltwo[2] = { 1.05, 1.05 };
++  double              awgttwo[18];
++  SCOTCH_Num *        velotwo;
++  SCOTCH_Num          partnum;
++  SCOTCH_Num          vertnum;
+   SCOTCH_Num          options[METIS_NOPTIONS];
+ #endif /* (SCOTCH_METIS_VERSION == 5) */
+ 
+@@ -289,6 +342,38 @@ char *              argv[])
+ 
+   checkPart (baseval, vertnbr, parttab, partnbr);
+ 
++  if (SCOTCHMETISNAMEC (METIS_PartGraphRecursive) (&vertnbr, &nconval, verttab, edgetab, velotab, NULL, edlotab,
++                                                   &partnbr, NULL, NULL, options, &edgecut, parttab) != METIS_OK) { /* No part weights nor imbalance ratio */
++    SCOTCH_errorPrint ("main: error in METIS_V5_PartGraphRecursive (2)");
++    exit (EXIT_FAILURE);
++  }
++
++  checkPart (baseval, vertnbr, parttab, partnbr);
++
++  if ((velotwo = malloc (vertnbr * 2 * sizeof (SCOTCH_Num))) == NULL) { /* Two interleaved vertex constraints */
++    SCOTCH_errorPrint ("main: out of memory (2)");
++    exit (EXIT_FAILURE);
++  }
++  for (vertnum = 0; vertnum < vertnbr; vertnum ++) {
++    velotwo[2 * vertnum]     = (velotab != NULL) ? velotab[vertnum] : 1; /* First constraint is the vertex load */
++    velotwo[2 * vertnum + 1] = vertnum + 1;       /* Second constraint should be ignored */
++  }
++  for (partnum = 0; partnum < partnbr; partnum ++) {
++    awgttwo[2 * partnum]     = awgttab[partnum];
++    awgttwo[2 * partnum + 1] = 1.0 / (double) partnbr;
++  }
++
++  if (SCOTCHMETISNAMEC (METIS_PartGraphKway) (&vertnbr, &ncontwo, verttab, edgetab, velotwo, NULL, edlotab,
++                                              &partnbr, awgttwo, kbaltwo, options, &edgecut, parttab) != METIS_OK) {
++    SCOTCH_errorPrint ("main: error in METIS_V5_PartGraphKway (3)");
++    exit (EXIT_FAILURE);
++  }
++
++  checkPart (baseval, vertnbr, parttab, partnbr);
++  checkLoad (baseval, vertnbr, velotwo, ncontwo, parttab, partnbr, awgttwo);
++
++  free (velotwo);
++
+   if (SCOTCHMETISNAMEC (METIS_NodeND) (&vertnbr, verttab, edgetab, velotab, options, peritab, parttab) != METIS_OK) {
+     SCOTCH_errorPrint ("main: error in METIS_V5_NodeND");
+     exit (EXIT_FAILURE);
+diff --git a/src/check/test_libparmetis.c b/src/check/test_libparmetis.c
+index 52c2a66..3846524 100644
+--- a/src/check/test_libparmetis.c
++++ b/src/check/test_libparmetis.c
+@@ -229,6 +229,11 @@ char *              argv[])
+   float *             tpwgtab;
+ 
+   const float         bwgttab[9] = { 0.123457F, 0.098765F, 0.111111F, 0.087654F, 0.145678F, 0.133333F, 0.100001F, 0.099999F, 0.100002F }; /* Part weights without a small common denominator */
++  const SCOTCH_Num    ncontwo = 2;
++  const float         kbaltwo[2] = { 1.05F, 1.05F }; /* MeTiS imbalance ratios are greater than 1.0 */
++  float               twgttwo[18];
++  SCOTCH_Num *        velotwo;
++  SCOTCH_Num          vertlocnum;
+ #endif /* (SCOTCH_METIS_VERSION == 3) */
+ #ifdef SCOTCH_PTHREAD
+   int                 thrdreqlvl;
+@@ -333,6 +338,29 @@ char *              argv[])
+ 
+   checkPart (baseval, vertlocnbr, parttab, partnbr);
+ 
++  if ((velotwo = malloc (vertlocnbr * 2 * sizeof (SCOTCH_Num))) == NULL) { /* Two interleaved vertex constraints */
++    SCOTCH_errorPrint ("main: out of memory (2)");
++    exit (EXIT_FAILURE);
++  }
++  for (vertlocnum = 0; vertlocnum < vertlocnbr; vertlocnum ++) {
++    velotwo[2 * vertlocnum]     = (veloloctab != NULL) ? veloloctab[vertlocnum] : 1; /* First constraint is the vertex load */
++    velotwo[2 * vertlocnum + 1] = vertlocnum + 1; /* Second constraint should be ignored */
++  }
++  for (partnum = 0; partnum < partnbr; partnum ++) {
++    twgttwo[2 * partnum]     = tpwgtab[partnum];
++    twgttwo[2 * partnum + 1] = bwgttab[partnum];
++  }
++  fwgtval |= 2;                                   /* Vertex load array is now provided */
++
++  if (SCOTCHMETISNAMES (ParMETIS_V3_PartKway) (vtxdist, vertloctab, edgeloctab, velotwo, edloloctab, &fwgtval, &baseval, &ncontwo, &partnbr, twgttwo, kbaltwo, NULL, &edgecutval, parttab, &proccomm) != METIS_OK) {
++    SCOTCH_errorPrint ("main: error in ParMETIS_V3_PartKway (3)");
++    exit (EXIT_FAILURE);
++  }
++
++  checkPart (baseval, vertlocnbr, parttab, partnbr);
++
++  free (velotwo);
++
+   if (SCOTCHMETISNAMES (ParMETIS_V3_NodeND) (vtxdist, vertloctab, edgeloctab, &baseval, NULL, parttab, sizetab, &proccomm) != METIS_OK) {
+     SCOTCH_errorPrint ("main: error in ParMETIS_V3_NodeND");
+     exit (EXIT_FAILURE);
+diff --git a/src/libscotchmetis/metis_graph_part.c b/src/libscotchmetis/metis_graph_part.c
+index 52d3773..06ed518 100644
+--- a/src/libscotchmetis/metis_graph_part.c
++++ b/src/libscotchmetis/metis_graph_part.c
+@@ -261,37 +261,56 @@ SCOTCH_Num                  flagval,
+ const double * const        kbalval)
+ {
+   SCOTCH_Graph        grafdat;                    /* Scotch graph object to interface with libScotch */
++  SCOTCH_Num          nconval;                    /* Number of vertex constraints                    */
++  const SCOTCH_Num *  velotab;                    /* Vertex load array passed to Scotch (if any)     */
++  SCOTCH_Num *        velotmp;                    /* First constraint vertex load array (if any)     */
+   SCOTCH_Num *        twintab;                    /* Integer array of target weights (if any)        */
+   SCOTCH_Strat        stradat;
+   SCOTCH_Num          baseval;
+   SCOTCH_Num          vertnbr;
+   int                 o;
+ 
++  baseval = *numflag;
++  vertnbr = *n;
++  nconval = (ncon != NULL) ? *ncon : 1;           /* MeTiS v3 routines do not provide a number of constraints */
++
+   twintab = NULL;
+   if (tpwgts != NULL) {                           /* If weighted part array         */
+     double *            twdbtab;                  /* Double array of target weights */
+     SCOTCH_Num          i;
+ 
+-    if ((twintab = malloc (*nparts * sizeof (SCOTCH_Num))) == NULL)
++    if ((twintab = memAlloc (*nparts * sizeof (SCOTCH_Num))) == NULL)
+       return (METIS_ERROR_MEMORY);
+-    if ((twdbtab = malloc (*nparts * sizeof (double))) == NULL) {
+-      free   (twintab);
++    if ((twdbtab = memAlloc (*nparts * sizeof (double))) == NULL) {
++      memFree (twintab);
+       return (METIS_ERROR_MEMORY);
+     }
+     for (i = 0; i < *nparts; i ++)                /* Gather first target constraint; only this one is used */
+-      twdbtab[i] = tpwgts[i * *ncon];
++      twdbtab[i] = tpwgts[i * nconval];
+     _SCOTCH_METIS_doubleToInt (*nparts, twdbtab, twintab); /* Convert balance array to integers */
+ 
+-    free (twdbtab);                               /* Array no longer of use */
++    memFree (twdbtab);                            /* Array no longer of use */
+   }
+-  
+-  SCOTCH_graphInit (&grafdat);
+ 
+-  baseval = *numflag;
+-  vertnbr = *n;
++  velotab = vwgt;
++  velotmp = NULL;
++  if ((vwgt != NULL) && (nconval > 1)) {          /* If multiple vertex constraints */
++    SCOTCH_Num          vertnum;
++
++    if ((velotmp = memAlloc (vertnbr * sizeof (SCOTCH_Num))) == NULL) {
++      if (twintab != NULL)
++        memFree (twintab);
++      return (METIS_ERROR_MEMORY);
++    }
++    for (vertnum = 0; vertnum < vertnbr; vertnum ++) /* Gather first vertex constraint; only this one is used */
++      velotmp[vertnum] = vwgt[vertnum * nconval];
++    velotab = velotmp;
++  }
++
++  SCOTCH_graphInit (&grafdat);
+ 
+   o = 1;                                          /* Assume something will go wrong */
+-  if (SCOTCH_graphBuild (&grafdat, baseval, vertnbr, xadj, xadj + 1, vwgt, NULL,
++  if (SCOTCH_graphBuild (&grafdat, baseval, vertnbr, xadj, xadj + 1, velotab, NULL,
+                          xadj[vertnbr] - baseval, adjncy, adjwgt) == 0) {
+     SCOTCH_stratInit          (&stradat);
+     SCOTCH_stratGraphMapBuild (&stradat, flagval, *nparts, *kbalval);
+@@ -316,8 +335,10 @@ const double * const        kbalval)
+   }
+   SCOTCH_graphExit (&grafdat);
+ 
++  if (velotmp != NULL)
++    memFree (velotmp);
+   if (twintab != NULL)
+-    free (twintab);
++    memFree (twintab);
+ 
+   if (o != 0)
+     return (1);
+@@ -534,12 +555,21 @@ SCOTCH_Num * const          part)
+                                           SCOTCH_STRATDEFAULT, &kbalval));
+ }
+ 
+-/*
+-**
++/* This routine is the common entry point of the
++** MeTiS v5 graph partitioning routines. It turns
++** MeTiS v5 parameters into Scotch ones: the base
++** value is read from the option array, and the
++** imbalance ratio of the first constraint (e.g.
++** 1.05) becomes a Scotch imbalance tolerance
++** (e.g. 0.05).
++** It returns:
++** - METIS_OK      : if the partition has been successfully computed.
++** - METIS_ERROR*  : on error.
+ */
+ 
++static
+ int
+-SCOTCHMETISNAMES (METIS_V5_PartGraphKway) (
++_SCOTCH_METIS_V5_PartGraph (
+ const SCOTCH_Num * const    nvtxs,
+ const SCOTCH_Num * const    ncon,
+ const SCOTCH_Num * const    xadj,
+@@ -552,21 +582,35 @@ const double * const        tpwgts,
+ const double * const        ubvec,
+ const SCOTCH_Num * const    options,
+ SCOTCH_Num * const          objval,
+-SCOTCH_Num * const          part)
++SCOTCH_Num * const          part,
++const SCOTCH_Num            flagval)
+ {
+   SCOTCH_Num          baseval;
+   double              kbalval;
+ 
+-  kbalval = 0.01;
+-  baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;
++  if (*ncon < 1) {
++    SCOTCH_errorPrint ("_SCOTCH_METIS_V5_PartGraph: invalid number of constraints");
++    return (METIS_ERROR_INPUT);
++  }
++
++  kbalval = 0.01;                                 /* Default imbalance tolerance */
++  if (ubvec != NULL) {                            /* If imbalance ratio array provided; only first constraint is used */
++    if (ubvec[0] <= 1.0) {
++      SCOTCH_errorPrint ("_SCOTCH_METIS_V5_PartGraph: invalid imbalance ratio");
++      return (METIS_ERROR_INPUT);
++    }
++    kbalval = ubvec[0] - 1.0;                     /* Turn MeTiS imbalance ratio into Scotch imbalance tolerance */
++  }
++
++  baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0; /* For the Fortran interface, null arrays are those equal to xadj */
+ 
+   return ((vsize == NULL)
+           ? _SCOTCH_METIS_PartGraph (nvtxs, ncon, xadj, adjncy, vwgt, adjwgt,
+                                      &baseval, nparts, tpwgts, options, objval, part,
+-                                     SCOTCH_STRATDEFAULT, (ubvec != NULL) ? ubvec : &kbalval)
++                                     flagval, &kbalval)
+           : _SCOTCH_METIS_PartGraph_Volume (nvtxs, ncon, xadj, adjncy, vwgt, vsize,
+                                             &baseval, nparts, tpwgts, options, objval, part,
+-                                            SCOTCH_STRATDEFAULT, (ubvec != NULL) ? ubvec : &kbalval));
++                                            flagval, &kbalval));
+ }
+ 
+ /*
+@@ -574,7 +618,7 @@ SCOTCH_Num * const          part)
+ */
+ 
+ int
+-SCOTCHMETISNAMES (METIS_V5_PartGraphRecursive) (
++SCOTCHMETISNAMES (METIS_V5_PartGraphKway) (
+ const SCOTCH_Num * const    nvtxs,
+ const SCOTCH_Num * const    ncon,
+ const SCOTCH_Num * const    xadj,
+@@ -589,17 +633,32 @@ const SCOTCH_Num * const    options,
+ SCOTCH_Num * const          objval,
+ SCOTCH_Num * const          part)
+ {
+-  SCOTCH_Num          baseval;
++  return (_SCOTCH_METIS_V5_PartGraph (nvtxs, ncon, xadj, adjncy, vwgt, vsize, adjwgt,
++                                      nparts, tpwgts, ubvec, options, objval, part, SCOTCH_STRATDEFAULT));
++}
+ 
+-  baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;
++/*
++**
++*/
+ 
+-  return ((vsize == NULL)
+-          ? _SCOTCH_METIS_PartGraph (nvtxs, ncon, xadj, adjncy, vwgt, adjwgt,
+-                                     &baseval, nparts, tpwgts, options, objval, part,
+-                                     SCOTCH_STRATRECURSIVE, ubvec)
+-          : _SCOTCH_METIS_PartGraph_Volume (nvtxs, ncon, xadj, adjncy, vwgt, vsize,
+-                                            &baseval, nparts, tpwgts, options, objval, part,
+-                                            SCOTCH_STRATRECURSIVE, ubvec));
++int
++SCOTCHMETISNAMES (METIS_V5_PartGraphRecursive) (
++const SCOTCH_Num * const    nvtxs,
++const SCOTCH_Num * const    ncon,
++const SCOTCH_Num * const    xadj,
++const SCOTCH_Num * const    adjncy,
++const SCOTCH_Num * const    vwgt,
++const SCOTCH_Num * const    vsize,
++const SCOTCH_Num * const    adjwgt,
++const SCOTCH_Num * const    nparts,
++const double * const        tpwgts,
++const double * const        ubvec,
++const SCOTCH_Num * const    options,
++SCOTCH_Num * const          objval,
++SCOTCH_Num * const          part)
++{
++  return (_SCOTCH_METIS_V5_PartGraph (nvtxs, ncon, xadj, adjncy, vwgt, vsize, adjwgt,
++                                      nparts, tpwgts, ubvec, options, objval, part, SCOTCH_STRATRECURSIVE));
+ }
+ 
+ /*******************/
+diff --git a/src/libscotchmetis/parmetis_dgraph_part.c b/src/libscotchmetis/parmetis_dgraph_part.c
+index b429b39..b4f7acf 100644
+--- a/src/libscotchmetis/parmetis_dgraph_part.c
++++ b/src/libscotchmetis/parmetis_dgraph_part.c
+@@ -134,10 +134,10 @@ SCOTCH_Num * const          vwgt,
+ SCOTCH_Num * const          adjwgt,
+ const SCOTCH_Num * const    wgtflag,
+ const SCOTCH_Num * const    numflag,
+-const SCOTCH_Num * const    ncon,                 /* Not used */
++const SCOTCH_Num * const    ncon,
+ const SCOTCH_Num * const    nparts,
+ const float * const         tpwgts,
+-const float * const         ubvec,                /* Not used */
++const float * const         ubvec,
+ const SCOTCH_Num * const    options,              /* Not used */
+ SCOTCH_Num * const          edgecut,
+ SCOTCH_Num * const          part,
+@@ -147,24 +147,52 @@ MPI_Comm *                  commptr)
+   int                 procglbnbr;
+   int                 proclocnum;
+   SCOTCH_Num          baseval;
++  SCOTCH_Num          nconval;                    /* Number of vertex constraints                                  */
++  double              kbalval;                    /* Imbalance tolerance                                           */
+   SCOTCH_Arch         archdat;
+   SCOTCH_Dgraph       grafdat;                    /* Scotch distributed graph object to interface with libScotch   */
+   SCOTCH_Dmapping     mappdat;                    /* Scotch distributed mapping object to interface with libScotch */
+   SCOTCH_Strat        stradat;
+   SCOTCH_Num          vertlocnbr;
+   SCOTCH_Num *        veloloctab;
++  SCOTCH_Num *        veloloctmp;                 /* First constraint vertex load array (if any)                   */
+   SCOTCH_Num          edgelocnbr;
+   SCOTCH_Num *        edloloctab;
+   SCOTCH_Num *        twintab;                    /* Integer array of target weights                               */
++  float *             twfltab;                    /* Float array of target weights                                 */
++  SCOTCH_Num          i;
+   int                 o;
+ 
+-  if ((twintab = malloc (*nparts * sizeof (SCOTCH_Num))) == NULL)
++  nconval = (ncon != NULL) ? *ncon : 1;
++  if (nconval < 1) {
++    SCOTCH_errorPrint ("SCOTCH_ParMETIS_V3_PartKway: invalid number of constraints");
++    return (METIS_ERROR_INPUT);
++  }
++
++  kbalval = 0.05;                                 /* Default imbalance tolerance */
++  if (ubvec != NULL) {                            /* If imbalance ratio array provided; only first constraint is used */
++    if (ubvec[0] <= 1.0F) {
++      SCOTCH_errorPrint ("SCOTCH_ParMETIS_V3_PartKway: invalid imbalance ratio");
++      return (METIS_ERROR_INPUT);
++    }
++    kbalval = (double) ubvec[0] - 1.0;            /* Turn MeTiS imbalance ratio into Scotch imbalance tolerance */
++  }
++
++  if ((twintab = memAlloc (*nparts * sizeof (SCOTCH_Num))) == NULL)
++    return (METIS_ERROR_MEMORY);
++  if ((twfltab = memAlloc (*nparts * sizeof (float))) == NULL) {
++    memFree (twintab);
+     return (METIS_ERROR_MEMORY);
+-  _SCOTCH_ParMETIS_floatToInt (*nparts, tpwgts, twintab);
++  }
++  for (i = 0; i < *nparts; i ++)                  /* Gather first target constraint; only this one is used */
++    twfltab[i] = tpwgts[i * nconval];
++  _SCOTCH_ParMETIS_floatToInt (*nparts, twfltab, twintab);
++
++  memFree (twfltab);                              /* Array no longer of use */
+ 
+   proccomm = *commptr;
+   if (SCOTCH_dgraphInit (&grafdat, proccomm) != 0) {
+-    free   (twintab);
++    memFree (twintab);
+     return (METIS_ERROR);
+   }
+ 
+@@ -176,13 +204,28 @@ MPI_Comm *                  commptr)
+   veloloctab = ((vwgt   != NULL) && ((*wgtflag & 2) != 0)) ? vwgt   : NULL;
+   edloloctab = ((adjwgt != NULL) && ((*wgtflag & 1) != 0)) ? adjwgt : NULL;
+ 
++  veloloctmp = NULL;
++  if ((veloloctab != NULL) && (nconval > 1)) {    /* If multiple vertex constraints */
++    SCOTCH_Num          vertlocnum;
++
++    if ((veloloctmp = memAlloc (vertlocnbr * sizeof (SCOTCH_Num))) == NULL) {
++      SCOTCH_dgraphExit (&grafdat);
++      memFree (twintab);
++      return (METIS_ERROR_MEMORY);
++    }
++    for (vertlocnum = 0; vertlocnum < vertlocnbr; vertlocnum ++) /* Gather first vertex constraint; only this one is used */
++      veloloctmp[vertlocnum] = veloloctab[vertlocnum * nconval];
++    veloloctab = veloloctmp;
++  }
++
+   *edgecut = 0;
+   o = METIS_ERROR;                                /* Assume an error */
+ 
+   if (SCOTCH_dgraphBuild (&grafdat, baseval,
+                           vertlocnbr, vertlocnbr, xadj, xadj + 1, veloloctab, NULL,
+                           edgelocnbr, edgelocnbr, adjncy, NULL, edloloctab) == 0) {
+-    SCOTCH_stratInit (&stradat);
++    SCOTCH_stratInit           (&stradat);
++    SCOTCH_stratDgraphMapBuild (&stradat, SCOTCH_STRATDEFAULT, procglbnbr, *nparts, kbalval);
+ #ifdef SCOTCH_DEBUG_ALL
+     if (SCOTCH_dgraphCheck (&grafdat) == 0)       /* TRICK: next instruction called only if graph is consistent */
+ #endif /* SCOTCH_DEBUG_ALL */
+@@ -207,7 +250,9 @@ MPI_Comm *                  commptr)
+   }
+   SCOTCH_dgraphExit (&grafdat);
+ 
+-  free (twintab);
++  if (veloloctmp != NULL)
++    memFree (veloloctmp);
++  memFree (twintab);
+ 
+   if ((baseval != 0) &&                           /* MeTiS part array is based, unlike for Scotch */
+       (o == METIS_OK)) {                          /* If partition successfully computed           */
+@@ -235,7 +280,7 @@ const SCOTCH_Num * const    wgtflag,
+ const SCOTCH_Num * const    numflag,
+ const SCOTCH_Num * const    ndims,                /* Not used */
+ const float * const         xyz,                  /* Not used */
+-const SCOTCH_Num * const    ncon,                 /* Not used */
++const SCOTCH_Num * const    ncon,
+ const SCOTCH_Num * const    nparts,
+ const float * const         tpwgts,
+ const float * const         ubvec,
+@@ -265,10 +310,10 @@ SCOTCH_Num * const          vwgt,
+ SCOTCH_Num * const          adjwgt,
+ const SCOTCH_Num * const    wgtflag,
+ const SCOTCH_Num * const    numflag,
+-const SCOTCH_Num * const    ncon,                 /* Not used */
++const SCOTCH_Num * const    ncon,
+ const SCOTCH_Num * const    nparts,
+ const float * const         tpwgts,
+-const float * const         ubvec,                /* Not used */
++const float * const         ubvec,
+ const SCOTCH_Num * const    options,              /* Not used */
+ SCOTCH_Num * const          edgecut,
+ SCOTCH_Num * const          part,
+@@ -293,7 +338,7 @@ const SCOTCH_Num * const    wgtflag,
+ const SCOTCH_Num * const    numflag,
+ const SCOTCH_Num * const    ndims,                /* Not used */
+ const float * const         xyz,                  /* Not used */
+-const SCOTCH_Num * const    ncon,                 /* Not used */
++const SCOTCH_Num * const    ncon,
+ const SCOTCH_Num * const    nparts,
+ const float * const         tpwgts,
+ const float * const         ubvec,
+-- 
+2.47.3
+

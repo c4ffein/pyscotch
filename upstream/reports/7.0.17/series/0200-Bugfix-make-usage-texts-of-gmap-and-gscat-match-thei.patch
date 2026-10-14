@@ -1,0 +1,90 @@
+From deae1249b890d5a8d77a35aa6fe71943cdf23c6a Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:13:28 +0000
+Subject: [PATCH 200/240] Bugfix: make usage texts of `gmap' and `gscat' match
+ their option parsers [report R. Perry]
+
+The usage text of `gmap'/`gpart' announced a default load imbalance
+tolerance of 0.05 while `kbalval' is initialized to 0.01, and invalid
+strategy selection letters were reported as following option '-C'
+instead of '-c'. The usage text of `gscat' listed option '-i' without
+its mandatory argument, while the parser rejects a bare '-i'.
+
+Refs: CLI-20, BLD-23
+---
+ src/scotch/gmap.c  |  8 ++++----
+ src/scotch/gscat.c | 10 +++++-----
+ 2 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/src/scotch/gmap.c b/src/scotch/gmap.c
+index edbd5e3..72cc15a 100644
+--- a/src/scotch/gmap.c
++++ b/src/scotch/gmap.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2010-2012,2014,2018-2021,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2010-2012,2014,2018-2021,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -68,7 +68,7 @@
+ /**                # Version 6.0  : from : 29 may 2010     **/
+ /**                                 to   : 26 aug 2020     **/
+ /**                # Version 7.0  : from : 10 oct 2021     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -102,7 +102,7 @@ static File                 C_fileTab[C_FILENBR] = { /* File array
+ static const char *         C_usageList[] = {     /* Usage */
+   "gmap [<input source file> [<input target file> [<output mapping file> [<output log file>]]]] <options>",
+   "gpart [<nparts/pwght>] [<input source file> [<output mapping file> [<output log file>]]] <options>",
+-  "  -b<val>    : Load imbalance tolerance (default: 0.05)",
++  "  -b<val>    : Load imbalance tolerance (default: 0.01)",
+   "  -C<opt>    : Choose execution context options according to one or several of <opt>:",
+   "                 d  : deterministic behavior (even across multiple threads; implies 'f')",
+   "                 f  : fixed random seed",
+@@ -247,7 +247,7 @@ char *                      argv[])
+                 straval |= SCOTCH_STRATSAFETY;
+                 break;
+               default :
+-                errorPrint ("main: invalid strategy selection option '%c' after '-C'", argv[i][j]);
++                errorPrint ("main: invalid strategy selection option '%c' after '-c'", argv[i][j]);
+             }
+           }
+           break;
+diff --git a/src/scotch/gscat.c b/src/scotch/gscat.c
+index 29a6873..56efc40 100644
+--- a/src/scotch/gscat.c
++++ b/src/scotch/gscat.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2009-2012,2014,2018,2019,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2009-2012,2014,2018,2019,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 01 jan 2012     **/
+ /**                                 to   : 24 sep 2019     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 04 aug 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -69,9 +69,9 @@ static File                 C_fileTab[C_FILENBR] = { /* File array
+ 
+ static const char *         C_usageList[] = {     /* Usage */
+   "gscat <nparts> <input source file> <output target file pattern> <options>",
+-  "  -h  : Display this help",
+-  "  -i  : Create an imbalanced distribution",
+-  "  -V  : Print program version and copyright",
++  "  -h       : Display this help",
++  "  -i<nbr>  : Create an imbalanced distribution of <nbr> vertices per part (save for the last one)",
++  "  -V       : Print program version and copyright",
+   NULL };
+ 
+ /******************************/
+-- 
+2.47.3
+

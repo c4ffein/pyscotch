@@ -1,0 +1,19 @@
+--- a/src/libscotch/library_graph_map_io.c
++++ b/src/libscotch/library_graph_map_io.c
+@@ -108,7 +108,7 @@
+ 
+   vertsortnbr = (grafptr->vlbltax != NULL) ? vertnbr : 0;
+   if (memAllocGroup ((void **) (void *)           /* Allocate temporary data */
+-                     &mappsorttab, (size_t) (mappfilenbr * sizeof (VertSort)),
++                     &mappsorttab, (size_t) ((mappfilenbr + 1) * sizeof (VertSort)), /* TRICK: room for sentinel */
+                      &vertsorttab, (size_t) (vertsortnbr * sizeof (VertSort)), NULL) == NULL) {
+     errorPrint (STRINGIFY (SCOTCH_graphTabLoad) ": out of memory (1)");
+     return     (1);
+@@ -133,6 +133,7 @@
+   }
+   if (mappsortflag != 1)                          /* If mapping data not sorted    */
+     intSort2asc1 (mappsorttab, mappfilenbr);      /* Sort area by ascending labels */
++  mappsorttab[mappfilenbr].labl = GNUMMAX;        /* TRICK: sentinel never matches nor compares lower */
+ 
+   for (mappfilenum = 1; mappfilenum < mappfilenbr; mappfilenum ++) { /* Check mapping data integrity */
+     if (mappsorttab[mappfilenum].labl == mappsorttab[mappfilenum - 1].labl) {

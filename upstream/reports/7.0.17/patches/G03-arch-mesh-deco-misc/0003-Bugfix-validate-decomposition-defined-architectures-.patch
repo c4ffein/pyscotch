@@ -1,0 +1,195 @@
+From b6d795dd0b505f3fc843455cf3e53ccacbf9da7d Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:10:36 +0000
+Subject: [PATCH 3/5] Bugfix: validate decomposition-defined architectures on
+ loading [report R. Perry]
+
+`archDecoArchLoad()` discarded the return value of
+`archDecoArchBuild2()`, so a type-0 target file for which the build
+failed (and freed the architecture) was reported as successfully loaded.
+The consistency checks of `archDecoArchBuild2()` (terminal number in
+range, terminal count, non-null terminal distance) were moreover only
+performed in debug mode, so malformed type-0 files were accepted in
+release mode and later made the mapping routines read out of bounds.
+
+For type-1 (compiled) files, the domain sizes, the implied binary tree
+and the distance matrix were never checked at all: a fuzzed file made
+`archDecoDomSize()` and `archDecoDomDist()` read past `domverttab`
+(heap-buffer-overflow), and a negative distance made `graphMapView2()`
+index a histogram with a negative subscript (stack-buffer-overflow).
+
+Propagate `archDecoArchBuild2()`'s result, perform its checks
+unconditionally, reject a terminal domain that is not a leaf of the
+decomposition tree, bound the largest terminal number so that the
+distance matrix size fits in an `Anum`, check the overall domain weight
+for overflow, and validate the type-1 domain tree and distance array.
+
+Refs: COR-16, COR-21, PS-COR-1
+---
+ src/libscotch/arch_deco.c | 66 +++++++++++++++++++++++++++++++--------
+ 1 file changed, 53 insertions(+), 13 deletions(-)
+
+diff --git a/src/libscotch/arch_deco.c b/src/libscotch/arch_deco.c
+index 07bac9f..e3281c4 100644
+--- a/src/libscotch/arch_deco.c
++++ b/src/libscotch/arch_deco.c
+@@ -66,7 +66,7 @@
+ /**                # Version 6.0  : from : 14 feb 2011     **/
+ /**                                 to   : 28 apr 2019     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 21 aug 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -134,13 +134,12 @@ const Anum * const              termdisttab)      /*+ Terminal distance map
+   }
+ 
+   for (i = 0; i < termdomnbr; i ++) {             /* Set terminal data of all declared terminals */
+-#ifdef SCOTCH_DEBUG_ARCH1
+-    if (termverttab[i].num > termdommax) {        /* If incorrect maximum terminal number */
++    if ((termverttab[i].num < 1) ||               /* If incorrect terminal number */
++        (termverttab[i].num > termdommax)) {
+       errorPrint       ("archDecoArchBuild2: bad maximum terminal");
+       archDecoArchFree (archptr);
+       return (1);
+     }
+-#endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+     archptr->domverttab[termverttab[i].num - 1].labl = termverttab[i].labl;
+     archptr->domverttab[termverttab[i].num - 1].size = 1;
+@@ -157,12 +156,18 @@ const Anum * const              termdisttab)      /*+ Terminal distance map
+       archptr->domverttab[j].wght += archptr->domverttab[i].wght;
+     }
+   }
+-#ifdef SCOTCH_DEBUG_ARCH1
+   if (archptr->domverttab[0].size != termdomnbr) { /* If incorrect accumulation */
+-    errorPrint ("archDecoArchBuild2: bad terminal count");
++    errorPrint       ("archDecoArchBuild2: bad terminal count");
++    archDecoArchFree (archptr);
+     return (1);
+   }
+-#endif /* SCOTCH_DEBUG_ARCH1 */
++  for (i = 0; i < termdomnbr; i ++) {             /* A declared terminal domain must be a leaf */
++    if (archptr->domverttab[termverttab[i].num - 1].size != 1) {
++      errorPrint       ("archDecoArchBuild2: terminal domain is not a leaf");
++      archDecoArchFree (archptr);
++      return (1);
++    }
++  }
+ 
+   memSet (archptr->domdisttab, 0, termdommax * (termdommax - 1) * sizeof (Anum) / 2);
+                                                   /* Assume distance is not known   */
+@@ -191,7 +196,6 @@ const Anum * const              termdisttab)      /*+ Terminal distance map
+         if (archDecoArchSize (archptr, j) > 1)    /* If domain j has subdomains */
+           archDecoArchDist (archptr, i, j) = (archDecoArchDistE (archptr, i, 2 * j)     +
+                                               archDecoArchDistE (archptr, i, 2 * j + 1) + 1) / 2;
+-#ifdef SCOTCH_DEBUG_ARCH1
+         else {                                    /* If both domain are terminals                  */
+           if (archDecoArchDist (archptr, i, j) == 0) { /* Distance value must be greater than zero */
+             errorPrint       ("archDecoArchBuild2: invalid null distance");
+@@ -199,7 +203,6 @@ const Anum * const              termdisttab)      /*+ Terminal distance map
+             return (1);
+           }
+         }
+-#endif /* SCOTCH_DEBUG_ARCH1 */
+       }
+     }
+   }
+@@ -250,12 +253,16 @@ FILE * restrict const       stream)
+   if ((intLoad (stream, &termdomnbr) != 1) ||     /* Proceed with type-0 and type-1 architectures */
+       (intLoad (stream, &termdommax) != 1) ||
+       (termdommax < termdomnbr)            ||
+-      (termdomnbr < 1)) {
++      (termdomnbr < 1)                     ||
++      ((termdommax > 1) &&                        /* Distance matrix size must fit in an Anum */
++       ((termdommax - 1) > (ANUMMAX / termdommax)))) {
+     errorPrint ("archDecoArchLoad: bad input (2)");
+     return (1);
+   }
+ 
+   if (typeval == 0) {                             /* If raw decomposition */
++  Anum                wghtsum;                    /* Overall weight of all terminal domains */
++
+     if (memAllocGroup ((void **) (void *)
+                        &termverttab, (size_t) (termdomnbr * sizeof (ArchDecoTermVert)),
+                        &termdisttab, (size_t) ((((termdommax * (termdommax - 1)) / 2) + 1) * sizeof (Anum)), NULL) == NULL) {
+@@ -263,7 +270,7 @@ FILE * restrict const       stream)
+       return (1);
+     }
+ 
+-    for (i = 0; i < termdomnbr; i ++) {           /* For all declared terminals  */
++    for (i = 0, wghtsum = 0; i < termdomnbr; i ++) { /* For all declared terminals  */
+       INT                 termvertlabl;
+       INT                 termvertwght;
+       INT                 termvertnum;
+@@ -277,6 +284,14 @@ FILE * restrict const       stream)
+         memFree          (termverttab);           /* Free group leader */
+         return (1);
+       }
++      if ((termvertwght > 0) &&                   /* Overall domain weight must fit in an Anum */
++          ((Anum) termvertwght > (ANUMMAX - wghtsum))) {
++        errorPrint       ("archDecoArchLoad: bad input (3)");
++        memFree          (termverttab);           /* Free group leader */
++        return (1);
++      }
++      if (termvertwght > 0)
++        wghtsum += (Anum) termvertwght;
+       termverttab[i].labl = (ArchDomNum) termvertlabl;
+       termverttab[i].wght = (Anum)       termvertwght;
+       termverttab[i].num  = (Anum)       termvertnum;
+@@ -294,7 +309,10 @@ FILE * restrict const       stream)
+       termdisttab[i] = (Anum) termdistval;
+     }
+ 
+-    archDecoArchBuild2 (archptr, termdomnbr, termdommax, termverttab, termdisttab);
++    if (archDecoArchBuild2 (archptr, termdomnbr, termdommax, termverttab, termdisttab) != 0) {
++      memFree (termverttab);                      /* Free group leader; architecture already freed by archDecoArchBuild2() */
++      return (1);
++    }
+ 
+     memFree (termverttab);                        /* Free group leader */
+   }
+@@ -329,16 +347,38 @@ FILE * restrict const       stream)
+     for (i = 0; i < (termdommax * (termdommax - 1)) / 2; i ++) { /* Read distance array */
+       INT                 domdistval;
+ 
+-      if (intLoad (stream, &domdistval) != 1) {
++      if ((intLoad (stream, &domdistval) != 1) ||
++          (domdistval < 0)) {                     /* Distances cannot be negative */
+         errorPrint       ("archDecoArchLoad: bad input (6)");
+         archDecoArchFree (archptr);
+         return (1);
+       }
+       archptr->domdisttab[i] = domdistval;
+     }
++
++    for (i = 0; i < termdommax; i ++) {           /* Check that domain array describes a consistent binary tree */
++      Anum                domnsiz;
++
++      domnsiz = archptr->domverttab[i].size;
++      if (domnsiz < 0)                            /* A domain size cannot be negative */
++        goto fail;
++      if (domnsiz > 1) {                          /* A splittable domain needs two sons that add up to it */
++        if ((((2 * i) + 2) >= termdommax) ||
++            (domnsiz != (archptr->domverttab[(2 * i) + 1].size +
++                         archptr->domverttab[(2 * i) + 2].size)))
++          goto fail;
++      }
++    }
++    if (archptr->domverttab[0].size != termdomnbr) /* Root domain must hold all terminals */
++      goto fail;
+   }
+ 
+   return (0);
++
++fail:
++  errorPrint       ("archDecoArchLoad: bad input (7)");
++  archDecoArchFree (archptr);
++  return (1);
+ }
+ 
+ /* This routine frees the decomposition
+-- 
+2.47.3
+

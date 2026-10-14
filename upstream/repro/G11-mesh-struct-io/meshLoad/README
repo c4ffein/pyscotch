@@ -1,0 +1,12 @@
+PS2-G11-mesh-struct-io-8 (mesh twin of GRA-04/GRA-10/febaef7): meshLoad() trusts labels, degrees and edge ends.
+  $INFRA/asan/bin/gmk_msh bad_edge_hi.msh /dev/null    pristine -> loads, "meshCheck: invalid edge array (1)" only because gmk_msh checks;
+  $INFRA/asan/bin/mord    bad_edge_hi.msh /dev/null    pristine -> "AddressSanitizer: heap-buffer-overflow ... _SCOTCHhallOrderHdR2Halmd hall_order_hd.c:710"
+  $INFRA/asan/bin/mord    bad_edge_neg.msh /dev/null   pristine -> heap-buffer-overflow in hallOrderHdR2Halmd (hall_order_hd.c:672)
+  $INFRA/asan/bin/gmk_msh bad_edge_huge.msh /dev/null  pristine -> "mesh_io.c:266:45: runtime error: signed integer overflow"
+  $INFRA/asan/bin/gmk_msh bad_degr_neg.msh /dev/null   pristine -> rejected only by luck ("invalid arc count (2)")
+  patched: bad input (5) / invalid arc end number / invalid arc end number / bad input (7), nothing loaded.
+PS2-G11-mesh-struct-io-3: SCOTCH_meshLoad() with a base different from the file base produces an invalid mesh.
+  ./loadbase $WORK/scotch/src/check/data/small2.msh 1   pristine -> "ERROR: meshCheck: element vertices must not be connected together" load=0 check=1
+                                                        patched  -> load=0 check=0
+Fixed by patches/0010 and 0009; regression: test_scotch_mesh_graph now loads with bases -1, 0, 1 and checks.
+m16_lbl_b1.msh: labelled base-1 file written for the OLD label semantics (duplicate labels across kinds); rejected by patches/0011 ("graphLoad2: duplicate vertex label").

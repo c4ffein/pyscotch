@@ -1,0 +1,20 @@
+Reproducers for group G01-arch-sub-dist (Scotch 7.0.17).
+
+Layout
+  common/   archload.c  : SCOTCH_archInit/archLoad/archExit on one target file, prints "load ret=N"
+            archtrip.c  : load, save to a second file, reload (round trip), prints ret codes
+            subapi.c    : SCOTCH_archSub() with a 2-element terminal list on cmplt 4
+            build.sh    : builds every harness against a tree with include/ and lib/ (ASan+UBSan)
+  tgt/      one-line target files used by the scripts (sub_*.tgt, dist_*.tgt, v_*.tgt)
+  alloc/    failmalloc.c: LD_PRELOAD shim, fails the FAIL_AT-th malloc() (use on a non-ASan build)
+  <ID>/     run.sh <libdir> : runs the cases of that id; README : expected output
+  RESULTS.txt : output of every run.sh against pristine (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/asan/lib) and patched (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G01-arch-sub-dist/build/lib)
+
+Build and run
+  ./common/build.sh /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G01-arch-sub-dist/build          # harnesses (any tree with the same ABI; pristine lib is swapped via LD_LIBRARY_PATH)
+  ./COR-04/run.sh /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/asan/lib        # pristine: sanitizer reports
+  ./COR-04/run.sh /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G01-arch-sub-dist/build/lib        # patched: ret=1, no report
+Allocation-failure injection (plain build $WORK/buildplain, no ASan):
+  gcc -O0 -g -fPIC -shared -o alloc/failmalloc.so alloc/failmalloc.c -ldl
+  gcc -O0 -g -I$T/include -o common/archload_plain common/archload.c -L$T/lib -lscotch -lscotcherr -lm -lpthread -lz
+  for n in $(seq 2 160); do FAIL_AT=$n LD_PRELOAD=alloc/failmalloc.so MALLOC_CHECK_=3 MALLOC_PERTURB_=165 ./common/archload_plain tgt/sub_ok.tgt; done

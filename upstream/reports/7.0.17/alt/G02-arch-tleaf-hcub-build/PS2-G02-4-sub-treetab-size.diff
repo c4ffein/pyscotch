@@ -1,0 +1,13 @@
+diff --git a/src/libscotch/arch_sub.c b/src/libscotch/arch_sub.c
+index bdb9baa..af504b7 100644
+--- a/src/libscotch/arch_sub.c
++++ b/src/libscotch/arch_sub.c
+@@ -405,7 +405,7 @@ const Anum * const          vnumtab)              /* Ordered list of remaining t
+     errorPrint ("archSubArchBuild: out of memory (1)");
+     return (2);
+   }
+-  if ((treetab = memAlloc ((orgtermnbr + 1) * sizeof (ArchSubTree))) == NULL) { /* TRICK: One more slot to link to coarser array */
++  if ((treetab = memAlloc (((size_t) orgtermnbr + 1) * sizeof (ArchSubTree))) == NULL) { /* TRICK: One more slot to link to coarser array */
+     errorPrint ("archSubArchBuild: out of memory (2)");
+     memFree    (termtab);
+     return (2);

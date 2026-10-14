@@ -1,0 +1,12 @@
+COR-07 (tree-leaf half): levlnbr unchecked, size product overflow
+
+Pristine:
+  ./archload 'tleaf 0'                    -> load ret=0 size=1
+  ./archload 'sub 1 0 tleaf 0'            -> AddressSanitizer heap-buffer-overflow READ archTleafMatchInit arch_tleaf.c:255
+  ./archload 'tleaf -1 2 1'               -> ASan: requested allocation size 0xfffffffffffffffc (arch_tleaf.c:120)
+  ./archload 'tleaf 2 65536 1 65536 1'    -> UBSan arch_tleaf.c:136 signed overflow 65536*65536, load ret=0 size=0
+  64-bit: 'tleaf 2 3037000500 1 3037000500 1' -> UBSan overflow in 'long int', size=-9223372036709301616
+  Leak of sizetab on 'bad input (2)' does NOT reproduce (archLoad frees through the class hook since d555f2c).
+Patched (patches/0002):
+  'tleaf 0', 'tleaf -1 2 1' -> ERROR: archTleafArchLoad2: bad input (1); 'tleaf 2 65536 1 65536 1' -> archTleafArchBuild: too many terminal domains
+  64-bit: 'tleaf 2 3037000499 1 3037000499 1' loads (size 9223372030926249001), '...3037000500...' rejected.

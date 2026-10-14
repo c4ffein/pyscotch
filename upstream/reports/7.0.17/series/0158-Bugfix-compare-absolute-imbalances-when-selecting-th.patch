@@ -1,0 +1,72 @@
+From d54ad8ea2ceccf53931dd9e521493468f8ff75bd Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:12:19 +0000
+Subject: [PATCH 158/240] Bugfix: compare absolute imbalances when selecting
+ the best distributed separator [report R. Perry]
+
+The reduction operators of `vdgraphSeparateMlUncoarsen()` and
+`vdgraphSeparateSq()` break ties on separator size by comparing the
+signed load difference between the two parts, so that a separator
+whose part 0 is heavily underloaded was preferred to a balanced one.
+Reduce on the absolute value of the difference, as the sequential
+selection in `vdgraphSeparateSt()` does.
+
+Refs: DMO-11
+---
+ src/libscotch/vdgraph_separate_ml.c | 4 ++--
+ src/libscotch/vdgraph_separate_sq.c | 6 +++---
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/libscotch/vdgraph_separate_ml.c b/src/libscotch/vdgraph_separate_ml.c
+index 5bcdd38..2eb76bf 100644
+--- a/src/libscotch/vdgraph_separate_ml.c
++++ b/src/libscotch/vdgraph_separate_ml.c
+@@ -180,7 +180,7 @@ const MPI_Datatype * const  typedat)              /* MPI datatype; not used
+   if ((in[3] < inout[3]) ||                       /* Select best partition */
+       ((in[3] == inout[3]) &&
+        ((in[4] < inout[4]) ||
+-	((in[4] == inout[4]) && (in[1] < inout[1]))))) {
++        ((in[4] == inout[4]) && (in[1] < inout[1]))))) {
+     inout[1] = in[1];
+     inout[2] = in[2];
+     inout[3] = in[3];
+@@ -419,7 +419,7 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Based multinode array
+     reduloctab[1] = (Gnum) finegrafptr->s.proclocnum; /* Set rank according to global order on both sub-communicators */
+     reduloctab[2] = (Gnum) coargrafptr->s.pkeyglbval; /* Set color key according to coarse graph sub-communicator     */
+     reduloctab[3] = coargrafptr->compglbsize[2];
+-    reduloctab[4] = coargrafptr->compglbloaddlt;
++    reduloctab[4] = ABS (coargrafptr->compglbloaddlt); /* Compare absolute imbalances */
+   }
+ 
+   if ((MPI_Type_contiguous (6, GNUM_MPI, &besttypedat)                                != MPI_SUCCESS) ||
+diff --git a/src/libscotch/vdgraph_separate_sq.c b/src/libscotch/vdgraph_separate_sq.c
+index 7281594..66a5839 100644
+--- a/src/libscotch/vdgraph_separate_sq.c
++++ b/src/libscotch/vdgraph_separate_sq.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2010,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2010,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**   DATES      : # Version 5.1  : from : 15 feb 2006     **/
+ /**                                 to   : 30 jul 2010     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 20 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -170,7 +170,7 @@ const VdgraphSeparateSqParam * const  paraptr)    /*+ Method parameters +*/
+     reduloctab[0] = ((cgrfdat.fronnbr != 0) || ((cgrfdat.compload[0] != 0) && (cgrfdat.compload[1] != 0)))
+                     ? cgrfdat.fronnbr
+                     : (cgrfdat.fronnbr + cgrfdat.s.vertnbr); /* Partitions with empty separators unwanted if they are completely unbalanced */
+-    reduloctab[1] = cgrfdat.comploaddlt;
++    reduloctab[1] = ABS (cgrfdat.comploaddlt);    /* Compare absolute imbalances */
+   }
+ 
+   if (MPI_Allreduce (reduloctab, reduglbtab, 1, besttypedat, bestoperdat, dgrfptr->s.proccomm) != MPI_SUCCESS) {
+-- 
+2.47.3
+

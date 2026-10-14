@@ -1,0 +1,31 @@
+Alternative (not committed): instead of freeing the coarse ordering in hgraphOrderCp(), make every
+tree-building strategy free its own partial column block tree on failure, so that a failed strategy
+never leaves a tree behind (then neither hgraphOrderCp() nor SCOTCH_graphOrderExit() has anything to
+free). Sketch for hgraphOrderNd() and hgraphOrderCc(); hmeshOrderNd() would need the same; still
+leaves the mutex of coarordedat undestroyed, so hgraphOrderCp() would need orderExit() anyway.
+--- a/src/libscotch/hgraph_order_cc.c
++++ b/src/libscotch/hgraph_order_cc.c
+@@ -196,6 +196,9 @@
+ 
+     if (o != 0) {
+       errorPrint ("hgraphOrderCc: cannot compute ordering on induced graph");
++      memFree (cblkptr->cblktab);                 /* Free partial column block tree (sub-trees of ordered components leak) */
++      cblkptr->cblktab = NULL;
++      cblkptr->cblknbr = 0;
+       break;
+     }
+   }
+--- a/src/libscotch/hgraph_order_nd.c
++++ b/src/libscotch/hgraph_order_nd.c
+@@ -311,6 +311,11 @@
+     }
+   }
+ 
++  if (o != 0) {                                   /* On error, do not leave a partial tree behind */
++    memFree (cblkptr->cblktab);
++    cblkptr->cblktab = NULL;
++    cblkptr->cblknbr = 0;
++  }
+   vgraphExit (&vspgrafdat);
+ 
+   return (o);

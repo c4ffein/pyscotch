@@ -1,0 +1,41 @@
+From bdd3be9d7b2ca22ad2b8a1d88c4f09bf4b7cc6be Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:36:39 +0000
+Subject: [PATCH 098/240] Bugfix: compute migration distances between old and
+ new mappings in `SCOTCH_graphRemapView()` [report R. Perry, PyScotch]
+
+Both terminal domains were computed from the old mapping, so that
+the average migration distance was always zero. Also, the old part
+array was not based while it was accessed with based vertex indices,
+which led to out-of-bounds reads for graphs with a non-zero base.
+
+Refs: API-16, PS-API-1
+---
+ src/libscotch/library_graph_map_view.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/library_graph_map_view.c b/src/libscotch/library_graph_map_view.c
+index e57c87e..ef28980 100644
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -270,7 +270,7 @@ FILE * const                  stream)             /*+ Output stream
+ 
+   if (libmapoptr != NULL) {
+     lmaoptr = (LibMapping *) libmapoptr;
+-    parotax = lmaoptr->parttab;
++    parotax = lmaoptr->parttab - grafptr->baseval; /* Use based array */
+   }
+   else {
+     lmaoptr = NULL;
+@@ -488,7 +488,7 @@ FILE * const                  stream)             /*+ Output stream
+         continue;
+       if (parotax[vertnum] != parttax[vertnum]) {
+         migrnbr ++;
+-        archDomTerm (archptr, &domnorg, parotax[vertnum]); /* Get terminal domains */
++        archDomTerm (archptr, &domnorg, parttax[vertnum]); /* Get terminal domains */
+         archDomTerm (archptr, &domnold, parotax[vertnum]);
+         migrdistavg += archDomDist (archptr, &domnorg, &domnold);
+         migrloadavg += (grafptr->velotax == NULL) ? 1 : grafptr->velotax[vertnum];
+-- 
+2.47.3
+

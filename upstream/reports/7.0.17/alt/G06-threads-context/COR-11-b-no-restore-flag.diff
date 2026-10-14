@@ -1,0 +1,38 @@
+--- a/src/libscotch/common_thread.h
++++ b/src/libscotch/common_thread.h
+@@ -70,6 +70,7 @@
+ 
+ struct ThreadContext_ {
+   int                           thrdnbr;          /*+ Number of threads                   +*/
++  int                           impoflg;          /*+ Flag set if context was imported    +*/
+   volatile ThreadContextStatus  statval;          /*+ Thread group status                 +*/
+   volatile void *               paraptr;          /*+ Pointer to function parameter       +*/
+ #ifdef COMMON_PTHREAD
+--- a/src/libscotch/common_thread.c
++++ b/src/libscotch/common_thread.c
+@@ -119,6 +119,7 @@
+   contptr->funcptr = NULL;
+   contptr->paraptr = NULL;
+   contptr->thrdnbr = thrdnbr;
++  contptr->impoflg = 0;                           /* Context created by Scotch */
+ 
+   if (thrdnbr == 1) {                             /* If no threads wanted       */
+     contptr->statval = THREADCONTEXTSTATUSDWN;    /* Do not start thread system */
+@@ -206,7 +207,8 @@
+ {
+   threadContextExit2 (contptr);                   /* Exit context and release threads */
+ 
+-  threadProcessStateRestore (contptr);            /* Restore state of main thread */
++  if (contptr->impoflg == 0)                      /* If state of main thread was saved */
++    threadProcessStateRestore (contptr);          /* Restore state of main thread      */
+ }
+ 
+ /* This routine performs a barrier on the given
+@@ -584,6 +586,7 @@
+ const int                   thrdnbr)
+ {
+   contptr->thrdnbr = thrdnbr;
++  contptr->impoflg = 1;                           /* Context imported: state of master thread not saved */
+   contptr->paraptr = NULL;
+   contptr->funcptr = NULL;
+   contptr->barrnbr = 0;

@@ -1,0 +1,9 @@
+Usage is:
+  amk_m2 <dimX> [<dimY> [<output target file>]] <options>
+    -h          : Display this help
+    -m<method>  : Decomposition method
+                    n  : Nested dissection (cut biggest dimension)
+                    o  : One-way dissection (y, then x)
+    -V          : Print program version and copyright
+  
+  Default option set is : '-Mn'

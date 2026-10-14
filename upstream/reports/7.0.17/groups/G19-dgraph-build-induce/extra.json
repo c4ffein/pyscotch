@@ -1,0 +1,231 @@
+[
+ {
+  "local_id": "PS2-G19-1",
+  "our_title": "dgraphBuildGrid3D returns alone on allocation failure; other processes hang in dgraphBuild2",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/DGR-18/grid3dfi.c, pristine: `scan.sh $P18/lib bin_pristinefi/grid3dfi 2 1 0 1 -- 0 3` -> nth=0: `HANG; (1): ERROR: dgraphBuildGrid3D: out of memory (1); r1 grid3d rc=1`; nth=1: same with (2). Patched: nth=0,1 -> r0 and r1 rc=1, exit done (np=2 and np=3).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/dgraph_build_grid3d.c:344-357",
+  "evidence": "l.347-349: `errorPrint (\"dgraphBuildGrid3D: out of memory (1)\"); return (1);` with no collective before dgraphBuild2's MPI_Allgather on the other processes; dgraphBuildHcub (dgraph_build_hcub.c:138-157) agrees on cheklocval and on its parameters instead.",
+  "related_ids": [
+   "DGR-18",
+   "DGR-05"
+  ],
+  "fix_options": [
+   {
+    "label": "A: dgraphBuildHcub-style agreement",
+    "summary": "MPI_Allreduce(MAX) of (params, -params, cheklocval) after the two allocations; free and return 1 collectively on error or inconsistent parameters.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/patches/0003-Bugfix-make-error-handling-of-dgraphBuildGrid3D-coll.patch",
+    "tested": "fault injection np=2,3 (see DGR-18); check_prog_dgtst etc. unaffected (the generator is only reached through SCOTCH_dgraphBuildGrid3D)",
+    "tradeoffs": "One 13-Gnum Allreduce per grid build.",
+    "preferred": true,
+    "maintainer_fit": "Copy of his dgraphBuildHcub structure."
+   },
+   {
+    "label": "B: leave as is",
+    "summary": "Accept the hang for a test-graph generator.",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "Hang on OOM.",
+    "preferred": false,
+    "maintainer_fit": "He made hcub collective, so no."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/patches/0003-Bugfix-make-error-handling-of-dgraphBuildGrid3D-coll.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G19-2",
+  "our_title": "dgraphBuild3 label path: allocation failure or duplicate label on one process hangs the others (release builds)",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/DGR-12/lab.c pristine: `mpirun -np 3 lab dup 0` -> HANG (timeout); np=1 -> rc=1. repro/DGR-18 nth=3 with np=2 shows the allocation variant (masked on pristine by the DGR-18 abort). Patched: dup np=3,4 -> rc=1 on every rank; grid3dfi np=2/3 nth=3 (dgraphBuild3: out of memory) -> rc=1 on every rank.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/dgraph_build.c:365-401 (alloc failure returns alone l.370-371; agreement under #ifdef SCOTCH_DEBUG_DGRAPH1 l.392-396) and 460-468",
+  "evidence": "l.392-396: `#ifdef SCOTCH_DEBUG_DGRAPH1 /* Communication cannot be merged with a useful one */ MPI_Allreduce (...); #else chekglbval = cheklocval; #endif` followed by `return (1)` before the MPI_Irecv/MPI_Isend ring (l.420-421) that the other processes enter.",
+  "related_ids": [
+   "DGR-12",
+   "DGR-05"
+  ],
+  "fix_options": [
+   {
+    "label": "A: unconditional agreements, errors reported where found",
+    "summary": "cheklocval = 1 'assume an error', goto fail on allocation failure or local duplicate, Allreduce at fail:, free and return 1 if any process failed; second Allreduce unconditional after the ring.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/patches/0005-Bugfix-make-error-handling-of-vertex-label-translati.patch",
+    "tested": "repro/DGR-12 dup/unknown np=1-4; test_scotch_dgraph_build.c; relevant check targets: all CHECKPTSCOTCH targets (incl. the new check_scotch_dgraph_build) pass on the 32-bit ASan tree and the 64-bit tree (chk_32_summary.txt, chk_64_summary.txt; np=3 via the Makefile, plus the dgraph test programs, dgtst and dgpart with -np 1, 2 and 4); the dgraph targets pass on the -DSCOTCH_DEBUG_ALL tree (chk_dbg_summary.txt). The only sanitizer hits are pre-existing ones in other groups' files (library_dgraph_coarsen.c:163 memcpy with NULL, bgraph_bipart_ml.c:195 null offset), identical to G18's logs.",
+    "tradeoffs": "Two int Allreduces per labeled build in release mode (negligible next to the P-round ring exchange of 2*vertglbmax Gnums). Reverses the maintainer's explicit 'cannot be merged' choice: USER DECISION, same as G18's.",
+    "preferred": true,
+    "maintainer_fit": "Structure of his hdgraphGather rework (0635547)."
+   },
+   {
+    "label": "B: piggyback the error on the ring messages",
+    "summary": "Send an odd-length message as an error marker in the first ring round and let every process forward it.",
+    "diff_file": "",
+    "tested": "not written",
+    "tradeoffs": "No extra collective but intricate; the allocation failure happens before the buffers exist, so the failing process would need a separate small buffer.",
+    "preferred": false,
+    "maintainer_fit": "Too clever; he did not do it in 2026 reworks."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/patches/0005-Bugfix-make-error-handling-of-vertex-label-translati.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G19-3",
+  "our_title": "dgraphGhst2 leaks the send index array on the healthy processes when another process fails",
+  "severity": "low",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "dgraph_ghst.c:284-295",
+  "why_not_run": "leak only; ASan leak detection is disabled under MPI (MPI itself leaks) so it cannot be observed cleanly; the patch for DGR-08 removes it by construction (procsidtab attached only after the agreement).",
+  "location_7_0_17": "src/libscotch/dgraph_ghst.c:284-295",
+  "evidence": "l.284: `grafptr->procsidtab = memRealloc (procsidtab, ...)`, l.294-295: `if (reduglbtab[0] != 0) return (1);` with DGRAPHFREEPSID set only at l.298; dgraphFree2 frees procsidtab only under DGRAPHFREEPSID; a later successful dgraphGhst overwrites the pointer.",
+  "related_ids": [
+   "DGR-08"
+  ],
+  "fix_options": [
+   {
+    "label": "A: attach after agreement, free on error",
+    "summary": "Part of patch 0009.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/patches/0009-Bugfix-stop-dgraphGhst2-after-a-local-allocation-fai.patch",
+    "tested": "see DGR-08",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "see DGR-08"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/patches/0009-Bugfix-stop-dgraphGhst2-after-a-local-allocation-fai.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G19-4",
+  "our_title": "dgraphLoadCent/Dist set DGRAPHFREETABS after dgraphBuild2 whatever its result: arrays leak on early failure (G20's file)",
+  "severity": "low",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "src/libscotch/dgraph_io_load.c:627-630 and 879-882",
+  "why_not_run": "G20 owns dgraph_io_load.c; not patched here.",
+  "location_7_0_17": "src/libscotch/dgraph_io_load.c:627-630, 879-882",
+  "evidence": "`o = dgraphBuild2 (grafptr, baseval, ...); grafptr->flagval |= DGRAPHFREETABS | DGRAPHVERTGROUP | DGRAPHEDGEGROUP; return (o);` : when dgraphBuild2 fails before dgraphBuild3 attaches the arrays (private data allocation, DGR-05 path), vertloctax/edgeloctax allocated by the loader are never freed; when it fails inside dgraphBuild3 after attaching them, the flags make dgraphExit free them (correct, and the reason the double free of DGR-18 does not occur here).",
+  "related_ids": [
+   "DGR-18",
+   "DGR-05"
+  ],
+  "fix_options": [
+   {
+    "label": "A: free the arrays when dgraphBuild2 fails and the graph did not take them",
+    "summary": "`if (o != 0) { if (grafptr->vertloctax == NULL) { memFree (edgeloctax + baseval); memFree (vertloctax + baseval); } }` before setting the flags, or the grid3d/hcub pattern (free on failure, flags on success).",
+    "diff_file": "",
+    "tested": "not written (other group's file)",
+    "tradeoffs": "small",
+    "preferred": true,
+    "maintainer_fit": "hcub pattern"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G19-5",
+  "our_title": "dgraphBuildHcub leaks both arrays on the 'inconsistent parameters' path (file shared with G02)",
+  "severity": "low",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "src/libscotch/dgraph_build_hcub.c:158-163",
+  "why_not_run": "parameter inconsistency across processes is a caller bug; file touched by G02's patch 0003, left to avoid a collision.",
+  "location_7_0_17": "src/libscotch/dgraph_build_hcub.c:158-163",
+  "evidence": "`if ((reduglbtab[1] != - reduglbtab[0]) || ...) { errorPrint (\"dgraphBuildHcub: inconsistent parameters\"); return (1); }` after both memAllocGroups succeeded, without memFree (vertloctax)/(edgeloctax).",
+  "related_ids": [
+   "DGR-18"
+  ],
+  "fix_options": [
+   {
+    "label": "A: free before returning",
+    "summary": "Add `memFree (edgeloctax); memFree (vertloctax);` (un-based at that point) before the return, or merge the test into the reduglbtab[6] block as patch 0003 does for grid3d.",
+    "diff_file": "",
+    "tested": "not written",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "obvious"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G19-6",
+  "our_title": "graph_induce.c (sequential twin of PS-DGR-3) and a dozen other sites rebase unchecked shrinking memRealloc results",
+  "severity": "low",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "git grep memRealloc src/libscotch",
+  "why_not_run": "other groups' files; listed in PS-DGR-3 extra_instances.",
+  "location_7_0_17": "src/libscotch/graph_induce.c:362,367; hgraph_induce.c:207; hmesh_induce.c:362; hgraph_order_cp.c:433; bgraph_bipart_bd.c:430; graph_io_mmkt.c:240; graph_io_habo.c:349; dmesh_dgraph.c:645; kdgraph_map_rb_part.c:139; dgraph_coarsen.c:1269,1271,1436; hdgraph_induce.c:302",
+  "evidence": "e.g. graph_induce.c:362: `indgrafptr->edgetax = (Gnum *) memRealloc ((indgrafptr->edgetax + indgrafptr->baseval), ...` followed by `- indgrafptr->baseval`",
+  "related_ids": [
+   "PS-DGR-3"
+  ],
+  "fix_options": [
+   {
+    "label": "A: keep the old block when shrinking fails (pattern of patch 0008)",
+    "summary": "temporary pointer, rebase on success only",
+    "diff_file": "",
+    "tested": "not written",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "same as PS-DGR-3"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G17-1",
+  "our_title": "dgraphBuildGrid3D parameter checks are debug-only: zero increment or dimension divides by zero through the public API",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/PS2-G17-1/gridparm.c on the pristine ASan build, np=2: `gridparm 4 4 2 0` -> `dgraph_build_grid3d.c:387:13: runtime error: division by zero` then SIGFPE on both ranks; `gridparm 0 4 2 1` -> division by zero at l.438; `gridparm 4 4 2 -1` -> rc=0 and a graph that fails SCOTCH_dgraphCheck ('arc data do not match'). Patched (np=1,2,3): every invalid parameter set -> 'dgraphBuildGrid3D: invalid parameters', rc=1 on every rank; valid sets build and check.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/dgraph_build_grid3d.c:306-315 (checks), 387 and 404-405/438 (divisions)",
+  "evidence": "l.306-315: `#ifdef SCOTCH_DEBUG_DGRAPH1 if ((dimxval < 1) || (dimyval < 1) || (dimzval < 1)) {...} if (incrval < 1) {...} #endif`; l.387: `t = a % b;` with b = (vertglbnbr + incrval) - max (vertglbnbr, incrval) = 0 when incrval = 0; l.438: `poszval = vertglbmin / (dimxval * dimyval);`",
+  "related_ids": [
+   "DGR-18",
+   "PS2-G19-1",
+   "API-24"
+  ],
+  "fix_options": [
+   {
+    "label": "A: unconditional checks folded into the process agreement",
+    "summary": "Test the four parameters before allocating, set cheklocval on failure, and let the Allreduce of patch 0003 make every process return 1.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/patches/0011-Bugfix-check-the-parameters-of-dgraphBuildGrid3D-in-.patch",
+    "tested": "repro/PS2-G17-1 np=1,2,3; repro/DGR-18 fault-injection scans rerun (unchanged results); 32-bit and 64-bit trees rebuild with 0 warnings; check_scotch_dgraph_check/build/induce rerun on the 64-bit tree (chk_64b_summary.txt).",
+    "tradeoffs": "Four comparisons per call; the two debug messages '(1)'/'(2)' become one.",
+    "preferred": true,
+    "maintainer_fit": "His 2026 'Add parameter check to SCOTCH_dgraphRedist()' (b10825d) adds unconditional API checks; folding them into the existing agreement keeps the routine collective."
+   },
+   {
+    "label": "B: G17's diff (drop the #ifdef only)",
+    "summary": "Make the two checks unconditional with their early non-collective returns.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G17-fortran-wrappers/alt/PS2-G17-1-A-unconditional-grid3d-parameter-checks.diff",
+    "tested": "not run here",
+    "tradeoffs": "Correct when all processes pass the same parameters (then all return early); if they disagree, the processes with valid parameters enter the agreement of patch 0003 and wait forever.",
+    "preferred": false,
+    "maintainer_fit": "Would be fine on pristine 7.0.17 (no agreement there), not on top of patch 0003."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/patches/0011-Bugfix-check-the-parameters-of-dgraphBuildGrid3D-in-.patch"
+  ]
+ }
+]

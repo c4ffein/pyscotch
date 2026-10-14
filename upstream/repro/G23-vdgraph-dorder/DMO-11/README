@@ -1,0 +1,2 @@
+DMO-11 (vdgraph half): no dedicated reproducer; exercised by every ordering run. Effect: tie-breaks on absolute imbalance change some
+separators, e.g. ./dtest_<tree> 4elt.grf -1 order "" 0 b blk.out at np=2: header '802 15606' on base-combined, '818 15606' with the series.

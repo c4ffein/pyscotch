@@ -1,0 +1,8 @@
+SEP-18: "OUCH" print in wgraphPartFm; mesh_coarsen.c print already removed by 0328b08
+Bound analysis (wgraph_part_fm.c:548-682): claimed = 2 + T (former target parts) + L (listed vertices) + degree(vertnum);
+needed = 1 (move) + L + (1 + T + 1) (loads: destination part, former targets, frontier) = 3 + T + L. The frontier load slot was
+only covered by the degree slack (degree >= 1 for a frontier vertex), so the write could not overrun; the print was dead.
+Fuzz, pristine: gpart -o k on 10 data graphs x k in {2,3,5,9,17,32,64}: 70 runs, "OUCH" never printed.
+Fuzz, patched object compiled with -DSCOTCH_DEBUG_WGRAPH2 (tools/dbgobj.sh ... wgraph_part_fm "-DSCOTCH_DEBUG_WGRAPH2"):
+  same 70 runs, no internal error (7)/(8), no sanitizer finding -> fuzz_results.txt
+check_prog_gpart_overlap and check_scotch_graph_part_ovl pass on both patched trees.

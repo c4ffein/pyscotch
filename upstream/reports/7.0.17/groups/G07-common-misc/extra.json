@@ -1,0 +1,112 @@
+[
+ {
+  "local_id": "PS2-G07-1",
+  "our_title": "Fork-mode (de)compression leaks the father's copy of the data buffer",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "ASAN_OPTIONS=detect_leaks=1 ./tcfc_new_pristine bump_b1.grf p3.gz (pristine fork-mode build): 'ERROR: LeakSanitizer: detected memory leaks / Direct leak of 131080 byte(s) in 1 object(s) allocated from ... _SCOTCHfileCompress common_file_compress.c:224'; same for decompression. Patched: check_common_file_compress passes in fork mode with leak detection on.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/common_file_compress.c:224,259-261; src/libscotch/common_file_decompress.c:201,236-238",
+  "evidence": "compress.c:224 '((compptr->bufftab = memAlloc (FILECOMPRESSDATASIZE)) == NULL)' allocated by the father; :190-191 'close (compptr->infdnum); memFree (compptr->bufftab);' run only by the child in fork mode; fileCompressExit (:122) frees compptr only.",
+  "related_ids": [
+   "COR-08"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Father frees the buffer right after fork()",
+    "summary": "memFree (compptr->bufftab) in the 'default:' branch of both fork switches.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/PS2-G07-1-A-free-buffer-in-father.diff",
+    "tested": "fork-mode check_common_file_compress with detect_leaks=1 passes; gpart with two .gz outputs reports no leak.",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "two-line fix in the fork branch he already owns"
+   },
+   {
+    "label": "B. Allocate the buffer in the task (thread/child) instead of the father",
+    "summary": "Move the memAlloc into fileCompress2()/fileDecompress2().",
+    "diff_file": "",
+    "tested": "untested: not written",
+    "tradeoffs": "Allocation failure could then no longer be reported to the caller of fileBlockOpen().",
+    "preferred": false,
+    "maintainer_fit": "loses the error path"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/patches/0003-Bugfix-free-data-buffer-of-forked-de-compression-tas.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G07-2",
+  "our_title": "bgraphBipartGaLoop() uses sizeof (UINT) bits of each random value (bytes mistaken for bits)",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "bgraph_bipart_ga.c:173-181",
+  "why_not_run": "behavioural only: a fix changes GA results, which is the maintainer's call; GA ('a' bipartitioning method) is not in any default strategy",
+  "location_7_0_17": "src/libscotch/bgraph_bipart_ga.c:177-178",
+  "evidence": "'randnbr = MIN (sizeof (UINT), partnum);       /* Compute useable slices   */' with 'demetab[-- partnum] = (GraphPart) (randval & 1); randval >>= 1;' consuming one bit per slice: 4 or 8 bits of each 64-bit draw are used.",
+  "related_ids": [
+   "PS-SEP-6"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Use UINT64 and sizeof (UINT64) << 3 slices",
+    "summary": "See diff.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/PS2-G07-2-A-ga-use-all-random-bits.diff",
+    "tested": "untested: changes GA outputs by design",
+    "tradeoffs": "8x fewer generator calls when filling demes; GA results change.",
+    "preferred": true,
+    "maintainer_fit": "his decision (determinism of GA across versions)"
+   },
+   {
+    "label": "B. Leave as is",
+    "summary": "Document that only the low bits are used.",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "wasteful but correct",
+    "preferred": false,
+    "maintainer_fit": "n/a"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G07-3",
+  "our_title": "gz (de)compression closes the descriptor with gzclose() but leaves the FILE* open",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "common_file_compress.c:326-341, common_file_decompress.c:322-335 vs the bz2/lzma twins (:306, :416 fclose (compptr->oustptr))",
+  "why_not_run": "no observable effect in the tools (process exits right after); glibc's exit does not close descriptors of stale streams",
+  "location_7_0_17": "src/libscotch/common_file_compress.c:326,341; src/libscotch/common_file_decompress.c:322",
+  "evidence": "compress.c:326 'gzdopen (fileno (compptr->oustptr), \"wb\")' and :341 'gzclose (encoptr);                              /* Closes oustptr */' \u2014 gzclose closes the descriptor only; the FILE* oustptr stays in stdio's list with a dead (reusable) descriptor number, unlike the bz2/lzma paths which fclose() it.",
+  "related_ids": [
+   "COR-08"
+  ],
+  "fix_options": [
+   {
+    "label": "A. gzdopen (dup (fileno (oustptr))) then fclose (oustptr) as the other two formats do",
+    "summary": "Keeps stdio and zlib ownership separate.",
+    "diff_file": "",
+    "tested": "untested: not written",
+    "tradeoffs": "one dup() per stream",
+    "preferred": true,
+    "maintainer_fit": "mirrors his 'Do as zlib does' comment in the twins, the other way round"
+   },
+   {
+    "label": "B. Leave as is",
+    "summary": "Tools-only code path.",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "stale FILE* per compressed stream in long-running programs",
+    "preferred": false,
+    "maintainer_fit": "n/a"
+   }
+  ],
+  "patch_files": []
+ }
+]

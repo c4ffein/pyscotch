@@ -1,0 +1,48 @@
+From 6fa783f8a14d74d66899c32680fe5b232df0b3ed Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:35:47 +0000
+Subject: [PATCH 1/7] Bugfix: export the Fortran `SCOTCHFDGRAPHSTAT` wrapper
+ with lower-case symbols [report R. Perry]
+
+The lower-case name passed to the SCOTCH_FORTRAN macro was "Dgraphstat",
+so that the library exported "scotchfDgraphstat", "scotchfDgraphstat_"
+and "scotchfDgraphstat__" instead of the all-lower-case symbols that
+Fortran compilers generate for the documented "scotchfdgraphstat"
+routine, which therefore could not be linked.
+
+Refs: API-09
+---
+ src/libscotch/library_dgraph_stat_f.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/libscotch/library_dgraph_stat_f.c b/src/libscotch/library_dgraph_stat_f.c
+index 22826a8..615c164 100644
+--- a/src/libscotch/library_dgraph_stat_f.c
++++ b/src/libscotch/library_dgraph_stat_f.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2012,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2012,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 29 nov 2012     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -68,7 +68,7 @@
+ */
+ 
+ SCOTCH_FORTRAN (                              \
+-DGRAPHSTAT, Dgraphstat, (                     \
++DGRAPHSTAT, dgraphstat, (                     \
+ const SCOTCH_Dgraph * const grafptr,          \
+ SCOTCH_Num * const          velominptr,       \
+ SCOTCH_Num * const          velomaxptr,       \
+-- 
+2.47.3
+

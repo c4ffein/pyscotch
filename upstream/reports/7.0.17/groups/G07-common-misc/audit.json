@@ -1,0 +1,334 @@
+[
+ {
+  "id": "COR-08",
+  "our_title": "Forked (de)compression children inherit sibling pipe ends and exit() flushes father's stdio",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Build without COMMON_PTHREAD ($WORK/buildnp0 = INFRA/asan minus -DCOMMON_PTHREAD/-DSCOTCH_PTHREAD*). timeout 20 gpart 4 bump_b1.grf o2.map.gz o2.log.gz -> rc=124 (hang); gpart 4 bump_b1.grf o1.map.gz -> rc=0; gpart 4 bump_b1.grf.gz o4.map.gz -> rc=0. ./stdio_dup_np d1.gz d1.txt > log1.txt -> HEADER line printed 2 times (child exit() flushed the father's pending stdout); ./stdio_dup_np d2.gz d3.gz -> rc=124. New 3-file test_common_file_compress against the pristine fork-mode lib: rc=124. Patched buildnp: all rc=0, outputs valid, HEADER once; check_common_file_compress passes in fork mode (detect_leaks=1) and in pthread mode ($WORK/build).",
+  "read_only": "bz2 and lzma (de)compressors: no headers on this box; their fork branches are the same code and are covered by the same change.",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Hang and duplicated output, but only in builds without pthreads (all shipped Makefile.inc define COMMON_PTHREAD) and only in the tools (the library API takes FILE*); same as the review.",
+  "location_7_0_17": "src/libscotch/common_file_compress.c:247-261 (fork branch), src/libscotch/common_file_decompress.c:224-238, src/libscotch/common_file.c:292-302 (fileBlockClose waits for child i before closing pipe i+1)",
+  "evidence": "common_file_compress.c:255-258 'case 0 : /* We are the son process */ fclose (writptr); fileCompress2 (compptr); exit (EXIT_SUCCESS);' and :260 'default : close (filetab[0]); /* Close the reader pipe end */' (the write end stays open in the father and is inherited by every later fork); common_file.c:296-301 'fclose (filetab[i].fileptr); ... fileCompressExit (&filetab[i]);' (waitpid on child i while child i+1 still holds pipe i's write end).",
+  "upstream_change": "",
+  "review_accuracy": "accurate: deadlock and the double flush both reproduced. Its 'or use O_CLOEXEC' fix would not work: the children are forked, never exec()'ed, so close-on-exec never triggers; the ends must be closed explicitly in the child.",
+  "first_pass_critique": "Status, method and the deadlock reproduction are right; the duplicated-stdout claim was marked 'not reproduced' only because the first pass could not produce pending stdout data through the CLI tools: a 20-line program (repro/COR-08/stdio_dup.c) that printf()s before fileBlockOpen() shows the line twice. Its preferred option A (process-global list + 2 new fields + list maintenance in fileCompressExit) works but carries more state than needed: fileBlockOpen() already knows every earlier stream, so passing the table and index to fileCompress()/fileDecompress() lets the child close exactly the parent-held ends without any bookkeeping (option A here). It also missed that the decompression child must close the earlier ends too (a stalled decompressor holding an earlier write end deadlocks fileBlockClose the same way) and the father-side buffer leak in fork mode (PS2-G07-1).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/common_file_decompress.c:232-235",
+    "quote": "case 0 : fclose (readptr); fileDecompress2 (compptr); exit (EXIT_SUCCESS);",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/common_file_compress.c:259-261 / common_file_decompress.c:236-238 (father)",
+    "quote": "default : close (filetab[0]); /* bufftab of the father's copy is never freed in fork mode */",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A. Child closes the parent-held pipe ends of the tasks launched before it; _exit()",
+    "summary": "fileCompress()/fileDecompress() receive the File table and the index of the stream; after fork the child close()s fileno(filetab[j].fileptr) for every j < filenum with a (de)compression task, then leaves with _exit() so the father's stdio buffers are not flushed again. No new state, no list maintenance; thread implementation untouched. Test program takes an optional second output file; the check rules run a 3-file case.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/COR-08-A-child-closes-sibling-pipe-ends.diff",
+    "tested": "fork-mode build: gpart with two .gz outputs, gz input + two gz outputs, stdio_dup, extended check_common_file_compress (leak detection on) all pass; pthread build: check_common_file_compress/random/thread/integer and the sequential subset pass; 0 warnings 32/64-bit.",
+    "tradeoffs": "Internal signature change of fileCompress()/fileDecompress() (only caller: fileBlockOpen). Ends opened by a previous, separate fileBlockOpen() call in the same process are not closed (no tool does that).",
+    "preferred": true,
+    "maintainer_fit": "Same shape as his 7.0.17 cleanups: fix the mechanism where the information already is (fileBlockOpen owns the table), no module-global state; he changed internal prototypes freely in this range (7ab89cb changed fileCompress's type parameter)."
+   },
+   {
+    "label": "B. Process-global list of running tasks (first pass's option)",
+    "summary": "Keep a linked list of FileCompress structures with a running child; children close every listed parent-held fd; fileCompressExit unlinks; _exit() in children.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/COR-08-B-global-task-list.diff",
+    "tested": "untested: sketch only (compiled in the first pass's tree, not here)",
+    "tradeoffs": "Two new struct fields, a global shared by two source files (needs module.h rename entries), list maintenance; covers streams from any earlier fileBlockOpen() call.",
+    "preferred": false,
+    "maintainer_fit": "More machinery than the defect needs; he avoids module globals except for the random context."
+   },
+   {
+    "label": "C. Close every descriptor above 2 in the child",
+    "summary": "Daemon idiom: loop close() over 3..sysconf(_SC_OPEN_MAX) except the two the child needs; _exit().",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/COR-08-C-close-all-descriptors.diff",
+    "tested": "untested: not run",
+    "tradeoffs": "No bookkeeping at all, but up to 2^20 close() calls per child in containers, and closes unrelated descriptors (MPI sockets) in the child.",
+    "preferred": false,
+    "maintainer_fit": "Brute force; not his style."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/patches/0002-Bugfix-avoid-deadlocks-and-duplicate-output-of-forke.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/patches/0003-Bugfix-free-data-buffer-of-forked-de-compression-tas.patch"
+  ],
+  "cleanup_done": "none needed (the old 'exit gracefully' comment and the local filetab[] name that collided with the new parameter were replaced in the same commit)",
+  "test_added": "src/check/test_common_file_compress.c accepts an optional second output file; src/check/Makefile check_common_file_compress and the CMakeLists.txt twin run a 3-file case (plain input, two compressed outputs: three children in fork mode) and verify the first output. Hangs on pristine fork-mode builds, passes patched.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "bz2/xz paths not run (no headers on this box); they share the fork branch byte for byte. The pthread path has no inherited-fd problem (no fork); what it shares is the gz FILE* left open after gzclose() (PS2-G07-3, info)."
+ },
+ {
+  "id": "COR-15",
+  "our_title": "intLoad() still wraps on overflow in release builds; debug check misses upward wraps",
+  "status": "partially-fixed",
+  "method": "ran",
+  "ran": "32-bit ASan build ($WORK/build, pristine): ./archload32 c_ovf32.tgt ('cmplt 4294967298') -> 'common_integer.c:121:15: runtime error: signed integer overflow: 429496729 * 10' then 'archLoad ret=0 archSize=2'; c_ovf32b.tgt ('cmplt 5000000000') -> archSize=705032704; ./intload_fuzz32 1 200000 -> 109743 mismatches (e.g. \"2147483651\" accepted as -2147483645). 64-bit plain build (buildfi64 pristine): fuzz 300000 strings, 63957 mismatches; 'cmplt 9223372036854775810' rejected only because the wrap is negative. Patched (both int sizes): all overflow targets -> 'ERROR: intLoad: overflow', archLoad ret=1; INTVALMAX loads; fuzz 0 mismatches; check_common_integer passes. Timing (-O3, SCOTCH_graphLoad on a 72 MB graph, best of 5): patched 1.079 s vs pristine 1.169 s.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Reachable from every user file (graph, mesh, arch, map, ord) and bypasses the range checks that the loader groups (G14/G01/G11) now rely on; wrong-but-plausible values rather than memory corruption, as in the review.",
+  "location_7_0_17": "src/libscotch/common_integer.c:108-128 (intLoad digit loop; checks only under #ifdef COMMON_DEBUG at 109-111, 118-127)",
+  "evidence": "common_integer.c:121 'val = val * 10 + (car - '0');                 /* Accumulate digits */' guarded only by :122-127 '#ifdef COMMON_DEBUG / if (val < tmp) { /* In case of overflow */ errorPrint (\"intLoad: overflow\"); return (0); } #endif'.",
+  "upstream_change": "6a552f9 'Check overflow in intLoad() in debug mode [report R. Perry]': debug-only, post-hoc signed comparison (undefined behaviour before the test; misses wraps landing above the previous value, e.g. 5000000000 -> 705032704 > 500000000).",
+  "review_accuracy": "accurate, including the end-to-end 'cmplt 4294967298 -> 2 terminals' reproducer; its 'Fix:' line (val > (INT_MAX - d) / 10 before multiplying) is exactly what works and is what the patch does.",
+  "first_pass_critique": "Correct on status, mechanism and the 5000000000 weakness (now run, not only computed). Its preferred option A used two comparisons (INTVALMAX/10 and INTVALMAX%10); the single-comparison form of the review's fix line is equivalent and cheaper. It did not add a test, did not remove the now-dead COMMON_DEBUG blocks in its sketch, and did not measure the cost although the commit's debug-only choice suggested a performance motive (none measurable at -O3).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/parser_ll.l:137,153 (strategy-string lexer)",
+    "quote": "PARSERYYLVAL (INTEGER) = (INT) atol (yytext);",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/graph_io_habo.c:131-143, mesh_io_habo.c:110-125 (Harwell-Boeing headers)",
+    "quote": "habcrdnbr = (Gnum) atol (&habmatbuf[1][00]);",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A. Check before accumulating, unconditionally (the review's fix line)",
+    "summary": "car -= '0'; if (val > ((INTVALMAX - car) / 10)) { errorPrint (\"intLoad: overflow\"); return (0); } val = val * 10 + car; \u2014 one subtraction, one division by a constant and one compare per digit, no undefined behaviour; removes the COMMON_DEBUG blocks; value untouched on error, like syntax errors; adds test_common_integer.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/COR-15-A-check-before-accumulate.diff",
+    "tested": "archload on 4 targets and 300000-string fuzz on 32-bit and 64-bit builds; check_common_integer, check_scotch_arch(_deco), check_prog_gbase/gtst/gpart/gord/gmap, check_scotch_graph_map/order, check_strat_seq pass; -O3 timing within noise.",
+    "tradeoffs": "Rejects the single value -INTVALMAX-1 (accepted before only through the wrap); one more error line ('intLoad: overflow') before the loader's own message.",
+    "preferred": true,
+    "maintainer_fit": "He already chose the message and the return-0 semantics in 6a552f9; making a user-input check unconditional is his rule (STYLE: 'an unconditional check for anything a user file controls'); the cost argument is settled by measurement."
+   },
+   {
+    "label": "B. Unsigned accumulation with wrap detection, accepts INT_MIN",
+    "summary": "Accumulate in UINT, detect wrap by dividing back, range-check at the end allowing -INTVALMAX-1.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/COR-15-B-unsigned-accumulate.diff",
+    "tested": "untested: compiled in isolation only",
+    "tradeoffs": "A division per digit; more code for a value that never appears in Scotch files.",
+    "preferred": false,
+    "maintainer_fit": "More code than A for no practical gain."
+   },
+   {
+    "label": "C. Make the 6a552f9 debug check unconditional",
+    "summary": "Drop the three #ifdef COMMON_DEBUG wrappers.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/COR-15-C-unconditional-debug-check.diff",
+    "tested": "untested: not run (would still accept 5000000000 on 32-bit, as the arithmetic shows)",
+    "tradeoffs": "Relies on signed overflow (UB, compiler may delete the test) and misses upward wraps.",
+    "preferred": false,
+    "maintainer_fit": "Would not close the review's lead."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/patches/0001-Bugfix-check-for-integer-overflow-in-intLoad-report-.patch"
+  ],
+  "cleanup_done": "the three #ifdef COMMON_DEBUG blocks and the 'tmp' variable from 6a552f9 removed",
+  "test_added": "src/check/test_common_integer.c (new) + check_common_integer rule in src/check/Makefile (CHECKSCOTCH list) and src/check/CMakeLists.txt: 0, whitespace/sign/trailing char, INTVALMAX, -INTVALMAX, INTVALMAX+1, 10*INTVALMAX, 4294967298 (accepted only when INT is 64-bit), a 23-digit string, '-', 'abc'; checks return value, value, stream position, and that the value is untouched on error.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "intLoad has no 64-bit twin (INT is 32 or 64 bits). The strategy lexer (parser_ll.l, atol then (INT) cast) and the HB fixed-width atol() fields are different parsers in other groups' files (PAR, G14/G11): listed, not patched. Graph-count headers are G14's PS2-G14-1."
+ },
+ {
+  "id": "COR-18",
+  "our_title": "Per-rank seeding now multiplies two odd numbers: distinct states for every rank",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "mpirun --oversubscribe -np 4 ./rankstream32 (7.0.17, COMMON_RANDOM_FIXED_SEED on -> seed 1): 'rank 0: 336419271 313946438 ...', 'rank 1: 416956115 498684501 ...', 'rank 2: 61285343 ...', 'rank 3: 477366507 ...' (all distinct); with SCOTCH_randomSeed 12345 and 0 (the code path of the time(NULL) seed used when the macro is off): distinct. ./seedmath (both formulas, 1024 ranks x 6 seeds): '7.0.16 seed 1: ranks 1 and 2 share a state ... 7.0.16 collisions=1022, 7.0.17 collisions=0'.",
+  "read_only": "COMMON_RANDOM_FIXED_SEED 'off' was exercised by calling SCOTCH_randomSeed() with time-like values rather than by a separate build: the only difference is the seed source (common_integer.c:317-321).",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "as the review",
+  "location_7_0_17": "src/libscotch/common_integer.c:245 (intRandSeed2), :259 (intRandReset)",
+  "evidence": "common_integer.c:259 'randval = (((UINT64) randptr->seedval) * 2U + 1U) * (((UINT64) randptr->procval) * 2U + 1U); /* Account for process index */' and :245 'seedval = ((UINT64) randval) * 2U + 1U;         /* Never have a zero state */'",
+  "upstream_change": "64ec683 'Bugfix: make all pseudo-random generators distinct across MPI processes [report R. Perry]' (7fae3b0 additionally gives distinct seeds to the distributed test programs)",
+  "review_accuracy": "accurate for 7.0.16 (collision pairs reproduced arithmetically: 1022 of 1024 ranks paired)",
+  "first_pass_critique": "Right conclusion, but status by source-read only; now confirmed with an MPI run on 4 ranks and an exhaustive 1024-rank collision count. Its label 'fixed' should be 'fixed-in-7.0.17'.",
+  "extra_instances": [],
+  "fix_options": [],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Residual, info only: (2s+1)(2p+1) is symmetric in seed and rank, so seed s on rank p gives the stream of seed p on rank s (observed: seed 0 rank 1 == seed 1 rank 0); and the per-rank states are related by a multiplicative constant (xorshift128+ streams are not independent). Neither is the review's defect."
+ },
+ {
+  "id": "PS-SEP-6",
+  "our_title": "intRandVal2() returns a 64-bit type but truncates the generator output to UINT",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "./val2probe (internal API): 32-bit build 'intRandVal2 = 0x000000000b6381c7 ... OR of high 32 bits over 100000 draws = 0x00000000'; 64-bit build 'OR = 0xffffffff'. Patched 32-bit: OR = 0xffffffff, values identical to the 64-bit build. Determinism: gord/gmap/gpart/GA outputs on bump_b1.grf with SCOTCH_PTHREAD_NUMBER=1 byte-identical before/after on both int sizes; with 4 threads any two runs of the same binary differ, so threaded outputs cannot be compared.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Only the seeds of spawned/split sub-generators in 32-bit builds are weaker (32 bits of entropy instead of 64); no wrong results.",
+  "location_7_0_17": "src/libscotch/common_integer.c:474-479 (intRandVal2), :298 (intRandSpawn)",
+  "evidence": "common_integer.c:478 'return ((UINT) intRandVal3 (&contptr->statdat));' under :474 'UINT64 intRandVal2 ('; :298 'intRandSeed (rnewptr, (INT) seedval);           /* Set seed and initialize state */' with intRandSeed taking UINT64 since b41893e.",
+  "upstream_change": "b41893e 'Make pseudo-random generator API 64-bit wide' introduced the cast (previously intRandVal3 itself returned UINT)",
+  "review_accuracy": "not in the review",
+  "first_pass_critique": "Correct, source-read only; missed the sibling cast in intRandSpawn() left by the same commit, and claimed bgraphBipartGaLoop 'slices by bits' as the consumer: it assigns the value to a UINT and uses sizeof (UINT) slices, so it is unaffected (and wastes 7/8 of each draw, PS2-G07-2). The real consumers are contextThreadLaunchSplit() (seed of sub-context 1) and intRandSpawn() (per-thread generators of bgraphBipartGg).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/common_integer.c:298 (intRandSpawn)",
+    "quote": "intRandSeed (rnewptr, (INT) seedval);",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/bgraph_bipart_ga.c:174-178",
+    "quote": "UINT randval; ... randval = contextIntRandVal2 (grafptr->contptr); randnbr = MIN (sizeof (UINT), partnum);",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A. Drop both casts",
+    "summary": "intRandVal2 returns intRandVal3 directly; intRandSpawn passes the 64-bit seed.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/PS-SEP-6-A-drop-casts.diff",
+    "tested": "val2probe on both int sizes; single-thread determinism unchanged; check_common_random/thread, graph_map/order, prog_* and the dgraph checks pass.",
+    "tradeoffs": "Seeds of split sub-contexts and spawned per-thread generators change in 32-bit INT builds (threaded runs only; 7.0.17 already changed 32-bit streams in b41893e by moving the modulo to 64 bits). Shipped check targets compare no reference outputs, so none changes.",
+    "preferred": true,
+    "maintainer_fit": "Completes his own b41893e; one-line fixes in the spirit of 64ec683."
+   },
+   {
+    "label": "B. Declare intRandVal2 as UINT",
+    "summary": "Keep the truncation, change the prototype.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/PS-SEP-6-B-declare-uint-return.diff",
+    "tested": "untested: not run",
+    "tradeoffs": "Contradicts the 64-bit API commit; 32-bit sub-context seeds stay 32-bit.",
+    "preferred": false,
+    "maintainer_fit": "Reverts his stated intent."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/patches/0005-Bugfix-do-not-truncate-64-bit-pseudo-random-values-t.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Multi-threaded gord/gpart runs on this build are not reproducible run to run (4 threads, same binary), independently of this change."
+ },
+ {
+  "id": "COR-17",
+  "our_title": "Large-count MPI wrappers exit on one rank before the collective; scalar counts unchecked",
+  "status": "partially-fixed",
+  "method": "ran",
+  "ran": "64-bit ASan build, 3 ranks, 4 Mi-element messages (repro/COR-17/commtest.c): g1 (root recvcnttab[1]=2^33) -> '(0): ERROR: commGatherv: communication indices out of range (1)', '0 ret=13', ranks 1,2 never return, rc=124; s1 (root sendcnttab[1]=2^33) -> root ret=13, others hang; s2 (rank 1 recvcntnbr=2^33, commScatterv) -> '1 ret=0' (count truncated to 0), others hang; a1 (rank 1 sendcntnbr=2^33, commAllgatherv) -> all three ranks 'ret=0': silent wrong result. Malloc injection (fishim.so on the plain 64-bit build, FI_RANK=0 FI_NTH=0): gather/scatter/allgather -> '(0): ERROR: commGatherv: out of memory', '0 ret=16', others hang, rc=124; FI_RANK=1 on allgather: same. Patched: every case returns on all ranks with the same code (13 or 16), rc=0; valid cases ret=0; check_scotch_dgraph_check/grow/redist/order/band/coarsen/induce pass on the 64-bit build, dgraph_check/grow/redist/order on 32-bit.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Hang (and, for the unchecked scalars, silent truncation) but only in 64-bit Gnum builds with > 2^31-element gathers or an allocation failure; as the review.",
+  "location_7_0_17": "src/libscotch/comm.c:150-177 (commGatherv root-only checks and local 'goto fail'), :219-244 (commScatterv root-only checks, '(int) recvcntnbr' unchecked), :86-111 (commAllgatherv: sendcntnbr passed to MPI_Allgatherv without a check)",
+  "evidence": "comm.c:158-159 'errorPrint (\"commGatherv: out of memory\"); return (MPI_ERR_OTHER);' (root only), :167-168 'errorPrint (\"commGatherv: communication indices out of range (1)\"); goto fail;' (root only), :243-244 'o = MPI_Scatterv (senddattab, isndcnttab, isnddsptab, sendtypval, recvdattab, (int) recvcntnbr, recvtypval, rootnum, comm);', :110 'o = MPI_Allgatherv (senddattab, sendcntnbr, sendtypval,' (Gnum narrowed to int implicitly).",
+  "upstream_change": "73229e6 'Add overflow check in commGatherv()': checks the local send count, but on the local rank only, and keeps the root-only early returns (see PS-COR-2).",
+  "review_accuracy": "accurate (mechanism, location, and the 'Allreduce before the collective + range-check scalars' fix); it did not mention that the unchecked scalars give silently wrong results rather than a hang (a1 case).",
+  "first_pass_critique": "Right status and a real 2-rank reproduction; its preferred option is the one taken. It did not notice that commAllgatherv() narrows sendcntnbr with no check at all (silent wrong result on every rank), that commScatterv()'s unchecked recvcntnbr also yields a silent wrong count, nor that commAllgatherv() can hang on a rank-local allocation failure; its precedent claim ('agree with MPI_Allreduce then act' is used in dgraph routines) is only half true: the maintainer guards those agreements with SCOTCH_DEBUG_DGRAPH1/2 in release (dgraph_fold.c:290-297, dgraph_redist.c:129-136), which is why option B is listed.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/comm.c:110 (commAllgatherv)",
+    "quote": "o = MPI_Allgatherv (senddattab, sendcntnbr, sendtypval,",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/comm.c:243-244 (commScatterv)",
+    "quote": "recvdattab, (int) recvcntnbr, recvtypval, rootnum, comm);",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/comm.c:95-96 (commAllgatherv, allocation on every rank)",
+    "quote": "errorPrint (\"commAllgatherv: out of memory\"); return     (MPI_ERR_OTHER);",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A. Check the local count on every rank, then MPI_Allreduce(MAX) the error code before the collective",
+    "summary": "cheklocval = MPI_SUCCESS / MPI_ERR_ARG / MPI_ERR_OTHER per rank; MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, comm); the collective is called only when chekglbval == MPI_SUCCESS, else every rank returns chekglbval. Same structure in the three routines.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/COR-17-A-allreduce-error-status.diff",
+    "tested": "commtest cases g1/g2/s1/s2/a1/ok/s0/a0 and the malloc injections (root and non-root) on 3 ranks; dgraph check targets on 32- and 64-bit; 0 warnings.",
+    "tradeoffs": "One extra int Allreduce per call in 64-bit Gnum builds only (these wrappers already allocate and convert two int arrays per call; the gathers they wrap move > 2^31 elements or are called once per nested-dissection level in hdgraphGather). All ranks now return the same code; the failing rank alone prints the message.",
+    "preferred": true,
+    "maintainer_fit": "His own agreement idiom (cheklocval/chekglbval + MPI_Allreduce MPI_MAX) as in dgraph_fold.c:291; made unconditional here because the error is data-driven (counts), not only allocation failure, and because the 32-bit fast path is untouched. The 'out of range (1)/(2)' numbering follows his 73229e6 messages."
+   },
+   {
+    "label": "B. Same checks, agreement only under a debug flag",
+    "summary": "Keep the Allreduce under #ifdef SCOTCH_DEBUG_COMM1 as he does for allocation failures in dgraph_fold/redist/gather_all; release stays rank-local.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/COR-17-B-debug-only-agreement.diff",
+    "tested": "untested: sketch",
+    "tradeoffs": "No cost in release, but the hang of COR-17/PS-COR-2 remains in release; only the silent truncations are fixed there.",
+    "preferred": false,
+    "maintainer_fit": "Matches his dgraph habit, but leaves the review's lead open; he may still prefer it for cost reasons (user decision noted in SUMMARY)."
+   },
+   {
+    "label": "C. MPI_Abort on any local failure",
+    "summary": "Replace the early returns by errorPrint + MPI_Abort (comm, code).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/COR-17-C-abort-on-error.diff",
+    "tested": "untested: sketch",
+    "tradeoffs": "Deadlock-free and free, but unrecoverable and contrary to the error-code contract of the library.",
+    "preferred": false,
+    "maintainer_fit": "He returns error codes; no MPI_Abort in libscotch."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/patches/0004-Bugfix-agree-on-errors-before-entering-collectives-i.patch"
+  ],
+  "cleanup_done": "the 'fail:' label and the 'o = MPI_ERR_ARG; /* Assume a parameter overflow error */' pre-set from 73229e6 removed (replaced by cheklocval)",
+  "test_added": "; no natural home: the defect needs Gnum counts > 2^31 (hundreds of MB per rank) or an injected allocation failure; the existing check_scotch_dgraph_* targets exercise the wrappers' success path and were run.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Callers in dgraph_gather_all.c / hdgraph_gather.c / dorder_io*.c / bdgraph_* already test the return value on every rank; with the patch they all see the same code. The caller-side agreement idioms are G18's; nothing in dgraph_*.c was touched."
+ },
+ {
+  "id": "PS-COR-2",
+  "our_title": "7.0.17's new local send-count check in commGatherv() exits one rank before the collective",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "commtest case g2 (rank 1 sendcntnbr = 2^33, 3 ranks, 64-bit build, pristine): '(1): ERROR: commGatherv: communication indices out of range (2)', '1 ret=13', ranks 0 and 2 never return (timeout rc=124). Patched: all three ranks 'ret=13', rc=0.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Same hang as COR-17, reachable from any non-root rank's count; raised from the first pass's 'low' because it is one defect with COR-17 and fixed by the same commit.",
+  "location_7_0_17": "src/libscotch/comm.c:173-177",
+  "evidence": "comm.c:173-177 'isndcntnbr = (int) sendcntnbr; if ((Gnum) isndcntnbr != sendcntnbr) { errorPrint (\"commGatherv: communication indices out of range (2)\"); goto fail; }' executed before MPI_Gatherv on that rank only.",
+  "upstream_change": "73229e6 'Add overflow check in commGatherv()' introduced it",
+  "review_accuracy": "not in the review",
+  "first_pass_critique": "Correct; source-read only, now run (case g2). It is the same design defect as COR-17 and is fixed by the same commit, which the first pass's two separate entries did not say.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A. Collective agreement (same commit as COR-17)",
+    "summary": "See COR-17 option A: the local check sets cheklocval, the Allreduce makes every rank return MPI_ERR_ARG.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/COR-17-A-allreduce-error-status.diff",
+    "tested": "case g2 patched: all ranks ret=13, rc=0",
+    "tradeoffs": "as COR-17 A",
+    "preferred": true,
+    "maintainer_fit": "as COR-17 A"
+   },
+   {
+    "label": "B. MPI_Abort",
+    "summary": "See COR-17 option C.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/alt/COR-17-C-abort-on-error.diff",
+    "tested": "untested: sketch",
+    "tradeoffs": "unrecoverable",
+    "preferred": false,
+    "maintainer_fit": "as COR-17 C"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G07-common-misc/patches/0004-Bugfix-agree-on-errors-before-entering-collectives-i.patch"
+  ],
+  "cleanup_done": "see COR-17",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Refs listed in the commit body of patch 0004 (COR-17, PS-COR-2)."
+ }
+]

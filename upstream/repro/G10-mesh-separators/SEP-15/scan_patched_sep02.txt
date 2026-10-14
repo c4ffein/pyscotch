@@ -1,0 +1,54 @@
+total allocations: 617
+N=90 rc=1: ASAN :: SEP-02/../common/meshgrid.h:39:52: runtime error: store to null pointer of type 'Num'
+N=91 rc=1: ASAN :: SEP-02/../common/meshgrid.h:38:199: runtime error: load of null pointer of type 'Num'
+N=92 rc=1: ASAN :: SEP-02/../common/meshgrid.h:44:56: runtime error: store to null pointer of type 'Num'
+N=93 rc=1: ASAN :: SEP-02/../common/meshgrid.h:44:114: runtime error: load of null pointer of type 'Num'
+N=94 rc=1: ASAN :: SEP-02/../common/meshgrid.h:46:88: runtime error: store to null pointer of type 'Num'
+N=95 rc=1: ASAN :: ==1324738==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000ad8 (pc 0x55bd5a5be5d6 bp 0x7fff9b62a270 sp 0x7ff
+N=96 rc=1: ASAN :: SEP-02/sep02.c:18:69: runtime error: load of null pointer of type 'Num'
+N=98 rc=1: LEAK :: ERROR: contextThreadInit2: out of memory
+N=103 rc=1: LEAK :: ==1324926==ERROR: LeakSanitizer: detected memory leaks
+N=105 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=106 rc=1: LEAK :: ERROR: stratParserParse: out of memory (15)
+N=107 rc=1: LEAK :: ERROR: stratParserParse: out of memory (14)
+N=108 rc=1: LEAK :: ERROR: stratParserParse: out of memory (9)
+N=109 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=110 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=111 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=112 rc=1: LEAK :: ERROR: stratParserParse: out of memory (2)
+N=113 rc=1: LEAK :: ERROR: stratParserParse: out of memory (4)
+N=114 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=115 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=116 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=117 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=118 rc=1: LEAK :: ERROR: stratParserParse: out of memory (15)
+N=119 rc=1: LEAK :: ERROR: stratParserParse: out of memory (14)
+N=120 rc=1: LEAK :: ERROR: stratParserParse: out of memory (9)
+N=121 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=122 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=123 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=124 rc=1: LEAK :: ERROR: stratParserParse: out of memory (2)
+N=125 rc=1: LEAK :: ERROR: stratParserParse: out of memory (4)
+N=126 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=127 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=128 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=183 rc=1: ASAN :: mesh_coarsen.c:579:21: runtime error: load of null pointer of type 'Gnum'
+N=238 rc=1: ASAN :: mesh_coarsen.c:579:21: runtime error: load of null pointer of type 'Gnum'
+N=279 rc=1: ASAN :: mesh_coarsen.c:579:21: runtime error: load of null pointer of type 'Gnum'
+N=313 rc=1: ASAN :: ==1327567==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000470 (pc 0x7f7e582cc9ca bp 0x7ffe55cd6c30 sp 0x7ff
+N=323 rc=1: ASAN :: ==1327651==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000440 (pc 0x7faa4c6df9ca bp 0x7ffd3350f2c0 sp 0x7ff
+N=333 rc=1: ASAN :: ==1327820==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000006f0 (pc 0x7f8c1d1879ca bp 0x7ffdea6d2ff0 sp 0x7ff
+N=343 rc=1: ASAN :: mesh_coarsen.c:579:21: runtime error: load of null pointer of type 'Gnum'
+N=384 rc=1: ASAN :: ==1328377==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000006e0 (pc 0x7fac271349ca bp 0x7ffd1eb4e450 sp 0x7ff
+N=394 rc=1: ASAN :: mesh_coarsen.c:579:21: runtime error: load of null pointer of type 'Gnum'
+N=428 rc=1: ASAN :: ==1329067==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000004b0 (pc 0x7f6dfa72a9ca bp 0x7ffdaff11ae0 sp 0x7ff
+N=438 rc=1: ASAN :: ==1329253==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000003c0 (pc 0x7f01913479ca bp 0x7fffcc35ae20 sp 0x7ff
+N=448 rc=1: ASAN :: mesh_coarsen.c:579:21: runtime error: load of null pointer of type 'Gnum'
+N=496 rc=1: ASAN :: mesh_coarsen.c:579:21: runtime error: load of null pointer of type 'Gnum'
+N=537 rc=1: ASAN :: ==1331148==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000005e0 (pc 0x7f1b6ba689ca bp 0x7ffc41984720 sp 0x7ff
+N=547 rc=1: ASAN :: ==1331361==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000630 (pc 0x7f2a864ef9ca bp 0x7ffea89ff3c0 sp 0x7ff
+N=557 rc=1: ASAN :: mesh_coarsen.c:579:21: runtime error: load of null pointer of type 'Gnum'
+N=598 rc=1: ASAN :: ==1332222==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000670 (pc 0x7fcd471e09ca bp 0x7ffd89ef7dc0 sp 0x7ff
+N=608 rc=1: ASAN :: ==1332336==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000006d0 (pc 0x7f168ef1c9ca bp 0x7fff164fc550 sp 0x7ff
+N=617 rc=1: ASAN :: ==1332444==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000002b6 (pc 0x558727f68238 bp 0x7ffd3f3d5fe0 sp 0x7ff
+runs with sanitizer findings: 52 / 617

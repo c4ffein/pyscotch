@@ -1,0 +1,114 @@
+[
+ {
+  "local_id": "PS2-G28-1",
+  "our_title": "gmap/dgmap test argv[i][1] for a missing cluster load after '-q': message is dead",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "echo 'cmplt 3' | gmap bump.grf - /dev/null -q -> \"gmap: ERROR: main: invalid cluster load ''\" (dgmap -np 1 same); patched: \"main: missing parameter after '-q' for gmap\"",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/scotch/gmap.c:279, src/scotch/dgmap.c:272",
+  "evidence": "gmap.c:279-280 'if (argv[i][1] == '\\\\0')\\n              errorPrint (\"main: missing parameter after '-q' for gmap\");' (argv[i][1] is 'q')",
+  "related_ids": [
+   "CLI-20"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Test argv[i][2]",
+    "summary": "one character in each file",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0002-Bugfix-test-the-right-character-for-a-missing-cluste.patch",
+    "tested": "runs above; both builds 0 warnings",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "trivial correctness fix, Bugfix: prefix"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0002-Bugfix-test-the-right-character-for-a-missing-cluste.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G28-2",
+  "our_title": "Sequential tools leak the execution context on the -h/-V early returns",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "ASan: gmap -h (pristine and patched) -> 'Direct leak of 56 byte(s) ... _SCOTCHcontextValuesInit common_values.c:81 ... SCOTCH_contextInit library_context.c:113 ... main gmap.c:192'; gord -h too (SCOTCH_contextInit is called before option parsing, the early returns skip SCOTCH_contextExit)",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/scotch/gmap.c:192-193, 261-262, 327-330 (and gord.c, dgmap.c, dgord.c likewise)",
+  "evidence": "gmap.c:192 'SCOTCH_contextInit (&contdat);                  /* Set default context          */' before the option loop; :261-262 'usagePrint (stdout, C_usageList);\\n          return     (EXIT_SUCCESS);'",
+  "related_ids": [
+   "CLI-21"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Leave as is",
+    "summary": "process exit frees everything; only visible under LeakSanitizer (the check targets run with detect_leaks=0 for this reason)",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "he would not add Exit calls to help paths"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G28-3",
+  "our_title": "s_p.tex says amk_grf produces 'deco 0' by default and lists gmap's -V twice",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "amk_grf m4x4.grf | head -2 -> 'deco' '1'; amk_grf -2 -> 'deco' '2'; grep -c 'iteme\\[\\\\texttt{-V}\\]' in the gmap section -> 2",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "doc/src/scotch/s_p.tex:305-306, 335, 606",
+  "evidence": "s_p.tex:305-306 'The \\\\texttt{-2} option creates a ``\\\\texttt{deco~2}'' decomposition\\nrather than a ``\\\\texttt{deco~0}'' one.' (4e0cbf1 fixed the usage and man page only)",
+  "related_ids": [
+   "BLD-22"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Fix in the BLD-22 documentation commit",
+    "summary": "'deco~1' in both sentences, -2 item added, duplicate -V removed",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0007-Document-the-program-options-missing-from-the-man-pa.patch",
+    "tested": "visual",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "completes 4e0cbf1"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0007-Document-the-program-options-missing-from-the-man-pa.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G28-4",
+  "our_title": "gbase and gdump have man pages but no section in the user's manual",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "usage_vs_man.py: 'manual section gbase: NO MANUAL SECTION', same for gdump (s_p.tex subsubsections: acpl, amk_*, amk_grf, atst, gcv, gmap, gmk_*, gmk_msh, gmtst, gord, gotst, gout, gtst, mcv, mmk_*, mord, mtst)",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "doc/src/scotch/s_p.tex:145-1380",
+  "evidence": "grep -c 'subsubsection{\\\\texttt{gbase}}' doc/src/scotch/s_p.tex -> 0",
+  "related_ids": [
+   "BLD-22"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Write the two sections",
+    "summary": "new documentation, left to the maintainer",
+    "diff_file": "",
+    "tested": "untested: not written",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "doc authoring, not a fix"
+   }
+  ],
+  "patch_files": []
+ }
+]

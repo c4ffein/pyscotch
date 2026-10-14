@@ -1,0 +1,4 @@
+Usage is:
+  amk_p2 <wght0> [<wght1> [<output target file>]] <options>
+    -h  : Display this help
+    -V  : Print program version and copyright

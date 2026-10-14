@@ -1,0 +1,338 @@
+From 07d2d05935812fd58926aac4207dc1f3d20cf3bc Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:45:36 +0000
+Subject: [PATCH 9/9] Add test for `SCOTCH_graphMapView()` and
+ `SCOTCH_graphRemapView()`
+
+Checks mapping statistics with known values on a path graph mapped
+onto a line of processors, with base values 0 and 1: processor
+counts, loads, neighbors, dilation, part diameters, migration
+distance, preservation of part arrays, and partial mappings.
+---
+ src/check/CMakeLists.txt               |  10 +-
+ src/check/Makefile                     |  10 +
+ src/check/test_scotch_graph_map_view.c | 256 +++++++++++++++++++++++++
+ 3 files changed, 275 insertions(+), 1 deletion(-)
+ create mode 100644 src/check/test_scotch_graph_map_view.c
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index d395dd5..160a74d 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -43,7 +43,7 @@
+ ##   DATES      : # Version 6.0  : from : 01 sep 2014     ##
+ ##                                 to     01 sep 2021     ##
+ ##                # Version 7.0  : from : 01 sep 2021     ##
+-##                                 to     11 feb 2026     ##
++##                                 to     13 oct 2026     ##
+ ##                                                        ##
+ ############################################################
+ 
+@@ -323,6 +323,14 @@ add_test(NAME test_scotch_graph_map_copy_1 COMMAND test_scotch_graph_map_copy ${
+ 
+ add_test(NAME test_scotch_graph_map_copy_2 COMMAND test_scotch_graph_map_copy ${dat}/bump_b100000.grf)
+ 
++# test_scotch_graph_map_view
++
++add_test_scotch(test_scotch_graph_map_view)
++
++add_test(NAME test_scotch_graph_map_view_1 COMMAND test_scotch_graph_map_view 0)
++
++add_test(NAME test_scotch_graph_map_view_2 COMMAND test_scotch_graph_map_view 1)
++
+ # test_scotch_graph_order
+ 
+ add_test_scotch(test_scotch_graph_order)
+diff --git a/src/check/Makefile b/src/check/Makefile
+index ff1e510..2540bc4 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -213,6 +213,7 @@ CHECKSCOTCH = 		check_common_file_compress		\
+ 			check_scotch_graph_induce		\
+ 			check_scotch_graph_map			\
+ 			check_scotch_graph_map_copy		\
++			check_scotch_graph_map_view		\
+ 			check_scotch_graph_order		\
+ 			check_scotch_graph_part_ovl		\
+ 			check_scotch_mesh_graph			\
+@@ -515,6 +516,15 @@ test_scotch_graph_map_copy	:	test_scotch_graph_map_copy.c	\
+ 
+ ##
+ 
++check_scotch_graph_map_view	:	test_scotch_graph_map_view
++					$(EXECS) ./test_scotch_graph_map_view 0
++					$(EXECS) ./test_scotch_graph_map_view 1
++
++test_scotch_graph_map_view	:	test_scotch_graph_map_view.c	\
++					$(SCOTCHLIBDIR)/libscotch$(LIB)
++
++##
++
+ check_scotch_graph_order	:	test_scotch_graph_order
+ 					$(EXECS) ./test_scotch_graph_order data/bump.grf
+ 					$(EXECS) ./test_scotch_graph_order data/bump_b100000.grf
+diff --git a/src/check/test_scotch_graph_map_view.c b/src/check/test_scotch_graph_map_view.c
+new file mode 100644
+index 0000000..1f7abfd
+--- /dev/null
++++ b/src/check/test_scotch_graph_map_view.c
+@@ -0,0 +1,256 @@
++/* Copyright 2026 IPB, Universite de Bordeaux, INRIA & CNRS
++**
++** This file is part of the Scotch software package for static mapping,
++** graph partitioning and sparse matrix ordering.
++**
++** This software is governed by the CeCILL-C license under French law
++** and abiding by the rules of distribution of free software. You can
++** use, modify and/or redistribute the software under the terms of the
++** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
++** URL: "http://www.cecill.info".
++**
++** As a counterpart to the access to the source code and rights to copy,
++** modify and redistribute granted by the license, users are provided
++** only with a limited warranty and the software's author, the holder of
++** the economic rights, and the successive licensors have only limited
++** liability.
++**
++** In this respect, the user's attention is drawn to the risks associated
++** with loading, using, modifying and/or developing or reproducing the
++** software by the user in light of its specific status of free software,
++** that may mean that it is complicated to manipulate, and that also
++** therefore means that it is reserved for developers and experienced
++** professionals having in-depth computer knowledge. Users are therefore
++** encouraged to load and test the software's suitability as regards
++** their requirements in conditions enabling the security of their
++** systems and/or data to be ensured and, more generally, to use and
++** operate it in the same conditions as regards security.
++**
++** The fact that you are presently reading this means that you have had
++** knowledge of the CeCILL-C license and that you accept its terms.
++*/
++/************************************************************/
++/**                                                        **/
++/**   NAME       : test_scotch_graph_map_view.c            **/
++/**                                                        **/
++/**   AUTHOR     : Francois PELLEGRINI                     **/
++/**                                                        **/
++/**   FUNCTION   : This module tests the operation of      **/
++/**                the SCOTCH_graphMapView() and           **/
++/**                SCOTCH_graphRemapView() routines on a   **/
++/**                path graph with known statistics.       **/
++/**                                                        **/
++/**   DATES      : # Version 7.0  : from : 13 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
++/**                                                        **/
++/************************************************************/
++
++/*
++**  The defines and includes.
++*/
++
++#include <stdio.h>
++#if (((defined __STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) || (defined HAVE_STDINT_H))
++#include <stdint.h>
++#endif /* (((defined __STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) || (defined HAVE_STDINT_H)) */
++#include <stdlib.h>
++#include <string.h>
++
++#include "../libscotch/module.h"
++#include "../libscotch/common.h"
++
++#include "scotch.h"
++
++#define VERTNBR                     8             /* Number of vertices in path graph */
++#define LINENBR                     32            /* Maximum number of lines in view  */
++#define LINESIZ                     256
++
++/*************************************/
++/*                                   */
++/* The consistency checking routine. */
++/*                                   */
++/*************************************/
++
++/* This routine checks that the line
++** of the given view that starts with
++** the given key has the expected value.
++** It exits on error.
++*/
++
++static
++void
++checkLine (
++char                        linetab[LINENBR][LINESIZ],
++const int                   linenbr,
++const char * const          keyptr,
++const char * const          valuptr)
++{
++  int                 linenum;
++
++  for (linenum = 0; linenum < linenbr; linenum ++) {
++    if (strncmp (linetab[linenum], keyptr, strlen (keyptr)) == 0) {
++      if (strcmp (linetab[linenum] + strlen (keyptr), valuptr) != 0) {
++        SCOTCH_errorPrint ("checkLine: invalid value for \"%s\": got \"%s\", expected \"%s\"", keyptr, linetab[linenum] + strlen (keyptr), valuptr);
++        exit (EXIT_FAILURE);
++      }
++      return;
++    }
++  }
++
++  SCOTCH_errorPrint ("checkLine: key \"%s\" not found", keyptr);
++  exit (EXIT_FAILURE);
++}
++
++/* This routine reads back the view
++** written to the given stream.
++** It returns the number of lines read.
++*/
++
++static
++int
++readView (
++FILE * const                stream,
++char                        linetab[LINENBR][LINESIZ])
++{
++  int                 linenbr;
++
++  rewind (stream);
++  for (linenbr = 0; (linenbr < LINENBR) && (fgets (linetab[linenbr], LINESIZ, stream) != NULL); linenbr ++)
++    linetab[linenbr][strlen (linetab[linenbr]) - 1] = '\0'; /* Remove trailing newline */
++  rewind (stream);
++
++  return (linenbr);
++}
++
++/*********************/
++/*                   */
++/* The main routine. */
++/*                   */
++/*********************/
++
++int
++main (
++int                 argc,
++char *              argv[])
++{
++  SCOTCH_Graph        grafdat;
++  SCOTCH_Arch         archdat;
++  SCOTCH_Mapping      mappdat;                    /* New mapping */
++  SCOTCH_Mapping      mapodat;                    /* Old mapping */
++  SCOTCH_Num          baseval;
++  SCOTCH_Num          verttab[VERTNBR + 1];
++  SCOTCH_Num          edgetab[2 * (VERTNBR - 1)];
++  SCOTCH_Num          parttab[VERTNBR];
++  SCOTCH_Num          parotab[VERTNBR];
++  SCOTCH_Num          vertnum;
++  SCOTCH_Num          edgenum;
++  FILE *              fileptr;
++  char                linetab[LINENBR][LINESIZ];
++  int                 linenbr;
++
++  SCOTCH_errorProg (argv[0]);
++
++  if (argc != 2) {
++    SCOTCH_errorPrint ("usage: %s base_value", argv[0]);
++    exit (EXIT_FAILURE);
++  }
++  baseval = (SCOTCH_Num) atoi (argv[1]);
++
++  for (vertnum = 0, edgenum = 0; vertnum < VERTNBR; vertnum ++) { /* Build path graph */
++    verttab[vertnum] = baseval + edgenum;
++    if (vertnum > 0)
++      edgetab[edgenum ++] = baseval + vertnum - 1;
++    if (vertnum < (VERTNBR - 1))
++      edgetab[edgenum ++] = baseval + vertnum + 1;
++  }
++  verttab[VERTNBR] = baseval + edgenum;
++
++  if (SCOTCH_graphInit (&grafdat) != 0) {         /* Initialize source graph */
++    SCOTCH_errorPrint ("main: cannot initialize graph");
++    exit (EXIT_FAILURE);
++  }
++  if (SCOTCH_graphBuild (&grafdat, baseval, VERTNBR, verttab, NULL, NULL, NULL, edgenum, edgetab, NULL) != 0) {
++    SCOTCH_errorPrint ("main: cannot build graph");
++    exit (EXIT_FAILURE);
++  }
++  if (SCOTCH_graphCheck (&grafdat) != 0) {
++    SCOTCH_errorPrint ("main: invalid graph");
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_archInit (&archdat) != 0) {          /* Target architecture is a line of eight processors */
++    SCOTCH_errorPrint ("main: cannot initialize architecture");
++    exit (EXIT_FAILURE);
++  }
++  if (SCOTCH_archMesh2 (&archdat, VERTNBR, 1) != 0) {
++    SCOTCH_errorPrint ("main: cannot build architecture");
++    exit (EXIT_FAILURE);
++  }
++
++  for (vertnum = 0; vertnum < VERTNBR; vertnum ++) { /* First half mapped on processor 0, second half on processor 7, and conversely */
++    parttab[vertnum] = (vertnum < (VERTNBR / 2)) ? 0 : (VERTNBR - 1);
++    parotab[vertnum] = (vertnum < (VERTNBR / 2)) ? (VERTNBR - 1) : 0;
++  }
++
++  if ((SCOTCH_graphMapInit (&grafdat, &mappdat, &archdat, parttab) != 0) ||
++      (SCOTCH_graphMapInit (&grafdat, &mapodat, &archdat, parotab) != 0)) {
++    SCOTCH_errorPrint ("main: cannot initialize mappings");
++    exit (EXIT_FAILURE);
++  }
++
++  if ((fileptr = tmpfile ()) == NULL) {           /* Open temporary file for resulting output */
++    SCOTCH_errorPrint ("main: cannot open file");
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_graphMapView (&grafdat, &mappdat, fileptr) != 0) {
++    SCOTCH_errorPrint ("main: cannot view mapping");
++    exit (EXIT_FAILURE);
++  }
++  linenbr = readView (fileptr, linetab);
++  checkLine (linetab, linenbr, "M\tProcessors ",  "2/8 (0.25)");
++  checkLine (linetab, linenbr, "M\tTarget ",      "min=4\tmax=4\tavg=4\tdlt=0\tmaxavg=1");
++  checkLine (linetab, linenbr, "M\tNeighbors ",   "min=1\tmax=1\tsum=2");
++  checkLine (linetab, linenbr, "M\tCommDilat=",   "1.000000\t(7)"); /* One cut edge of dilation 7, out of 7 edges */
++  checkLine (linetab, linenbr, "M\tCommLoad[7]=", "0.142857");
++  checkLine (linetab, linenbr, "M\tPartDiam\t",   "min=3\tmax=3\tavg=3.000000");
++
++  if (SCOTCH_graphRemapView (&grafdat, &mappdat, &mapodat, 1.0, NULL, fileptr) != 0) {
++    SCOTCH_errorPrint ("main: cannot view remapping");
++    exit (EXIT_FAILURE);
++  }
++  linenbr = readView (fileptr, linetab);
++  checkLine (linetab, linenbr, "M\tMigrNbr=",     "8(100.000000 %)");
++  checkLine (linetab, linenbr, "M\tAvgMigrDist=", "7.000000"); /* All vertices migrate from one end of the line to the other */
++  checkLine (linetab, linenbr, "M\tAvgMigrLoad=", "1.000000");
++  checkLine (linetab, linenbr, "M\tPartDiam\t",   "min=3\tmax=3\tavg=3.000000");
++
++  for (vertnum = 0; vertnum < VERTNBR; vertnum ++) { /* Part arrays must not have been modified by views */
++    if ((parttab[vertnum] != ((vertnum < (VERTNBR / 2)) ? 0 : (VERTNBR - 1))) ||
++        (parotab[vertnum] != ((vertnum < (VERTNBR / 2)) ? (VERTNBR - 1) : 0))) {
++      SCOTCH_errorPrint ("main: part arrays modified");
++      exit (EXIT_FAILURE);
++    }
++  }
++
++  parttab[0] = -1;                                /* First vertex is now unmapped */
++  if (SCOTCH_graphMapView (&grafdat, &mappdat, fileptr) != 0) {
++    SCOTCH_errorPrint ("main: cannot view partial mapping");
++    exit (EXIT_FAILURE);
++  }
++  linenbr = readView (fileptr, linetab);
++  checkLine (linetab, linenbr, "M\tProcessors ",  "2/8 (0.25)");
++  checkLine (linetab, linenbr, "M\tTarget ",      "min=3\tmax=4\tavg=3.5\tdlt=0.142857\tmaxavg=1.14286");
++  checkLine (linetab, linenbr, "M\tNeighbors ",   "min=1\tmax=1\tsum=2");
++  checkLine (linetab, linenbr, "M\tCommDilat=",   "1.000000\t(7)"); /* Edge (0,1) is no longer accounted for: 14 over 14 remaining arcs */
++  checkLine (linetab, linenbr, "M\tPartDiam\t",   "min=2\tmax=3\tavg=2.500000");
++
++  fclose (fileptr);
++
++  SCOTCH_graphMapExit (&grafdat, &mapodat);
++  SCOTCH_graphMapExit (&grafdat, &mappdat);
++  SCOTCH_archExit     (&archdat);
++  SCOTCH_graphExit    (&grafdat);
++
++  exit (EXIT_SUCCESS);
++}
+-- 
+2.47.3
+

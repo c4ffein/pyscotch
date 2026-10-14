@@ -1,0 +1,133 @@
+From 5c4dddec05cb10c3f18dccd6c96d3fb434f29956 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:34:57 +0000
+Subject: [PATCH 1/8] Bugfix: size element bit array of `meshInduceSepa()`
+ according to its word type [report PyScotch]
+
+The array of element flags was made of `unsigned int` words but was
+indexed with `INTSIZEBITS`, the bit width of `INT`. In 64-bit `Gnum`
+builds, bits 32 to 63 of every word alias bits 0 to 31, so elements of
+a same 64-element block are miscounted, the induced separator mesh is
+allocated too small, and `SCOTCH_meshOrder()` crashes on a plain 32x32
+quadrangle mesh (`mmk_m2 32 32 | mord`). Use `UINT` words, whose width
+is `INTSIZEBITS`.
+
+Add such a mesh to the `mmk`, `gmk_msh` and `mord` program checks.
+
+Refs: PS2-G10-1
+---
+ src/check/CMakeLists.txt         |  8 +++++---
+ src/check/Makefile               |  5 +++++
+ src/libscotch/mesh_induce_sepa.c | 10 +++++-----
+ 3 files changed, 15 insertions(+), 8 deletions(-)
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index 09a83af..02187cd 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -582,11 +582,13 @@ add_test(NAME mmk_m2_5_4 COMMAND ${BASH} -c "'$<TARGET_FILE:mmk_m2>' 5 4 m2_5_4.
+ 
+ add_test(NAME mmk_m3_5_4_3 COMMAND ${BASH} -c "'$<TARGET_FILE:mmk_m3>' 5 4 3 m3_5_4_3.msh && '$<TARGET_FILE:mtst>' m3_5_4_3.msh")
+ 
+-set_tests_properties(mmk_m2_5_1 mmk_m2_5_4 mmk_m3_5_4_3 PROPERTIES FIXTURES_SETUP MMK_MESHES)
++add_test(NAME mmk_m2_32_32 COMMAND ${BASH} -c "'$<TARGET_FILE:mmk_m2>' 32 32 m2_32_32.msh && '$<TARGET_FILE:mtst>' m2_32_32.msh")
++
++set_tests_properties(mmk_m2_5_1 mmk_m2_5_4 mmk_m3_5_4_3 mmk_m2_32_32 PROPERTIES FIXTURES_SETUP MMK_MESHES)
+ 
+ # check_prog_gmk_msh
+ 
+-foreach(mmk_msh m2_5_1 m2_5_4 m3_5_4_3)
++foreach(mmk_msh m2_5_1 m2_5_4 m3_5_4_3 m2_32_32)
+   add_test(NAME gmk_msh_${mmk_msh} COMMAND ${BASH} -c
+     "'$<TARGET_FILE:gmk_msh>' ${mmk_msh}.msh ${mmk_msh}.grf && '$<TARGET_FILE:gtst>' ${mmk_msh}.grf")
+   set_tests_properties(gmk_msh_${mmk_msh} PROPERTIES FIXTURES_REQUIRED MMK_MESHES FIXTURES_SETUP GMK_GRAPHS)
+@@ -626,7 +628,7 @@ add_test(NAME mcv_pue_hb3 COMMAND ${BASH} -c
+ 
+ # check_prog_mord
+ 
+-foreach(mmk_msh m2_5_1 m2_5_4 m3_5_4_3)
++foreach(mmk_msh m2_5_1 m2_5_4 m3_5_4_3 m2_32_32)
+   add_test(NAME mord_${mmk_msh} COMMAND ${BASH} -c "'$<TARGET_FILE:mord>' ${mmk_msh}.msh | '$<TARGET_FILE:gotst>' ${mmk_msh}.grf")
+   set_tests_properties(mord_${mmk_msh} PROPERTIES FIXTURES_REQUIRED MMK_MESHES)
+ endforeach()
+diff --git a/src/check/Makefile b/src/check/Makefile
+index 9d12a40..b803fb4 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -749,6 +749,8 @@ check_prog_gmk_msh		:	check_prog_mmk
+ 					$(EXECS) $(SCOTCHBINDIR)/gtst $(TMPDIR)/m2_5_4.grf
+ 					$(EXECS) $(SCOTCHBINDIR)/gmk_msh $(TMPDIR)/m2_5_4_3.msh $(TMPDIR)/m2_5_4_3.grf
+ 					$(EXECS) $(SCOTCHBINDIR)/gtst $(TMPDIR)/m2_5_4_3.grf
++					$(EXECS) $(SCOTCHBINDIR)/gmk_msh $(TMPDIR)/m2_32_32.msh $(TMPDIR)/m2_32_32.grf
++					$(EXECS) $(SCOTCHBINDIR)/gtst $(TMPDIR)/m2_32_32.grf
+ 					$(EXECS) $(SCOTCHBINDIR)/gmk_msh data/ship001.msh $(TMPDIR)/ship001.grf
+ 					$(EXECS) $(SCOTCHBINDIR)/gtst $(TMPDIR)/ship001.grf
+ 					$(EXECS) $(SCOTCHBINDIR)/gmk_msh "data/small2.msh" $(TMPDIR)/small2_d1.grf -d1
+@@ -764,9 +766,11 @@ check_prog_mmk                  :
+ 					$(EXECS) $(SCOTCHBINDIR)/mmk_m2 5 1 $(TMPDIR)/m2_5_1.msh
+ 					$(EXECS) $(SCOTCHBINDIR)/mmk_m2 5 4 $(TMPDIR)/m2_5_4.msh
+ 					$(EXECS) $(SCOTCHBINDIR)/mmk_m3 5 4 3 $(TMPDIR)/m2_5_4_3.msh
++					$(EXECS) $(SCOTCHBINDIR)/mmk_m2 32 32 $(TMPDIR)/m2_32_32.msh
+ 					$(EXECS) $(SCOTCHBINDIR)/mtst $(TMPDIR)/m2_5_1.msh
+ 					$(EXECS) $(SCOTCHBINDIR)/mtst $(TMPDIR)/m2_5_4.msh
+ 					$(EXECS) $(SCOTCHBINDIR)/mtst $(TMPDIR)/m2_5_4_3.msh
++					$(EXECS) $(SCOTCHBINDIR)/mtst $(TMPDIR)/m2_32_32.msh
+ 
+ check_prog_mcv		        :	check_prog_mmk
+ 					$(EXECS) $(SCOTCHBINDIR)/mcv $(TMPDIR)/m2_5_1.msh $(TMPDIR)/output_m2_5_1.msh -is -os
+@@ -787,6 +791,7 @@ check_prog_mord                 :	check_prog_gmk_msh
+ 					$(EXECS) $(SCOTCHBINDIR)/mord $(TMPDIR)/m2_5_1.msh | $(SCOTCHBINDIR)/gotst $(TMPDIR)/m2_5_1.grf
+ 					$(EXECS) $(SCOTCHBINDIR)/mord $(TMPDIR)/m2_5_4.msh | $(SCOTCHBINDIR)/gotst $(TMPDIR)/m2_5_4.grf
+ 					$(EXECS) $(SCOTCHBINDIR)/mord $(TMPDIR)/m2_5_4_3.msh | $(SCOTCHBINDIR)/gotst $(TMPDIR)/m2_5_4_3.grf
++					$(EXECS) $(SCOTCHBINDIR)/mord $(TMPDIR)/m2_32_32.msh | $(SCOTCHBINDIR)/gotst $(TMPDIR)/m2_32_32.grf
+ 					$(EXECS) $(SCOTCHBINDIR)/mord data/ship001.msh | $(SCOTCHBINDIR)/gotst $(TMPDIR)/ship001.grf
+ 
+ check_prog_gmap			:
+diff --git a/src/libscotch/mesh_induce_sepa.c b/src/libscotch/mesh_induce_sepa.c
+index 51ead48..89b43cf 100644
+--- a/src/libscotch/mesh_induce_sepa.c
++++ b/src/libscotch/mesh_induce_sepa.c
+@@ -44,7 +44,7 @@
+ /**                # Version 5.0  : from : 12 sep 2007     **/
+ /**                                 to   : 03 apr 2008     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 07 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # This routine differs from the         **/
+ /**                  standard mesh induction routine by    **/
+@@ -119,7 +119,7 @@ Mesh * restrict const             indmeshptr)     /* Pointer to induced submesh
+ {
+   Gnum                          orgvertnbr;       /* Number of vertices in original mesh                        */
+   Gnum                          orgbitssiz;       /* Size of int array holding as many bits as element vertices */
+-  unsigned int * restrict       orgbitstab;       /* Array of bit flags for mesh elements                       */
++  UINT * restrict               orgbitstab;       /* Array of bit flags for mesh elements                       */
+   Gnum                          indvnumnum;       /* Current vertex number index in separator node list         */
+   Gnum * restrict               indvneltax;       /* Array of original numbers for induced elements             */
+   Gnum                          indvelmnbr;       /* (Approximate) number of element vertices in induced mesh   */
+@@ -136,11 +136,11 @@ Mesh * restrict const             indmeshptr)     /* Pointer to induced submesh
+   void * restrict               p;
+ 
+   orgbitssiz = (orgmeshptr->velmnbr + (INTSIZEBITS - 1)) / INTSIZEBITS; /* Compute size of element bit array */
+-  if ((orgbitstab = (unsigned int *) memAlloc (orgbitssiz * sizeof (unsigned int))) == NULL) {
++  if ((orgbitstab = (UINT *) memAlloc (orgbitssiz * sizeof (UINT))) == NULL) {
+     errorPrint ("meshInduceSepa: out of memory (1)");
+     return     (1);
+   }
+-  memSet (orgbitstab, ~0, orgbitssiz * sizeof (unsigned int));
++  memSet (orgbitstab, ~0, orgbitssiz * sizeof (UINT));
+ 
+   for (indvnumnum = 0, indvelmnbr = 0, indedgenbr = 0; /* For all separator nodes in list */
+        indvnumnum < orgsepanbr; indvnumnum ++) {
+@@ -158,7 +158,7 @@ Mesh * restrict const             indmeshptr)     /* Pointer to induced submesh
+       orgvelmbit  = orgvelmidx & (INTSIZEBITS - 1);
+       orgvelmidx /= INTSIZEBITS;
+       indvelmnbr += (orgbitstab[orgvelmidx] >> orgvelmbit) & 1; /* Count element vertex if not yet accounted for */
+-      orgbitstab[orgvelmidx] &= ~(1U << orgvelmbit);
++      orgbitstab[orgvelmidx] &= ~((UINT) 1 << orgvelmbit);
+     }
+   }
+   indedgenbr *= 2;                                /* Number of arcs is twice number of edges */
+-- 
+2.47.3
+

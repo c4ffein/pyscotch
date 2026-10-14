@@ -1,0 +1,87 @@
+--- a/src/libscotch/arch_tleaf.c	2026-10-12 19:38:19.572601463 +0000
++++ b/src/libscotch/arch_tleaf.c	2026-10-12 19:39:21.037690161 +0000
+@@ -112,7 +112,9 @@
+   }
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+-  if (intLoad (stream, &archptr->levlnbr) != 1) {
++  if ((intLoad (stream, &archptr->levlnbr) != 1) ||
++      (archptr->levlnbr < 1)                     ||
++      (archptr->levlnbr > ((ANUMMAX - 1) / 2))) { /* Also ensures that (levlnbr * 2 + 1) does not overflow */
+     errorPrint ("archTleafArchLoad: bad input (1)");
+     return (1);
+   }
+@@ -133,6 +135,10 @@
+       errorPrint ("archTleafArchLoad: bad input (2)");
+       return (1);
+     }
++    if (sizeval > (ANUMMAX / archptr->sizetab[levlnum])) { /* Number of terminals must fit in an Anum */
++      errorPrint ("archTleafArchLoad: bad input (3)");
++      return (1);
++    }
+     sizeval *= archptr->sizetab[levlnum];
+   }
+   archptr->termnbr = sizeval;
+@@ -689,51 +695,43 @@
+     return (1);
+   }
+ 
+-#ifdef SCOTCH_DEBUG_ARCH2
+   if (archptr->permnbr != 1) {                    /* Valid empty permutation is of size 1 */
+     Anum                levlnum;
+     Anum                sizeval;
+ 
+     for (levlnum = archptr->levlnbr - 1, sizeval = archptr->sizetab[levlnum];
+-         sizeval != archptr->permnbr; levlnum --, sizeval *= archptr->sizetab[levlnum]) {
+-      if (levlnum < 0) {
++         sizeval != archptr->permnbr; ) {         /* Permutation size must match a level boundary */
++      if ((levlnum <= 0) || (sizeval > archptr->permnbr)) { /* Test before indexing sizetab       */
+         errorPrint ("archLtleafArchLoad: permutation size does not match level boundaries");
+         return (1);
+       }
++      levlnum --;
++      sizeval *= archptr->sizetab[levlnum];
+     }
+   }
+-#endif /* SCOTCH_DEBUG_ARCH2 */
+ 
+   if ((archptr->permtab = memAlloc (archptr->permnbr * 2 * sizeof (Anum))) == NULL) { /* TRICK: space for peritab too */
+     errorPrint ("archLtleafArchLoad: out of memory");
+     return (1);
+   }
++  archptr->peritab = archptr->permtab + archptr->permnbr;
++  for (permnum = 0; permnum < archptr->permnbr; permnum ++)
++    archptr->peritab[permnum] = -1;               /* Mark inverse permutation as not set yet */
+ 
+   for (permnum = 0; permnum < archptr->permnbr; permnum ++) {
+-#ifdef SCOTCH_DEBUG_ARCH2
+-    Anum                permtmp;
+-#endif /* SCOTCH_DEBUG_ARCH2 */
+-
+     if ((intLoad (stream, &archptr->permtab[permnum]) != 1) ||
+         (archptr->permtab[permnum] < 0)                     ||
+         (archptr->permtab[permnum] >= archptr->permnbr)) {
+       errorPrint ("archLtleafArchLoad: bad input (2)");
+       return (1);
+     }
+-#ifdef SCOTCH_DEBUG_ARCH2
+-    for (permtmp = 0; permtmp < permnum; permtmp ++) {
+-      if (archptr->permtab[permtmp] == archptr->permtab[permnum]) {
+-        errorPrint ("archLtleafArchLoad: duplicate permutation index");
+-        return (1);
+-      }
++    if (archptr->peritab[archptr->permtab[permnum]] >= 0) { /* If permutation index already used */
++      errorPrint ("archLtleafArchLoad: duplicate permutation index");
++      return (1);
+     }
+-#endif /* SCOTCH_DEBUG_ARCH2 */
++    archptr->peritab[archptr->permtab[permnum]] = permnum; /* Build inverse permutation on the fly */
+   }
+ 
+-  archptr->peritab = archptr->permtab + archptr->permnbr;
+-  for (permnum = 0; permnum < archptr->permnbr; permnum ++) /* Build inverse permutation */
+-    archptr->peritab[archptr->permtab[permnum]] = permnum;
+-
+   return (0);
+ }
+ 

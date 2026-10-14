@@ -1,0 +1,14 @@
+Alternative for API-07: format ratios with "%.15g" (always <= ~25 chars, cannot
+overflow) after rejecting non-finite values. Rejected as the recommended one:
+it changes the saved strategy text ("0.05" instead of "0.050000"), which is
+visible through SCOTCH_stratSave and golden-output tests. Shown for part_ovl.
+
+--- a/src/libscotch/library_graph_part_ovl.c
++++ b/src/libscotch/library_graph_part_ovl.c
+@@ SCOTCH_stratGraphPartOvlBuild @@
+-  sprintf (kbaltab, "%lf", balrat);
++  if ((! isfinite (balrat)) || (balrat < 0.0)) {
++    errorPrint (STRINGIFY (SCOTCH_stratGraphPartOvlBuild) ": invalid imbalance ratio");
++    return (1);
++  }
++  snprintf (kbaltab, sizeof (kbaltab), "%.15g", balrat);

@@ -1,0 +1,38 @@
+--- a/src/libscotch/wgraph_part_rb.c
++++ b/src/libscotch/wgraph_part_rb.c
+@@ -453,6 +453,35 @@
+     return (1);
+   }
+ 
++  {                                               /* Isolated vertices cannot belong to a separator */
++    Gnum                fronnum;
++    Gnum                fronnew;
++
++    for (fronnum = fronnew = 0; fronnum < grafptr->fronnbr; fronnum ++) {
++      Gnum                vertnum;
++
++      vertnum = grafptr->frontab[fronnum];
++      if (grafptr->s.vendtax[vertnum] == grafptr->s.verttax[vertnum]) { /* If frontier vertex has no neighbor */
++        Gnum                veloval;
++        Anum                partmin;
++        Anum                partnum;
++
++        veloval = (grafptr->s.velotax != NULL) ? grafptr->s.velotax[vertnum] : 1;
++        for (partnum = 1, partmin = 0; partnum < grafptr->partnbr; partnum ++) {
++          if (grafptr->compload[partnum] < grafptr->compload[partmin])
++            partmin = partnum;                    /* Find lightest part */
++        }
++        grafptr->parttax[vertnum] = partmin;      /* Assign vertex to it */
++        grafptr->compload[partmin] += veloval;
++        grafptr->compsize[partmin] ++;
++        grafptr->fronload -= veloval;
++      }
++      else
++        grafptr->frontab[fronnew ++] = vertnum;   /* Keep vertex in frontier */
++    }
++    grafptr->fronnbr = fronnew;
++  }
++
+ #ifdef SCOTCH_DEBUG_WGRAPH2
+   if (wgraphCheck (grafptr) != 0) {
+     errorPrint ("wgraphPartRb: inconsistent graph data");

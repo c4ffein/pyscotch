@@ -1,0 +1,49 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 83907ec..8873163 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -41,7 +41,7 @@
+ ##                                                        ##
+ ############################################################
+ 
+-cmake_minimum_required(VERSION 3.10)
++cmake_minimum_required(VERSION 3.14)
+ 
+ project(SCOTCH LANGUAGES C)
+ 
+@@ -125,6 +125,9 @@ set(LIBPTSCOTCHERR "" CACHE STRING "Which parallel error library is linked by de
+ 
+ # Allow for testing
+ option(ENABLE_TESTS "Enable testing" ON)
++if(ENABLE_TESTS AND CMAKE_VERSION VERSION_LESS 3.18)
++  message(FATAL_ERROR "Testing requires CMake 3.18 or higher; rerun cmake with -DENABLE_TESTS=OFF")
++endif()
+ if(ENABLE_TESTS)
+   enable_testing()
+ endif(ENABLE_TESTS)
+diff --git a/README.md b/README.md
+index 6a292dd..b6ee6e3 100644
+--- a/README.md
++++ b/README.md
+@@ -67,7 +67,7 @@ Installation
+ 
+ Two flavors of installation are available:
+ 
+-* With CMake, using version 3.10 or higher:
++* With CMake, using version 3.14 or higher (3.18 to run the tests):
+ 
+ ```bash
+ mkdir build && cd build && cmake .. && make -j5
+diff --git a/doc/src/handson/h_c.tex b/doc/src/handson/h_c.tex
+index 36841b1..993d152 100644
+--- a/doc/src/handson/h_c.tex
++++ b/doc/src/handson/h_c.tex
+@@ -16,7 +16,7 @@ In order to compile \scotch, one needs:
+ \item
+   GNU make;
+ \item
+-  possibly CMake, version at least~3.10;
++  possibly CMake, version at least~3.14;
+ \item
+   a C compiler that can handle the C99 standard (and is parametrized
+   to do so);

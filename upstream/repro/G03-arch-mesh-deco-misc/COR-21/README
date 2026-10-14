@@ -1,0 +1,11 @@
+COR-21 -- mesh/torus dimension products and cmpltw/deco weight sums overflow Anum.
+export LD_LIBRARY_PATH=$WORK/build/lib
+PRISTINE (UBSan signed-overflow, wrong terminal counts):
+  atst m2.tgt  (mesh2D 65536 65536)      -> arch_mesh.c:204 signed integer overflow
+  atst m3.tgt  (mesh3D 2000 2000 2000)   -> arch_mesh.c:480
+  atst mx.tgt  (meshXD 2 65536 65536)    -> arch_mesh.c:891
+  atst t2.tgt/tx.tgt (torus twins)       -> same (shared loaders)
+  atst cw.tgt/cws.tgt (cmpltw(s) 2 2e9 2e9) -> arch_cmpltw.c:259
+  atst d0big.tgt/d1big.tgt (deco * 70000) -> arch_deco.c:261/304
+PATCHED: every one rejected with "bad input"/"bad input (3)" before any overflow; 'cmplt 2147483647' still loads.
+Fixed by patch 0002 (arch_mesh.c, arch_cmpltw.c) and 0003 (arch_deco.c termdommax bound + weight sum).

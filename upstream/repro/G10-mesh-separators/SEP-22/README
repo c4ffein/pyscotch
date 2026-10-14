@@ -1,0 +1,11 @@
+SEP-22 (graph part): vgraphSeparateFm leaks on hash resize failure; vgraphSeparateGg / vmeshSeparateGg results ignored
+The resize is only reached on large separators, so vgraph_separate_fm.o was compiled with -DSCOTCH_DEBUG_VGRAPH2 (which divides
+the initial hash estimate by 8, "Ensure resizing routine will be called") in two partial builds:
+  tools/dbgobj.sh $INFRA/asan $WORK/builddbgp vgraph_separate_fm "-DSCOTCH_DEBUG_VGRAPH2"   (pristine)
+  tools/dbgobj.sh $WORK/build $WORK/builddbg  vgraph_separate_fm "-DSCOTCH_DEBUG_VGRAPH2"   (patched)
+test_scotch_graph_order (non-exiting error lib) on data/bump.grf reaches vgraphSeparateFmResize 51 times (FAIL_TRACE=1 realloc trace,
+indices in resize_idx_*.txt). Injecting a failure at those indices (SCOTCH_PTHREAD_NUMBER=1):
+  pristine: 2 runs with "vgraphSeparateFmResize: out of memory / vgraphSeparateFm: out of memory (2)" followed by LeakSanitizer
+            reports (hash/save arrays and gain table)                                           -> resize_pristine_result.txt
+  patched : 0 / 51 runs with findings                                                            -> resize_patched_result.txt
+The ignored Gg results are source-read (the Gg routines fail only on allocation failure).

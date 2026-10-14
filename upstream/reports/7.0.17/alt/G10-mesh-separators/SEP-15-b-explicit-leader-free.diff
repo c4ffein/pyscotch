@@ -1,0 +1,20 @@
+--- a/src/libscotch/hmesh_order_nd.c
++++ b/src/libscotch/hmesh_order_nd.c
+@@ -156,6 +156,7 @@
+                       &nspmeshdat.parttax, (size_t) (vertnbr * sizeof (GraphPart)),
+                       &nspmeshdat.frontab, (size_t) (vertnbr * sizeof (Gnum)), NULL) == NULL) {
+     errorPrint ("hmeshOrderNd: out of memory (1)");
++    meshFree   (&nspmeshdat.m);                   /* Free non-halo mesh data, if any */
+     return (1);
+   }
+   memSet (nspmeshdat.parttax, 0, vertnbr * sizeof (GraphPart)); /* Set all vertices to part 0 */
+@@ -212,7 +213,8 @@
+ 
+     if (meshInduceSepa (&nspmeshdat.m, nspmeshdat.parttax, nspmeshdat.fronnbr, nspmeshdat.frontab, &indmeshdat.m) != 0) {
+       errorPrint ("hmeshOrderNd: cannot build induced subgraph (1)");
+-      memFree    (nspmeshdat.frontab);            /* Free remaining space */
++      memFree    (nspmeshdat.parttax + nspmeshdat.m.baseval); /* Free group leader */
++      meshFree   (&nspmeshdat.m);
+       return (1);
+     }
+     indmeshdat.vnohnbr = indmeshdat.m.vnodnbr;    /* Fill halo mesh structure of non-halo mesh */

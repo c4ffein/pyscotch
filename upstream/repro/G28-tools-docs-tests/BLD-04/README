@@ -1,0 +1,18 @@
+BLD-04: test_scotch_graph_order's checkOrder() only prints, then indexes with the bad value
+
+Harness: ../mutate.sh <build tree> <test.c> <anchor regexp> <C line inserted before the anchor> <args>
+It compiles a scratch copy of the test with one corruption and runs it against the tree's libscotch.
+
+Before (combined series, which already contains G15's extra load cases; checkOrder unchanged from 7.0.17):
+  $ mutate.sh $B scotch/src/check/test_scotch_graph_order.c '^  checkOrder \(baseval, vertnbr, permtab, peritab\); /\* Double check' 'permtab[5] = permtab[6];' data/bump.grf
+  ...: ERROR: checkOrder: invalid permutation pair
+  rc=0                                               <- wrong permutation accepted
+  $ ... 'permtab[5] = baseval - 7;' data/bump.grf
+  ...: ERROR: checkOrder: invalid permutation value
+  ==ERROR: AddressSanitizer: heap-buffer-overflow ... READ of size 4 ... #0 checkOrder test_scotch_graph_order.c:103
+  rc=1 (only because ASan aborted)
+
+After (patches/0006):
+  unmutated: rc=0 on bump.grf and bump_b100000.grf (32-bit and 64-bit: check_scotch_graph_order_64.log)
+  'permtab[5] = permtab[6];'  -> ERROR: checkOrder: invalid permutation pair   rc=1
+  'permtab[5] = baseval - 7;' -> ERROR: checkOrder: invalid permutation value  rc=1, no out-of-bounds read

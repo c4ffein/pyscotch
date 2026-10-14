@@ -1,0 +1,30 @@
+diff --git a/cmake/SCOTCHConfig.cmake.in b/cmake/SCOTCHConfig.cmake.in
+index 8d8b536..3bd643a 100644
+--- a/cmake/SCOTCHConfig.cmake.in
++++ b/cmake/SCOTCHConfig.cmake.in
+@@ -82,7 +82,7 @@ if(@BUILD_PTSCOTCH@)
+   include("${CMAKE_CURRENT_LIST_DIR}/ptscotcherrTargets.cmake")
+   include("${CMAKE_CURRENT_LIST_DIR}/ptscotchTargets.cmake")
+ endif()
+-if(@BUILD_LIBESMUMPS@)
++if(@BUILD_LIBESMUMPS_EFFECTIVE@)
+   set(@PROJECT_NAME@_LIBESMUMPS_FOUND ON)
+   include("${CMAKE_CURRENT_LIST_DIR}/esmumpsTargets.cmake")
+   if(@BUILD_PTSCOTCH@)
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 50a488e..1b07889 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -222,8 +222,11 @@ add_subdirectory(scotch)
+ 
+ # Build EsMUMPS library
+ if(BUILD_LIBESMUMPS AND NOT USE_SUFFIX)
++  set(BUILD_LIBESMUMPS_EFFECTIVE ON)
+   add_subdirectory(esmumps)
+-endif(BUILD_LIBESMUMPS AND NOT USE_SUFFIX)
++else()
++  set(BUILD_LIBESMUMPS_EFFECTIVE OFF)
++endif()
+ 
+ # Build ScotchMeTiS library
+ if(BUILD_LIBSCOTCHMETIS)

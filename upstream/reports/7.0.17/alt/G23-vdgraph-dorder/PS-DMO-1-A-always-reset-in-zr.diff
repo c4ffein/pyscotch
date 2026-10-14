@@ -1,0 +1,14 @@
+diff --git a/src/libscotch/vdgraph_separate_zr.c b/src/libscotch/vdgraph_separate_zr.c
+index 4fe01e2..d7527cc 100644
+--- a/src/libscotch/vdgraph_separate_zr.c
++++ b/src/libscotch/vdgraph_separate_zr.c
+@@ -75,8 +75,7 @@ int
+ vdgraphSeparateZr (
+ Vdgraph * const             grafptr)              /*+ Active graph +*/
+ {
+-  if (grafptr->compglbsize[0] != grafptr->s.vertglbnbr) /* If not all vertices already in part zero */
+-    vdgraphZero (grafptr);
++  vdgraphZero (grafptr);                          /* Reset all partition data, even if global sizes look right */
+ 
+   return (0);
+ }

@@ -1,0 +1,111 @@
+From e7513ff6c6229d4833cbc784f12db4ae9156f26c Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:15:24 +0000
+Subject: [PATCH 1/8] Bugfix: make error handling of `bdgraphBipartSq()`
+ collective [report R. Perry]
+
+After the reduction that selects the best sequential bipartition,
+`bdgraphBipartSq()` tested the local failure count instead of the global
+one, so that a process whose sequential bipartitioning failed returned
+alone while the other processes waited in the broadcast, and the
+allocation flag that the reduction carries was never tested, so that a
+process which could not allocate its part array scattered into a NULL
+pointer. The early return also skipped the freeing of the MPI operator
+and datatype and of the centralized graph.
+
+Test the global allocation flag and, as `vdgraphSeparateSq()` does in
+debug mode only, the global count of sequential failures, after the
+reduction, and free the centralized graph on these paths. In non-debug
+mode, processes whose sequential bipartitioning failed now receive the
+best partition from another process, as the reduction operator was
+designed for. Base the part array only when it has been allocated, as
+in `bdgraphBipartMlUncoarsen()`.
+
+Refs: DMO-03
+---
+ src/libscotch/bdgraph_bipart_sq.c | 41 +++++++++++++++++--------------
+ 1 file changed, 23 insertions(+), 18 deletions(-)
+
+diff --git a/src/libscotch/bdgraph_bipart_sq.c b/src/libscotch/bdgraph_bipart_sq.c
+index 0df2e75..553a117 100644
+--- a/src/libscotch/bdgraph_bipart_sq.c
++++ b/src/libscotch/bdgraph_bipart_sq.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2010,2011,2013,2014,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2010,2011,2013,2014,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -49,7 +49,7 @@
+ /**                # Version 6.0  : from : 27 dec 2007     **/
+ /**                                 to   : 31 aug 2014     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 17 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -182,32 +182,26 @@ const BdgraphBipartSqParam * const  paraptr)      /*+ Method parameters +*/
+     reduloctab[1] = cgrfdat.compload0dlt;
+   }
+ 
+-  if (dgrfptr->partgsttax == NULL) {
+-    if (dgraphGhst (&dgrfptr->s) != 0) {          /* Compute ghost edge array if not already present, before copying graph fields */
++  if (dgrfptr->partgsttax == NULL) {              /* If partition array not yet allocated           */
++    if (dgraphGhst (&dgrfptr->s) != 0) {          /* Create ghost edge array and compute vertgstnbr */
+       errorPrint ("bdgraphBipartSq: cannot compute ghost edge array");
+-      reduloctab[5] = 1;
++      reduloctab[5] = 1;                          /* Allocated data will be freed along with graph structure */
+     }
+-    else {
+-      if ((dgrfptr->partgsttax = (GraphPart *) memAlloc (dgrfptr->s.vertgstnbr * sizeof (GraphPart))) == NULL) {
+-        errorPrint ("bdgraphBipartSq: out of memory (1)");
+-        reduloctab[5] = 1;                        /* Allocated data will be freed along with graph structure */
+-      }
+-      dgrfptr->partgsttax -= dgrfptr->s.baseval;
++    else if ((dgrfptr->partgsttax = (GraphPart *) memAlloc (dgrfptr->s.vertgstnbr * sizeof (GraphPart))) == NULL) {
++      errorPrint ("bdgraphBipartSq: out of memory (1)");
++      reduloctab[5] = 1;                          /* Allocated data will be freed along with graph structure */
+     }
+-    if ((dgrfptr->fronloctab = (Gnum *) memAlloc (dgrfptr->s.vertlocnbr * sizeof (Gnum))) == NULL) {
++    else if (dgrfptr->partgsttax -= dgrfptr->s.baseval,
++             (dgrfptr->fronloctab = (Gnum *) memAlloc (dgrfptr->s.vertlocnbr * sizeof (Gnum))) == NULL) {
+       errorPrint ("bdgraphBipartSq: out of memory (2)");
+-      reduloctab[5] = 1;
++      reduloctab[5] = 1;                          /* Allocated data will be freed along with graph structure */
+     }
+   }
+ 
+-  if (MPI_Allreduce (reduloctab, reduglbtab, 1, besttypedat, bestoperdat, dgrfptr->s.proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (reduloctab, reduglbtab, 1, besttypedat, bestoperdat, dgrfptr->s.proccomm) != MPI_SUCCESS) { /* All processes agree on errors here */
+     errorPrint ("bdgraphBipartSq: communication error (2)");
+     return     (1);
+   }
+-  if ((reduloctab[4] != 0) && (reduloctab[4] != dgrfptr->s.procglbnbr)) {
+-    errorPrint ("bdgraphBipartSq: internal error");
+-    return     (1);
+-  }
+ 
+   if ((MPI_Op_free   (&bestoperdat) != MPI_SUCCESS) ||
+       (MPI_Type_free (&besttypedat) != MPI_SUCCESS)) {
+@@ -215,6 +209,17 @@ const BdgraphBipartSqParam * const  paraptr)      /*+ Method parameters +*/
+     return     (1);
+   }
+ 
++  if (reduglbtab[5] != 0) {                       /* If some process could not allocate its data */
++    bgraphExit (&cgrfdat);
++    return     (1);
++  }
++#ifdef SCOTCH_DEBUG_BDGRAPH2
++  if ((reduglbtab[4] != 0) && (reduglbtab[4] != dgrfptr->s.procglbnbr)) { /* If sequential bipartitioning failed on some processes only */
++    errorPrint ("bdgraphBipartSq: internal error");
++    bgraphExit (&cgrfdat);
++    return     (1);
++  }
++#endif /* SCOTCH_DEBUG_BDGRAPH2 */
+   if (reduglbtab[3] != 0) {                       /* If none of the sequential methods succeeded */
+     bgraphExit (&cgrfdat);
+     return     (1);
+-- 
+2.47.3
+

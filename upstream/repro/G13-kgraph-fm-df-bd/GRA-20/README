@@ -1,0 +1,20 @@
+GRA-20 -- kgraphMapBd part-count check compared a value with its own copy; OOM path leaked
+==========================================================================================
+kgraph_map_bd.c copied bndgrafdat.m.domnnbr into orggrafptr->m.domnnbr and only
+then tested `bndgrafdat.m.domnnbr != orggrafptr->m.domnnbr' -- always false, so a
+band strategy that changes the number of parts was never rejected and the original
+graph was left with an inconsistent (domnnbr, comploaddlt, frontab). The fix
+compares against the `domnnbr' local captured at entry and does not overwrite
+orggrafptr->m.domnnbr before the test.
+
+Reproducer gra20.c: 2-part mapping of a 24x24 grid onto cmplt(8); a band strategy
+`r{sep=h{pass=10}}' that re-maps from scratch creates 8 parts.
+  cc.sh <build> GRA-20/gra20 GRA-20/gra20.c ; LD_LIBRARY_PATH=<build>/lib ./GRA-20/gra20
+  pristine 7.0.17 : ret=0 changed=228 domnnbr=8   (silently accepted; part count corrupted 2 -> 8)
+  patched         : ERROR "change in band graph number of parts not supported"; ret=1 domnnbr=2
+
+Leak: the `orgflagtab' allocation-failure path returned without freeing bndvnumtax
+or exiting bndgrafdat, unlike the two earlier failure paths in the same routine
+(out of memory (1), cannot partition band graph), which free both. The fix makes it
+match them. Verified by source inspection against those sibling paths; a runtime
+proof needs allocation-failure injection on that specific call.

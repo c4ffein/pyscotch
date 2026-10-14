@@ -1,0 +1,49 @@
+From 88e5764c613eb03186191af638967a4d26a19ed3 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:10:44 +0000
+Subject: [PATCH 4/7] Bugfix: read the up-to-date diffusion array in
+ `kgraphMapDfLoop()' [report R. Perry]
+
+After each diffusion pass the `difntax' and `difotax' arrays are swapped, so on
+exit the freshest part values are in `difotax'. The final loop that writes them
+back to the part array read `difntax', i.e. the values from the pass before last,
+so the diffusion result was always one pass behind (and a single-pass run never
+changed the mapping at all). It now reads `difotax', as `bgraphBipartDfLoop()'
+does.
+
+Refs: GRA-18
+---
+ src/libscotch/kgraph_map_df.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/libscotch/kgraph_map_df.c b/src/libscotch/kgraph_map_df.c
+index eae149c..9cbe73d 100644
+--- a/src/libscotch/kgraph_map_df.c
++++ b/src/libscotch/kgraph_map_df.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2010-2012,2018,2021,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2010-2012,2018,2021,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**   DATES      : # Version 6.0  : from : 05 jan 2010     **/
+ /**                                 to   : 04 nov 2012     **/
+ /**                # Version 7.0  : from : 03 aug 2018     **/
+-/**                                 to   : 20 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -536,7 +536,7 @@ fail: ;                                           /* If overflow occured, resume
+ 
+   if (loopptr->abrtval == 0) {
+     for (vertnum = vertbas; vertnum < vertnnd; vertnum ++) /* Set new part distribution of local vertices */
+-      parttax[vertnum] = difntax[vertnum].partval;
++      parttax[vertnum] = difotax[vertnum].partval; /* TRICK: freshest values are in difotax after the last swap */
+   }
+ 
+   if (sorttab != NULL)
+-- 
+2.47.3
+

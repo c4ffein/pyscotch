@@ -1,0 +1,10 @@
+PS2-G10-1: 64-bit Gnum builds miscount elements in meshInduceSepa (unsigned int bit array indexed with INTSIZEBITS)
+Tool-level, pristine 64-bit build (crashes), any build:
+  mmk_m2 32 32 m2_32_32.msh
+  mord m2_32_32.msh /dev/null -vt
+  mesh_induce_sepa.c:160:45: runtime error: shift exponent 32 is too large for 32-bit type 'unsigned int'
+  hmesh_order_gp.c:145:22: runtime error: pointer index expression ... overflowed
+  AddressSanitizer: SEGV on unknown address (pc ... hmeshOrderGp)
+Also: ../SEP-02/sep02_64 32 0 0  (unweighted 32x32 mesh, 64-bit build): same.
+Patched 64-bit: mord m2_32_32.msh /dev/null -vt -> "T Order 0.12" ; check_prog_mmk/gmk_msh/mord now include this mesh (patch 0001).
+32-bit builds are unaffected (INTSIZEBITS == 32).

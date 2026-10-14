@@ -1,0 +1,434 @@
+[
+ {
+  "id": "CLI-11",
+  "our_title": "amk_grf hands un-based label matches to the library; no list range check anywhere",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "See /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/repro/CLI-11/README. Pristine ($INFRA/asan): `amk_grf -llab.lst lab_b1.grf` -> `AddressSanitizer: heap-buffer-overflow READ ... #0 graphInduceList graph_induce.c:138 #1 archDecoArchBuild arch_deco_build.c:196 #2 SCOTCH_archBuild0`; `amk_grf -lm4x4_vertlist.txt m4x4_b1_elv.grf` (labelled base-1 check data) -> no sanitizer report but a garbage deco file (rows `-1 0 0`, zero distances) where the base-0 twin gives a valid one; `amk_grf unl_b1.grf -lbad.lst` (values 3 90) -> heap-buffer-overflow WRITE graph_induce.c:137; api_list b/i (SCOTCH_archBuild0 / SCOTCH_graphInduceList with list {0,99}) -> same overflow. Patched (32 and 64-bit): base-0 and base-1 outputs differ only in the terminal label column (+1); bad list -> `main: list vertex number out of range` rc=1; API -> `graphInduceList: invalid vertex list`, return 1.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Higher than the review's medium: not only the tool, the public SCOTCH_archBuild0() and SCOTCH_graphInduceList() write out of bounds on any out-of-range list entry (heap WRITE in graph_induce.c:137); for labelled base-1 graphs the tool silently writes a wrong architecture even when ASan is quiet.",
+  "location_7_0_17": "src/scotch/amk_grf.c:205,218; src/libscotch/arch_deco_build.c:196,301; src/libscotch/graph_induce.c:137-138; src/libscotch/library_graph_induce.c:90",
+  "evidence": "amk_grf.c:205 `sorttab[vertnum].vertnum = vertnum;` (0-based), :218 `listtab[listnum] = sorttab[vertnum ++].vertnum; /* Replace label by number */`; arch_deco_build.c:196 `graphInduceList (tgtgrafptr, tgtlistnbr, tgtlisttab, &jobtab[0].grafdat);` (status ignored), :301 `tgtvertnum = (tgtlisttab != NULL) ? tgtlisttab[termdomnum] : (termdomnum + tgtgrafptr->baseval);`; graph_induce.c:137 `orgindxtax[orgvertnum] = indvertnum;` with no check; doc s_l.tex:1990 `These indices should have the same base value as the one of the graph`.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate on both sub-claims and on the location. Its Fix line (store vertnum + baseval, reject out-of-range values) is correct for the tool but leaves the public API SCOTCH_archBuild0()/SCOTCH_graphInduceList() unprotected and does not mention that archDecoArchBuild() ignores graphInduceList()'s status.",
+  "first_pass_critique": "Status/method/evidence correct. Its preferred option (tool only) is incomplete: the same overflow is reachable through two public API routines, and archDecoArchBuild() also ignores the status of graphInduceList() and of archDecoArchBuild2() (PS2-G27-1), so even a library check would have been ineffective without the caller fix. Its range check is fine but was put in a restructured if/else; ours keeps the sorted-list bound test. It did not notice that archDeco2ArchBuild() already does the unconditional check (precedent) nor that the type-2 path rejects base 1 anyway.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/library_graph_induce.c:90 SCOTCH_graphInduceList()",
+    "quote": "o = graphInduceList (srcorggrafptr, (const Gnum) vnumnbr, (const Gnum * restrict const) vnumtab, srcindgrafptr);",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/arch_deco_build.c:196",
+    "quote": "graphInduceList (tgtgrafptr, tgtlistnbr, tgtlisttab, &jobtab[0].grafdat); /* Restrict initial job */ (return value ignored)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/arch_deco2_build.c:603-605 (twin, already correct)",
+    "quote": "vertnum = (vnumtab != NULL) ? (vnumtab[vnumnum] - baseval) : vnumnum; if ((vertnum < 0) || (vertnum >= vertnbr)) messptr = \"archDeco2ArchBuild: invalid vertex number in vertex list\";",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/library_graph_order.c:336-341 (same situation, debug-only check)",
+    "quote": "#ifdef SCOTCH_DEBUG_LIBRARY2 if ((listtab[listnum] < srcgrafptr->baseval) || (listtab[listnum] >= srcgrafptr->vertnnd)) { errorPrint (STRINGIFY (SCOTCH_graphOrderComputeList) \": invalid parameters (2)\");",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "b. Unconditional check in graphInduceList() + caller status check + tool base fix (shipped)",
+    "summary": "graphInduceList() rejects out-of-range and duplicate entries (one test in the loop that already fills the index array), archDecoArchBuild() tests its result; amk_grf stores vertnum + baseval for labelled graphs and bounds-checks sorted unlabelled lists.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0001-Bugfix-check-vertex-list-contents-in-graphInduceList.patch + /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0002-Bugfix-pass-based-vertex-numbers-to-the-library-in-a.patch",
+    "tested": "repro/CLI-11 on 32/64-bit; check_prog_amk_grf (+ new base-1 labelled case), check_scotch_graph_induce, check_scotch_arch*, whole make check 32/64.",
+    "tradeoffs": "Covers the two public API entry points and the tool with one library check; costs two compares per induced vertex on the nested-dissection path (negligible next to the memCpy/memSet in the same routine). Duplicates are rejected too (they produced an asymmetric induced graph).",
+    "preferred": true,
+    "maintainer_fit": "archDeco2ArchBuild() (arch_deco2_build.c:603) does exactly this unconditional check in the internal routine; G03's series made the deco checks unconditional; graphInducePart() next door already has a graphExit-on-error check (graph_induce.c:181). Tool part follows amk_grf's existing list validation (`bad list input`, `duplicate list labels`)."
+   },
+   {
+    "label": "a. Tool-only fix (first pass's scope)",
+    "summary": "amk_grf.c only: based vertex numbers for labels, bound test for unlabelled lists.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-11-a-tool-only.diff",
+    "tested": "ran as part of patch 0002 (it is its amk_grf.c hunk).",
+    "tradeoffs": "Leaves SCOTCH_archBuild0()/SCOTCH_graphInduceList() writing out of bounds on user lists.",
+    "preferred": false,
+    "maintainer_fit": "He would take it, but it is incomplete for the library."
+   },
+   {
+    "label": "c. Debug-only library checks (SCOTCH_DEBUG_GRAPH2 in graphInduceList, SCOTCH_DEBUG_LIBRARY2 in SCOTCH_graphInduceList) + caller check",
+    "summary": "Same checks compiled only in debug builds, mirroring SCOTCH_graphOrderComputeList (library_graph_order.c:336).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-11-c-debug-only-list-checks.diff",
+    "tested": "untested: not built (release behaviour would be unchanged).",
+    "tradeoffs": "Zero release cost, but release builds still corrupt memory on bad user lists; the maintainer's own precedent for API list validation is this debug-only shape.",
+    "preferred": false,
+    "maintainer_fit": "Matches his SCOTCH_DEBUG_LIBRARY2 habit, but contradicts the unconditional check of the deco2 twin; user-controlled input is the STYLE criterion for unconditional checks."
+   },
+   {
+    "label": "d. Unconditional range check in archDecoArchBuild() only",
+    "summary": "Loop over tgtlisttab before any allocation, mirror of archDeco2ArchBuild's message.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-11-d-range-check-in-archDecoArchBuild-only.diff",
+    "tested": "untested: not built.",
+    "tradeoffs": "Protects SCOTCH_archBuild0 but not SCOTCH_graphInduceList; no duplicate detection (needs a marker array there).",
+    "preferred": false,
+    "maintainer_fit": "Closest textual mirror of the twin, but leaves a public API unprotected."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0001-Bugfix-check-vertex-list-contents-in-graphInduceList.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0002-Bugfix-pass-based-vertex-numbers-to-the-library-in-a.patch"
+  ],
+  "cleanup_done": "none needed (no symbol made unused; the `-1 index` comment was updated).",
+  "test_added": "src/check/Makefile check_prog_amk_grf + src/check/CMakeLists.txt amk_grf_m4x4_b1_elv: `amk_grf -ldata/m4x4_vertlist.txt data/m4x4_b1_elv.grf | atst` (labelled base-1 graph already in data/, labels 2,3,5,7,12 all exist). Return-code only, like the other check_prog cases; the differential evidence is in repro/CLI-11.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Type-2 (-2) path is unaffected: archDeco2ArchBuild() rejects base != 0 and checks its list. Deco terminal labels are the based vertex numbers (termdomnum + baseval for whole graphs), so a base-1 input legitimately yields labels shifted by one; the differential test checks everything else is identical. Error prefix `archDecoArchBuild:` used (the three pre-existing messages in that routine say `archDecoBuild:`, not changed)."
+ },
+ {
+  "id": "CLI-12",
+  "our_title": "gout Inventor un-bases path terminators, VTK writes based cell indices",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/CLI-12: `gmk_m2 3 3 -b0|-b1 -g`, `gout gX.grf gX.xyz /dev/null oX.i -mn -Oi` / `-Ov`; pristine diff base0/base1: Inventor `-1` terminators become `-2`; VTK `CELLS` lines `5 1 2 3 6 9` vs `5 0 1 2 5 8` with `POINTS 9` (index 9 out of range). Patched 32/64-bit: both outputs identical modulo header lines. -Op (PostScript mesh) identical on pristine; -Ot differs by node ids only (see notes).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Agrees with the review: silent wrong output files for any base-1 graph (check_prog_gout itself feeds base-100000 graphs to both writers and only looks at the return code).",
+  "location_7_0_17": "src/scotch/gout_o.c:405 (Inventor coordIndex), :1121,1142,1173-1176 (VTK index array and CELLS)",
+  "evidence": "gout_o.c:405 `fprintf (fileptr, \"\\t\" SCOTCH_NUMSTRING \",\", indxtab[indxnum] - baseval); /* Un-base vertex indices in paths */` (applied to -1 terminators too); :1121 `indxtab[indxnbr ++] = verttmp;` :1142 `indxtab[indxnbr ++] = verttmp;` :1175 `fprintf (fileptr, SCOTCH_NUMSTRING \"\\t\", indxtab[indxnum ++]);` while :1160 writes POINTS for vertnum = baseval..vertnnd-1 in order.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate, including the Fix line; both fixes work.",
+  "first_pass_critique": "Correct status and evidence. Its VTK diff restructures the printing loop (`++ indxnum + pontnbr - 1`), which is harder to read than un-basing the two stores; its option 2 claim that the Inventor colour loop needs re-basing is right (that is why we un-base at construction only in VTK, where nothing reads indxtab as an index).",
+  "extra_instances": [
+   {
+    "location": "src/scotch/gout_o.c:944-1030 outDrawTulMesh (Tulip)",
+    "quote": "fprintf (fileptr, SCOTCH_NUMSTRING \"%c\", vertnum, ...) / (edge ... vertnum, vertend) -- node ids are the based vertex numbers, self-consistent, valid Tulip; output differs between bases by the ids only",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/scotch/gout_o.c:495-513 outDrawPosMatr",
+    "quote": "colunum - baseval ... nonztab[coluend - baseval] -- correctly un-based",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/scotch/gout_o.c:853-859 outDrawPosMesh",
+    "quote": "veextax[indxtab[indxnum]].coorval -- based array indexed by based entries, no indices written",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a. Inventor: un-base only non-terminators in the printer; VTK: store un-based indices (shipped)",
+    "summary": "Inventor keeps based entries (the colour loop reads parttax[indxtab[]]) and skips -1 when un-basing on output; VTK's index array is only ever printed, so its two stores un-base the vertex number.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0003-Bugfix-write-un-based-vertex-indices-in-Inventor-and.patch",
+    "tested": "repro/CLI-12 32/64; check_prog_gout (both base-0 and base-100000 cases) 32/64; whole make check.",
+    "tradeoffs": "Smallest change per site; no behaviour change for base 0 (byte-identical output).",
+    "preferred": true,
+    "maintainer_fit": "Minimal per-site change in his habit (cf. c5baef9, feecf0d); keeps the `Un-base vertex indices` comment honest."
+   },
+   {
+    "label": "b. Printer-side fix in both writers (first pass)",
+    "summary": "Ternary in Inventor, restructured CELLS loop in VTK.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-12-b-printer-side-both-writers.diff",
+    "tested": "untested: not built here (first pass reports it tested).",
+    "tradeoffs": "VTK loop rewrite is more intrusive than two stores.",
+    "preferred": false,
+    "maintainer_fit": "Works, but the loop rewrite is not what he would write."
+   },
+   {
+    "label": "c. Un-base at construction in both writers",
+    "summary": "Both index arrays hold un-based numbers; Inventor colour loop re-bases with `+ baseval`.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-12-c-unbase-at-construction-both-writers.diff",
+    "tested": "untested: not built.",
+    "tradeoffs": "One invariant for both arrays, but adds `+ baseval` in two colour lookups (easy to forget later).",
+    "preferred": false,
+    "maintainer_fit": "Riskier than needed for the Inventor writer."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0003-Bugfix-write-un-based-vertex-indices-in-Inventor-and.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": " none: check_prog_gout already runs both writers on bump.grf and bump_b100000.grf; a PROGDIFF between the two outputs is impossible because the Title/CreationDate header lines embed file names and the time (repro/CLI-12 does the diff with those lines stripped).",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Tulip node ids being the based vertex numbers is not a wrong result (ids are arbitrary and consistent); un-basing them would change existing base-1 Tulip files, so it is left alone and reported as PS2-G27-4 (info) for the maintainer to decide."
+ },
+ {
+  "id": "CLI-16",
+  "our_title": "gout Tulip writer tests coortab - baseval against NULL; all writers form that pointer first",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/CLI-16: pristine `gout g1.grf /dev/null /dev/null o.tlp -mn -gn -Ot` (base 1) -> `gout_o.c:921:37: runtime error: applying non-zero offset ... to null pointer`, then ASan SEGV in outDrawTulMesh (:978); base 0 -> `ERROR: outDrawTulMesh: geometry not provided`. Inventor/VTK/PostScript-mesh with base 1 and -gn: error printed but the same UBSan null-offset report at :281/:570/:1068. Patched 32/64: all four writers print `geometry not provided`, rc=1, no sanitizer line.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Agrees: crash only on an unusual command line (-gn with a mesh writer), no data corruption.",
+  "location_7_0_17": "src/scotch/gout_o.c:921-926 (and :281, :570, :1068 for the pointer formation)",
+  "evidence": "gout_o.c:921 `const C_GeoVert * restrict const  coortax = geomptr->coortab - baseval;` :924 `if (coortax == NULL) {`; the other three writers test `geomptr->coortab == NULL` (:284, :573, :1071) but compute coortax the same way first.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate; its one-token fix works. It did not note that the three other writers also form NULL - baseval (defined-behaviour issue flagged by UBSan at every base != 0 run without geometry).",
+  "first_pass_critique": "Correct; it mentioned the UBSan offset report as a reason for its option 2 but still preferred the one-token fix, which leaves the Tulip writer (and the other three) reporting UB under UBSan on the exact error path being fixed.",
+  "extra_instances": [
+   {
+    "location": "src/scotch/gout_o.c:281, :570, :1068",
+    "quote": "const C_GeoVert * restrict const  coortax = geomptr->coortab - baseval;",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/scotch/gout_o.c:282 etc. parttax = mappptr->labltab - baseval",
+    "quote": "C_mapLoad() always allocates labltab (gout_c.c:`Allocate array if necessary`), even with -mn, so labltab is never NULL here",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "b. Form coortax only when coortab exists, in all four writers, and test coortab in Tulip (shipped)",
+    "summary": "`coortax = (geomptr->coortab != NULL) ? (geomptr->coortab - baseval) : NULL;` in the four writers; Tulip tests `geomptr->coortab == NULL` like the others.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0004-Bugfix-test-geometry-array-before-using-it-in-gout-w.patch",
+    "tested": "repro/CLI-16 32/64 (no UBSan line); check_prog_gout 32/64; whole check.",
+    "tradeoffs": "5 lines instead of 1; removes the null-offset UB in all mesh writers.",
+    "preferred": true,
+    "maintainer_fit": "The ternary is his own idiom for optional based arrays (arch_deco2_build.c:545 `velotab = (grafptr->velotax != NULL) ? grafptr->velotax + baseval : NULL`); the test change is the review's fix."
+   },
+   {
+    "label": "a. One-token fix: test geomptr->coortab in Tulip (review / first pass)",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-16-a-test-geometry-array-tulip-only.diff",
+    "tested": "ran (it was patch 0004 before amendment: error + rc=1, but UBSan still reports the null offset at gout_o.c:926).",
+    "tradeoffs": "Minimal; leaves the UB pointer formation.",
+    "preferred": false,
+    "maintainer_fit": "He would take it; we prefer also removing the UBSan report on the fixed path."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0004-Bugfix-test-geometry-array-before-using-it-in-gout-w.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": " none: negative run (no geometry) has no home in src/check (every test must succeed; G01/G03 precedent); repro/CLI-16.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "CLI-17",
+  "our_title": "gout option parser: strpbrk NULL dereference on unterminated brace argument",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/CLI-17: pristine `gout g0.grf g0.xyz /dev/null o.iv -mn '-Oi{c'` -> `gout_c.c:709:11: runtime error: load of null pointer of type 'char'` + SEGV in C_parse. Mutation fuzzer fuzz_opt.py (600 mutants of the 16 documented option strings, seed 7): pristine 1 distinct signature (this one, 62 hits), patched 0 signatures. Patched: `ERROR: main: error in output option string (3)`, rc=1; valid strings unchanged (check_prog_gout).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Agrees: command-line typo -> crash, no corruption.",
+  "location_7_0_17": "src/scotch/gout_c.c:708-710",
+  "evidence": "gout_c.c:708 `argeptr = strpbrk (argbptr, \",}\\0\");        /* Search for the argument end  */` :709 `if (*argeptr == '\\0')                       /* If there is no end delimiter */`",
+  "upstream_change": "",
+  "review_accuracy": "Accurate (either suggested fix works).",
+  "first_pass_critique": "Fully right.",
+  "extra_instances": [
+   {
+    "location": "src/scotch/gout_c.c:717",
+    "quote": "argqptr = strpbrk (argubuf, \"=\"); if (argqptr != NULL) -- correctly tested; no other strpbrk in src/scotch or src/libscotch",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a. Drop the useless \\0 and test for NULL (shipped)",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0005-Bugfix-detect-unterminated-option-arguments-in-gout-.patch",
+    "tested": "repro/CLI-17 + fuzzer 32-bit; check_prog_gout 32/64.",
+    "tradeoffs": "Two-token change, intent of the original comment.",
+    "preferred": true,
+    "maintainer_fit": "Minimal, same shape as his NULL guards (d555f2c)."
+   },
+   {
+    "label": "b. strcspn",
+    "summary": "Length-based scan, never a NULL pointer.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-17-b-strcspn.diff",
+    "tested": "untested: not built.",
+    "tradeoffs": "Equivalent; slightly larger; different from the surrounding strpbrk style.",
+    "preferred": false,
+    "maintainer_fit": "Fine but not minimal."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0005-Bugfix-detect-unterminated-option-arguments-in-gout-.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": " none (negative command line; fuzzer in repro/CLI-17).",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "CLI-13",
+  "our_title": "atst seeds its minimum distance with -1 on 32-bit SCOTCH_Num, NUMMAX leaks for one terminal",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/CLI-13: pristine 32-bit `atst c8.tgt` (cmplt 8) -> `min=-1 max=1`; cmplt 1 -> `min=-1`; `amk_m2 4 4 | atst` -> `min=-1 max=6`. Pristine 64-bit: cmplt 8 -> min=1, cmplt 1 -> `min=9223372036854775807`. Patched 32 and 64: min=1 / min=0 / min=1. check_prog_atst, check_prog_amk, check_prog_amk_grf pass on both.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Agrees (wrong statistic in a diagnostic tool).",
+  "location_7_0_17": "src/scotch/atst.c:161",
+  "evidence": "atst.c:161 `distmin = (SCOTCH_Num) (((unsigned long) ((SCOTCH_Num) -1)) >> 1); /* Set to maximum number in Anum */`; scotch.h:78 `#define SCOTCH_NUMMAX ((int) (((unsigned int) 1 << ((sizeof (int) << 3) - 1)) - 1))` (64-bit: int64_t/uint64_t variants); library uses GNUMMAX = INTVALMAX (graph.h:104, common.h:277) which is not in the public header.",
+  "upstream_change": "",
+  "review_accuracy": "Mechanism accurate. Its first suggested expression `(unsigned SCOTCH_Num) ~0` is not valid C (SCOTCH_Num is a typedef); its second (SCOTCH_NUMMAX) is the public, size-correct macro, already used by gotst.c:235.",
+  "first_pass_critique": "Correct, and it noticed the single-terminal case prints the sentinel; it still preferred the plain SCOTCH_NUMMAX. We take its remark into the fix: `(termnbr > 1) ? SCOTCH_NUMMAX : 0`, consistent with how distavg already treats termnbr <= 1 three lines below.",
+  "extra_instances": [
+   {
+    "location": "src/scotch/*.c (grep `>> 1)` / `(unsigned long)`)",
+    "quote": "no other sentinel computed this way; gmk_ub2.c:176 `(vertnum >> 1)` is a genuine halving",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a. SCOTCH_NUMMAX when there is at least one pair, 0 otherwise (shipped)",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0006-Bugfix-initialize-minimum-distance-properly-in-atst-.patch",
+    "tested": "repro/CLI-13 on both trees; check_prog_atst/amk/amk_grf 32/64.",
+    "tradeoffs": "One line; min=0 for single-terminal architectures instead of a sentinel.",
+    "preferred": true,
+    "maintainer_fit": "SCOTCH_NUMMAX precedent in gotst.c:235; the `(termnbr > 1) ? ... : 0` shape is already used for distavg in the same function."
+   },
+   {
+    "label": "c. Plain SCOTCH_NUMMAX (first pass)",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-13-c-plain-nummax.diff",
+    "tested": "untested: equivalent to option a except termnbr == 1 (then prints NUMMAX, as the 64-bit pristine does).",
+    "tradeoffs": "Keeps a visible sentinel for one terminal.",
+    "preferred": false,
+    "maintainer_fit": "He might take it, but the sentinel output is a wart."
+   },
+   {
+    "label": "b. No sentinel: first pair initialises",
+    "summary": "distmin = -1, set on first pair, clamp to 0 after.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-13-b-first-pair-initialization.diff",
+    "tested": "untested: not built.",
+    "tradeoffs": "Extra test in the inner loop; more lines.",
+    "preferred": false,
+    "maintainer_fit": "Heavier than needed."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0006-Bugfix-initialize-minimum-distance-properly-in-atst-.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0011-Style-fix.patch"
+  ],
+  "cleanup_done": "none needed (0011 also removes a tab and trailing blanks in atst.c)",
+  "test_added": " none: check_prog_atst only checks the return code; adding a golden output has no precedent.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The fix is correct for both integer sizes because SCOTCH_NUMMAX is generated per build (verified in build/include/scotch.h and build64/include/scotch.h)."
+ },
+ {
+  "id": "CLI-14",
+  "our_title": "gcv and mcv -o loops test the input-format table terminator",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/CLI-14: pristine `gcv -is -oZ g44.grf /dev/null /dev/null` rc=0 silently; `mcv -is -oZ m33.msh ...` rc=0 silently. Patched 32/64: `ERROR: main: unprocessed option '-oZ'` rc=1 for both; valid codes rc=0. check_prog_mcv passes 32/64 (there is no check_prog_gcv target).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Agrees.",
+  "location_7_0_17": "src/scotch/gcv.c:187; src/scotch/mcv.c:160",
+  "evidence": "gcv.c:180 `for (j = 0; C_outFormatTab[j].code != '\\0'; j ++) {` ... :187 `if (C_inpFormatTab[j].code == '\\0')`; mcv.c:153/160 identical copy-paste; both 'O' cases carry the comment `/* Select input file type */`.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate for gcv; missed the identical copy in mcv.c.",
+  "first_pass_critique": "Correct for gcv, missed mcv.c:160 (variant hunt not done).",
+  "extra_instances": [
+   {
+    "location": "src/scotch/mcv.c:160",
+    "quote": "if (C_inpFormatTab[j].code == '\\0')  (after scanning C_outFormatTab)",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a. Test C_outFormatTab[j].code in both tools, fix the copy-pasted comment (shipped)",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0007-Bugfix-reject-unknown-output-format-codes-in-gcv-and.patch",
+    "tested": "repro/CLI-14 32/64; check_prog_mcv 32/64; whole check.",
+    "tradeoffs": "One token per tool.",
+    "preferred": true,
+    "maintainer_fit": "Minimal; comment fixed in the same hunk (he does `Comment fix` commits himself)."
+   },
+   {
+    "label": "b. Factor lookup helpers",
+    "summary": "C_inpFormatFind()/C_outFormatFind() per tool.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-14-b-lookup-helpers-gcv.diff",
+    "tested": "untested: not built.",
+    "tradeoffs": "Removes the copy-paste root cause but adds two routines per tool (tables have different types).",
+    "preferred": false,
+    "maintainer_fit": "More code than he would add for this."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0007-Bugfix-reject-unknown-output-format-codes-in-gcv-and.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": " none (negative command line); note there is no check_prog_gcv target at all while check_prog_mcv exists.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "CLI-18",
+  "our_title": "gmk_m2 -e -t header subtracts overlapping removed arcs twice when both dimensions < 3",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/CLI-18: pristine sweep d0,d1 in 1..4 with -e -t: 1x1 header=-4 written=0, 1x2 -2/2, 2x1 -2/2, 2x2 8/12, all `gtst: ERROR: graphLoad: invalid number of edges|arc count`; other 12 sizes header==written. Patched 32/64: all 16 load. Byte comparison with pristine 7.0.17 gmk_m2 over 150 (dims 1..5 x 6 flag sets): 142 identical, the 8 differing files are exactly the -e -t ones with d0,d1 <= 2 (header line). Generator sweep (gmk_m3 +-t, mmk_m2/m3, gmk_hy, gmk_ub2 at small dims): no other failure. check_prog_gmk (+4 new cases) 32/64.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Agrees (degenerate sizes, file fails to load, no corruption).",
+  "location_7_0_17": "src/scotch/gmk_m2.c:198-200 (formula), :209-220 (per-vertex mask removal, loop-invariant)",
+  "evidence": "gmk_m2.c:199 `? (8 * (d[0] * d[1]) - ((d[0] < 3) ? (6 * d[1]) : 0) - ((d[1] < 3) ? (6 * d[0]) : 0))`; :212-219 remove bits {4,32,256} for d[0]<=2 and {64,128,256} for d[1]<=2: bit 256 (and more when a dimension is 1) is removed once but subtracted twice.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate; its 'sum per-vertex degrees' fix is what we did. The 4-neighbour formula is correct (no overlapping bit sets), as is gmk_m3's torus formula (verified: per-axis terms are disjoint).",
+  "first_pass_critique": "Correct and precise about the overlap. Its closed form min(d,3) is right but replaces one formula by another; counting the mask that C_edgeOutput writes cannot drift again and lets the loop-invariant mask computation leave the loop.",
+  "extra_instances": [
+   {
+    "location": "src/scotch/gmk_m3.c:174-178 (torus arc count)",
+    "quote": "(6 * d[0] * d[1] * d[2]) - ((d[0] < 3) ? (2 * d[1] * d[2]) : 0) - ... -- correct: no diagonal arcs, per-axis removals disjoint; 27 small tori load",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a. Compute the (vertex-independent) torus mask once and derive the count with C_edgeCount() shared with C_edgeOutput() (shipped)",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0008-Bugfix-compute-torus-arc-count-from-the-neighbor-mas.patch",
+    "tested": "repro/CLI-18 sweep + byte compare 32/64; check_prog_gmk 32/64; whole check.",
+    "tradeoffs": "Adds a 10-line static helper and its prototype in gmk_m2.h; hoists loop-invariant code; removes the closed form.",
+    "preferred": true,
+    "maintainer_fit": "The bit-count loop already existed in C_edgeOutput(); sharing it instead of duplicating is his stated preference (maint guide 2.1.3 on duplication)."
+   },
+   {
+    "label": "b. Closed form from distinct neighbour positions (first pass)",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-18-b-closed-form-distinct-positions.diff",
+    "tested": "untested here (first pass reports tested).",
+    "tradeoffs": "Smaller diff, but keeps two independent descriptions of the same arcs.",
+    "preferred": false,
+    "maintainer_fit": "Acceptable to him; less robust."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0008-Bugfix-compute-torus-arc-count-from-the-neighbor-mas.patch"
+  ],
+  "cleanup_done": "C_edgeOutput()'s local `degrval` removed (now computed by C_edgeCount()); the tab at gmk_m2.c:212 disappears with the hoisted block.",
+  "test_added": "src/check/Makefile check_prog_gmk and CMakeLists.txt: `gmk_m2 -e -t 2 2|1 2|2 1|1 1 | gtst` (four new cases, all fail on pristine).",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The CMake twin of check_prog_gmk was already out of sync with the Makefile before this change (PS2-G27-6); only the new cases were added to both."
+ }
+]

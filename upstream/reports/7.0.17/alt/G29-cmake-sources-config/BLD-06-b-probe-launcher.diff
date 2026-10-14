@@ -1,0 +1,18 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 50a488e..6ecf714 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -178,9 +178,10 @@ if(BUILD_PTSCOTCH)
+   if(NOT MPI_C_FOUND)
+     message(FATAL_ERROR "MPI required to compile PT-Scotch\n Rerun cmake with -DBUILD_PTSCOTCH=OFF")
+   else()
+-    string(REGEX MATCHALL "\( Open MPI \)+" found_suite ${MPI_C_LIBRARY_VERSION_STRING})
+-    if(NOT ${found_suite} STREQUAL "")
+-      message(STATUS "Found OpenMPI: using '--oversubscribe' policy for testing")
++    execute_process(COMMAND ${MPIEXEC_EXECUTABLE} --oversubscribe ${MPIEXEC_NUMPROC_FLAG} 1 ${CMAKE_COMMAND} -E true
++      RESULT_VARIABLE oversubscribe_result OUTPUT_QUIET ERROR_QUIET)
++    if(oversubscribe_result EQUAL 0)
++      message(STATUS "MPI launcher accepts '--oversubscribe': using it for testing")
+       set(MPIEXEC_PREFLAGS ${MPIEXEC_PREFLAGS} --oversubscribe)
+     endif()
+     string(REGEX MATCHALL "\(Intel\)+" found_suite ${MPI_C_LIBRARY_VERSION_STRING})

@@ -1,0 +1,51 @@
+diff --git a/src/libscotch/dorder_io_block.c b/src/libscotch/dorder_io_block.c
+index efb6dd5..8b7260c 100644
+--- a/src/libscotch/dorder_io_block.c
++++ b/src/libscotch/dorder_io_block.c
+@@ -91,19 +91,18 @@ FILE * const                  stream)
+   }
+   orderRang (cordptr, rangtab);
+ 
+-  if (fprintf (stream, "0\n" GNUMSTRING "\t" GNUMSTRING "\n",
+-               (Gnum) cordptr->cblknbr,
+-               (Gnum) cordptr->vnodnbr) < 0) {
+-    errorPrint ("dorderSaveBlock2: bad output (1)");
+-    return     (1);
+-  }
++  o = (fprintf (stream, "0\n" GNUMSTRING "\t" GNUMSTRING "\n",
++                (Gnum) cordptr->cblknbr,
++                (Gnum) cordptr->vnodnbr) < 0) ? 0 : 1;
+ 
+-  for (cblknum = 0, o = 1; (o == 1) && (cblknum < cordptr->cblknbr); cblknum ++) { /* Save column-block range array */
++  for (cblknum = 0; (o == 1) && (cblknum < cordptr->cblknbr); cblknum ++) { /* Save column-block range array */
+     o = intSave (stream, rangtab[cblknum]);
+     putc (((cblknum & 7) == 7) ? '\n' : '\t', stream);
+   }
+-  o = intSave (stream, rangtab[cblknum]);
+-  putc ('\n', stream);
++  if (o == 1) {
++    o = intSave (stream, rangtab[cblknum]);
++    putc ('\n', stream);
++  }
+ 
+   orderPeri (cordptr->peritab, cordptr->baseval, cordptr->vnodnbr, rangtab, cordptr->baseval); /* TRICK: re-use rangtab as permtab */
+ 
+@@ -111,11 +110,15 @@ FILE * const                  stream)
+     o = intSave (stream, rangtab[vertnum]);
+     putc (((vertnum & 7) == 7) ? '\n' : '\t', stream);
+   }
+-  o = intSave (stream, rangtab[vertnum]);
+-  putc ('\n', stream);
++  if (o == 1) {
++    o = intSave (stream, rangtab[vertnum]);
++    putc ('\n', stream);
++  }
++
++  memFree (rangtab);                              /* Single exit point */
+ 
+   if (o != 1)
+-    errorPrint ("dorderSaveBlock2: bad output (2)");
++    errorPrint ("dorderSaveBlock2: bad output");
+ 
+   return (1 - o);
+ }

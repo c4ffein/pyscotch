@@ -1,0 +1,39 @@
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -299,14 +299,22 @@
+   }
+   pidxtax -= grafptr->baseval;
+ 
+-  for (vertnum = 0; vertnum < grafptr->vertnbr; vertnum ++) {
+-    domntab[vertnum].labl = parttax[vertnum];     /* Un-based array at this stage    */
+-    domntab[vertnum].peri = vertnum + grafptr->baseval; /* Build inverse permutation */
++  for (vertnum = 0, vertidx = 0; vertnum < grafptr->vertnbr; vertnum ++) {
++    Anum                partval;
++
++    partval = parttax[vertnum];                   /* Un-based array at this stage */
++    if (partval == ~0) {                          /* If vertex is not mapped      */
++      pidxtax[vertnum + grafptr->baseval] = ~0;   /* It belongs to no part        */
++      continue;
++    }
++    domntab[vertidx].labl = partval;
++    domntab[vertidx].peri = vertnum + grafptr->baseval; /* Build inverse permutation */
++    vertidx ++;
+   }
+-  domntab[grafptr->vertnbr].labl = ARCHDOMNOTTERM; /* TRICK: avoid testing (i+1)   */
+-  domntab[grafptr->vertnbr].peri = ~0;            /* Prevent Valgrind from yelling */
++  domntab[vertidx].labl = ARCHDOMNOTTERM;         /* TRICK: avoid testing (i+1)   */
++  domntab[vertidx].peri = ~0;                     /* Prevent Valgrind from yelling */
+ 
+-  intSort2asc2 (domntab, grafptr->vertnbr);       /* Sort domain label array by increasing target labels */
++  intSort2asc2 (domntab, vertidx);                /* Sort domain label array of mapped vertices by increasing target labels */
+ 
+   archDomFrst (archptr, &domnfrst);               /* Get architecture domain */
+   tgtnbr = archDomSize (archptr, &domnfrst);      /* Get architecture size   */
+@@ -397,6 +405,7 @@
+ 
+         pidxend = pidxtax[edgetax[edgenum]];
+         if ((pidxend != pidxnum) &&               /* If edge is not internal                                      */
++            (pidxend != ~0) &&                    /* And end vertex is mapped                                     */
+             (pidxend != nghbtab[nghbnbr])) {      /* And neighbor is not sole neighbor or has not just been found */
+           Anum                pidxmin;
+           Anum                pidxmax;

@@ -1,0 +1,286 @@
+From d86b8bf30d26b202c2fc588236296b9f8b62acdf Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:09:30 +0000
+Subject: [PATCH 1/5] Bugfix: check for integer overflow in `intLoad()` [report
+ R. Perry]
+
+Digits were accumulated without any range check, so that an overlong
+digit string wrapped around (signed overflow, undefined behavior) and
+yielded a small or negative value. Every loader relies on `intLoad()`,
+hence the range checks they perform on the values read could be
+bypassed by out-of-range input: with 32-bit INTs, the target
+architecture "cmplt 4294967298" loaded as a 2-terminal architecture.
+The check added in debug mode by 6a552f9 relied on the wrapped value
+being smaller than the previous one, which is not always the case
+(e.g. "5000000000" with 32-bit INTs), and did not cover release builds.
+
+Test, before accumulating each digit, that the result cannot exceed
+INTVALMAX, and return 0 (error, value untouched) when it does, as for
+syntax errors; all callers already handle this return value. The
+single value -INTVALMAX-1 is rejected too, as digits are accumulated
+positively. The check is unconditional, as it validates user input;
+its cost is not measurable on graph loading.
+
+Add test_common_integer to src/check to exercise the boundary cases.
+---
+ src/check/CMakeLists.txt        |   6 ++
+ src/check/Makefile              |   9 ++
+ src/check/test_common_integer.c | 158 ++++++++++++++++++++++++++++++++
+ src/libscotch/common_integer.c  |  18 +---
+ 4 files changed, 178 insertions(+), 13 deletions(-)
+ create mode 100644 src/check/test_common_integer.c
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index d395dd5..acd1cdb 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -127,6 +127,12 @@ foreach(ext "bz2" "gz" "lzma")
+   endif(${_map_${ext}}_FOUND)
+ endforeach()
+ 
++# test_common_integer
++
++add_test_scotch(test_common_integer)
++
++add_test(NAME test_common_integer COMMAND test_common_integer ${CMAKE_CURRENT_BINARY_DIR}/integer.dat)
++
+ # test_common_random
+ 
+ add_test_scotch(test_common_random)
+diff --git a/src/check/Makefile b/src/check/Makefile
+index ff1e510..b411f5d 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -197,6 +197,7 @@ realclean			:	clean
+ ##
+ 
+ CHECKSCOTCH = 		check_common_file_compress		\
++			check_common_integer			\
+ 			check_common_random			\
+ 			check_common_thread			\
+ 			check_arch_deco				\
+@@ -291,6 +292,14 @@ test_common_file_compress	:	test_common_file_compress.c	\
+ 
+ ##
+ 
++check_common_integer		:	test_common_integer
++					$(EXECS) ./test_common_integer "$(TMPDIR)/integer.dat"
++
++test_common_integer		:	test_common_integer.c		\
++					$(SCOTCHLIBDIR)/libscotch$(LIB)
++
++##
++
+ check_common_random		:	test_common_random
+ 					$(EXECS) ./test_common_random "$(TMPDIR)/rand.dat" 0
+ 					$(EXECS) ./test_common_random "$(TMPDIR)/rand.dat" 1
+diff --git a/src/check/test_common_integer.c b/src/check/test_common_integer.c
+new file mode 100644
+index 0000000..f3c5ea8
+--- /dev/null
++++ b/src/check/test_common_integer.c
+@@ -0,0 +1,158 @@
++/* Copyright 2026 IPB, Universite de Bordeaux, INRIA & CNRS
++**
++** This file is part of the Scotch software package for static mapping,
++** graph partitioning and sparse matrix ordering.
++**
++** This software is governed by the CeCILL-C license under French law
++** and abiding by the rules of distribution of free software. You can
++** use, modify and/or redistribute the software under the terms of the
++** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
++** URL: "http://www.cecill.info".
++**
++** As a counterpart to the access to the source code and rights to copy,
++** modify and redistribute granted by the license, users are provided
++** only with a limited warranty and the software's author, the holder of
++** the economic rights, and the successive licensors have only limited
++** liability.
++**
++** In this respect, the user's attention is drawn to the risks associated
++** with loading, using, modifying and/or developing or reproducing the
++** software by the user in light of its specific status of free software,
++** that may mean that it is complicated to manipulate, and that also
++** therefore means that it is reserved for developers and experienced
++** professionals having in-depth computer knowledge. Users are therefore
++** encouraged to load and test the software's suitability as regards
++** their requirements in conditions enabling the security of their
++** systems and/or data to be ensured and, more generally, to use and
++** operate it in the same conditions as regards security.
++**
++** The fact that you are presently reading this means that you have had
++** knowledge of the CeCILL-C license and that you accept its terms.
++*/
++/************************************************************/
++/**                                                        **/
++/**   NAME       : test_common_integer.c                   **/
++/**                                                        **/
++/**   AUTHOR     : Francois PELLEGRINI                     **/
++/**                                                        **/
++/**   FUNCTION   : This module tests the integer reading   **/
++/**                routine of the common module.           **/
++/**                                                        **/
++/**   DATES      : # Version 7.0  : from : 13 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
++/**                                                        **/
++/************************************************************/
++
++/*
++**  The defines and includes.
++*/
++
++#ifndef _XOPEN_SOURCE
++#define _XOPEN_SOURCE               600
++#endif /* _XOPEN_SOURCE */
++#ifndef __USE_XOPEN2K
++#define __USE_XOPEN2K                             /* For POSIX pthread_barrier_t */
++#endif /* __USE_XOPEN2K */
++
++#include "../libscotch/module.h"
++#include "../libscotch/common.h"
++
++#include "scotch.h"
++
++/*
++**  The type and structure definitions.
++*/
++
++typedef struct TestCase_ {
++  const char *              strgptr;              /*+ String to read      +*/
++  int                       retuval;              /*+ Expected return     +*/
++  long long                 valuval;              /*+ Expected value      +*/
++  int                       nextval;              /*+ Expected next char  +*/
++} TestCase;
++
++/*********************/
++/*                   */
++/* The main routine. */
++/*                   */
++/*********************/
++
++int
++main (
++int                 argc,
++char *              argv[])
++{
++  char                maxpstab[32];               /* Decimal string of INTVALMAX     */
++  char                maxnstab[32];               /* Decimal string of -INTVALMAX    */
++  char                ovfptab[32];                /* Decimal string of INTVALMAX + 1 */
++  char                ovfntab[32];                /* Decimal string of ten times INTVALMAX */
++  TestCase            testtab[16];
++  int                 testnbr;
++  int                 testnum;
++  FILE *              fileptr;
++
++  errorProg (argv[0]);
++
++  if (argc != 2) {
++    errorPrint ("usage: %s temp_file", argv[0]);
++    exit       (EXIT_FAILURE);
++  }
++
++  sprintf (maxpstab, "%lld",  (long long)  INTVALMAX);
++  sprintf (maxnstab, "-%lld", (long long)  INTVALMAX);
++  sprintf (ovfptab,  "%llu",  (unsigned long long) INTVALMAX + 1ULL);
++  sprintf (ovfntab,  "-%lld0", (long long) INTVALMAX);
++
++  testnbr = 0;
++  testtab[testnbr].strgptr = "0";        testtab[testnbr].retuval = 1; testtab[testnbr].valuval = 0;                        testtab[testnbr ++].nextval = EOF;
++  testtab[testnbr].strgptr = " \t-42x";  testtab[testnbr].retuval = 1; testtab[testnbr].valuval = -42;                      testtab[testnbr ++].nextval = 'x';
++  testtab[testnbr].strgptr = "+0017 ";   testtab[testnbr].retuval = 1; testtab[testnbr].valuval = 17;                       testtab[testnbr ++].nextval = ' ';
++  testtab[testnbr].strgptr = maxpstab;   testtab[testnbr].retuval = 1; testtab[testnbr].valuval = (long long) INTVALMAX;    testtab[testnbr ++].nextval = EOF;
++  testtab[testnbr].strgptr = maxnstab;   testtab[testnbr].retuval = 1; testtab[testnbr].valuval = - (long long) INTVALMAX;  testtab[testnbr ++].nextval = EOF;
++  testtab[testnbr].strgptr = ovfptab;    testtab[testnbr].retuval = 0; testtab[testnbr].valuval = 0;                        testtab[testnbr ++].nextval = EOF;
++  testtab[testnbr].strgptr = ovfntab;    testtab[testnbr].retuval = 0; testtab[testnbr].valuval = 0;                        testtab[testnbr ++].nextval = EOF;
++  testtab[testnbr].strgptr = "4294967298"; testtab[testnbr].retuval = (sizeof (INT) > 4) ? 1 : 0; testtab[testnbr].valuval = 4294967298LL; testtab[testnbr ++].nextval = EOF;
++  testtab[testnbr].strgptr = "99999999999999999999999"; testtab[testnbr].retuval = 0; testtab[testnbr].valuval = 0;       testtab[testnbr ++].nextval = EOF;
++  testtab[testnbr].strgptr = "-";        testtab[testnbr].retuval = 0; testtab[testnbr].valuval = 0;                        testtab[testnbr ++].nextval = EOF;
++  testtab[testnbr].strgptr = "abc";      testtab[testnbr].retuval = 0; testtab[testnbr].valuval = 0;                        testtab[testnbr ++].nextval = EOF;
++
++  for (testnum = 0; testnum < testnbr; testnum ++) {
++    INT                 valuval;
++    int                 o;
++
++    if ((fileptr = fopen (argv[1], "w+")) == NULL) {
++      errorPrint ("main: cannot open file");
++      exit       (EXIT_FAILURE);
++    }
++    if ((fputs (testtab[testnum].strgptr, fileptr) == EOF) ||
++        (fflush (fileptr) != 0)) {
++      errorPrint ("main: cannot write to file");
++      exit       (EXIT_FAILURE);
++    }
++    rewind (fileptr);
++
++    valuval = -1;
++    o = intLoad (fileptr, &valuval);
++    if (o != testtab[testnum].retuval) {
++      errorPrint ("main: invalid result for string \"%s\" (%d)", testtab[testnum].strgptr, o);
++      exit       (EXIT_FAILURE);
++    }
++    if (o == 1) {
++      if ((long long) valuval != testtab[testnum].valuval) {
++        errorPrint ("main: invalid value for string \"%s\" (" INTSTRING ")", testtab[testnum].strgptr, valuval);
++        exit       (EXIT_FAILURE);
++      }
++      if (getc (fileptr) != testtab[testnum].nextval) {
++        errorPrint ("main: invalid stream position for string \"%s\"", testtab[testnum].strgptr);
++        exit       (EXIT_FAILURE);
++      }
++    }
++    else if (valuval != -1) {                     /* Value must not be touched on error */
++      errorPrint ("main: value modified on error for string \"%s\"", testtab[testnum].strgptr);
++      exit       (EXIT_FAILURE);
++    }
++
++    fclose (fileptr);
++  }
++
++  exit (EXIT_SUCCESS);
++}
+diff --git a/src/libscotch/common_integer.c b/src/libscotch/common_integer.c
+index 7b64b6e..3600fdb 100644
+--- a/src/libscotch/common_integer.c
++++ b/src/libscotch/common_integer.c
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 03 mar 2011     **/
+ /**                                 to   : 03 jun 2018     **/
+ /**                # Version 7.0  : from : 03 jun 2018     **/
+-/**                                 to   : 10 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -106,25 +106,17 @@ INT * const                 valptr)               /*+ Area where to put value +*
+     return (0);                                   /* Then it is an error          */
+   val = car - '0';                                /* Get first digit              */
+   for ( ; ; ) {
+-#ifdef COMMON_DEBUG
+-    INT                 tmp;                      /* Saved value */
+-#endif /* COMMON_DEBUG */
+-
+     car = getc (stream);
+     if ((car < '0') || (car > '9')) {
+       ungetc (car, stream);
+       break;
+     }
+-#ifdef COMMON_DEBUG
+-    tmp = val;
+-#endif /* COMMON_DEBUG */
+-    val = val * 10 + (car - '0');                 /* Accumulate digits */
+-#ifdef COMMON_DEBUG
+-    if (val < tmp) {                              /* In case of overflow */
+-      errorPrint ("intLoad: overflow");
++    car -= '0';                                   /* Get digit value                           */
++    if (val > ((INTVALMAX - car) / 10)) {         /* If accumulating digit would overflow      */
++      errorPrint ("intLoad: overflow");           /* Report before any undefined behavior      */
+       return (0);
+     }
+-#endif /* COMMON_DEBUG */
++    val = val * 10 + car;                         /* Accumulate digits                         */
+   }
+   *valptr = (sign != 0) ? (- val) : val;          /* Set result */
+ 
+-- 
+2.47.3
+

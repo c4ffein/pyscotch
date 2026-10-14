@@ -1,0 +1,82 @@
+From 0dfb01d4e5a0f530d670d3d86e1fe24c1d0d8287 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:58:52 +0000
+Subject: [PATCH 9/9] Check direct permutation array in
+ `SCOTCH_graphOrderCheck()` [report PyScotch]
+
+`SCOTCH_graphOrderCheck()` only checked the inverse permutation, while
+the direct permutation array that the user may have provided to
+`SCOTCH_graphOrderInit()` was never compared against it, so that an
+inconsistent pair of arrays went unnoticed (the test program
+test_scotch_graph_order had to perform this check by itself).
+
+When a direct permutation array is attached to the ordering, check
+that it is the inverse of the inverse permutation, as the esMUMPS
+`orderCheck()` routine does. Document it.
+
+Refs: PS-BLD-1
+---
+ doc/src/scotch/s_l.tex              |  4 +++-
+ src/libscotch/library_graph_order.c | 24 ++++++++++++++++++++++--
+ 2 files changed, 25 insertions(+), 3 deletions(-)
+
+diff --git a/doc/src/scotch/s_l.tex b/doc/src/scotch/s_l.tex
+index 31ddfd5..33f60f5 100644
+--- a/doc/src/scotch/s_l.tex
++++ b/doc/src/scotch/s_l.tex
+@@ -4967,7 +4967,9 @@ scotchfgraphordercheck ( & doubleprecision (*) & grafdat, \\
+ \progdes
+ 
+ The {\tt SCOTCH\_graphOrderCheck} routine checks the consistency of
+-the given {\tt SCOTCH\_\lbt Ordering} structure pointed to by {\tt ordeptr}.
++the given {\tt SCOTCH\_\lbt Ordering} structure pointed to by {\tt ordeptr},
++including that of the direct permutation array, if one was provided to
++{\tt SCOTCH\_\lbt graphOrderInit}.
+ 
+ \progret
+ 
+diff --git a/src/libscotch/library_graph_order.c b/src/libscotch/library_graph_order.c
+index 8d30fa8..b2987d0 100644
+--- a/src/libscotch/library_graph_order.c
++++ b/src/libscotch/library_graph_order.c
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 08 jan 2012     **/
+ /**                                 to   : 29 sep 2019     **/
+ /**                # Version 7.0  : from : 07 may 2019     **/
+-/**                                 to   : 08 feb 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -463,7 +463,27 @@ SCOTCH_graphOrderCheck (
+ const SCOTCH_Graph * const    grafptr,
+ const SCOTCH_Ordering * const ordeptr)            /*+ Ordering to check +*/
+ {
+-  return (orderCheck (&((LibOrder *) ordeptr)->o));
++  const LibOrder * const    libordeptr = (LibOrder *) ordeptr;
++
++  if (orderCheck (&libordeptr->o) != 0)
++    return (1);
++
++  if (libordeptr->permtab != NULL) {              /* If direct permutation array provided */
++    Gnum                vertnum;
++
++    const Gnum                  baseval = libordeptr->o.baseval;
++    const Gnum * restrict const peritab = libordeptr->o.peritab;
++    const Gnum * restrict const permtax = libordeptr->permtab - baseval;
++
++    for (vertnum = 0; vertnum < libordeptr->o.vnodnbr; vertnum ++) { /* Direct permutation must be the inverse of inverse permutation */
++      if (permtax[peritab[vertnum]] != (vertnum + baseval)) {
++        errorPrint (STRINGIFY (SCOTCH_graphOrderCheck) ": invalid direct permutation");
++        return (1);
++      }
++    }
++  }
++
++  return (0);
+ }
+ 
+ /* This routine parses the given
+-- 
+2.47.3
+

@@ -1,0 +1,84 @@
+From 61c070f2c4ca8c2b72043075cb9c697df2c4f926 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:16:42 +0000
+Subject: [PATCH 5/7] Bugfix: do not skip the setup barriers in
+ `kgraphMapDfLoop()' [report R. Perry]
+
+A thread that detected an isolated anchor (zero-degree, i.e. an empty part of
+the band graph) or failed to allocate its sort array set abrtval and jumped to
+the `fail:' label, which lies inside the pass loop, past the two setup barriers.
+The aborting thread thus skipped both barriers while the other threads waited at
+the first one forever, hanging the diffusion; a slipped pairing could also let
+the master free the shared loop data while a slave was still running it
+(heap-use-after-free). This loop is on the default mapping strategy.
+
+Setup failures now set abrtval and fall through to the barriers, so every thread
+leaves together at the existing `abrtval == 1' test after the second barrier, as
+`bgraphBipartDfLoop()' does through its `skip:' label. The free on that path is
+guarded, since a thread that aborts before allocating has a NULL sort array. The
+two debug-only internal-error checks that jumped to `fail:' before the barriers
+now break and abort after them as well.
+
+Refs: GRA-12
+---
+ src/libscotch/kgraph_map_df.c | 21 +++++++++------------
+ 1 file changed, 9 insertions(+), 12 deletions(-)
+
+diff --git a/src/libscotch/kgraph_map_df.c b/src/libscotch/kgraph_map_df.c
+index 9cbe73d..8f788b7 100644
+--- a/src/libscotch/kgraph_map_df.c
++++ b/src/libscotch/kgraph_map_df.c
+@@ -176,8 +176,8 @@ KgraphMapDfData * restrict const  loopptr)
+ #ifdef SCOTCH_DEBUG_KGRAPH2
+       if ((vendtax[vertnum] - verttax[vertnum]) == 0) { /* Non-anchor vertices should not be isolated */
+         errorPrint ("kgraphMapDfLoop: internal error (1)");
+-        loopptr->abrtval = 1;
+-        goto fail;
++        loopptr->abrtval = 1;                     /* Leave after the setup barriers, not before */
++        break;
+       }
+ #endif /* SCOTCH_DEBUG_KGRAPH2 */
+ 
+@@ -204,8 +204,8 @@ KgraphMapDfData * restrict const  loopptr)
+ #ifdef SCOTCH_DEBUG_KGRAPH2
+       if ((vendtax[vertnum] - verttax[vertnum]) == 0) { /* Non-anchor vertices should not be isolated */
+         errorPrint ("kgraphMapDfLoop: internal error (2)");
+-        loopptr->abrtval = 1;
+-        goto fail;
++        loopptr->abrtval = 1;                     /* Leave after the setup barriers, not before */
++        break;
+       }
+ #endif /* SCOTCH_DEBUG_KGRAPH2 */
+ 
+@@ -219,15 +219,11 @@ KgraphMapDfData * restrict const  loopptr)
+       velsmsk &= (velssum != 0);
+     }
+   }
+-  if (velsmsk == 0) {                             /* If graph is too small to have any usable anchors */
+-    loopptr->abrtval = 1;                         /* We will leave during the first iteration         */
+-    goto fail;
+-  }
+-
+-  if ((sorttab = memAlloc (domnnbr * sizeof (KgraphMapDfSort))) == NULL) { /* Allocate here for memory affinity as it is a private array */
++  if (velsmsk == 0)                               /* If graph is too small to have any usable anchors    */
++    loopptr->abrtval = 1;                         /* We will leave after the setup barriers, not before  */
++  else if ((sorttab = memAlloc (domnnbr * sizeof (KgraphMapDfSort))) == NULL) { /* Allocate here for memory affinity as it is a private array */
+     errorPrint ("kgraphMapDfLoop: out of memory");
+     loopptr->abrtval = 1;
+-    goto fail;
+   }
+ 
+   if (velotax == NULL) {
+@@ -289,7 +285,8 @@ KgraphMapDfData * restrict const  loopptr)
+ #endif /* KGRAPHMAPDFNOTHREAD */
+ 
+   if (loopptr->abrtval == 1) {                    /* If process alone or some decided to quit */
+-    memFree (sorttab);                            /* Free local array                         */
++    if (sorttab != NULL)                          /* Free local array if it was allocated     */
++      memFree (sorttab);
+     return;
+   }
+ 
+-- 
+2.47.3
+

@@ -1,0 +1,6 @@
+PS2-G25-1  SCOTCH_archCmpltw() frees the caller's weight array on an invalid (<= 0) weight
+  gcc -g -fsanitize=address,undefined -I<tree>/include ps2_1.c -o ps2_1 -L<tree>/lib -lscotch -lscotcherr -lz -lm -lpthread ; ./ps2_1
+pristine (32-bit and 64-bit):
+  ERROR: archCmpltwArchBuild2: invalid parameters (2)
+  AddressSanitizer: attempting double-free on 0x502000000010 ... #1 main ps2_1.c:16   (freed by thread T0 here: ... archCmpltwArchBuild2 arch_cmpltw.c:184)
+patched (0001): "caller freed its own array: OK"

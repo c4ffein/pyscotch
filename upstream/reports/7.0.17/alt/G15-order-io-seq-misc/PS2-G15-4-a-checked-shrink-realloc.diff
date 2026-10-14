@@ -1,0 +1,19 @@
+Option (not committed): keep the larger block when the shrinking memRealloc() of the coarse edge
+array fails, instead of storing NULL - baseval. The tree deliberately leaves shrinking reallocs
+unchecked (bgraph_bipart_bd.c:430, dgraph_induce.c:239,244, dmesh_dgraph.c:645, hgraph_order_cp.c:433,
+dgraph_coarsen.c:1269,1271); a decision for the maintainer.
+--- a/src/libscotch/graph_coarsen.c
++++ b/src/libscotch/graph_coarsen.c
+@@ -467,9 +467,10 @@
+       coargrafptr->verttax[coargrafptr->vertnnd] = coargrafptr->edgenbr + finegrafptr->baseval; /* Mark end of edge array */
+ 
+       coaredlooft = (byte *) coargrafptr->edlotax - (byte *) coargrafptr->edgetax;
+-      coaredgetab = memRealloc (coargrafptr->edgetax + baseval, coaredlooft + (coargrafptr->edgenbr * sizeof (Gnum)));
+-      coargrafptr->edgetax = (Gnum *) coaredgetab - baseval;
+-      coargrafptr->edlotax = (Gnum *) (coaredgetab + coaredlooft) - baseval;
++      if ((coaredgetab = memRealloc (coargrafptr->edgetax + baseval, coaredlooft + (coargrafptr->edgenbr * sizeof (Gnum)))) != NULL) { /* If shrinking succeeded (else keep larger array) */
++        coargrafptr->edgetax = (Gnum *) coaredgetab - baseval;
++        coargrafptr->edlotax = (Gnum *) (coaredgetab + coaredlooft) - baseval;
++      }
+     }
+   }

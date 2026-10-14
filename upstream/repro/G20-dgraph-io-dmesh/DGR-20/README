@@ -1,0 +1,9 @@
+DGR-20  dmeshDgraphDual: edge-hash resize result ignored -> infinite loop on memRealloc failure.
+Driver dmual (100 elements sharing node 0 -> one element has 99 dual neighbours > 64 hash slots).
+PRISTINE ($WORK/pristinefi) with reallfail.so armed:
+  export LD_LIBRARY_PATH=$WORK/pristinefi/lib
+  timeout 10 mpirun --oversubscribe -np 1 -x LD_PRELOAD=$PWD/../common/reallfail.so -x LD_LIBRARY_PATH \
+    ../common/bin_pristinefi/dmual
+  => spins forever (reallfail logs millions of realloc calls), exit 124.
+PATCHED: prints "dmeshDgraphDual: out of memory (7)" and returns rc=1 immediately.
+Functional: dmual 200 (resize path) returns rc=0; small3/ship001 duals check clean.

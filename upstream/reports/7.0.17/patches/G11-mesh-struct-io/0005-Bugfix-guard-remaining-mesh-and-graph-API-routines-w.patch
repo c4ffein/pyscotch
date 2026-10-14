@@ -1,0 +1,263 @@
+From 8b11ca416d99b343f31e8ffe2faf2d33a019c62c Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:02:39 +0000
+Subject: [PATCH 05/11] Bugfix: guard remaining mesh and graph API routines
+ with `Context` pass-through macros [report R. Perry]
+
+Commit 6a030db unwrapped context containers in most `SCOTCH_mesh*()`
+routines, but some handles were still cast directly:
+
+ - the mesh handle of `SCOTCH_meshGeomLoadHabo()`,
+   `SCOTCH_meshGeomLoadScot()` and `SCOTCH_meshGeomSaveScot()`, while
+   their graph twins already use `CONTEXTOBJECT`;
+ - the output graph handle of `SCOTCH_meshGraph()`,
+   `SCOTCH_meshGraphDual()` and `SCOTCH_dmeshDgraphDual()`: a bound
+   output graph had a whole graph written over its container while the
+   bound graph stayed empty (and the arrays leaked);
+ - the graph handle of `SCOTCH_graphDump()`, which read container bytes
+   as graph fields and dumped empty arrays.
+
+`SCOTCH_meshExit()` also lacked the `contextContainerTrue()` test that
+`SCOTCH_graphExit()` and `SCOTCH_dmeshExit()` perform.
+
+Refs: API-06, API-12
+---
+ src/libscotch/Makefile               | 3 +++
+ src/libscotch/library_dmesh_dgraph.c | 7 ++++---
+ src/libscotch/library_graph_dump.c   | 7 ++++---
+ src/libscotch/library_mesh.c         | 5 +++--
+ src/libscotch/library_mesh_graph.c   | 6 +++---
+ src/libscotch/library_mesh_io_habo.c | 7 ++++---
+ src/libscotch/library_mesh_io_scot.c | 9 +++++----
+ 7 files changed, 26 insertions(+), 18 deletions(-)
+
+diff --git a/src/libscotch/Makefile b/src/libscotch/Makefile
+index 5ca44f4..fda20d2 100644
+--- a/src/libscotch/Makefile
++++ b/src/libscotch/Makefile
+@@ -2728,6 +2728,7 @@ library_graph_diam_f$(OBJ)	:	library_graph_diam_f.c			\
+ library_graph_dump$(OBJ)	:	library_graph_dump.c			\
+ 					module.h				\
+ 					common.h				\
++					context.h				\
+ 					graph.h					\
+ 					graph_dump.h				\
+ 					scotch.h
+@@ -2924,6 +2925,7 @@ library_mesh_graph_f$(OBJ)	:	library_mesh_graph_f.c			\
+ library_mesh_io_habo$(OBJ)	:	library_mesh_io_habo.c			\
+ 					module.h				\
+ 					common.h				\
++					context.h				\
+ 					geom.h					\
+ 					graph.h					\
+ 					mesh.h					\
+@@ -2937,6 +2939,7 @@ library_mesh_io_habo_f$(OBJ)	:	library_mesh_io_habo_f.c		\
+ library_mesh_io_scot$(OBJ)	:	library_mesh_io_scot.c			\
+ 					module.h				\
+ 					common.h				\
++					context.h				\
+ 					geom.h					\
+ 					graph.h					\
+ 					mesh.h					\
+diff --git a/src/libscotch/library_dmesh_dgraph.c b/src/libscotch/library_dmesh_dgraph.c
+index 75e82f6..694c21e 100644
+--- a/src/libscotch/library_dmesh_dgraph.c
++++ b/src/libscotch/library_dmesh_dgraph.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -39,7 +39,7 @@
+ /**                mesh-to-graph converter.                **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 15 aug 2025     **/
+-/**                                 to   : 15 aug 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -49,6 +49,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "dgraph.h"
+ #include "dmesh.h"
+ #include "ptscotch.h"
+@@ -75,5 +76,5 @@ const SCOTCH_Dmesh * restrict const meshptr,
+ SCOTCH_Dgraph * restrict const      grafptr,
+ const SCOTCH_Num                    noconbr)
+ {
+-  return (dmeshDgraphDual ((Dmesh *) meshptr, (Dgraph *) grafptr, noconbr));
++  return (dmeshDgraphDual ((Dmesh *) meshptr, (Dgraph *) CONTEXTOBJECT (grafptr), noconbr));
+ }
+diff --git a/src/libscotch/library_graph_dump.c b/src/libscotch/library_graph_dump.c
+index 970c5d2..70b39c0 100644
+--- a/src/libscotch/library_graph_dump.c
++++ b/src/libscotch/library_graph_dump.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2019,2020,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2019,2020,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 6.0  : from : 28 dec 2019     **/
+ /**                                 to   : 09 jan 2020     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -52,6 +52,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "graph.h"
+ #include "graph_dump.h"
+ #include "scotch.h"
+@@ -84,7 +85,7 @@ FILE * const                fileptr)
+ 
+   prefstr = (prefptr != NULL) ? prefptr : "";
+   suffstr = (suffptr != NULL) ? suffptr : "";
+-  grafptr = (const Graph *) libgrafptr;
++  grafptr = (const Graph *) CONTEXTOBJECT (libgrafptr);
+ 
+   o = graphDumpArrays (grafptr, "SCOTCH_Num", prefstr, suffstr, fileptr);
+ 
+diff --git a/src/libscotch/library_mesh.c b/src/libscotch/library_mesh.c
+index 4da5982..8fbc2fa 100644
+--- a/src/libscotch/library_mesh.c
++++ b/src/libscotch/library_mesh.c
+@@ -48,7 +48,7 @@
+ /**                # Version 6.1  : from : 15 mar 2021     **/
+ /**                                 to   : 15 mar 2021     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -130,7 +130,8 @@ void
+ SCOTCH_meshExit (
+ SCOTCH_Mesh * const         meshptr)
+ {
+-  meshExit ((Mesh *) meshptr);
++  if (! contextContainerTrue (meshptr))
++    meshExit ((Mesh *) meshptr);
+ }
+ 
+ /* This routine loads the given opaque mesh
+diff --git a/src/libscotch/library_mesh_graph.c b/src/libscotch/library_mesh_graph.c
+index 4fcb2d7..debbcf5 100644
+--- a/src/libscotch/library_mesh_graph.c
++++ b/src/libscotch/library_mesh_graph.c
+@@ -44,7 +44,7 @@
+ /**                # Version 6.1  : from : 28 feb 2021     **/
+ /**                                 to   : 28 feb 2021     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -80,7 +80,7 @@ SCOTCH_meshGraph (
+ const SCOTCH_Mesh * restrict const  meshptr,
+ SCOTCH_Graph * restrict const       grafptr)
+ {
+-  return (meshGraphNodal ((Mesh *) CONTEXTOBJECT (meshptr), (Graph *) grafptr));
++  return (meshGraphNodal ((Mesh *) CONTEXTOBJECT (meshptr), (Graph *) CONTEXTOBJECT (grafptr)));
+ }
+ 
+ /* This routine builds an opaque dual graph structure
+@@ -97,5 +97,5 @@ const SCOTCH_Mesh * restrict const  meshptr,
+ SCOTCH_Graph * restrict const       grafptr,
+ const SCOTCH_Num                    noconbr)
+ {
+-  return (meshGraphDual ((Mesh *) CONTEXTOBJECT (meshptr), (Graph *) grafptr, noconbr));
++  return (meshGraphDual ((Mesh *) CONTEXTOBJECT (meshptr), (Graph *) CONTEXTOBJECT (grafptr), noconbr));
+ }
+diff --git a/src/libscotch/library_mesh_io_habo.c b/src/libscotch/library_mesh_io_habo.c
+index 857a0e8..c754ab9 100644
+--- a/src/libscotch/library_mesh_io_habo.c
++++ b/src/libscotch/library_mesh_io_habo.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 4.0  : from : 19 jan 2004     **/
+ /**                                 to   : 19 jan 2004     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -52,6 +52,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "geom.h"
+ #include "graph.h"
+ #include "mesh.h"
+@@ -79,5 +80,5 @@ FILE * const                  filesrcptr,
+ FILE * const                  filegeoptr,
+ const char * const            dataptr)            /* No use */
+ {
+-  return (meshGeomLoadHabo ((Mesh *) meshptr, (Geom *) geomptr, filesrcptr, filegeoptr, dataptr));
++  return (meshGeomLoadHabo ((Mesh *) CONTEXTOBJECT (meshptr), (Geom *) geomptr, filesrcptr, filegeoptr, dataptr));
+ }
+diff --git a/src/libscotch/library_mesh_io_scot.c b/src/libscotch/library_mesh_io_scot.c
+index e996a20..a0cc508 100644
+--- a/src/libscotch/library_mesh_io_scot.c
++++ b/src/libscotch/library_mesh_io_scot.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 4.0  : from : 19 jan 2004     **/
+ /**                                 to   : 19 jan 2004     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -52,6 +52,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "geom.h"
+ #include "graph.h"
+ #include "mesh.h"
+@@ -79,7 +80,7 @@ FILE * const                  filesrcptr,
+ FILE * const                  filegeoptr,
+ const char * const            dataptr)            /* No use */
+ {
+-  return (meshGeomLoadScot ((Mesh *) meshptr, (Geom *) geomptr, filesrcptr, filegeoptr, NULL));
++  return (meshGeomLoadScot ((Mesh *) CONTEXTOBJECT (meshptr), (Geom *) geomptr, filesrcptr, filegeoptr, NULL));
+ }
+ 
+ /* This routine saves the contents of the given
+@@ -97,5 +98,5 @@ FILE * const                        filesrcptr,
+ FILE * const                        filegeoptr,
+ const char * const                  dataptr)      /* No use */
+ {
+-  return (meshGeomSaveScot ((Mesh *) meshptr, (Geom *) geomptr, filesrcptr, filegeoptr, NULL));
++  return (meshGeomSaveScot ((Mesh *) CONTEXTOBJECT (meshptr), (Geom *) geomptr, filesrcptr, filegeoptr, NULL));
+ }
+-- 
+2.47.3
+

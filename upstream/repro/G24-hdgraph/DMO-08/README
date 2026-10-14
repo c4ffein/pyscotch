@@ -1,0 +1,12 @@
+DMO-08: hdgraphGather() frees uninitialised pointers on root allocation failure  (covered by G18's 81b8fbc, in the base)
+==========================================================================================================================
+PRI=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/pristinefi/lib
+(pristine 7.0.17, -ftrivial-auto-var-init=pattern so that uninitialised locals hold 0xFE..). Rank 0's allocations #120..#123 (np 3,
+m16x16.grf) are hdgraphGather()'s root allocations (1)..(4) of the leaf of part {0}.
+pristine: $C/one.sh $PRI $C/bin_basefi/orderfi 3 0 120 rc -> "(0): ERROR: hdgraphGather: out of memory (1)" then exit 139 (SIGSEGV,
+          free of the pattern-filled verthaltax / hgraphExit on unset baseval); same for #121 (2) and #122 (3); #123 (4) clean.
+base:     $C/one.sh $WORK/basefi/lib $C/bin_basefi/orderfi 3 0 120 rc -> rc=1 on ranks 0,1 (rank 2 rc=0: PS2-G18-3), 0 live blocks;
+          with this series (buildfi) rc=1 on every rank. Lines in $C/targeted_g18.txt.
+Completeness of G18's fix (read): hgraphFree() reads vnhdtax only under HGRAPHFREEVNHD (not set), graphFree() reads edgetax (set NULL),
+verttax (set NULL by memAllocGroup on failure, or valid), vendtax (compared, never freed: GRAPHVERTGROUP set); vnumtax/velotax/vlbltax/
+edlotax are never read (GRAPHFREEVNUM/GRAPHFREEOTHR not set). The first pass's extra NULL assignments (alt/DMO-08-B) are not needed.

@@ -1,0 +1,49 @@
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index a759629..9c0ca35 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -57,7 +57,7 @@ set(tgt ${PROJECT_SOURCE_DIR}/tgt)
+ function(add_test_scotch)
+   add_executable(${ARGV0} ${ARGV0}.c)
+   set_target_properties(${ARGV0} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+-  target_link_libraries(${ARGV0} PRIVATE scotch scotcherr)
++  target_link_libraries(${ARGV0} PRIVATE scotch scotcherr scotch_internal)
+   if(${ARGC} GREATER_EQUAL 2)
+     add_test(NAME ${ARGV0} COMMAND ${ARGV0})
+   endif()
+diff --git a/src/libscotch/CMakeLists.txt b/src/libscotch/CMakeLists.txt
+index f67caea..87d7da6 100644
+--- a/src/libscotch/CMakeLists.txt
++++ b/src/libscotch/CMakeLists.txt
+@@ -515,6 +515,7 @@ set(SCOTCH_C_SOURCES
+ add_library(scotch
+   ${SCOTCH_C_SOURCES})
+ add_library(SCOTCH::scotch ALIAS scotch)
++target_link_libraries(scotch PRIVATE scotch_internal)
+ set_target_properties(scotch PROPERTIES VERSION ${SCOTCH_VERSION_LONG}
+   SOVERSION ${SCOTCH_VERSION}.${SCOTCH_RELEASE})
+ add_dependencies(scotch parser_yy_c parser_ll_c)
+@@ -538,16 +539,19 @@ if(APPLE)
+   set_target_properties(scotch PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+ endif()
+ 
++# Internal compile definitions, shared by the targets of the build tree
++# that include internal header files; never installed nor exported
++add_library(scotch_internal INTERFACE)
+ if(OS_IS_FREEBSD)
+-  target_compile_definitions(scotch PUBLIC cpu_set_t=cpuset_t __BSD_VISIBLE)
++  target_compile_definitions(scotch_internal INTERFACE cpu_set_t=cpuset_t __BSD_VISIBLE)
+ endif()
+ 
+ if(SCOTCH_DETERMINISTIC STREQUAL FULL)
+-  target_compile_definitions(scotch PUBLIC COMMON_RANDOM_FIXED_SEED)
+-  target_compile_definitions(scotch PUBLIC SCOTCH_DETERMINISTIC)
++  target_compile_definitions(scotch_internal INTERFACE COMMON_RANDOM_FIXED_SEED)
++  target_compile_definitions(scotch_internal INTERFACE SCOTCH_DETERMINISTIC)
+   message(STATUS "Determinism: full")
+ elseif(SCOTCH_DETERMINISTIC STREQUAL FIXED_SEED)
+-  target_compile_definitions(scotch PUBLIC COMMON_RANDOM_FIXED_SEED)
++  target_compile_definitions(scotch_internal INTERFACE COMMON_RANDOM_FIXED_SEED)
+   message(STATUS "Determinism: fixed random seed")
+ else()
+   message(STATUS "Determinism: none")

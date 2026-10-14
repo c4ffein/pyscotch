@@ -1,0 +1,38 @@
+[
+ {
+  "local_id": "PS2-G03-1",
+  "our_title": "Overall terminal weight of a type-0 deco target overflows Anum during accumulation",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "LD_LIBRARY_PATH=build/lib build/bin/gmap repro/COR-16/m4x4.grf repro/COR-16/wbig.tgt /dev/null -vm ('deco 0 2 3' with two terminals of weight 2000000000) -> 'arch_deco.c:156:35: runtime error: signed integer overflow: 2000000000 + 2000000000 cannot be represented in type int' (archDecoArchBuild2 weight accumulation). Patched: 'archDecoArchLoad: bad input (3)'.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/arch_deco.c:156-157 (archDecoArchBuild2 size/weight accumulation), weights read at arch_deco.c:266-283",
+  "evidence": "The type-0 loader reads per-terminal weights with no bound, and archDecoArchBuild2 accumulates them up the tree: 'archptr->domverttab[j].wght += archptr->domverttab[i].wght;' -- the root weight (sum of all terminal weights) can exceed ANUMMAX.",
+  "related_ids": ["COR-21", "COR-16"],
+  "fix_options": [
+   {"label": "A. Check the overall weight at load time", "summary": "Accumulate the terminal weights read from the file and reject when the running sum would exceed ANUMMAX, like archCmpltwArchLoad2 does for cmpltw.", "diff_file": "patches/0003-Bugfix-validate-decomposition-defined-architectures-.patch", "tested": "wbig.tgt rejected with 'bad input (3)'; valid deco files and the compiled corpus unchanged; UBSan silent.", "tradeoffs": "Rejects .tgt files whose total weight does not fit in an Anum (never usefully representable).", "preferred": true, "maintainer_fit": "Same weight-sum guard as cmpltw; this is the deco twin of COR-21's arch_cmpltw.c instance.", "maintainer_fit_note": ""}
+  ],
+  "patch_files": ["patches/0003-Bugfix-validate-decomposition-defined-architectures-.patch"],
+  "area": "COR"
+ },
+ {
+  "local_id": "PS2-G03-2",
+  "our_title": "graphMapView2 distance histogram is not clamped on the low side (negative distance indexes out of bounds)",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "LD_LIBRARY_PATH=build/lib build/bin/gmap m4x4.grf <type-1 deco with distance -5> /dev/null -vm (on pristine) -> 'library_graph_map_view.c:473:15: runtime error: index -5 out of bounds for type Gnum [256]' then 'AddressSanitizer: stack-buffer-overflow READ ... graphMapView2 library_graph_map_view.c:473'. Also: huge but self-consistent deco distances/weights -> signed overflow in kgraph_map_rb.c:660, kgraph_map_rb_map.c:944, bgraph.c during cost accumulation.",
+  "read_only": "The negative-distance path is now blocked at the deco loader (patch 0003); this entry records the underlying downstream weakness, which lives outside this group's files.",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/library_graph_map_view.c:473 (commdist[(distval > 255) ? 255 : distval]); cost sums in src/libscotch/kgraph_map_rb.c:660, kgraph_map_rb_map.c:944, bgraph.c:159-160",
+  "evidence": "'commdist[(distval > 255) ? 255 : distval] += edloval;' clamps only the high side; a negative distval (which any ArchDomDist could in principle return for a malformed/exotic architecture) indexes commdist[-k]. Mapping-cost accumulators add distval/weights without overflow checks.",
+  "related_ids": ["COR-16"],
+  "fix_options": [
+   {"label": "A. Clamp the histogram index low as well (out of this group's scope)", "summary": "Use 'commdist[(distval < 0) ? 0 : (distval > 255) ? 255 : distval]' and/or widen the cost accumulators; belongs to the sequential-mapping group, not the architecture loaders.", "diff_file": "", "tested": "untested: not in arch_mesh/arch_deco/arch_cmpltw; the deco loader fix removes the only path this group controls.", "tradeoffs": "Touches mapping code owned by another area; the general cost-overflow with legitimately large distances affects every architecture class.", "preferred": false, "maintainer_fit": "A defensive clamp is reasonable but is a mapping-layer decision; flagged for the owning group.", "maintainer_fit_note": ""}
+  ],
+  "patch_files": [],
+  "area": "COR"
+ }
+]

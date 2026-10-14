@@ -1,0 +1,61 @@
+--- a/src/libscotch/arch_cmplt.c
++++ b/src/libscotch/arch_cmplt.c
+@@ -164,7 +164,6 @@
+   }
+ 
+   matcptr->vertnbr = vertnbr;
+-  matcptr->passnum = 0;
+ 
+   return (0);
+ }
+@@ -199,7 +198,6 @@
+   Anum                        coarvertnum;
+   Anum                        finevertnbr;
+   Anum                        finevertnum;
+-  Anum                        passnum;
+ 
+   finevertnbr = matcptr->vertnbr;
+   if (finevertnbr <= 1)
+@@ -209,19 +207,13 @@
+   coarmulttab = matcptr->multtab;
+   coarvertnum =
+   finevertnum = 0;
+-  passnum     = matcptr->passnum;
+ 
+-  if ((finevertnbr & passnum) != 0) {             /* If finevertnbr is odd and old passnum == 1 */
+-    coarmulttab[coarvertnum].vertnum[0] =         /* First coarse vertex is single multinode    */
+-    coarmulttab[coarvertnum].vertnum[1] = finevertnum ++;
+-    coarvertnum ++;
+-  }
+   for ( ; coarvertnum < coarvertmax; coarvertnum ++) { /* For all even slots          */
+     coarmulttab[coarvertnum].vertnum[0] = finevertnum ++; /* Merge terminals together */
+     coarmulttab[coarvertnum].vertnum[1] = finevertnum ++;
+   }
+-  if ((finevertnbr & (passnum ^ 1)) != 0) {       /* If finevertnbr is odd and old passnum == 0 */
+-    coarmulttab[coarvertnum].vertnum[0] =         /* Last coarse vertex is single multinode     */
++  if ((finevertnbr & 1) != 0) {                   /* If finevertnbr is odd                  */
++    coarmulttab[coarvertnum].vertnum[0] =         /* Last coarse vertex is single multinode */
+     coarmulttab[coarvertnum].vertnum[1] = finevertnum ++;
+     coarvertnum ++;
+   }
+@@ -232,9 +224,7 @@
+   }
+ #endif /* SCOTCH_DEBUG_ARCH2 */
+ 
+-  matcptr->vertnbr = coarvertnum;                 /* Prepare for next mating               */
+-  if (finevertnbr & 1)                            /* Invert pass value if dimension is odd */
+-    matcptr->passnum = passnum;
++  matcptr->vertnbr = coarvertnum;                 /* Prepare for next mating */
+ 
+   *multptr = coarmulttab;                         /* Always provide same mating array */
+ 
+--- a/src/libscotch/arch_cmplt.h
++++ b/src/libscotch/arch_cmplt.h
+@@ -90,7 +90,6 @@
+ typedef struct ArchCmpltMatch_ {
+   ArchCoarsenMulti *        multtab;              /*+ Multinode array for all coarsenings +*/
+   Anum                      vertnbr;              /*+ Number of vertices in fine graph    +*/
+-  Anum                      passnum;              /*+ Pass number                         +*/
+ } ArchCmpltMatch;
+ 
+ #endif /* ARCH_CMPLT_H_STRUCT */

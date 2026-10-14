@@ -1,0 +1,229 @@
+From 8e89969e7debfd27ff6cbd40250b0ef8a414b6cb Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:19:51 +0000
+Subject: [PATCH 145/240] Bugfix: make error handling of `dgraphCoarsenBuild()`
+ collective [report R. Perry]
+
+A process that could not allocate its thread work array, its coarse
+graph arrays in non-debug builds, or its adjacency hash table returned
+alone from `dgraphCoarsenBuild()`, while the other processes entered
+the multinode exchange, the adjacency exchange or the final reduction
+and waited forever.
+
+Allocate the thread work array in `dgraphCoarsenInit()`, along with
+the other data that lives until `dgraphCoarsenExit()`, so that its
+failure is agreed upon with the ones of the other initial allocations.
+Always perform the agreement on the allocation of the coarse graph
+arrays, as in `hdgraphGather()`. Carry the result of the adjacency
+computation in the final reduction, as `dgraphGhst()` does, so that
+all processes free the coarse graph together, and shrink the edge
+arrays only once the coarse graph is known to be valid everywhere.
+
+Refs: DGR-13
+---
+ src/libscotch/dgraph_coarsen.c | 84 +++++++++++++++-------------------
+ src/libscotch/dgraph_coarsen.h |  6 +--
+ 2 files changed, 40 insertions(+), 50 deletions(-)
+
+diff --git a/src/libscotch/dgraph_coarsen.c b/src/libscotch/dgraph_coarsen.c
+index f6055f9..355187f 100644
+--- a/src/libscotch/dgraph_coarsen.c
++++ b/src/libscotch/dgraph_coarsen.c
+@@ -122,7 +122,6 @@ Dgraph * restrict const             coargrafptr)  /*+ Coarse graph to build
+   coarptr->multloctmp = NULL;
+   coarptr->nsndidxtab = NULL;
+   coarptr->nrcvidxtab = NULL;
+-  coarptr->thrdtab    = NULL;
+ 
+   if ((coarptr->coarprvptr = memAllocGroup ((void **) (void *) /* Allocate distributed coarse graph private data */
+                                             &coargrafptr->procdsptab, (size_t) ((procglbnbr + 1) * sizeof (Gnum)),
+@@ -159,7 +158,11 @@ Dgraph * restrict const             coargrafptr)  /*+ Coarse graph to build
+                      &coarptr->vrcvdsptab, (size_t) ((procglbnbr + 1) * sizeof (int)), /* TRICK: "+1" for size count */
+                      &coarptr->coargsttax, (size_t) (vertgstnbr * sizeof (Gnum)),
+                      &coarptr->procgsttax, (size_t) (vertrcvnbr * sizeof (int)), /* TRICK: Only purely ghost part of array will be used */
+-                     &coarptr->vrcvdattab, (size_t) (vertrcvnbr * sizeof (DgraphCoarsenVert)), NULL) == NULL) {
++                     &coarptr->vrcvdattab, (size_t) (vertrcvnbr * sizeof (DgraphCoarsenVert)),
++#if (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD)
++                     &coarptr->thrdtab,    (size_t) (contextThreadNbr (coarptr->contptr) * sizeof (DgraphCoarsenThread)), /* TRICK: thrdnbr and not thrdmin for reduction across all threads */
++#endif /* (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD) */
++                     NULL) == NULL) {
+     errorPrint ("dgraphCoarsenInit: out of memory (3)");
+     return (1);
+   }
+@@ -225,8 +228,6 @@ DgraphCoarsenData * restrict const    coarptr)    /*+ Coarsening data structure
+     memFree (coarptr->multloctmp);
+   if (coarptr->coarprvptr != NULL)                /* If ownership of coarse graph private data not yet transferred to it */
+     memFree (coarptr->coarprvptr);
+-  if (coarptr->thrdtab != NULL)
+-    memFree (coarptr->thrdtab);
+ }
+ 
+ /*************************************/
+@@ -816,7 +817,7 @@ fail2:
+ ** inspired by src/libscotch/graph_coarsen_edge.c.
+ */
+ 
+-DGRAPHALLREDUCEMAXSUMOP (4, 1)
++DGRAPHALLREDUCEMAXSUMOP (5, 1)
+ 
+ static
+ int
+@@ -841,8 +842,8 @@ DgraphCoarsenData * restrict const  coarptr)
+   Gnum                          coarhashnbr;      /* Size of adjacency hash table            */
+   int                           vertmltval;
+   int                           edgemltval;
+-  Gnum                          reduloctab[5];
+-  Gnum                          reduglbtab[5];
++  Gnum                          reduloctab[6];
++  Gnum                          reduglbtab[6];
+   int                           cheklocval;
+   int                           chekglbval;
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+@@ -857,7 +858,6 @@ DgraphCoarsenData * restrict const  coarptr)
+ #endif /* (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD) */
+ 
+ #if (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD)
+-  const int                                 thrdnbr     = contextThreadNbr (coarptr->contptr);
+   const int                                 thrdmin     = coarptr->thrdmin;
+ #endif /* (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD) */
+   MPI_Comm                                  proccomm    = coarptr->finegrafptr->proccomm;
+@@ -888,11 +888,6 @@ DgraphCoarsenData * restrict const  coarptr)
+     nsndidxtab[procngbnum] = coarptr->vsnddsptab[procngbtab[procngbnum]];
+ 
+ #if (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD)
+-  if ((coarptr->thrdtab = memAlloc (thrdnbr * sizeof (DgraphCoarsenThread))) == NULL) { /* TRICK: thrdnbr and not thrdmin for reduction across all threads */
+-    errorPrint ("dgraphCoarsenBuild: out of memory (1)");
+-    return (1);                                   /* TODO: cleaner exit */
+-  }
+-
+   coarptr->thrdtab[0].edgelocsum = 0;             /* No local edges exist before thread 0 */
+   thrdnum = 1;
+   coarlocnnd = DATASCAN (coarptr->multlocnbr, thrdmin, 1); /* Compute first thread slot boundary */
+@@ -1091,18 +1086,14 @@ DgraphCoarsenData * restrict const  coarptr)
+                       &ercvdbgtab,  (size_t) (finegrafptr->procglbnbr * sizeof (int)),
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+                       NULL) == NULL)) {
+-    errorPrint ("dgraphCoarsenBuild: out of memory (2)");
++    errorPrint ("dgraphCoarsenBuild: out of memory (1)");
+     cheklocval = 1;
+   }
+-  coarptr->nsndidxtab = esndcnttab;               /* TRICK: allow data array to be released on error    */
+-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication cannot be overlapped by a useful one */
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_SUM, proccomm) != MPI_SUCCESS) {
++  coarptr->nsndidxtab = esndcnttab;               /* TRICK: allow data array to be released on error */
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_SUM, proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
+     errorPrint ("dgraphCoarsenBuild: communication error (2)");
+     chekglbval = 1;
+   }
+-#else /* SCOTCH_DEBUG_DGRAPH1 */
+-  chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+   if (chekglbval != 0) {
+     dgraphFree (coargrafptr);
+     return (1);
+@@ -1256,48 +1247,47 @@ DgraphCoarsenData * restrict const  coarptr)
+ #if (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD)
+   if (thrdmin > 1) {                              /* If multithreading, coarse graph shall not be compact */
+     contextThreadLaunch (coarptr->contptr, (ThreadFunc) dgraphCoarsenBuildThr, (void *) coarptr);
+-    if (coarptr->thrdtab[0].retuval != 0) {
++    if ((cheklocval = coarptr->thrdtab[0].retuval) != 0)
+       errorPrint ("dgraphCoarsenBuild: could not compute adjacency (1)");
+-      return (1);
++    else {
++      coargrafptr->velolocsum = coarptr->thrdtab[0].velolocsum; /* Get reduced vertex load sum       */
++      coargrafptr->edgelocnbr = coarptr->thrdtab[0].edgelocnbr; /* Get reduced local number of edges */
++      coargrafptr->degrglbmax = coarptr->thrdtab[0].degrlocmax; /* Get reduced maximum local degree  */
+     }
+-
+-    coargrafptr->velolocsum = coarptr->thrdtab[0].velolocsum; /* Get reduced vertex load sum       */
+-    coargrafptr->edgelocnbr = coarptr->thrdtab[0].edgelocnbr; /* Get reduced local number of edges */
+-    coargrafptr->degrglbmax = coarptr->thrdtab[0].degrlocmax; /* Get reduced maximum local degree  */
+   }
+   else
+ #endif /* (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD) */
+   {
+-    if (dgraphCoarsenBuildSeq (coarptr)) {
++    if ((cheklocval = dgraphCoarsenBuildSeq (coarptr)) != 0)
+       errorPrint ("dgraphCoarsenBuild: could not compute adjacency (2)");
+-      return (1);
+-    }
+   }
+ 
+-  coargrafptr->edgeloctax  = memRealloc (coargrafptr->edgeloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum));
+-  coargrafptr->edgeloctax -= coargrafptr->baseval;
+-  coargrafptr->edloloctax  = memRealloc (coargrafptr->edloloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum));
+-  coargrafptr->edloloctax -= coargrafptr->baseval;
+-
+-  reduloctab[0] = coargrafptr->vertlocnbr;        /* Compute maximum of local vertices across all processes  */
+-  reduloctab[1] = coargrafptr->edgelocnbr;        /* Compute maximum of local edges across all processes     */
+-  reduloctab[2] = coargrafptr->edgelocsiz;        /* Compute maximum of edge array size across all processes */
+-  reduloctab[3] = coargrafptr->degrglbmax;        /* Compute maximum vertex degree across all processes      */
+-  reduloctab[4] = coargrafptr->edgelocnbr;        /* Compute sum of edges across all processes               */
++  reduloctab[0] = (Gnum) cheklocval;              /* TRICK: processes on error perform the collective communication with their error flag set */
++  reduloctab[1] = coargrafptr->vertlocnbr;        /* Compute maximum of local vertices across all processes  */
++  reduloctab[2] = coargrafptr->edgelocnbr;        /* Compute maximum of local edges across all processes     */
++  reduloctab[3] = coargrafptr->edgelocsiz;        /* Compute maximum of edge array size across all processes */
++  reduloctab[4] = coargrafptr->degrglbmax;        /* Compute maximum vertex degree across all processes      */
++  reduloctab[5] = coargrafptr->edgelocnbr;        /* Compute sum of edges across all processes               */
+ 
+-  if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 4, 1, proccomm) != 0) {
++  if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 5, 1, proccomm) != 0) {
+     errorPrint ("dgraphCoarsenBuild: communication error (5)");
++    reduglbtab[0] = 1;
++  }
++  if (reduglbtab[0] != 0) {                       /* If error, propagated by some process */
++    dgraphFree (coargrafptr);
+     return (1);
+   }
+ 
+-  coargrafptr->vertglbmax = reduglbtab[0];
+-  coargrafptr->edgeglbmax = reduglbtab[1];
+-  coargrafptr->edgeglbsmx = reduglbtab[2];
+-  coargrafptr->degrglbmax = reduglbtab[3];        /* It is now a real global maximum degree */
+-  coargrafptr->edgeglbnbr = reduglbtab[4];
++  coargrafptr->edgeloctax  = memRealloc (coargrafptr->edgeloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum));
++  coargrafptr->edgeloctax -= coargrafptr->baseval;
++  coargrafptr->edloloctax  = memRealloc (coargrafptr->edloloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum));
++  coargrafptr->edloloctax -= coargrafptr->baseval;
+ 
+-  memFree (coarptr->thrdtab);
+-  coarptr->thrdtab = NULL;
++  coargrafptr->vertglbmax = reduglbtab[1];
++  coargrafptr->edgeglbmax = reduglbtab[2];
++  coargrafptr->edgeglbsmx = reduglbtab[3];
++  coargrafptr->degrglbmax = reduglbtab[4];        /* It is now a real global maximum degree */
++  coargrafptr->edgeglbnbr = reduglbtab[5];
+ 
+   return (0);
+ }
+diff --git a/src/libscotch/dgraph_coarsen.h b/src/libscotch/dgraph_coarsen.h
+index c07f1ee..2bc5fb6 100644
+--- a/src/libscotch/dgraph_coarsen.h
++++ b/src/libscotch/dgraph_coarsen.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2009,2012,2014,2018,2020,2021,2023,2024 Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2009,2012,2014,2018,2020,2021,2023,2024,2026 Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -48,7 +48,7 @@
+ /**                # Version 6.1  : from : 17 jun 2021     **/
+ /**                                 to   : 17 jun 2021     **/
+ /**                # Version 7.0  : from : 14 jan 2020     **/
+-/**                                 to   : 31 jul 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -162,7 +162,7 @@ typedef struct DgraphCoarsenData_ {
+ #endif /* (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD) */
+   Gnum                      degrlocmax;           /*+ Local maximum degree of coarse graph                         +*/
+   Gnum                      coarhashmsk;          /*+ Mask value of adjacency hash table (TRICK: size - 1)         +*/
+-  DgraphCoarsenThread *     thrdtab;              /*+ Optional array for adjacency splitting across threads        +*/
++  DgraphCoarsenThread *     thrdtab;              /*+ Optional array for adjacency splitting across threads [grouped with nrcvidxtab] +*/
+   int                       thrdmin;              /*+ Minimum number of threads across all processes               +*/
+   Context *                 contptr;              /*+ Execution context                                            +*/
+ } DgraphCoarsenData;
+-- 
+2.47.3
+

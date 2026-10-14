@@ -1,0 +1,15 @@
+API-14: part pseudo-diameter off by one; base-1 last vertex never a root; -1 return added.
+  sh ../build.sh $WORK/build _pristine ; ./diam_pristine
+Pristine 7.0.17 (32-bit ASan build) prints, for each case, got/expected:
+  path4 base0, one part (diam 3)        got: min=4 max=4 avg=4.000000   expected 3     FAIL
+  path4 base1, one part (diam 3)        got: min=4 max=4 avg=4.000000                  FAIL
+  path4 base0/1, {0,0,1,1} (diam 1,1)   got: min=2 max=2                               FAIL
+  path4 base0, {0,1,0,1}                got: min=2 max=2 (two singletons chained: 1)   FAIL
+  path2 base0, {0,1} (diam 0,0)         got: min=1 max=1                               FAIL
+  path2 base1, {0,1} (diam 0,0)         got: min=0 max=1 (last vertex never a root)    FAIL
+Also with the shipped tools: gpart 9 src/check/data/bump_b100000.grf /dev/null -vm prints
+  M PartDiam min=0 max=0 avg=0.000000  (base 100000 >= vertnbr: no root is ever found).
+Patched (commit 0001): all seven cases "ok"; bump_b100000 prints min=41 max=61 avg=47.333333
+(with SCOTCH_PTHREAD_NUMBER=1, see SUMMARY.md). The OOM path (-1 return) was exercised by
+reading only: graphMapView3's memAllocGroup failure now makes graphMapView2 free and return 1.
+Same results with the 64-bit build (diam_patched64).

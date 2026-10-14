@@ -1,0 +1,38 @@
+== basefi np=3 q{strat=f}
+rank 0: check=0
+rank 0: ret=0 load0=7851 dlt=48 size0=7851 comm=159 gainextn=0 fron=160 bal=1 balcalc=0.0061514802
+rank 1: check=0
+rank 1: ret=0 load0=7851 dlt=48 size0=7851 comm=159 gainextn=0 fron=160 bal=1 balcalc=0.0061514802
+rank 2: check=0
+rank 2: ret=0 load0=7851 dlt=48 size0=7851 comm=159 gainextn=0 fron=160 bal=1 balcalc=0.0061514802
+== basefi np=3 q{strat=f}x{bal=0.001}z
+rank 0: check=0
+rank 0: ret=0 load0=15606 dlt=7803 size0=15606 comm=0 gainextn=0 fron=0 bal=0.000897090862 balcalc=1
+rank 1: check=0
+rank 1: ret=0 load0=15606 dlt=7803 size0=15606 comm=0 gainextn=0 fron=0 bal=0.000897090862 balcalc=1
+rank 2: check=0
+rank 2: ret=0 load0=15606 dlt=7803 size0=15606 comm=0 gainextn=0 fron=0 bal=0.000897090862 balcalc=1
+== basefi ml fold-dup np=2
+rank 0: check=0
+rank 0: ret=0 load0=7804 dlt=1 size0=7804 comm=407 gainextn=0 fron=399 bal=0.000128155837 balcalc=0.000128155837
+rank 1: check=0
+rank 1: ret=0 load0=7804 dlt=1 size0=7804 comm=407 gainextn=0 fron=399 bal=0 balcalc=0.000128155837
+== basefi ml fold-dup np=4
+rank 0: check=0
+rank 0: ret=0 load0=7802 dlt=-1 size0=7802 comm=251 gainextn=0 fron=245 bal=0 balcalc=0.000128155837
+rank 1: check=0
+rank 1: ret=0 load0=7802 dlt=-1 size0=7802 comm=251 gainextn=0 fron=245 bal=0.000128155837 balcalc=0.000128155837
+rank 2: check=0
+rank 2: ret=0 load0=7802 dlt=-1 size0=7802 comm=251 gainextn=0 fron=245 bal=0 balcalc=0.000128155837
+rank 3: check=0
+rank 3: ret=0 load0=7802 dlt=-1 size0=7802 comm=251 gainextn=0 fron=245 bal=0 balcalc=0.000128155837
+== basefi np=2 q{strat=f}q{strat=/(bal<0)?z;}
+rank 0: check=0
+rank 0: ret=0 load0=15606 dlt=7803 size0=15606 comm=0 gainextn=0 fron=0 bal=1 balcalc=1
+rank 1: check=0
+rank 1: ret=0 load0=15606 dlt=7803 size0=15606 comm=0 gainextn=0 fron=0 bal=1 balcalc=1
+== basefi np=2 q{strat=f}q{strat=/(bal>0)?z;}
+rank 0: check=0
+rank 0: ret=0 load0=7851 dlt=48 size0=7851 comm=159 gainextn=0 fron=160 bal=1 balcalc=0.0061514802
+rank 1: check=0
+rank 1: ret=0 load0=7851 dlt=48 size0=7851 comm=159 gainextn=0 fron=160 bal=1 balcalc=0.0061514802

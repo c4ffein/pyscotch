@@ -1,0 +1,11 @@
+BLD-25: stray brace in the FreeBSD test; wrong IDXSIZE message.
+
+  cmake -DHOSTNAME_FAKE=FreeBSD -P probe.cmake
+    -- 7.0.17 line 67 with host [FreeBSD]: left operand is [FreeBSD}] -> FreeBSD detected
+    -- fixed line with host [FreeBSD]: FreeBSD detected
+  cmake -DHOSTNAME_FAKE=Linux -P probe.cmake   -> both "not FreeBSD"
+  (the stray brace makes the operand "FreeBSD}", matched only thanks to the ".*" wildcards)
+
+  cmake -S $WORK/src-base -B /tmp/x -DIDXSIZE=48 2>&1 | grep -i invalid
+    pristine: "Invalid integer size value"      (src/CMakeLists.txt:131, copied from the INTSIZE branch)
+  cmake -S $WORK/src-patched ... -DIDXSIZE=48   -> "Invalid index size value"

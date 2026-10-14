@@ -1,0 +1,34 @@
+diff --git a/src/libscotch/hdgraph_order_nd.c b/src/libscotch/hdgraph_order_nd.c
+index d54a2c9..b1baf62 100644
+--- a/src/libscotch/hdgraph_order_nd.c
++++ b/src/libscotch/hdgraph_order_nd.c
+@@ -353,13 +353,13 @@ const HdgraphOrderNdParam * restrict const  paraptr)
+   }
+ #endif /* SCOTCH_DEBUG_HDGRAPH2 */
+ 
+-  cblkptr->typeval = DORDERCBLKNEDI;              /* Node becomes a nested dissection node */
+-
+   if (vspgrafdat.compglbsize[2] != 0) {           /* If separator not empty */
+     DorderCblk *        cblkptr2;
+     Hdgraph             indgrafdat2;
+ 
+-    cblkptr2 = dorderNew (cblkptr, grafptr->s.proccomm); /* Create separator node */
++    if ((cblkptr2 = dorderNew (cblkptr, grafptr->s.proccomm)) == NULL) /* Create separator node before changing parent node */
++      goto fail;
++    cblkptr->typeval = DORDERCBLKNEDI;            /* Node becomes a nested dissection node */
+     cblkptr2->ordeglbval = cblkptr->ordeglbval + grafptr->s.vertglbnbr - vspgrafdat.compglbsize[2];
+     cblkptr2->vnodglbnbr = vspgrafdat.compglbsize[2];
+     cblkptr2->cblkfthnum = 2;
+@@ -384,8 +384,10 @@ const HdgraphOrderNdParam * restrict const  paraptr)
+     if (o != 0)
+       goto fail;
+   }
+-  else                                            /* Separator is empty         */
+-    cblkptr->data.nedi.cblkglbnbr = 2;            /* It is a two-cell tree node */
++  else {                                          /* Separator is empty                    */
++    cblkptr->typeval = DORDERCBLKNEDI;            /* Node becomes a nested dissection node */
++    cblkptr->data.nedi.cblkglbnbr = 2;            /* It is a two-cell tree node            */
++  }
+ 
+   partmax  = (vspgrafdat.compglbsize[0] >= vspgrafdat.compglbsize[1]) ? 0 : 1; /* Get part of largest subgraph      */
+   procnbr0 = (grafptr->s.procglbnbr + 1) / 2;     /* Get number of processes in part 0 (always more than in part 1) */

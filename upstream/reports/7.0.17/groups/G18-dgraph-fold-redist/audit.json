@@ -1,0 +1,439 @@
+[
+ {
+  "id": "DGR-01",
+  "our_title": "Fold receiver cannot allocate edge array after senders posted; peers hang, receives undrained",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "cd $WORK/repro/common; ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/foldfi 4 0 0 8 -- 0 0 5 1 1 1 (np=4, part 0, base 0, vertex+edge loads+data, LD_PRELOAD malloc shim failing the nth allocation of rank 0; release build) -> nth=6 exit=124 :: HANG; (0): ERROR: dgraphFold2: out of memory (6); rank 0: fold rc=1; rank 2: fold rc=0; rank 3: fold rc=0 (rank 1 never returns). nth=0..5 HANG too (out of memory (1),(3),(4),(5), dgraphFoldComm (1),(2)); sender rank 2 nth=0..2 HANG. Twin via SCOTCH_dgraphOrderCompute (orderfi, m16x16.grf, np=4): every hdgraphFold2/dgraphFoldComm allocation (#82-#88, #94-#96 rank 0; #82-#84, #90-#96 rank 2) HANG. Patched: same commands exit=1 with 'fold rc=1' / 'cannot compute ordering' on every rank; nth>=7 exit=0 and the folded graph checks. 48-run success matrix (np 3..6, part 0/1, base 0/1, loads/data) passes dgraphCheck on ASan 32-bit, DEBUG_ALL and 64-bit builds.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Same as the review: any out-of-memory on a receiver during a fold (default coarsening strategy folds, nested dissection folds) hangs the whole job in release builds; ASan cannot see the write into the freed vertloctax by the pending Irecv, but the hang is observed.",
+  "location_7_0_17": "src/libscotch/dgraph_fold.c:463-466 (allocation after all sends posted), :762-773 (fail3 -> fail4 skips MPI_Waitall and frees), :798-812 (fail4: dgraphExit on arrays still targeted by Irecvs); twin src/libscotch/hdgraph_fold.c:452-456, :891-902, :925-939",
+  "evidence": "dgraph_fold.c:463-465: `if ((fldgrafptr->edgeloctax = memAlloc ((fldedgelocsiz + fldedlolocsiz) * sizeof (Gnum))) == NULL) { errorPrint (\"dgraphFold2: out of memory (6)\"); goto fail3; }` reached after senders posted all Isends (l.341-400) and the receiver posted its count and vertex Irecvs (l.436-449). dgraph_fold.c:772-773: `if (chekglbval != 0) goto fail4;` (no Waitall, no memFree). dgraph_fold.c:807-810: `if ((fldcommtypval & DGRAPHFOLDCOMMRECV) != 0) dgraphExit (fldgrafptr);`. dgraph_fold.c:285-286: `requtab[requnum] = MPI_REQUEST_NULL; /* In case of error */` shows a whole-array drain was intended but never performed.",
+  "upstream_change": "",
+  "review_accuracy": "Mechanism and lines accurate (7.0.17 lines are the 7.0.16 ones +0/+1). Its first fix (agree on allocation success before posting edge data) is the right one. Its second fix (complete every posted request at fail3) is insufficient alone: the senders' edge-data Isends have no matching receive on the failed receiver and cannot complete. 'receivers sit in MPI_Allreduce' holds only in SCOTCH_DEBUG_DGRAPH1 builds; in release builds the agreements are compiled out and peers hang in MPI_Waitany/Finalize.",
+  "first_pass_critique": "Status, location and reproduction correct. Its preferred sketch has defects: (a) the gate is two separate MPI_Allreduce calls, one in the sender block and one in the receiver block, so a sender-receiver would call it twice and the others once (collective mismatch); (b) on gate failure it frees the folding data and jumps to fail4 but the compacted original arrays and *flddataptr are still leaked and the senders' Isend-error paths still skip all frees; (c) it keeps the debug-only agreement before dgraphBuild4 unchanged. Its option 2 (TAGOK/TAGBAD handshake) is rightly rejected, but also because dgraphBuild4 is itself collective among receivers. The dead second-pass attempt had the right structure; I audited it against the maintainer's 7.0.17 idiom and kept it, adding the review of the threaded callers (dgraphFoldDup, kdgraphMapRbPart, hdgraphOrderNd duplicate the communicator, so the new Allreduces cannot cross between the two concurrent folds).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/hdgraph_fold.c:402-456, 891-939",
+    "quote": "if ((fldgrafptr->s.edgeloctax = memAlloc (fldedgelocsiz * sizeof (Gnum))) == NULL) { errorPrint (\"hdgraphFold2: out of memory (6)\"); goto fail3; }",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/dgraph_fold.c:152-156",
+    "quote": "if (dgraphCompact2 (orggrafptr, &orgvertloctax, &orgedgeloctax, &orgedloloctax) != 0) { errorPrint (\"dgraphFold2: cannot compact graph\"); return (1); } (local return before the first agreement)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/dgraph_fold.c:298-307, 784-796",
+    "quote": "if ((fldcommtypval & DGRAPHFOLDCOMMRECV) != 0) { if (fldvertidxtab != NULL) memFree (fldvertidxtab); ... } (senders never free fldcommdattab/fldvertidxtab on error; compacted arrays and *flddataptr never freed on any error path)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/dgraph_fold.c:776-780",
+    "quote": "if (dgraphCheck (fldgrafptr) != 0) { ... dgraphExit (fldgrafptr); goto fail4; } followed by a second dgraphExit at fail4 (debug builds: double free)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/hdgraph_fold.c:892-899",
+    "quote": "#ifdef SCOTCH_DEBUG_DGRAPH1 ... errorPrint (\"dgraphFold2: communication error (18)\"); (copy-paste: wrong macro and routine name in hdgraphFold2)",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: collective allocation gate before edge data is sent, unconditional first agreement, one cleanup label (recommended)",
+    "summary": "Senders post only edge-count and vertex messages; pure receivers post their count/vertex receives, wait for the counts and allocate the edge array; then all processes agree (MPI_Allreduce MAX on orggrafptr->proccomm). On failure every pending communication is matched, so one MPI_Waitall over the whole (MPI_REQUEST_NULL-prefilled) request array drains them before buffers are freed. The first agreement (fail1) is always performed and also covers graph compaction and the debug parameter checks. All error paths share one cleanup label that frees the folding data, the communication array, the compacted arrays, the folded data array and the folded graph. The debug-only agreements before dgraphCheck and at the end are kept as designed (nothing but MPI calls can fail after the gate: dgraphBuild4 does not allocate). Same restructuring in hdgraphFold2().",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0003-Bugfix-make-error-handling-of-dgraphFold2-and-hdgrap.patch",
+    "tested": "Fault injection on every allocation of dgraphFold2 (receiver and sender, base 0/1, np=3,4) and of hdgraphFold2 (through dgraphOrderCompute): all processes return 1, no hang, no sanitizer report. After the series: check_strat_par, check_scotch_dgraph_{check,band,coarsen,order,grow,induce,redist}, check_libparmetis_{v3,dual}, check_prog_{dgord,dgpart,dgscat-dggath,dgtst} all exit 0 on the 32-bit ASan+UBSan tree and on the 64-bit Gnum tree ($WORK/chk_32_*.log, chk_64_*.log; the only sanitizer lines are pre-existing ones in library_dgraph_coarsen.c:163 and bgraph_bipart_ml.c:195, other groups); check_scotch_dgraph_{check,coarsen,order,redist,induce} and check_prog_dgord also pass on an ASan -DSCOTCH_DEBUG_ALL tree (chk_dbg_*.log). Zero compiler warnings in the three trees. git am of the 7 patches on a fresh clone of v7.0.17 succeeds.",
+    "tradeoffs": "Two small MPI_Allreduce per fold in release builds (one before posting, one before edge data), against a data exchange of half the graph: negligible. Reverses the maintainer's explicit choice to compile the first agreement out ('cannot be merged with a useful one'); there is no existing collective to piggyback on in release builds. Function grows by ~30 lines; six fail labels instead of four. MPI call failures (fatal by default) remain unrecoverable, as before.",
+    "preferred": true,
+    "maintainer_fit": "Uses his 7.0.17 idiom exactly: 'cheklocval = 1; /* Assume an error */', goto failN, 'cheklocval = 0; /* Everything went well */' before the agreement label, a label inside the failure block that later code jumps back to (dgraphInduce2, 3c9b3ab: fail1 inside the memAllocGroup failure block), unconditional MPI_Allreduce at the fail label (hdgraphGather, 0635547)."
+   },
+   {
+    "label": "B: receiver-side cleanup only (drain own requests, free leaks), first agreement unconditional, no gate",
+    "summary": "At fail3 the receiver waits for its own posted requests, frees the folding data and the compacted arrays, then fails; the first agreement is made unconditional.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/alt/DGR-01-B-receiver-side-drain-only.diff",
+    "tested": "compiles (mpicc -c, 0 warnings); not run: by construction the senders' edge-data Isends stay unmatched",
+    "tradeoffs": "Fixes the use-after-free and the leaks of the receiver only; senders of edge data to the failed receiver still block forever in their final MPI_Waitall (large messages) and the other receivers return 0. Smallest diff.",
+    "preferred": false,
+    "maintainer_fit": "Leaves the hang the review reports; he would not take a partial fix."
+   },
+   {
+    "label": "C: over-allocate the receiver edge array before the first agreement, no second gate",
+    "summary": "Pure receivers allocate their edge array with an upper bound (remote edges, or received vertices times degrglbmax, plus local edges) before fail1, so that nothing but MPI calls can fail after the single agreement; the array is shrunk with memRealloc once the counts are known.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/alt/DGR-01-C-overallocate-no-gate.diff",
+    "tested": "compiles (mpicc -c, 0 warnings); not run",
+    "tradeoffs": "One agreement instead of two, but the bound min(edgeglbnbr - edgelocnbr, vertrcvnbr * degrglbmax) can be much larger than the exact size (star-like graphs), which defeats the purpose of folding small graphs; relies on the shrinking memRealloc never failing.",
+    "preferred": false,
+    "maintainer_fit": "He sized this array exactly on purpose (edge counts are exchanged first); extra peak memory in the fold is what the design avoids."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0002-Bugfix-set-base-value-of-folded-graphs-before-attach.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0003-Bugfix-make-error-handling-of-dgraphFold2-and-hdgrap.patch"
+  ],
+  "cleanup_done": "fail2 dispatch label and the duplicated fail3/fail4 cleanups removed; the double dgraphExit on debug dgraphCheck failure removed; 'fldcommdattab = NULL; /* In case of error */' (now meaningless) removed; hdgraphFold2's wrong SCOTCH_DEBUG_DGRAPH1 macro and 'dgraphFold2:' message prefix fixed; a trailing space (dgraph_fold.c:125) and a TAB (hdgraph_fold.c:288) removed on the rewritten lines.",
+  "test_added": "none: src/check has no fault-injection harness; the reproducer is repro/common/foldfi.c + fishim.c, documented in repro/DGR-01/README",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Residual, documented and unchanged: in SCOTCH_DEBUG_DGRAPH2 builds a receiver that fails its first (O(procglbnbr)) allocation reaches the fail1 Allreduce while the others are in dgraphFoldComm()'s debug-only Allgather on the same communicator (pre-existing); post-gate failures (MPI call failures, debug internal errors) still use the debug-only agreements, which I kept because dgraphBuild4() does not allocate (alternative: make fail6 unconditional too, one more Allreduce). dgraphExit() on error frees the folded communicator (DGRAPHFREECOMM), as before."
+ },
+ {
+  "id": "DGR-02",
+  "our_title": "Folded graph base value set last; premature dgraphExit frees based arrays with base 0",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "cd $WORK/repro/common; ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/foldfi 4 0 3 6 -- 0 1 5 1 1 1 (base 1, failure on receiver rank 0) -> nth=4 exit=134 :: (0): ERROR: dgraphFold2: out of memory (4); fishim: rank 0: signal 6 (glibc free(): invalid pointer); nth=5 '(5)' and nth=6 '(6)' idem. With base 0 the same runs only hang (DGR-01). Patched: nth=3..6 exit=1 on all ranks, no abort.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Heap corruption on every receiver on any fold error with a Fortran/1-based graph; with the DGR-01 fix every such error now reaches dgraphExit(), so this fix is a prerequisite of it.",
+  "location_7_0_17": "src/libscotch/dgraph_fold.c:194 (memSet), :239,250-251,467 (based arrays attached), :751 (baseval set), :304,809 (dgraphExit); twin src/libscotch/hdgraph_fold.c:182, :225,237-239,246,456, :879, :293,936",
+  "evidence": "dgraph_fold.c:194: `memSet (fldgrafptr, 0, sizeof (Dgraph)); /* Pre-initialize graph fields */` ... :250: `fldgrafptr->vertloctax -= orggrafptr->baseval;` ... :751: `fldgrafptr->baseval    = orggrafptr->baseval;` and dgraph.c (dgraphFree2): `if (grafptr->vertloctax != NULL) memFree (grafptr->vertloctax + grafptr->baseval);`",
+  "upstream_change": "",
+  "review_accuracy": "accurate (mechanism, location, baseval=1 condition); an earlier failure (l.207/213) is harmless because vertloctax is still NULL.",
+  "first_pass_critique": "Correct; its one-line fix is what the maintainer did himself in hdgraphInduceList (3436099: baseval moved right after memSet). It did not cover the twin hdgraphFold2(), which has the identical ordering, nor remove the late assignment.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/hdgraph_fold.c:182-187 and :879",
+    "quote": "memSet (fldgrafptr, 0, sizeof (Hdgraph)); ... fldgrafptr->s.baseval    = orggrafptr->s.baseval; (set only at the end)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/hdgraph_gather.c:142-170 (after 0635547)",
+    "quote": "cgrfptr->s.flagval = GRAPHFREEEDGE | ... /* In case of premature freeing on error */ ... cgrfptr->s.baseval = dgrfptr->s.baseval; (set after the three allocations; hgraphExit at fail frees verttax with an uninitialised base value)",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: set baseval right after the structure is cleared, remove the late assignment (recommended)",
+    "summary": "fldgrafptr->baseval = orggrafptr->baseval; next to flagval in the 'premature freeing on error' initialisation, in both dgraphFold2 and hdgraphFold2; the assignment at the end is removed. The hdgraphGather instance is fixed in commit 0004.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0002-Bugfix-set-base-value-of-folded-graphs-before-attach.patch",
+    "tested": "Fault injection with base 1 (above): abort gone. After the series: check_strat_par, check_scotch_dgraph_{check,band,coarsen,order,grow,induce,redist}, check_libparmetis_{v3,dual}, check_prog_{dgord,dgpart,dgscat-dggath,dgtst} all exit 0 on the 32-bit ASan+UBSan tree and on the 64-bit Gnum tree ($WORK/chk_32_*.log, chk_64_*.log; the only sanitizer lines are pre-existing ones in library_dgraph_coarsen.c:163 and bgraph_bipart_ml.c:195, other groups); check_scotch_dgraph_{check,coarsen,order,redist,induce} and check_prog_dgord also pass on an ASan -DSCOTCH_DEBUG_ALL tree (chk_dbg_*.log). Zero compiler warnings in the three trees. git am of the 7 patches on a fresh clone of v7.0.17 succeeds.",
+    "tradeoffs": "None: the same value was stored later on the success path.",
+    "preferred": true,
+    "maintainer_fit": "Exactly what he did in hdgraphInduceList() in 3436099 ('indgrafptr->s.baseval = orggrafptr->s.baseval;' moved up next to flagval, old line deleted)."
+   },
+   {
+    "label": "B: free the arrays explicitly with orggrafptr->baseval instead of calling dgraphExit()",
+    "summary": "Replace dgraphExit(fldgrafptr) on the error paths by explicit memFree of edgeloctax/vertloctax/procdsptab with the original base value and MPI_Comm_free.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/alt/DGR-02-B-explicit-frees-with-original-base.diff",
+    "tested": "compiles (mpicc -c, 0 warnings); not run",
+    "tradeoffs": "Duplicates the knowledge of the group layout and flags that dgraphFree2() encodes; drifts when flags change.",
+    "preferred": false,
+    "maintainer_fit": "Against his idiom of initialising a structure for 'premature freeing on error' and using the Exit routine."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0002-Bugfix-set-base-value-of-folded-graphs-before-attach.patch"
+  ],
+  "cleanup_done": "the late baseval assignments (dgraph_fold.c:751, hdgraph_fold.c:879) removed",
+  "test_added": "none: needs fault injection (repro/DGR-02/README)",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "DGR-22",
+  "our_title": "Fold and redist pass Gnum sizes as int MPI counts; redist totals accumulate in int",
+  "status": "still-present",
+  "method": "partly-run",
+  "ran": "64-bit Gnum flags, gcc -Wconversion on pristine files: dgraph_fold.c 22, hdgraph_fold.c 18, dgraph_redist.c 4 'conversion from Gnum to int may change value' (every MPI_Isend/Irecv count; redist :295 degree sum and the int accumulators). Boundary with the installed Open MPI (repro/DGR-22/mpicount.c): count 2147483648 -> int -2147483648 -> MPI_Isend MPI_ERR_COUNT; count 4294967300 -> int 4 -> 'silently sends 4 elements'. Patched library compiles warning-free in 32-bit and 64-bit; all check targets pass with the new checks as no-ops.",
+  "read_only": "The truncation inside a fold or redistribution (needs > 2^31 vertices or edges in one message) and the behaviour of the new checks on such inputs.",
+  "why_not_run": "A message of 2^31 Gnums is 16 GB per process; not reproducible here.",
+  "severity": "low",
+  "severity_note": "Only 64-bit builds moving more than 2^31 items to one process in one fold message or redistribution; below 2^32 MPI aborts the job, above it the graph is silently wrong.",
+  "location_7_0_17": "src/libscotch/dgraph_fold.c:343,351,360,370,383-388,445,471,481,493,505-508,515 (int counts), :452 (unchecked MPI_Waitall); src/libscotch/hdgraph_fold.c:336-340,354,363,373,420,429,435,460,470,480, :442; src/libscotch/dgraph_redist.c:217-220,239-240 (int totals), :295 (int degree sum), :312-315,338-339",
+  "evidence": "dgraph_fold.c:350-351: `MPI_Isend (orgedgeloctax + fldedgeidxtab[commnum], fldedgecnttab[commnum], GNUM_MPI, ...` (Gnum count into int parameter); :383: `vertsndnbr = (int) fldcommdattab[commnum].vertnbr;`; :452: `MPI_Waitall (commnbr, &requtab[DGRAPHFOLDTAGESIZ * commmax], MPI_STATUSES_IGNORE);` (return value ignored); dgraph_redist.c:217-218: `int drcvdatnbr; /* Amount of data to allocate */ int dsnddatnbr;`; :295: `dsndcnttab[2 * procngbnum + 1] += (int) (srcvendloctax[srcvertlocnum] - srcvertloctax[srcvertlocnum]);`",
+  "upstream_change": "",
+  "review_accuracy": "accurate; the redist int totals overflow earlier than the review implies (data words per destination = (3 or 4) * vertices + (1 or 2) * edges).",
+  "first_pass_critique": "Correct analysis. Its sketch checks per-communication vertex counts 'before the first agreement' where fldcommdattab is not yet available on senders, and puts the edge-count check 'at the gate of DGR-01's fix' without saying how the sender learns about it; it did not notice that commGatherv() (73229e6) gives the exact idiom to copy, nor that dgraphFoldComm() is the common place for the vertex bound, and it left the redist totals unpatched. The dead second-pass attempt also left the redist totals ('bounded by the Alltoallv interface'), which is wrong: the per-destination and per-process totals can overflow int silently before Alltoallv is ever called; I added those checks.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/hdgraph_fold.c:336, 354, 442",
+    "quote": "vertsndnbr = (int) fldcommdattab[commnum].vertnbr; ... MPI_Waitall (commnbr, &requtab[HDGRAPHFOLDTAGESIZ * commmax], MPI_STATUSES_IGNORE);",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/dgraph_redist.c:295, 307-324, 338-339",
+    "quote": "dstvertloctmp += drcvcnttab[2 * procnum]; dstedgeloctmp += drcvcnttab[2 * procnum + 1]; drcvdatidx += drcvcntval; (int accumulation of totals)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/dgraph_check.c:443,446; dgraph_build.c:452; dgraph_io_load.c:461,565,613",
+    "quote": "MPI_Waitall (8, &requloctab[0], &statloctab[0]); (other unchecked waits, other groups' files)",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: reject sizes that do not fit, collectively (recommended)",
+    "summary": "dgraphFoldComm() refuses to build a scheme when grafptr->vertglbmax (which bounds every vertex message) does not round-trip through int; receivers check each received edge count before allocating and fail through the collective gate of commit 0003; dgraphRedist2() computes flveval/fledval first, checks that the local amount of data to send fits in an int before the first agreement, accumulates the receive total as a Gnum and checks it before the second agreement (dstvertloctmp/dstedgeloctmp removed). The MPI_Waitall return value is checked in commit 0003.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0007-Bugfix-check-that-message-sizes-fit-in-MPI-count-arg.patch",
+    "tested": "Compiles warning-free in 32-bit (checks trivially false) and 64-bit. After the series: check_strat_par, check_scotch_dgraph_{check,band,coarsen,order,grow,induce,redist}, check_libparmetis_{v3,dual}, check_prog_{dgord,dgpart,dgscat-dggath,dgtst} all exit 0 on the 32-bit ASan+UBSan tree and on the 64-bit Gnum tree ($WORK/chk_32_*.log, chk_64_*.log; the only sanitizer lines are pre-existing ones in library_dgraph_coarsen.c:163 and bgraph_bipart_ml.c:195, other groups); check_scotch_dgraph_{check,coarsen,order,redist,induce} and check_prog_dgord also pass on an ASan -DSCOTCH_DEBUG_ALL tree (chk_dbg_*.log). Zero compiler warnings in the three trees. git am of the 7 patches on a fresh clone of v7.0.17 succeeds.",
+    "tradeoffs": "Conservative: a process with more than INT_MAX local vertices is refused by the fold even if it sends less; redist refuses a process whose local data would not fit even if split across destinations. No change below the limit.",
+    "preferred": true,
+    "maintainer_fit": "His commGatherv() check (73229e6): 'isndcntnbr = (int) sendcntnbr; if ((Gnum) isndcntnbr != sendcntnbr) { errorPrint (\"...: communication indices out of range (2)\"); goto fail; }'. He does not use MPI-4 large-count routines anywhere."
+   },
+   {
+    "label": "B: local checks at each send site",
+    "summary": "Check vertsndnbr and fldedgecnttab[commnum] right before the first Isend of each communication and check the Waitall; a failure jumps to the existing fail2 dispatch.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/alt/DGR-22-B-local-checks-at-send-sites.diff",
+    "tested": "compiles (mpicc -c, 64-bit flags, 0 warnings); not run",
+    "tradeoffs": "Not collective: the receivers wait forever for the data of a sender that refused; on pristine 7.0.17 this is yet another hang path. Only acceptable on top of option A of DGR-01.",
+    "preferred": false,
+    "maintainer_fit": "Local checks that abort a collective pattern are what he removed in his 7.0.17 reworks."
+   },
+   {
+    "label": "C: split messages above INT_MAX (derived datatype or chunk loop)",
+    "summary": "Send n / 2^20 blocks of a committed contiguous type plus a remainder on each of the seven message kinds and size the request array accordingly; rewrite the redist Alltoallv as point-to-point.",
+    "diff_file": "",
+    "tested": "untested: not written, design only",
+    "tradeoffs": "Truly supports > INT_MAX items but touches every send/receive pair, the request slot layout (DgraphFoldTag) and the redist exchange scheme.",
+    "preferred": false,
+    "maintainer_fit": "Far beyond a bugfix; he would schedule it as a feature if at all."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0003-Bugfix-make-error-handling-of-dgraphFold2-and-hdgrap.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0007-Bugfix-check-that-message-sizes-fit-in-MPI-count-arg.patch"
+  ],
+  "cleanup_done": "int temporaries dstvertloctmp/dstedgeloctmp and the 'Preserve amount of data' copies removed from dgraphRedist2()",
+  "test_added": "none: not exercisable below 16 GB per message",
+  "docs_updated": "",
+  "needs": "64bit-build",
+  "needs_note": "64-bit build available and used for compile and check targets; the overflowing input itself cannot be built here (memory).",
+  "notes": ""
+ },
+ {
+  "id": "PS-DGR-4",
+  "our_title": "Release builds compile out the error agreements of fold, gather and redist: hangs, disagreement",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Release-build fault injection (repro/PS-DGR-4/README). Fold: every allocation failure point of dgraphFold2 (receiver or sender) and of hdgraphFold2 hangs the other processes (see DGR-01). Gather: ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/gatherfi 2 0 0 3 -- gather 0 5 -> nth=2: rank 0 rc=1, rank 1 rc=0. Redist: ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/redistfi 3 1 3 7 -- 0 6 -> nth=3 HANG (dgraphRedist: out of memory), nth=5,6,7 HANG (dgraphRedist2 (1),(2),(3)). Patched: all these return 1 on every rank (commits 0003, 0004, 0006).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Each instance turns an out-of-memory into a job hang or a silent disagreement; the fold instance is rated high under DGR-01.",
+  "location_7_0_17": "src/libscotch/dgraph_fold.c:290-297, 763-770, 799-806; src/libscotch/hdgraph_fold.c:277-284, 892-899, 926-933; src/libscotch/dgraph_gather_all.c:201-208; src/libscotch/dgraph_redist.c:129-136, 268-275, 365-372",
+  "evidence": "dgraph_fold.c:290-297: `#ifdef SCOTCH_DEBUG_DGRAPH1 /* Communication cannot be merged with a useful one */ if (MPI_Allreduce (&cheklocval, &chekglbval, ...)) ... #else /* SCOTCH_DEBUG_DGRAPH1 */ chekglbval = cheklocval; #endif`; dgraph_gather_all.c:206-207: `#else /* SCOTCH_DEBUG_DGRAPH1 */ chekglbval = cheklocval;`; dgraph_redist.c:134-135: `#else /* SCOTCH_DEBUG_DGRAPH2 */ chekglbval = cheklocval;`",
+  "upstream_change": "",
+  "review_accuracy": "not in the review (first-pass finding); DGR-13 reports the same class for coarsening/matching and the review's own remark that dgraphFold handles this correctly is only true of debug builds.",
+  "first_pass_critique": "Correct finding; it listed fold and gather but missed the three instances in dgraph_redist.c (same file family, same #ifdef pattern) and the twin hdgraphFold2(). Its 'piggy-back on an existing collective' option is not available for the fold in release builds (no collective exists there) and its sketch was not compiled.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/dgraph_redist.c:129-136, 268-275, 365-372",
+    "quote": "#ifdef SCOTCH_DEBUG_DGRAPH2 ... #else /* SCOTCH_DEBUG_DGRAPH2 */ chekglbval = cheklocval; #endif",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/hdgraph_fold.c:277-284",
+    "quote": "#ifdef SCOTCH_DEBUG_HDGRAPH1 ... #else chekglbval = cheklocval; #endif",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/dgraph_halo.c (dgraphHaloSync2 out of memory), reached from dgraph_redist.c:178-182",
+    "quote": "errorPrint (\"dgraphRedist: cannot compute halo\"); memFree (procvrttab); return (1); (redist nth=4 still hangs inside the halo exchange: other group's routine)",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/hdgraph_order_nd.c:301-307; dgraph_build.c:395,463; dorder_gather.c:209,373,412; dorder_io_tree.c:166; dgraph_coarsen.c:1096; bdgraph_bipart_ex.c:172",
+    "quote": "chekglbval = cheklocval; (same release-only pattern in other groups' files; observed for hdgraphOrderNd2: at orderfi allocation #123 ranks 2,3 return 0 while ranks 0,1 return 1)",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: always perform the agreements (fold: commit 0003; gather: 0004; redist: 0006) (recommended)",
+    "summary": "Remove the #ifdef/#else around the MPI_Allreduce of the local error flag wherever a following collective or point-to-point exchange would otherwise be entered by the other processes; in dgraphRedist2() the second allocation phase is restructured in the goto idiom so that the agreement can also free the arrays not yet attached to the graph.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0006-Bugfix-make-error-handling-of-dgraphRedist-collectiv.patch",
+    "tested": "Fault injection on fold, gather, redist, ordering (hdgraphFold2/hdgraphGather): every allocation failure returns 1 on all ranks. After the series: check_strat_par, check_scotch_dgraph_{check,band,coarsen,order,grow,induce,redist}, check_libparmetis_{v3,dual}, check_prog_{dgord,dgpart,dgscat-dggath,dgtst} all exit 0 on the 32-bit ASan+UBSan tree and on the 64-bit Gnum tree ($WORK/chk_32_*.log, chk_64_*.log; the only sanitizer lines are pre-existing ones in library_dgraph_coarsen.c:163 and bgraph_bipart_ml.c:195, other groups); check_scotch_dgraph_{check,coarsen,order,redist,induce} and check_prog_dgord also pass on an ASan -DSCOTCH_DEBUG_ALL tree (chk_dbg_*.log). Zero compiler warnings in the three trees. git am of the 7 patches on a fresh clone of v7.0.17 succeeds.",
+    "tradeoffs": "One 1-int MPI_Allreduce per agreement in release builds (fold: 2, gather: 1, redist: 3). All these routines move O(graph) data, so the cost is in the noise; but it reverses an explicit decision of the maintainer ('cannot be merged with a useful one').",
+    "preferred": true,
+    "maintainer_fit": "His 7.0.17 reworks (hdgraphGather 0635547) keep an unconditional MPI_Allreduce at the fail label; for dgraphInduce2 (3c9b3ab) he piggybacked on an existing Allgather instead, which is possible only when one exists at the right place."
+   },
+   {
+    "label": "B: piggyback the error on an existing collective with a fallback allocation (dgraphInduce2 idiom), where one exists",
+    "summary": "dgraphRedist(): on allocation failure, allocate a smaller array for synchronisation, send negative counts in the existing MPI_Allreduce of per-part counts; everyone detects a negative sum. Not applicable to dgraphRedist2's two agreements, the fold's agreements or the gather (no suitable collective).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/alt/PS-DGR-4-B-piggyback-on-count-allreduce.diff",
+    "tested": "compiles against pristine headers (1 warning: 'vertlocnum' may be used uninitialised is a false positive of the restructured else); not run",
+    "tradeoffs": "Saves one Allreduce in one of the six places; more code (fallback allocation path) and a 'cannot do a clean exit' return when even the fallback fails.",
+    "preferred": false,
+    "maintainer_fit": "It is his own 3c9b3ab idiom; he may prefer it for dgraphRedist(). Offered as the alternative for commit 0006."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0003-Bugfix-make-error-handling-of-dgraphFold2-and-hdgrap.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0004-Bugfix-rework-error-handling-of-dgraphGatherAll2-rep.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0006-Bugfix-make-error-handling-of-dgraphRedist-collectiv.patch"
+  ],
+  "cleanup_done": "the #else branches and their comments removed with the #ifdefs; the else-if comma chain of dgraphRedist2's second allocation phase replaced by straight-line code",
+  "test_added": "none: needs fault injection (repro/PS-DGR-4/README)",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The maintainer must decide whether he accepts unconditional agreements in release builds (commits 0003/0004/0006) or wants the piggyback idiom where possible (alt B for 0006). The dgraphHaloSync() failure path and the hdgraphOrderNd2 agreement are not collective either and belong to other groups."
+ },
+ {
+  "id": "DGR-04",
+  "our_title": "User permutation to SCOTCH_dgraphRedist corrupts edges: in-place unpack assumes receive order",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/DGR-04/redistperm.c (public API, ghost part of permgsttab filled with SCOTCH_dgraphHalo as documented in p_l.tex). Pristine INFRA/asan 32-bit: mpirun -np 2 ./redistperm_pristine32 4 0 2 -> ERROR: AddressSanitizer: memcpy-param-overlap ... #1 dgraphRedist2 dgraph_redist.c:469 #3 SCOTCH_dgraphRedist; mpirun -np 2 ./redistperm_pristine32 8 0 2 -> rank 1: rev=1 rc=0 check=1 bad-adjacency=2 ('dgraphCheck: arc data do not match'); np=3 '40 0 0' and np=4 '41 1 0' idem (check=1, bad-adjacency 1..3); controls (rev=0) and mode 1 (packs of 3) pass. The added src/check case against the pristine library (np=3, bump.grf / bump_b100000.grf): memcpy-param-overlap (ASan lib) / 'main: invalid redistributed graph (2)' (plain lib), rc=1. Patched (32-bit ASan, 64-bit, DEBUG_ALL): every combination passes; check_scotch_dgraph_redist passes on all three trees.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Public API, documented usage (permgsttab 'must be valid' for local and ghost vertices, any order), release builds return 0 with a wrong graph; needs a receiver whose own send buffer is small (receives much more than it keeps), which is the normal use of a redistribution.",
+  "location_7_0_17": "src/libscotch/dgraph_redist.c:353-357 (shared block), :425-436 (positions recorded in receive order), :439-472 (unpack in destination order), :469 (memCpy); src/libscotch/library_dgraph_redist.c:104-107 (user permgsttab passed through)",
+  "evidence": "dgraph_redist.c:354-355: `&dstedgeloctax, (size_t) ((dstedlolocsiz + /* TRICK: extra space required only if edge loads */ MAX (dstedgelocdlt, srcgrafptr->degrglbmax)) * sizeof (Gnum)), /* TRICK: degrmax to avoid overlap */`; :433: `dstvlblloctax[dstvertlocnum] = drcvdatidx; /* TRICK: record data position in label array */`; :469: `memCpy (dstedgeloctax + dstedgelocnum, drcvdattab + drcvdatidx, dstdegrval * sizeof (Gnum)); /* TRICK: will never overlap */` (dstedgelocnum increases in destination order while drcvdatidx is the receive-order position)",
+  "upstream_change": "",
+  "review_accuracy": "Accurate, including the reversed-4-cycle-to-an-empty-rank example. Its second fix ('compute destination offsets by prefix sum and unpack in receive order') is wrong: writes would then land ahead of the read position inside the shared block and overwrite unread records; only a non-overlapping destination area works.",
+  "first_pass_critique": "Reproduction and analysis correct, and it saw that the review's second fix does not work. Its preferred diff puts a three-line conditional expression inside the memAllocGroup argument list (against his style); it did not add the regression test it itself identified as missing, and its reproducer only used the 'all vertices on rank 0' layout, so it did not establish when the corruption does not show (receiver with its own send data padding the gap), which matters for the test design.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A: full-size destination edge area when the permutation is user-provided (recommended)",
+    "summary": "dgraphRedist() passes a flag (srcpermgsttax != NULL) to dgraphRedist2(), which sizes the first member of the group as dstedgelocsiz * fledval words in that case (no overlap possible) and keeps the TRICK sizing for the internal, receive-ordered permutation. The final memRealloc already shrinks the block. A second case with a reversed user permutation (all vertices to the last process) is added to test_scotch_dgraph_redist.c.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0001-Bugfix-do-not-unpack-edge-data-in-place-when-a-user-.patch",
+    "tested": "redistperm matrix (np 2-4, three layouts, N 4-41, base 0/1) on 32-bit ASan and 64-bit builds; the new check case fails on pristine and passes patched; After the series: check_strat_par, check_scotch_dgraph_{check,band,coarsen,order,grow,induce,redist}, check_libparmetis_{v3,dual}, check_prog_{dgord,dgpart,dgscat-dggath,dgtst} all exit 0 on the 32-bit ASan+UBSan tree and on the 64-bit Gnum tree ($WORK/chk_32_*.log, chk_64_*.log; the only sanitizer lines are pre-existing ones in library_dgraph_coarsen.c:163 and bgraph_bipart_ml.c:195, other groups); check_scotch_dgraph_{check,coarsen,order,redist,induce} and check_prog_dgord also pass on an ASan -DSCOTCH_DEBUG_ALL tree (chk_dbg_*.log). Zero compiler warnings in the three trees. git am of the 7 patches on a fresh clone of v7.0.17 succeeds.",
+    "tradeoffs": "Peak memory of the user-permutation path grows by dstedgelocnbr * fledval words during the exchange (the internal path is unchanged). One more static-function parameter (prototype in dgraph_redist.h).",
+    "preferred": true,
+    "maintainer_fit": "Keeps his TRICK where it is valid and documents when it is not; dgraphRedist() already branches on 'srcpermgsttax != NULL' ('Do not allocate permutation array if already provided'). Test added in the style of his 2bcd53c edit of the same test file."
+   },
+   {
+    "label": "B: always allocate a full-size destination edge area (drop the TRICK)",
+    "summary": "Size the first member as dstedgelocsiz + dstedlolocsiz words in all cases.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/alt/DGR-04-B-always-full-size-edge-area.diff",
+    "tested": "compiles (mpicc -c, 0 warnings); not run in this pass",
+    "tradeoffs": "Three-line diff, removes a fragile invariant and makes the debug overlap asserts moot, but costs the extra peak memory on the default path too, which is exactly what the TRICK was written to avoid.",
+    "preferred": false,
+    "maintainer_fit": "He wrote the TRICK deliberately with three comments; he would keep it."
+   },
+   {
+    "label": "C: detect a non-monotone receive order at run time and fall back to a separate array",
+    "summary": "The first unpack loop records whether destination indices arrive in increasing order; if not, a separate edge array is allocated and the group block is freed after unpacking.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/alt/DGR-04-C-detect-order-fallback-array.diff",
+    "tested": "compiles (mpicc -c, 0 warnings); not run",
+    "tradeoffs": "Optimal memory in both cases but a new allocation after the collective exchange, whose failure would need yet another agreement; two code paths to maintain.",
+    "preferred": false,
+    "maintainer_fit": "A failure point after the exchange is what his 7.0.17 reworks move away from."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0001-Bugfix-do-not-unpack-edge-data-in-place-when-a-user-.patch"
+  ],
+  "cleanup_done": "none needed (the two TRICK comments on the removed lines were folded into the new size computation)",
+  "test_added": "src/check/test_scotch_dgraph_redist.c: second redistribution of bump.grf / bump_b100000.grf (3 processes) with all vertices sent to the last process under a permutation that reverses their order (ghost part propagated with SCOTCH_dgraphHalo), checked with SCOTCH_dgraphCheck. No Makefile/CMake change needed (same executable and data).",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The 'packs of 3 vertices' scheme of the existing test does not expose the bug even with a reversed permutation (each receiver's own send buffer pads the gap), which is why the new case sends everything to one process."
+ },
+ {
+  "id": "DGR-14",
+  "our_title": "abs() on a ptrdiff_t in the debug overlap check, replaced by the ABS macro",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "mpicc <64-bit flags> -DSCOTCH_DEBUG_DGRAPH2 -Wall -Wextra -c repro/DGR-14/dgraph_redist_7016.c: 455:11 and 464:9 'absolute value function abs given an argument of type long int ... may cause truncation [-Wabsolute-value]'; same command on the 7.0.17 file: no warning. git grep '\\babs (' v7.0.17 -- src: remaining call sites take int (src/check, amk_m2.h) or are comments.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Debug-only assertion; as DGR-04 shows, the assertion only compares start addresses and never protected the release path.",
+  "location_7_0_17": "src/libscotch/dgraph_redist.c:455, 464",
+  "evidence": "dgraph_redist.c:455: `if (ABS ((dstedloloctax + dstedgelocnum) - (drcvdattab + drcvdatidx)) < dstdegrval) { /* Memory areas should never overlap */`; common.h: `#define ABS(x) MAX ((x), -(x))`",
+  "upstream_change": "f545452 Bugfix: use size-agnostic macro instead of bounded-size library ABS routine [report R. Perry]",
+  "review_accuracy": "accurate",
+  "first_pass_critique": "",
+  "extra_instances": [],
+  "fix_options": [],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Complete: the only two abs() call sites on Gnum/pointer differences were these."
+ },
+ {
+  "id": "DGR-10",
+  "our_title": "dgraphGatherAll2 error path: NULL cgrfptr dereference, uninitialised recvcnttab freed",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Release library built with -ftrivial-auto-var-init=pattern. ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/gatherfi 2 1 0 0 -- gather 0 5 -> nth=0 exit=139 :: (1): ERROR: dgraphGatherAll2: out of memory (3); dgraph_gather_all.c:212:16: runtime error: member access within null pointer of type 'struct Graph'. ./scan.sh ... gatherfi 2 0 0 3 -- gather 0 5 -> nth=0 exit=139 (out of memory (1), SEGV in free of uninitialised recvcnttab), nth=1 exit=139 ((2), same), nth=2: rank 0 rc=1 / rank 1 rc=0. Twin hdgraphGather() through SCOTCH_dgraphOrderCompute (np=4, m16x16.grf): rank 0 nth=123 'hdgraphGather: out of memory (2)' -> exit=139 (SEGV in hgraphExit). Patched: all these cases exit 1 on every rank of the gather, no crash; alias mode and success paths unchanged.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Crash instead of a clean error on out-of-memory in a gather (used by the sequential fallbacks of distributed ordering/partitioning); not reachable by user data.",
+  "location_7_0_17": "src/libscotch/dgraph_gather_all.c:154-218 (error block :209-218, recvcnttab used at :210, cgrfptr at :212); twin src/libscotch/hdgraph_gather.c:126-212",
+  "evidence": "dgraph_gather_all.c:209-216: `if (chekglbval != 0) { if (recvcnttab != NULL) memFree (recvcnttab); if (cgrfptr->verttax != NULL) { ... } return (1); }` with `Gnum * recvcnttab;` (:123) never initialised when the root fails at :166-179 and cgrfptr == NULL on non-roots (SCOTCH_dgraphGather passes NULL, library_dgraph_gather.c:97).",
+  "upstream_change": "library_dgraph_gather.c changed by 04c85e9 (root aliasing, API-04); dgraph_gather_all.c untouched; hdgraph_gather.c reworked by 0635547, which left the same class of defect (uninitialised verthaltax/edgetax/baseval on root failure).",
+  "review_accuracy": "accurate; incomplete: release builds also do not agree on the error (root returns 1, others 0, then enter the gather operations alone).",
+  "first_pass_critique": "Correct on both claims and it found the disagreement. Its preferred patch is the minimal one (NULL-init + guard) and leaves the debug-only agreement as a separate non-preferred option; it did not look at the twin hdgraphGather() that the maintainer had just reworked, which has the same uninitialised reads plus an uninitialised base value in hgraphExit() (callers pass an uninitialised stack Hgraph: hdgraph_order_sq.c:86, hdgraph_order_nd.c:111).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/hdgraph_gather.c:93,99,126-186,197-212",
+    "quote": "Gnum * restrict verthaltax; ... if (verthaltax != NULL) memFree (verthaltax + dgrfptr->s.baseval); (uninitialised when the root fails at (1)-(3)); hgraphExit (cgrfptr); frees s.edgetax (never set when (1) fails) with s.baseval (set only after (3))",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: rework the allocation phase like hdgraphGather() (assume error, goto fail, unconditional agreement, free only what exists) (recommended)",
+    "summary": "cheklocval = 1 and recvcnttab = NULL before the allocations; each failure jumps to a common 'fail:' label where the agreement is always performed; the cleanup tests cgrfptr != NULL. In hdgraphGather(), verthaltax and cgrfptr->s.edgetax are set to NULL and cgrfptr->s.baseval is set before the first allocation.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0004-Bugfix-rework-error-handling-of-dgraphGatherAll2-rep.patch",
+    "tested": "Fault injection on both routines (above). After the series: check_strat_par, check_scotch_dgraph_{check,band,coarsen,order,grow,induce,redist}, check_libparmetis_{v3,dual}, check_prog_{dgord,dgpart,dgscat-dggath,dgtst} all exit 0 on the 32-bit ASan+UBSan tree and on the 64-bit Gnum tree ($WORK/chk_32_*.log, chk_64_*.log; the only sanitizer lines are pre-existing ones in library_dgraph_coarsen.c:163 and bgraph_bipart_ml.c:195, other groups); check_scotch_dgraph_{check,coarsen,order,redist,induce} and check_prog_dgord also pass on an ASan -DSCOTCH_DEBUG_ALL tree (chk_dbg_*.log). Zero compiler warnings in the three trees. git am of the 7 patches on a fresh clone of v7.0.17 succeeds.",
+    "tradeoffs": "One 1-int MPI_Allreduce per gather in release builds (a gather moves the whole graph). Function shape changes (goto labels instead of nested else-ifs).",
+    "preferred": true,
+    "maintainer_fit": "Mirrors his own rework of the twin (0635547) line for line: 'cheklocval = 1; /* Assume an error */', 'goto fail;', 'cheklocval = 0; /* Everything went well */ fail: if (MPI_Allreduce (...'."
+   },
+   {
+    "label": "B: minimal: initialise recvcnttab and guard cgrfptr, keep the debug-only agreement",
+    "summary": "Two-line fix of the crashes only.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/alt/DGR-10-B-minimal-null-init-and-guard.diff",
+    "tested": "compiles (mpicc -c, 0 warnings); not run",
+    "tradeoffs": "No crash, but the root and the non-roots still return different values in release builds and the non-roots enter commGatherv() alone.",
+    "preferred": false,
+    "maintainer_fit": "Leaves the structure he abandoned in the twin."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0004-Bugfix-rework-error-handling-of-dgraphGatherAll2-rep.patch"
+  ],
+  "cleanup_done": "the 'if (cheklocval == 0)' nesting and the 'else if' allocation chain removed; the late baseval assignment in hdgraphGather() removed",
+  "test_added": "none: needs fault injection (repro/DGR-10/README)",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "vdgraphGatherAll()/bdgraphGatherAll() call dgraphGatherAll() -> dgraphGatherAll2 with protnum -1 and are covered by the same code."
+ },
+ {
+  "id": "API-04",
+  "our_title": "Fortran non-root alias of SCOTCH_dgraphGather normalised to NULL since 7.0.17",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "repro/API-04: the 7.0.16 wrapper (git show v7.0.16:src/libscotch/library_dgraph_gather.c) compiled as an overriding shared object and preloaded over the 7.0.17 library: mpirun -np 2 -x LD_PRELOAD=libgather7016.so gatherfi alias 1 5 -> rank 1 exits on signal 11 (rc=139): the non-root wrote Graph fields into its Dgraph. Without the override (7.0.17): rank 0: centralized check=0 vertnbr=10 edgenbr=20, all ranks rc=0, distributed graphs pass dgraphCheck; np=3 idem; also on the ASan 32/64-bit builds through the gather fault-injection runs (alias mode).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Fixed; rating kept for the 7.0.16 defect (silent corruption of the caller's distributed graph from Fortran).",
+  "location_7_0_17": "src/libscotch/library_dgraph_gather.c:83-98, 123-126",
+  "evidence": "library_dgraph_gather.c:87-98: `if ((cgrfptr != NULL) && (((void *) cgrfptr) != ((void *) dgrfptr)) && (((void *) cgrfptr) != ((void *) srcdgrfptr))) { ... srccgrfptr = (Graph *) CONTEXTOBJECT (cgrfptr); } else { ... srccgrfptr = NULL; }` and :124/:126: `dgraphGatherAll2 (srcdgrfptr, srccgrfptr, ...)`",
+  "upstream_change": "04c85e9 Bugfix: make sure roots are properly identified when called from Fortran [report R. Perry]",
+  "review_accuracy": "accurate",
+  "first_pass_critique": "",
+  "extra_instances": [],
+  "fix_options": [],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Complete: the Fortran wrapper library_dgraph_gather_f.c goes through this C routine; the internal dgraphGather() has no aliasing. The only other API family with an optional centralized object (dgraphOrderGather) does not use this alias convention."
+ }
+]

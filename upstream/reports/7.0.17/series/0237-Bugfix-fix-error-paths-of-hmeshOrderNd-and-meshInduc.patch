@@ -1,0 +1,142 @@
+From 1133a91eb162026a08b95cf934bccdecc15fc9b6 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:40:00 +0000
+Subject: [PATCH 237/240] Bugfix: fix error paths of `hmeshOrderNd()` and
+ `meshInduceSepa()` [report R. Perry]
+
+When the induced separator mesh could not be built, `hmeshOrderNd()`
+freed `frontab`, which is the second member of the array group led by
+`parttab`, hence an invalid free, and leaked the mesh data. When its
+own array group could not be allocated, it leaked the non-halo
+`vendtab` created by `hmeshMesh()`. Route all failures through a
+single `fail` label that calls `vmeshExit()`.
+
+When the second array group of `meshInduceSepa()` could not be
+allocated, the first one leaked; in debug mode, the internal error
+check leaked both. Allocate the two groups in sequence and free what
+has been allocated on every error path.
+
+Refs: SEP-15, SEP-22
+---
+ src/libscotch/hmesh_order_nd.c   | 16 +++++++++-------
+ src/libscotch/mesh_induce_sepa.c | 33 +++++++++++++++++---------------
+ 2 files changed, 27 insertions(+), 22 deletions(-)
+
+diff --git a/src/libscotch/hmesh_order_nd.c b/src/libscotch/hmesh_order_nd.c
+index 15c1fe9..e1629bc 100644
+--- a/src/libscotch/hmesh_order_nd.c
++++ b/src/libscotch/hmesh_order_nd.c
+@@ -157,14 +157,15 @@ const HmeshOrderNdParam * const   paraptr)
+                       &nspmeshdat.parttax, (size_t) (vertnbr * sizeof (GraphPart)),
+                       &nspmeshdat.frontab, (size_t) (vertnbr * sizeof (Gnum)), NULL) == NULL) {
+     errorPrint ("hmeshOrderNd: out of memory (1)");
++    meshFree   (&nspmeshdat.m);                   /* Free non-halo mesh data, if any */
+     return (1);
+   }
+   memSet (nspmeshdat.parttax, 0, vertnbr * sizeof (GraphPart)); /* Set all vertices to part 0 */
+   nspmeshdat.parttax -= nspmeshdat.m.baseval;
+ 
+   if (vmeshSeparateSt (&nspmeshdat, paraptr->sepstrat) != 0) { /* Separate mesh */
+-    vmeshExit (&nspmeshdat);
+-    return (1);
++    o = 1;
++    goto fail;
+   }
+ 
+   if ((nspmeshdat.ncmpsize[0] == 0) ||            /* If could not separate more */
+@@ -177,8 +178,8 @@ const HmeshOrderNdParam * const   paraptr)
+   cblkptr->typeval = ORDERCBLKNEDI;               /* Node becomes a nested dissection node */
+   if ((cblkptr->cblktab = (OrderCblk *) memAlloc (3 * sizeof (OrderCblk))) == NULL) {
+     errorPrint ("hmeshOrderNd: out of memory (2)");
+-    vmeshExit  (&nspmeshdat);
+-    return (1);
++    o = 1;
++    goto fail;
+   }
+   cblkptr->cblktab[0].typeval = ORDERCBLKLEAF;    /* Build column blocks */
+   cblkptr->cblktab[0].vnodnbr = nspmeshdat.ncmpsize[0];
+@@ -212,9 +213,9 @@ const HmeshOrderNdParam * const   paraptr)
+     cblkptr->cblktab[2].cblktab = NULL;
+ 
+     if (meshInduceSepa (&nspmeshdat.m, nspmeshdat.parttax, nspmeshdat.fronnbr, nspmeshdat.frontab, &indmeshdat.m) != 0) {
+-      errorPrint ("hmeshOrderNd: cannot build induced subgraph (1)");
+-      memFree    (nspmeshdat.frontab);            /* Free remaining space */
+-      return (1);
++      errorPrint ("hmeshOrderNd: cannot build induced submesh");
++      o = 1;
++      goto fail;
+     }
+     indmeshdat.vnohnbr = indmeshdat.m.vnodnbr;    /* Fill halo mesh structure of non-halo mesh */
+     indmeshdat.vnohnnd = indmeshdat.m.vnodnnd;
+@@ -273,6 +274,7 @@ const HmeshOrderNdParam * const   paraptr)
+     }
+   }
+ 
++fail:
+   vmeshExit (&nspmeshdat);
+ 
+   return (o);
+diff --git a/src/libscotch/mesh_induce_sepa.c b/src/libscotch/mesh_induce_sepa.c
+index b8f195a..167afab 100644
+--- a/src/libscotch/mesh_induce_sepa.c
++++ b/src/libscotch/mesh_induce_sepa.c
+@@ -190,22 +190,24 @@ Mesh * restrict const             indmeshptr)     /* Pointer to induced submesh
+           &indmeshptr->verttax, (size_t) (indvertnbr * sizeof (Gnum)),
+           &indmeshptr->vendtax, (size_t) (indvertnbr * sizeof (Gnum)),
+           &indmeshptr->vnumtax, (size_t) (orgsepanbr * sizeof (Gnum)), NULL); /* vnumtab is of size indnodenbr */
+-  orgvertnbr = orgmeshptr->velmnbr + orgmeshptr->vnodnbr;
+-  if (p != 0) {
+-    indmeshptr->verttax -= indmeshptr->baseval;
+-    indmeshptr->vendtax -= indmeshptr->baseval;
+-    indmeshptr->vnumtax -= indmeshptr->vnodbas; /* vnumtab is of size indmeshptr->vnodnbr */
+-
+-    p = memAllocGroup ((void **) (void *)
+-          &indedgetax, (size_t) (indedgenbr    * sizeof (Gnum)),
+-          &indvneltax, (size_t) (indvelmnbr    * sizeof (Gnum)),
+-          &orgindxtax, (size_t) (orgvertnbr    * sizeof (Gnum)),
+-          &hashtab,    (size_t) ((hashmsk + 1) * sizeof (MeshInduceSepaHash)), NULL);
+-  }
+-  if (p == 0) {
++  if (p == NULL) {
+     errorPrint ("meshInduceSepa: out of memory (2)"); /* Allocate induced mesh graph structure */
+     return     (1);
+   }
++  indmeshptr->verttax -= indmeshptr->baseval;
++  indmeshptr->vendtax -= indmeshptr->baseval;
++  indmeshptr->vnumtax -= indmeshptr->vnodbas;     /* vnumtab is of size indmeshptr->vnodnbr */
++
++  orgvertnbr = orgmeshptr->velmnbr + orgmeshptr->vnodnbr;
++  if (memAllocGroup ((void **) (void *)
++        &indedgetax, (size_t) (indedgenbr    * sizeof (Gnum)),
++        &indvneltax, (size_t) (indvelmnbr    * sizeof (Gnum)),
++        &orgindxtax, (size_t) (orgvertnbr    * sizeof (Gnum)),
++        &hashtab,    (size_t) ((hashmsk + 1) * sizeof (MeshInduceSepaHash)), NULL) == NULL) {
++    errorPrint ("meshInduceSepa: out of memory (3)");
++    meshFree   (indmeshptr);                      /* Free vertex array group */
++    return     (1);
++  }
+   memSet (orgindxtax, ~0, orgvertnbr    * sizeof (Gnum));
+   memSet (hashtab,    ~0, (hashmsk + 1) * sizeof (MeshInduceSepaHash));
+   indedgetax -= indmeshptr->baseval;
+@@ -327,7 +329,7 @@ Mesh * restrict const             indmeshptr)     /* Pointer to induced submesh
+ #ifdef SCOTCH_DEBUG_MESH2
+   if (indvnodnum != (orgsepanbr + indmeshptr->baseval)) {
+     errorPrint ("meshInduceSepa: internal error");
+-    return     (1);
++    goto fail;
+   }
+ #endif /* SCOTCH_DEBUG_MESH2 */
+ 
+@@ -336,7 +338,8 @@ Mesh * restrict const             indmeshptr)     /* Pointer to induced submesh
+   indmeshptr->edgenbr = indedgenbr;
+ 
+   if ((indmeshptr->edgetax = (Gnum *) memRealloc (indedgetax + indmeshptr->baseval, (indedgenum - indmeshptr->baseval) * sizeof (Gnum))) == NULL) {
+-    errorPrint ("meshInduceSepa: out of memory (3)");
++    errorPrint ("meshInduceSepa: out of memory (4)");
++fail:
+     memFree    (indedgetax + indmeshptr->baseval); /* Free group leader */
+     meshFree   (indmeshptr);
+     return     (1);
+-- 
+2.47.3
+

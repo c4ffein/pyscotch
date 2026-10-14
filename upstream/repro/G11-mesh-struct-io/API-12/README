@@ -1,0 +1,7 @@
+API-12: output graph handles of SCOTCH_meshGraph/meshGraphDual/dmeshDgraphDual and the handle of SCOTCH_graphDump are not unwrapped.
+  ./bound 0 $WORK/scotch/src/check/data/small2.msh   pristine -> "SCOTCH_Num pverttabs[] = {\n};" (container bytes read as an empty graph)
+                                                      patched  -> "SCOTCH_Num pverttabs[] = {\n  0, 3, 9, 12, ...}"
+  ./bound 1 ...   pristine -> "meshGraph=0" then "underlying graph vertnbr=0" and LeakSanitizer (graph written over the container)
+                  patched  -> "underlying graph vertnbr=7 check=0", no leak
+dmeshDgraphDual: source-read only (MPI), same one-token change; check_libparmetis_v3 passes with it.
+Fixed by patches/0005.

@@ -1,0 +1,7 @@
+Usage is:
+  gdump [<input graph file> [<output code file>]] <options>
+    -b<base>    : Set base value
+    -h          : Display this help
+    -p<prefix>  : Use prefix name
+    -s<suffix>  : Use suffix name
+    -V          : Print program version and copyright

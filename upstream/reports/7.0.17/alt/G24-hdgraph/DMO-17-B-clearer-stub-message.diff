@@ -1,0 +1,12 @@
+diff --git a/src/libscotch/kdgraph_map_rb_map.c b/src/libscotch/kdgraph_map_rb_map.c
+index f5e41b2..50207b2 100644
+--- a/src/libscotch/kdgraph_map_rb_map.c
++++ b/src/libscotch/kdgraph_map_rb_map.c
+@@ -74,6 +74,6 @@ Kdgraph * restrict const                 grafptr,
+ Kdmapping * restrict const               mappptr,
+ const KdgraphMapRbParam * restrict const paraptr)
+ {
+-  errorPrint ("kdgraphMapRbMap: not implemented yet");
++  errorPrint ("kdgraphMapRbMap: parallel mapping onto non-complete target architectures not implemented yet");
+   return     (1);
+ }

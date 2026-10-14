@@ -1,0 +1,8 @@
+PS2-G18-3: the two halves of the nested dissection disagree on failure  (patches/0002)
+======================================================================================
+np 3: halves {0,1} and {2}. Failures inside half {0,1} after the fold (allocations #115 hdgraphInduceList, #121 hdgraphGather,
+#125 hdgraphInduceList, #130 dorderNewSequ of rank 0; #127 hdgraphGather of rank 1):
+base:    $C/one.sh $WORK/basefi/lib  $C/bin_basefi/orderfi  3 0 121 rc -> rank 0: rc=1, rank 1: rc=1, rank 2: rc=0  (DISAGREE)
+         rank 0's own allocations #61/#62 (fronloctab/partgsttax of hdgraphOrderNd2, the release-only agreement): HANG
+patched: $C/one.sh $WORK/buildfi/lib $C/bin_buildfi/orderfi 3 0 121 rc -> rc=1 on every rank; #61/#62 -> rc=1 on every rank.
+Full table: python3 -I $C/compare.py $C/filog2_m16_np3.txt $C/scans/basefi_np3_r0.txt $C/scans/buildfi_np3_r0.txt (and r1, r2).

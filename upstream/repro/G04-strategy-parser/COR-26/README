@@ -1,0 +1,12 @@
+COR-26: integer modulus by zero (SIGFPE) and unchecked integer literal conversion.
+  G=$WORK/scotch/src/check/data/bump.grf; cd ../common
+  LD_LIBRARY_PATH=$INFRA/asan/lib $WORK/build/bin/gmap $G c4.tgt /dev/null -M'r{sep=/(vert%0>1)?m;m}'
+     pristine: 'parser.c:428:63: runtime error: division by zero' + 'AddressSanitizer: FPE ... #0 _SCOTCHstratTestEval parser.c:428'
+  LD_LIBRARY_PATH=$WORK/build/lib $WORK/build/bin/gmap $G c4.tgt /dev/null -M'r{sep=/(vert%0>1)?m;m}'
+     patched : 'gmap: ERROR: stratTestEval: modulus by zero' (clean error return)
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine '/(vert>99999999999999999999)?r;'  -> ret=0, saved as '(vert)>(-1)'  (atol saturates, (INT) truncates)
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'r{sep=m{vert=1e30}}'              -> ret=0 (double->INT overflow, UB; value INT_MIN on x86)
+  LD_LIBRARY_PATH=$WORK/build/lib ./st_pristine 'r{sep=m{vert=99999999999999999999}}'
+     patched : 'value out of range, line 1, column 14, at "99999999999999999999}}"' + 'invalid value for parameter "vert" of method "m"...', ret=1
+  64-bit: ./st64 'r{sep=m{vert=9223372036854775807}}' -> ret=0 ; 'vert=9223372036854775808' -> rejected ; 'vert=1e19' -> rejected
+  Regression test: src/check/test_strat_seq.c (stratbadtab[3]).

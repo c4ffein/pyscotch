@@ -1,0 +1,5 @@
+Reproducers for group G16 (Scotch 7.0.17). Build all of them against a build tree with
+  sh build.sh <build tree> <suffix>          e.g.  sh build.sh $WORK/build _pristine
+(The build trees are ASan+UBSan; export UBSAN_OPTIONS=print_stacktrace=1, and
+ASAN_OPTIONS=detect_leaks=0 for MPI runs.) Each sub-directory has its own README with
+the exact commands and the observed pristine / patched outputs.

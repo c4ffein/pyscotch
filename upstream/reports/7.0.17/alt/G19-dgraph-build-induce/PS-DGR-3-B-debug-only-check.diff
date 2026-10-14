@@ -1,0 +1,28 @@
+diff --git a/src/libscotch/dgraph_induce.c b/src/libscotch/dgraph_induce.c
+index 91524ec..dd30452 100644
+--- a/src/libscotch/dgraph_induce.c
++++ b/src/libscotch/dgraph_induce.c
+@@ -237,11 +237,23 @@ fail2:
+ 
+     indedlooftval = indedloloctax - indgrafptr->edgeloctax;
+     indgrafptr->edgeloctax  = memRealloc (indgrafptr->edgeloctax + baseval, (indedlooftval + indedgelocnbr) * sizeof (Gnum));
++#ifdef SCOTCH_DEBUG_DGRAPH2
++    if (indgrafptr->edgeloctax == NULL) {         /* Shrinking should never fail */
++      errorPrint ("dgraphInduce2: out of memory (4)");
++      return (1);
++    }
++#endif /* SCOTCH_DEBUG_DGRAPH2 */
+     indgrafptr->edgeloctax -= baseval;
+     indedloloctax = indgrafptr->edgeloctax + indedlooftval; /* Use old index into old array as new index to avoid alignment problems */
+   }
+   else {
+     indgrafptr->edgeloctax  = memRealloc (indgrafptr->edgeloctax + baseval, indedgelocnbr * sizeof (Gnum));
++#ifdef SCOTCH_DEBUG_DGRAPH2
++    if (indgrafptr->edgeloctax == NULL) {         /* Shrinking should never fail */
++      errorPrint ("dgraphInduce2: out of memory (5)");
++      return (1);
++    }
++#endif /* SCOTCH_DEBUG_DGRAPH2 */
+     indgrafptr->edgeloctax -= baseval;
+   }
+ 

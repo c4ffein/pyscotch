@@ -1,0 +1,9 @@
+PS-SEP-6: intRandVal2() (UINT64) returns (UINT) intRandVal3()
+=============================================================
+val2probe.c : internal-API program printing intRandVal2 () values and the OR of their high 32 bits over 100000 draws.
+Pristine: 32-bit build OR = 0x00000000 (upper half always zero), 64-bit build OR = 0xffffffff.
+Patched (patch 0005): 32-bit build OR = 0xffffffff, values identical to the 64-bit build's.
+Determinism check (gord / gmap m8x8 / gpart 7 / gpart with -Mr'{sep=a{pass=20,pop=40}}' on bump_b1.grf):
+  SCOTCH_PTHREAD_NUMBER=1: pristine and patched outputs byte-identical, on both int sizes (pristine_* vs patched_* files).
+  SCOTCH_PTHREAD_NUMBER=4: outputs differ between any two runs of the SAME binary (rr_1..3.*), so no conclusion
+  can be drawn from threaded runs; by construction only the seeds of spawned/split sub-generators change, in 32-bit builds.

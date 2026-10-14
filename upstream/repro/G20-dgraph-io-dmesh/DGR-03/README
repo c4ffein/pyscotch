@@ -1,0 +1,11 @@
+DGR-03  dgraphLoadCent/Dist: header error never broadcast + property sprintf overflow + unvalidated counts/labels/ends.
+Files here: badprop.grf (property 1000000), negprop.grf (-5), negvert.grf (-4 vertices),
+            negedge.grf (-8 edges), badend.grf (edge end 99 > 4 vertices).
+PRISTINE (ASan, $WORK/pristine) -- fails:
+  export LD_LIBRARY_PATH=$WORK/pristine/lib ASAN_OPTIONS=detect_leaks=0
+  mpirun --oversubscribe -np 2 ../common/bin_pristine/dgload badprop.grf   # stack-buffer-overflow in sprintf on BOTH ranks
+  mpirun --oversubscribe -np 2 ../common/bin_pristine/dgload negvert.grf   # allocation-size-too-big; np2 HANGS (one rank aborts, peer waits)
+PATCHED ($WORK/build) -- all return rc=1 on every rank, no ASan, no hang:
+  mpirun --oversubscribe -np 2 ../common/bin_build/dgload badprop.grf
+  mpirun --oversubscribe -np 1 ../common/bin_build/dgload badend.grf       # "dgraphLoadCent: invalid arc end number"
+Valid files (bump.grf, small3-%r.dgr -d) still load rc=0 check=0 on np 1,2,3.

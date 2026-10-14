@@ -1,0 +1,58 @@
+From 9cd5c2c00bbfd5424b50fba1b6f3939bbbf95ad5 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:11:12 +0000
+Subject: [PATCH 224/240] Bugfix: track Fortran test templates in CMake [report
+ R. Perry]
+
+In `suffix_fortran_file()`, the command that runs "dummysizes" on a
+"*.f90.in" template depended on "${file}", an undefined variable, and
+not on the template itself, and the command that then suffixes the
+MeTiS routine names depended on the "*_tmp" target rather than on the
+intermediate file. Hence, editing a template after the first build
+never regenerated the Fortran test source. Make both commands depend
+on their input files, and remove the "*_tmp" target, which no longer
+serves any purpose.
+
+Refs: BLD-10
+---
+ src/check/CMakeLists.txt | 14 +++++---------
+ 1 file changed, 5 insertions(+), 9 deletions(-)
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index 5694880..66be8b8 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -71,17 +71,12 @@ function(suffix_fortran_file src)
+     ${CMAKE_CURRENT_BINARY_DIR}/${file_we}.tmp
+     COMMAND
+     $<TARGET_FILE:dummysizes> "-s${SCOTCH_NAME_SUFFIX}"
+-    ${CMAKE_CURRENT_SOURCE_DIR}/${file_we}.in
++    ${CMAKE_CURRENT_SOURCE_DIR}/${src}
+     ${CMAKE_CURRENT_BINARY_DIR}/${file_we}.tmp
+     DEPENDS
+     dummysizes
+-    DEPENDS
+-    ${CMAKE_CURRENT_SOURCE_DIR}/${file}
+-    COMMENT "Generate ${file}.f90")
+-
+-  add_custom_target(${file_we}_tmp ALL
+-    DEPENDS
+-    "${CMAKE_CURRENT_BINARY_DIR}/${file_we}.tmp")
++    ${CMAKE_CURRENT_SOURCE_DIR}/${src}
++    COMMENT "Generate ${file_we}.tmp")
+ 
+   file(WRITE
+     "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/cmake_sed_${file_we}.cmake"
+@@ -98,7 +93,8 @@ file(WRITE \"\${CMAKE_CURRENT_BINARY_DIR}/${file_we}\" \"\${FILE_CONTENTS}\")
+     COMMAND
+       ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/cmake_sed_${file_we}.cmake
+     DEPENDS
+-      ${file_we}_tmp
++      ${CMAKE_CURRENT_BINARY_DIR}/${file_we}.tmp
++    COMMENT "Generate ${file_we}"
+   )
+   add_custom_target(${file_we}_src ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${file_we})
+ endfunction(suffix_fortran_file)
+-- 
+2.47.3
+

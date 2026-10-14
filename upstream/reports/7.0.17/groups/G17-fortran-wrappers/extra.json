@@ -1,0 +1,263 @@
+[
+ {
+  "local_id": "PS2-G17-1",
+  "our_title": "SCOTCH_dgraphBuildGrid3D checks its parameters only in debug builds; incrval = 0 divides by zero",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/API-09/stat_f.f90 first version called scotchfdgraphbuildgrid3d (grafdat, 0, 2, 2, 2, 0, 0, ierr) on the pristine 32- and 64-bit ASan trees: 'dgraph_build_grid3d.c:387:13: runtime error: division by zero' then 'Program received signal SIGFPE' on both ranks. The checks at dgraph_build_grid3d.c:306-314 are inside #ifdef SCOTCH_DEBUG_DGRAPH1.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/dgraph_build_grid3d.c:305-315 and :387",
+  "evidence": "#ifdef SCOTCH_DEBUG_DGRAPH1\n  if ((dimxval < 1) || (dimyval < 1) || (dimzval < 1)) { /* At least one vertex */\n ...\n  if (incrval < 1) {\n    errorPrint (\"dgraphBuildGrid3D: invalid parameters (2)\");\n ...\n#endif /* SCOTCH_DEBUG_DGRAPH1 */",
+  "related_ids": [
+   "API-24"
+  ],
+  "fix_options": [
+   {
+    "label": "A: make the two parameter checks unconditional",
+    "summary": "Drop the #ifdef around the checks: the values come straight from a public API call.",
+    "diff_file": "$WORK/alt/PS2-G17-1-A-unconditional-grid3d-parameter-checks.diff",
+    "tested": "untested: file belongs to the DGR groups; diff applies.",
+    "tradeoffs": "Two integer comparisons per call.",
+    "preferred": true,
+    "maintainer_fit": "STYLE.md / his 7.0.17 fixes: unconditional check for anything an API call controls (e.g. 'Add parameter check to `SCOTCH_dgraphRedist()`')."
+   },
+   {
+    "label": "B: document the constraint only",
+    "summary": "State in p_l.tex that incrval must be >= 1 and the dimensions >= 1.",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "Crash remains for careless callers.",
+    "preferred": false,
+    "maintainer_fit": "He prefers checks for API inputs."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G17-2",
+  "our_title": "Manual synopses of SCOTCH_dmeshBuildAdm describe a 13-argument graph-build routine, not the 7-argument mesh one",
+  "severity": "low",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "repro/fortran_audit.py: COUNT 'wrapper has 8 visible parameters, manual (p_l.tex:3896) lists 14' and DOCC 'C synopsis of SCOTCH_dmeshBuildAdm has 13 args, library.h has 7'.",
+  "read_only": "documentation",
+  "why_not_run": "documentation defect",
+  "location_7_0_17": "doc/src/ptscotch/p_l.tex:3880-3912",
+  "evidence": "int SCOTCH\\_dmeshBuildAdm ( & SCOTCH\\_Dmesh *     & meshptr,    \\\\\n                            & const SCOTCH\\_Num   & baseval,    \\\\\n                            & const SCOTCH\\_Num   & vertlocnbr, \\\\ ... edloloctab)  [library_pt.h: (SCOTCH_Dmesh * const, const SCOTCH_Num, const SCOTCH_Num, SCOTCH_Num * const, const SCOTCH_Num, SCOTCH_Num * const, const SCOTCH_Num)]",
+  "related_ids": [
+   "API-24"
+  ],
+  "fix_options": [
+   {
+    "label": "A: rewrite both synopses from library_pt.h and the wrapper",
+    "summary": "7 C arguments (meshptr, baseval, velmlocnbr, velmloctab, eelmlocnbr, eelmloctab, vnodglbnbr), Fortran twin plus ierr; the \\progdes text was already right.",
+    "diff_file": "$WORK/patches/0006-Fix-Fortran-synopses-in-the-Scotch-and-PT-Scotch-use.patch",
+    "tested": "audit COUNT/DOCC for this routine: 0 after the patch.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "086b78a added these sections; a 'Documentation fix' commit is his usual follow-up."
+   },
+   {
+    "label": "B: leave as is",
+    "summary": "No change.",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "Users cannot call the routine from the manual.",
+    "preferred": false,
+    "maintainer_fit": "No."
+   }
+  ],
+  "patch_files": [
+   "$WORK/patches/0006-Fix-Fortran-synopses-in-the-Scotch-and-PT-Scotch-use.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G17-3",
+  "our_title": "Nine Fortran synopses omit the trailing ierr their wrapper has (dgraphredist, eight geom load/save)",
+  "severity": "low",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "repro/fortran_audit.py IERR class on 7.0.17: p_l.tex:2340 scotchfdgraphredist; s_l.tex:7088,7129,7173,7216,7256,7299,7343,7386 scotchfgraphgeomload{chac,habo,scot}, scotchfgraphgeomsave{chac,scot}, scotchfmeshgeomload{habo,scot}, scotchfmeshgeomsavescot. Wrappers: library_dgraph_redist_f.c:69-80 and library_graph_io_*_f.c / library_mesh_io_*_f.c all take 'int * const revaptr' after the string.",
+  "read_only": "documentation",
+  "why_not_run": "documentation defect",
+  "location_7_0_17": "doc/src/scotch/s_l.tex:7088-7390 (8 synopses); doc/src/ptscotch/p_l.tex:2340-2347",
+  "evidence": "scotchfgraphgeomloadchac ( & doubleprecision (*) & grafdat,    \\\\ ... & character (*)       & string)   [wrapper: (grafptr, geomptr, filegrfptr, filegeoptr, dataptr, revaptr, datanbr)]; scotchfdgraphredist ( ... & doubleprecision (*)   & redgrafptr)",
+  "related_ids": [
+   "API-11",
+   "API-24"
+  ],
+  "fix_options": [
+   {
+    "label": "A: add 'integer ierr' to the nine synopses (and rename redgrafptr to redgrafdat)",
+    "summary": "Doc rows added after 'string' / 'redgrafdat'.",
+    "diff_file": "$WORK/patches/0006-Fix-Fortran-synopses-in-the-Scotch-and-PT-Scotch-use.patch",
+    "tested": "audit IERR (doc side): 11 -> 0.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Documentation fix."
+   },
+   {
+    "label": "B: drop revaptr from the nine wrappers",
+    "summary": "Make the wrappers match the manual.",
+    "diff_file": "",
+    "tested": "untested: ABI break, not written",
+    "tradeoffs": "Breaks every caller and loses error reporting.",
+    "preferred": false,
+    "maintainer_fit": "No."
+   }
+  ],
+  "patch_files": [
+   "$WORK/patches/0006-Fix-Fortran-synopses-in-the-Scotch-and-PT-Scotch-use.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G17-4",
+  "our_title": "Type errors in Fortran synopses: wrong kinds, malformed 'integer{\\it num}', 'character{\\it num}', scalars for arrays",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "repro/fortran_audit.py TYPE/DOCTYPE classes on 7.0.17: graphcolor colonbr/flagval and graphdiampv diamval 'integer{\\it num}'; graphinducelist vnumtab 'integer{\\it num} (*)'; graphinducepart parttab/partval 'character{\\it num}'; meshbuild/meshbuildelem ierr 'integer*num'; meshgraphdual and dmeshdgraphdual nocoval 'integer' (C: SCOTCH_Num); graphdata edloidx 'integer*num' (wrapper: SCOTCH_Idx); randomproc procnum 'integer*num' (C: int, both manuals, C synopsis too); archmeshx/archtorusx dimntab scalar; metis_partmeshdual tpwgts 'doubleprecision* (*)'. C synopses: archCmpltw velotab by value, graphBase returns int (SCOTCH_Num), version returns int (void).",
+  "read_only": "documentation",
+  "why_not_run": "documentation defect",
+  "location_7_0_17": "doc/src/scotch/s_l.tex:2107,2284,2464,2872,3230,3291,3362,3481,3515,5383,5481,5757,7628,7632,8464,8898; doc/src/ptscotch/p_l.tex:4067,4856,4860",
+  "evidence": "                    & integer{\\it num}      & colonbr, \\\\   /   & character{\\it num} (*) & parttab,    \\\\   /   & integer*{\\it num}     & ierr)  [meshbuild]",
+  "related_ids": [
+   "API-13",
+   "API-24"
+  ],
+  "fix_options": [
+   {
+    "label": "A: correct the tokens",
+    "summary": "integer*{\\it num}, integer*{\\it idx}, integer, integer*1 for SCOTCH_GraphPart2 (unsigned char), (*) for arrays; C return types.",
+    "diff_file": "$WORK/patches/0006-Fix-Fortran-synopses-in-the-Scotch-and-PT-Scotch-use.patch",
+    "tested": "audit TYPE/DOCTYPE on patched tree: only ParMETIS 'float (*)' and METIS '(**)' notations remain (accepted as notation).",
+    "tradeoffs": "'integer*1' for SCOTCH_GraphPart2 is my choice (a plain 'character' would add hidden length arguments); the user may prefer 'character'.",
+    "preferred": true,
+    "maintainer_fit": "Documentation fix."
+   },
+   {
+    "label": "B: leave as is",
+    "summary": "No change.",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "Misleading manual.",
+    "preferred": false,
+    "maintainer_fit": "No."
+   }
+  ],
+  "patch_files": [
+   "$WORK/patches/0006-Fix-Fortran-synopses-in-the-Scotch-and-PT-Scotch-use.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G17-5",
+  "our_title": "Twelve Fortran wrappers have no synopsis in either manual (most of their C routines are undocumented too)",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "repro/fortran_audit.py NODOC class on the patched tree: archvar, archcmpltws, dgraphhaloreqsizeof, dgraphordersaveblock, graphgeomloadmmkt, graphgeomsavemmkt, graphorderlist, meshordercomputelist, meshorderlist, stratfree, randomsave, randomload (C routines undocumented); plus context* (12 wrappers, C routines documented in a dedicated section without Fortran synopses) and metis_nodewnd / metis_partmeshdual (documented under misspelled names, fixed by patch 0006).",
+  "read_only": "documentation",
+  "why_not_run": "documentation gap; nothing to execute",
+  "location_7_0_17": "src/libscotch/library_arch_f.c:231,273; library_dgraph_halo_f.c:137; library_dgraph_order_io_block_f.c:69; library_graph_io_mmkt_f.c:73,128; library_graph_order_f.c:269; library_mesh_order_f.c:231,268; library_parser_f.c:95; library_random_f.c:71,105; library_context*_f.c",
+  "evidence": "repro/audit_patched.md, NODOC rows",
+  "related_ids": [
+   "API-24"
+  ],
+  "fix_options": [
+   {
+    "label": "A: document them",
+    "summary": "Add manual sections (C and Fortran) for the routines that are public API but undocumented.",
+    "diff_file": "",
+    "tested": "untested: not written (12+ manual sections is a documentation project, not a bugfix)",
+    "tradeoffs": "Large doc work; needs the maintainer's intent (some, like stratfree or graphorderlist, may be deliberately undocumented).",
+    "preferred": true,
+    "maintainer_fit": "80b7f5c did exactly this for PT-Scotch on report."
+   },
+   {
+    "label": "B: leave undocumented",
+    "summary": "No change.",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "Status quo.",
+    "preferred": false,
+    "maintainer_fit": "Acceptable for internal-ish routines."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G17-6",
+  "our_title": "Manual documents only the METIS v3 Fortran API; the v5 wrappers of the same names take 13 arguments",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "repro/fortran_audit.py COUNT/TYPE on metis_graph_part_f.c:328 (SCOTCH_METIS_VERSION == 5 variant of metis_partgraphkway / metis_partgraphrecursive: 13 parameters incl. ncon, vsize, tpwgts, ubvec, objval) vs s_l.tex:8711/8765 (11 parameters, v3 form).",
+  "read_only": "documentation",
+  "why_not_run": "documentation gap",
+  "location_7_0_17": "doc/src/scotch/s_l.tex:8692-8800; src/libscotchmetis/metis_graph_part_f.c:300-340",
+  "evidence": "metis\\_partgraphkway ( & integer*{\\it num}     & n,       \\\\ ... (11 rows) vs FORTRAN (SCOTCHMETISNAMEFU (METIS_PARTGRAPHKWAY), ... nvtxs, ncon, xadj, adjncy, vwgt, vsize, adjwgt, nparts, tpwgts, ubvec, options, objval, part)",
+  "related_ids": [
+   "API-24"
+  ],
+  "fix_options": [
+   {
+    "label": "A: add a note and the v5 synopses",
+    "summary": "State that libscotchmetisv5 exports the METIS 5 signatures and give them.",
+    "diff_file": "",
+    "tested": "untested: not written",
+    "tradeoffs": "Doc work only.",
+    "preferred": true,
+    "maintainer_fit": "Documentation."
+   },
+   {
+    "label": "B: leave as is",
+    "summary": "No change.",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "Users of the v5 library get no Fortran reference.",
+    "preferred": false,
+    "maintainer_fit": "Status quo."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G17-7",
+  "our_title": "test_scotch_mesh_build_f never deallocates its arrays, so it fails under LeakSanitizer",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "make check_scotch_mesh_build_f on $W/build64 with FFLAGS=-fsanitize=address,undefined and default ASAN_OPTIONS: 'ERROR: LeakSanitizer: detected memory leaks ... Direct leak of 192 byte(s) ... in MAIN__' (verttab/edgetab allocated at test_scotch_mesh_build_f.f90.in:88-89, never deallocated); passes with detect_leaks=0.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/check/test_scotch_mesh_build_f.f90.in:88-89",
+  "evidence": "  allocate(verttab(1+velmnbr+vnodnbr))\n  allocate(edgetab(24))   [no deallocate before 'end program']",
+  "related_ids": [
+   "BLD-20"
+  ],
+  "fix_options": [
+   {
+    "label": "A: deallocate before the end of the program",
+    "summary": "deallocate (edgetab) / deallocate (verttab) after scotchfmeshexit (the dual test already does this).",
+    "diff_file": "",
+    "tested": "see PS2-G30-7",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "test_libmetis_dual_f does it."
+   },
+   {
+    "label": "B: leave as is",
+    "summary": "Fortran frees at exit.",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "Fails sanitizer runs of the test.",
+    "preferred": false,
+    "maintainer_fit": "Status quo."
+   }
+  ],
+  "patch_files": [],
+  "notes": "Fixed at QA time by G30's patch 0014 (PS2-G30-7): the fix uses the name-suffix macro that G30's test-template commit introduces, so it must follow that commit."
+ }
+]

@@ -1,0 +1,8 @@
+DGR-19  Loader abort path: pending Isends not waited on; refusing rank sent an extra TAGVERTLOCTAB.
+Driver dgload with -2 (second load on the same communicator) + fishim on the receiver's edge-array alloc.
+PRISTINE ($WORK/pristinefi) -- the stray message poisons the next collective:
+  export LD_LIBRARY_PATH=$WORK/pristinefi/lib
+  timeout 15 mpirun --oversubscribe -np 2 -x LD_PRELOAD=$PWD/../common/fishim.so -x FI_RANK=1 -x FI_NTH=1 \
+    -x LD_LIBRARY_PATH ../common/bin_pristinefi/dgload <any grf, e.g. scotch/src/check/data/m4x4.grf> -2
+  => first load rc=1 on both ranks, then the SECOND load HANGS (exit 124).
+PATCHED ($WORK/build or rebuilt pristinefi): same command -> rc=1 then rc2=0, no hang.

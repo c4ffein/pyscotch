@@ -1,0 +1,121 @@
+From 5a5554aeeb28c44f099db68a1829026584a1079b Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 20:22:39 +0000
+Subject: [PATCH 167/240] Bugfix: count sequential separation failures in the
+ reduction of `vdgraphSeparateSq()` [report R. Perry]
+
+The debug-mode test that detects a sequential separation failing on
+some processes only reduced the global failure flag, which is identical
+on all processes, instead of the local one, so that it could never
+fire, and it overwrote a slot of the local array. Count the failures in
+a fifth slot of the best-separator reduction, as `bdgraphBipartSq()`
+does, test the count after the reduction, and free the centralized
+graph on that path.
+
+Refs: DMO-18
+---
+ src/libscotch/vdgraph_separate_sq.c | 32 ++++++++++++++---------------
+ 1 file changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/src/libscotch/vdgraph_separate_sq.c b/src/libscotch/vdgraph_separate_sq.c
+index 66a5839..05372a0 100644
+--- a/src/libscotch/vdgraph_separate_sq.c
++++ b/src/libscotch/vdgraph_separate_sq.c
+@@ -88,6 +88,7 @@ Gnum * const                inout,                /* Second and output operand
+ const int * const           len,                  /* Number of instances; should be 1, not used */
+ const MPI_Datatype * const  typedat)              /* MPI datatype; not used                     */
+ {
++  inout[4] += in[4];                              /* Count cases for which a separation error occured    */
+   if (inout[3] == 1) {                            /* Handle cases when at least one of them is erroneous */
+     if (in[3] == 1)
+       return;
+@@ -129,7 +130,7 @@ const VdgraphSeparateSqParam * const  paraptr)    /*+ Method parameters +*/
+ {
+   Vgraph            cgrfdat;                      /* Centralized vertex separator graph structure      */
+   Gnum              reduloctab[7];                /* Local array for best separator data (7 for Bcast) */
+-  Gnum              reduglbtab[4];                /* Global array for best separator data              */
++  Gnum              reduglbtab[5];                /* Global array for best separator data              */
+   MPI_Datatype      besttypedat;                  /* Data type for finding best separator              */
+   MPI_Op            bestoperdat;                  /* Handle of MPI operator for finding best separator */
+   int               bestprocnum;                  /* Rank of process holding best partition            */
+@@ -141,7 +142,7 @@ const VdgraphSeparateSqParam * const  paraptr)    /*+ Method parameters +*/
+   Gnum              fronlocnbr;
+   int               o;
+ 
+-  if ((MPI_Type_contiguous (4, GNUM_MPI, &besttypedat)                                != MPI_SUCCESS) ||
++  if ((MPI_Type_contiguous (5, GNUM_MPI, &besttypedat)                                != MPI_SUCCESS) ||
+       (MPI_Type_commit (&besttypedat)                                                 != MPI_SUCCESS) ||
+       (MPI_Op_create ((MPI_User_function *) vdgraphSeparateSqOpBest, 1, &bestoperdat) != MPI_SUCCESS)) {
+     errorPrint ("vdgraphSeparateSq: communication error (1)");
+@@ -151,7 +152,8 @@ const VdgraphSeparateSqParam * const  paraptr)    /*+ Method parameters +*/
+   reduloctab[0] =                                 /* In case of error, maximum frontier size */
+   reduloctab[1] = GNUMMAX;                        /* And maximum load imbalance              */
+   reduloctab[2] = dgrfptr->s.proclocnum;
+-  reduloctab[3] = 0;                              /* Assume sequential separation went fine */
++  reduloctab[3] =                                 /* Assume sequential separation went fine */
++  reduloctab[4] = 0;
+ 
+   vnumloctax = dgrfptr->s.vnumloctax;             /* No need for vertex number array when centralizing graph */
+   dgrfptr->s.vnumloctax = NULL;
+@@ -164,7 +166,8 @@ const VdgraphSeparateSqParam * const  paraptr)    /*+ Method parameters +*/
+ 
+   if (vgraphSeparateSt (&cgrfdat, paraptr->strat) != 0) { /* Separate centralized graph */
+     errorPrint ("vdgraphSeparateSq: cannot separate centralized graph");
+-    reduloctab[3] = 1;
++    reduloctab[3] =
++    reduloctab[4] = 1;
+   }
+   else {                                          /* Fill local array with local separator data */
+     reduloctab[0] = ((cgrfdat.fronnbr != 0) || ((cgrfdat.compload[0] != 0) && (cgrfdat.compload[1] != 0)))
+@@ -177,23 +180,20 @@ const VdgraphSeparateSqParam * const  paraptr)    /*+ Method parameters +*/
+     errorPrint ("vdgraphSeparateSq: communication error (2)");
+     return     (1);
+   }
+-#ifdef SCOTCH_DEBUG_VDGRAPH2
+-  if (MPI_Allreduce (&reduglbtab[3], &reduloctab[3], 1, GNUM_MPI, MPI_SUM, dgrfptr->s.proccomm) != MPI_SUCCESS) {
++
++  if ((MPI_Op_free   (&bestoperdat) != MPI_SUCCESS) ||
++      (MPI_Type_free (&besttypedat) != MPI_SUCCESS)) {
+     errorPrint ("vdgraphSeparateSq: communication error (3)");
+     return     (1);
+   }
+-  if ((reduloctab[3] != 0) && (reduloctab[3] != dgrfptr->s.procglbnbr)) {
++
++#ifdef SCOTCH_DEBUG_VDGRAPH2
++  if ((reduglbtab[4] != 0) && (reduglbtab[4] != dgrfptr->s.procglbnbr)) { /* If sequential separation failed on some processes only */
+     errorPrint ("vdgraphSeparateSq: internal error (1)");
++    vgraphExit (&cgrfdat);
+     return     (1);
+   }
+ #endif /* SCOTCH_DEBUG_VDGRAPH2 */
+-
+-  if ((MPI_Op_free   (&bestoperdat) != MPI_SUCCESS) ||
+-      (MPI_Type_free (&besttypedat) != MPI_SUCCESS)) {
+-    errorPrint ("vdgraphSeparateSq: communication error (4)");
+-    return     (1);
+-  }
+-
+   if (reduglbtab[3] != 0) {                       /* If none of the sequential methods succeeded */
+     vgraphExit (&cgrfdat);
+     return     (1);
+@@ -210,7 +210,7 @@ const VdgraphSeparateSqParam * const  paraptr)    /*+ Method parameters +*/
+     reduloctab[6] = cgrfdat.fronnbr;
+   }
+   if (MPI_Bcast (reduloctab, 7, GNUM_MPI, bestprocnum, dgrfptr->s.proccomm) != MPI_SUCCESS) {
+-    errorPrint ("vdgraphSeparateSq: communication error (5)");
++    errorPrint ("vdgraphSeparateSq: communication error (4)");
+     return     (1);
+   }
+   dgrfptr->compglbload[0] = reduloctab[0];
+@@ -224,7 +224,7 @@ const VdgraphSeparateSqParam * const  paraptr)    /*+ Method parameters +*/
+   if (commScatterv (cgrfdat.parttax, dgrfptr->s.proccnttab, dgrfptr->s.procdsptab, GRAPHPART_MPI, /* No base for sending as procdsptab holds based values */
+                     dgrfptr->partgsttax + dgrfptr->s.baseval, dgrfptr->s.vertlocnbr, GRAPHPART_MPI,
+                     bestprocnum, dgrfptr->s.proccomm) != MPI_SUCCESS) {
+-    errorPrint ("vdgraphSeparateSq: communication error (6)");
++    errorPrint ("vdgraphSeparateSq: communication error (5)");
+     return     (1);
+   }
+ 
+-- 
+2.47.3
+

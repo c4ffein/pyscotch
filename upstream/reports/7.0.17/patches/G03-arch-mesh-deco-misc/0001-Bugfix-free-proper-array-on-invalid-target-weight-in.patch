@@ -1,0 +1,42 @@
+From 3e67b848c84ba56efa297928305aeca7f6e35e08 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:08:38 +0000
+Subject: [PATCH 1/5] Bugfix: free proper array on invalid target weight in
+ `archCmpltwArchBuild2()` [report PyScotch]
+
+When a target vertex weight is not strictly positive,
+`archCmpltwArchBuild2()` freed the weight array provided by the caller
+instead of the array it had just allocated. Callers that free their own
+array afterwards, such as the libScotchMeTiS partitioning routines when
+a target part weight rounds to zero, then performed a double free.
+
+Refs: PS2-G25-1
+---
+ src/libscotch/arch_cmpltw.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/arch_cmpltw.c b/src/libscotch/arch_cmpltw.c
+index 58add39..934afca 100644
+--- a/src/libscotch/arch_cmpltw.c
++++ b/src/libscotch/arch_cmpltw.c
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 14 feb 2011     **/
+ /**                                 to   : 12 apr 2015     **/
+ /**                # Version 7.0  : from : 18 feb 2018     **/
+-/**                                 to   : 11 jul 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -181,7 +181,7 @@ const Anum * restrict const velotab)
+     veloval = velotab[vertnum];
+     if (veloval <= 0) {                           /* Target weights cannot be negative nor null */
+       errorPrint ("archCmpltwArchBuild2: invalid parameters (2)");
+-      memFree    (velotab);
++      memFree    (vecwtab);
+       return (1);
+     }
+ 
+-- 
+2.47.3
+

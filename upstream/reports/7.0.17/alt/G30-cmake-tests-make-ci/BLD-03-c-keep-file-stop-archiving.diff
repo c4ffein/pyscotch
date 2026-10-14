@@ -1,0 +1,18 @@
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -126,14 +126,12 @@
+   tags: ['sonar']
+   script:
+     - ci/analysis.sh
+-    - sonar-scanner -X > sonar.log
++    - sonar-scanner
+   allow_failure: true
+   coverage: /^\s*lines:\s*\d+.\d+\%/
+   artifacts:
+     paths:
+       - analyzer_reports
+-      - sonar-project.properties
+-      - ./*.log
+       - ./*.cov
+       - ./*.xml
+     reports:

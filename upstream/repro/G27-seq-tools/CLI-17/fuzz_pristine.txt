@@ -1,0 +1,2 @@
+iterations: 600 distinct sanitizer/abnormal signatures: 1
+62 gout_c.c:709:11: load of null pointer of type 'char' example -O't{c,d,vx'

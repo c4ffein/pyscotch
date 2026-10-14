@@ -1,0 +1,4 @@
+COR-02: archLoad() called a NULL class free hook on a failed class load (fixed upstream by d555f2c).
+Case: tgt/cmplt_bad.tgt = "cmplt abc".
+Pristine 7.0.17 : ERROR: archCmpltArchLoad: bad input / ERROR: archLoad: cannot load architecture data / load ret=1, no sanitizer report.
+Patched         : identical. Status fixed-in-7.0.17; the remaining classes with a non-NULL hook run on a half-loaded body are COR-04 (sub) and COR-05 (dist).

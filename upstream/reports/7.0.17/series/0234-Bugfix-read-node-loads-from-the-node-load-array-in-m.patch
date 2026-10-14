@@ -1,0 +1,496 @@
+From 8ee0be4221ca2d091964d36ef140188bf1aefe4c Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:45:35 +0000
+Subject: [PATCH 234/240] Bugfix: read node loads from the node load array in
+ mesh ordering routines [report R. Perry]
+
+`meshInduceSepa()` tested the element load array of the original mesh
+and read node loads from it, indexed by node numbers, so that for
+meshes with element loads it read far beyond that array, and the
+actual node loads were ignored. `hmeshOrderHxFill()` did the same to
+compute the variable weights of the halo minimum degree routines.
+Meshes read from files are not affected, as `meshLoad()` uses a single
+load array for elements and nodes, but meshes built through
+`SCOTCH_meshBuild()` have separate arrays.
+
+Node loads are in `vnlotax`. The induced separator mesh now stores them
+in its own `vnlotax`, and leaves `velotax` NULL, as its elements are not
+weighted.
+
+Add `test_scotch_mesh_order`, which orders meshes built in memory with
+the default strategy, and checks that an element load array of unit
+loads does not change the ordering.
+
+Refs: SEP-02
+---
+ src/check/CMakeLists.txt           |   4 +
+ src/check/Makefile                 |  10 +
+ src/check/test_scotch_mesh_order.c | 312 +++++++++++++++++++++++++++++
+ src/libscotch/hmesh_order_hx.c     |  10 +-
+ src/libscotch/mesh_induce_sepa.c   |  14 +-
+ 5 files changed, 338 insertions(+), 12 deletions(-)
+ create mode 100644 src/check/test_scotch_mesh_order.c
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index 02187cd..efa706b 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -376,6 +376,10 @@ add_test_scotch(test_scotch_mesh_graph)
+ 
+ add_test(NAME test_scotch_mesh_graph COMMAND test_scotch_mesh_graph ${dat}/ship001.msh)
+ 
++# test_scotch_mesh_order
++
++add_test_scotch(test_scotch_mesh_order 1)
++
+ # test_strat_seq
+ 
+ add_test_scotch(test_strat_seq 1)
+diff --git a/src/check/Makefile b/src/check/Makefile
+index b803fb4..9022158 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -191,6 +191,7 @@ realclean			:	clean
+ 					test_scotch_mesh_build_f.f90.tmp	\
+ 					test_scotch_mesh_geom			\
+ 					test_scotch_mesh_graph			\
++					test_scotch_mesh_order			\
+ 					test_strat_par				\
+ 					test_strat_seq
+ 
+@@ -222,6 +223,7 @@ CHECKSCOTCH = 		check_common_file_compress		\
+ 			check_scotch_graph_part_ovl		\
+ 			check_scotch_mesh_geom			\
+ 			check_scotch_mesh_graph			\
++			check_scotch_mesh_order			\
+ 			check_libmetis_v3			\
+ 			check_libmetis_v5			\
+ 			check_libmetis_dual_v3			\
+@@ -605,6 +607,14 @@ test_scotch_mesh_graph		:	test_scotch_mesh_graph.c	\
+ 
+ ##
+ 
++check_scotch_mesh_order		:	test_scotch_mesh_order
++					$(EXECS) ./test_scotch_mesh_order
++
++test_scotch_mesh_order		:	test_scotch_mesh_order.c	\
++					$(SCOTCHLIBDIR)/libscotch$(LIB)
++
++##
++
+ check_strat_seq			:	test_strat_seq
+ 					$(EXECS) ./test_strat_seq
+ 
+diff --git a/src/check/test_scotch_mesh_order.c b/src/check/test_scotch_mesh_order.c
+new file mode 100644
+index 0000000..ee21763
+--- /dev/null
++++ b/src/check/test_scotch_mesh_order.c
+@@ -0,0 +1,312 @@
++/* Copyright 2026 IPB, Universite de Bordeaux, INRIA & CNRS
++**
++** This file is part of the Scotch software package for static mapping,
++** graph partitioning and sparse matrix ordering.
++**
++** This software is governed by the CeCILL-C license under French law
++** and abiding by the rules of distribution of free software. You can
++** use, modify and/or redistribute the software under the terms of the
++** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
++** URL: "http://www.cecill.info".
++**
++** As a counterpart to the access to the source code and rights to copy,
++** modify and redistribute granted by the license, users are provided
++** only with a limited warranty and the software's author, the holder of
++** the economic rights, and the successive licensors have only limited
++** liability.
++**
++** In this respect, the user's attention is drawn to the risks associated
++** with loading, using, modifying and/or developing or reproducing the
++** software by the user in light of its specific status of free software,
++** that may mean that it is complicated to manipulate, and that also
++** therefore means that it is reserved for developers and experienced
++** professionals having in-depth computer knowledge. Users are therefore
++** encouraged to load and test the software's suitability as regards
++** their requirements in conditions enabling the security of their
++** systems and/or data to be ensured and, more generally, to use and
++** operate it in the same conditions as regards security.
++**
++** The fact that you are presently reading this means that you have had
++** knowledge of the CeCILL-C license and that you accept its terms.
++*/
++/************************************************************/
++/**                                                        **/
++/**   NAME       : test_scotch_mesh_order.c                **/
++/**                                                        **/
++/**   AUTHOR     : PyScotch project                        **/
++/**                                                        **/
++/**   FUNCTION   : This module tests the operation of      **/
++/**                the SCOTCH_meshOrder*() routines on     **/
++/**                meshes built in memory.                 **/
++/**                                                        **/
++/**   DATES      : # Version 7.0  : from : 13 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
++/**                                                        **/
++/************************************************************/
++
++/*
++**  The defines and includes.
++*/
++
++#include <stdio.h>
++#if (((defined __STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) || (defined HAVE_STDINT_H))
++#include <stdint.h>
++#endif /* (((defined __STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) || (defined HAVE_STDINT_H)) */
++#include <stdlib.h>
++#include <string.h>
++
++#include "../libscotch/module.h"
++#include "../libscotch/common.h"
++
++#include "scotch.h"
++
++/******************************/
++/*                            */
++/* The mesh building routine. */
++/*                            */
++/******************************/
++
++/* This routine builds a mesh made of a square grid
++** of quadrangle elements. Elements are numbered
++** first, then nodes. Element and node loads are
++** provided according to the flag value. The
++** element load array is placed last in memory,
++** so that reading past its end is noticeable.
++** It returns:
++** - !NULL  : pointer to mesh data, to be freed after the mesh.
++** - NULL   : on error.
++*/
++
++static
++SCOTCH_Num *
++meshBuildGrid (
++SCOTCH_Mesh * const         meshptr,
++const SCOTCH_Num            dimnval,              /*+ Number of elements per side       +*/
++const SCOTCH_Num            baseval,
++const int                   flagval)              /*+ 1: element loads; 2: node loads; 4: unit element loads +*/
++{
++  SCOTCH_Num          velmnbr;
++  SCOTCH_Num          vnodnbr;
++  SCOTCH_Num          velmnum;
++  SCOTCH_Num          vnodnum;
++  SCOTCH_Num          edgenbr;
++  SCOTCH_Num          edgenum;
++  SCOTCH_Num *        datatab;
++  SCOTCH_Num *        verttab;
++  SCOTCH_Num *        velotab;
++  SCOTCH_Num *        vnlotab;
++  SCOTCH_Num *        edgetab;
++  SCOTCH_Num *        enodtab;                    /* Current indices in node edge sub-arrays */
++
++  velmnbr = dimnval * dimnval;
++  vnodnbr = (dimnval + 1) * (dimnval + 1);
++  edgenbr = 8 * velmnbr;                          /* Four element-node edges per element, both ways */
++
++  if ((datatab = malloc ((2 * (velmnbr + vnodnbr) + 1 + edgenbr + vnodnbr) * sizeof (SCOTCH_Num))) == NULL)
++    return (NULL);
++  verttab = datatab;                              /* Compact vertex array for elements and nodes */
++  vnlotab = verttab + (velmnbr + vnodnbr + 1);
++  edgetab = vnlotab + vnodnbr;
++  enodtab = edgetab + edgenbr;
++  velotab = enodtab + vnodnbr;                    /* Element load array is last */
++
++  for (vnodnum = 0; vnodnum < vnodnbr; vnodnum ++) /* Compute node degrees */
++    enodtab[vnodnum] = 0;
++  for (velmnum = 0; velmnum < velmnbr; velmnum ++) {
++    vnodnum = velmnum + (velmnum / dimnval);      /* Number of lower-left node of element */
++    enodtab[vnodnum] ++;
++    enodtab[vnodnum + 1] ++;
++    enodtab[vnodnum + dimnval + 1] ++;
++    enodtab[vnodnum + dimnval + 2] ++;
++  }
++
++  for (velmnum = 0, edgenum = baseval; velmnum < velmnbr; velmnum ++, edgenum += 4) /* Set element edge sub-arrays */
++    verttab[velmnum] = edgenum;
++  for (vnodnum = 0; vnodnum < vnodnbr; vnodnum ++) { /* Set node edge sub-arrays */
++    SCOTCH_Num          degrval;
++
++    degrval = enodtab[vnodnum];
++    verttab[velmnbr + vnodnum] = edgenum;
++    enodtab[vnodnum] = edgenum;                   /* Node sub-arrays will be filled from their start */
++    edgenum += degrval;
++  }
++  verttab[velmnbr + vnodnbr] = edgenum;           /* Set end of compact vertex array */
++
++  for (velmnum = 0; velmnum < velmnbr; velmnum ++) { /* Fill edge array */
++    SCOTCH_Num          vnodtab[4];
++    int                 i;
++
++    vnodnum = velmnum + (velmnum / dimnval);
++    vnodtab[0] = vnodnum;
++    vnodtab[1] = vnodnum + 1;
++    vnodtab[2] = vnodnum + dimnval + 1;
++    vnodtab[3] = vnodnum + dimnval + 2;
++    for (i = 0; i < 4; i ++) {
++      edgetab[verttab[velmnum] - baseval + i] = vnodtab[i] + velmnbr + baseval; /* Node numbers follow element numbers */
++      edgetab[enodtab[vnodtab[i]] ++ - baseval] = velmnum + baseval;
++    }
++  }
++
++  for (velmnum = 0; velmnum < velmnbr; velmnum ++)
++    velotab[velmnum] = ((flagval & 4) != 0) ? 1 : (1 + (velmnum % 3));
++  for (vnodnum = 0; vnodnum < vnodnbr; vnodnum ++)
++    vnlotab[vnodnum] = 1 + (vnodnum % 5);
++
++  if (SCOTCH_meshBuild (meshptr, baseval, baseval + velmnbr, velmnbr, vnodnbr, verttab, verttab + 1,
++                        ((flagval & 1) != 0) ? velotab : NULL, ((flagval & 2) != 0) ? vnlotab : NULL, NULL,
++                        edgenbr, edgetab) != 0) {
++    free (datatab);
++    return (NULL);
++  }
++
++  return (datatab);
++}
++
++/****************************/
++/*                          */
++/* The mesh ordering routine. */
++/*                          */
++/****************************/
++
++/* This routine orders the given mesh with the
++** default strategy and checks the resulting
++** permutations. The inverse permutation is
++** kept in the user-provided array.
++** It exits on error.
++*/
++
++static
++void
++meshOrderTest (
++SCOTCH_Mesh * const         meshptr,
++const SCOTCH_Num            baseval,
++const SCOTCH_Num            vnodnbr,
++SCOTCH_Num * const          peritab,              /*+ Inverse permutation array, of size vnodnbr +*/
++const char * const          nameptr)
++{
++  SCOTCH_Ordering     ordedat;
++  SCOTCH_Strat        stradat;
++  SCOTCH_Num *        permtab;
++  SCOTCH_Num          vnodnum;
++
++  if ((permtab = malloc (vnodnbr * sizeof (SCOTCH_Num))) == NULL) {
++    SCOTCH_errorPrint ("meshOrderTest: out of memory");
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_stratInit (&stradat) != 0) {         /* Use default ordering strategy */
++    SCOTCH_errorPrint ("meshOrderTest: cannot initialize strategy");
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_meshOrderInit (meshptr, &ordedat, permtab, peritab, NULL, NULL, NULL) != 0) {
++    SCOTCH_errorPrint ("meshOrderTest: cannot initialize ordering");
++    exit (EXIT_FAILURE);
++  }
++
++  SCOTCH_randomReset ();                          /* Make orderings reproducible */
++  if (SCOTCH_meshOrderCompute (meshptr, &ordedat, &stradat) != 0) {
++    SCOTCH_errorPrint ("meshOrderTest: cannot order mesh (%s)", nameptr);
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_meshOrderCheck (meshptr, &ordedat) != 0) {
++    SCOTCH_errorPrint ("meshOrderTest: invalid ordering (%s)", nameptr);
++    exit (EXIT_FAILURE);
++  }
++
++  for (vnodnum = 0; vnodnum < vnodnbr; vnodnum ++) { /* Check that permutations are inverse of each other */
++    SCOTCH_Num          permval;
++
++    permval = permtab[vnodnum];
++    if ((permval < baseval) || (permval >= (vnodnbr + baseval)) ||
++        (peritab[permval - baseval] != (vnodnum + baseval))) {
++      SCOTCH_errorPrint ("meshOrderTest: invalid permutation (%s)", nameptr);
++      exit (EXIT_FAILURE);
++    }
++  }
++
++  SCOTCH_meshOrderExit (meshptr, &ordedat);
++  SCOTCH_stratExit     (&stradat);
++  free (permtab);
++}
++
++/* This routine builds a grid mesh, orders it
++** and checks the resulting ordering.
++** It exits on error.
++*/
++
++static
++void
++meshGridTest (
++const SCOTCH_Num            dimnval,              /*+ Number of elements per side       +*/
++const SCOTCH_Num            baseval,
++const int                   flagval,              /*+ 1: element loads; 2: node loads; 4: unit element loads +*/
++SCOTCH_Num * const          peritab,              /*+ Inverse permutation array                              +*/
++const char * const          nameptr)
++{
++  SCOTCH_Mesh         meshdat;
++  SCOTCH_Num *        datatab;
++
++  if (SCOTCH_meshInit (&meshdat) != 0) {
++    SCOTCH_errorPrint ("meshGridTest: cannot initialize mesh");
++    exit (EXIT_FAILURE);
++  }
++
++  if ((datatab = meshBuildGrid (&meshdat, dimnval, baseval, flagval)) == NULL) {
++    SCOTCH_errorPrint ("meshGridTest: cannot build mesh (%s)", nameptr);
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_meshCheck (&meshdat) != 0) {
++    SCOTCH_errorPrint ("meshGridTest: invalid mesh (%s)", nameptr);
++    exit (EXIT_FAILURE);
++  }
++
++  meshOrderTest (&meshdat, baseval, (dimnval + 1) * (dimnval + 1), peritab, nameptr);
++
++  SCOTCH_meshExit (&meshdat);
++  free (datatab);
++}
++
++/*********************/
++/*                   */
++/* The main routine. */
++/*                   */
++/*********************/
++
++int
++main (
++int                 argc,
++char *              argv[])
++{
++  SCOTCH_Num *        peritab;
++  SCOTCH_Num *        peritmp;
++
++  SCOTCH_errorProg (argv[0]);
++
++  if (argc != 1) {
++    SCOTCH_errorPrint ("usage: %s", argv[0]);
++    exit (EXIT_FAILURE);
++  }
++
++  if (((peritab = malloc (33 * 33 * sizeof (SCOTCH_Num))) == NULL) ||
++      ((peritmp = malloc (33 * 33 * sizeof (SCOTCH_Num))) == NULL)) {
++    SCOTCH_errorPrint ("main: out of memory");
++    exit (EXIT_FAILURE);
++  }
++
++  meshGridTest (32, 0, 2, peritab, "grid with node loads");
++  meshGridTest (32, 0, 6, peritmp, "grid with node loads and unit element loads");
++  if (memcmp (peritab, peritmp, 33 * 33 * sizeof (SCOTCH_Num)) != 0) { /* Unit element loads must not change ordering */
++    SCOTCH_errorPrint ("main: element load array changes ordering");
++    exit (EXIT_FAILURE);
++  }
++  meshGridTest (32, 1, 3, peritab, "grid with element and node loads");
++  meshGridTest (32, 1, 0, peritab, "grid without loads");
++
++  free (peritmp);
++  free (peritab);
++
++  exit (EXIT_SUCCESS);
++}
+diff --git a/src/libscotch/hmesh_order_hx.c b/src/libscotch/hmesh_order_hx.c
+index 6f133b1..7fc0e01 100644
+--- a/src/libscotch/hmesh_order_hx.c
++++ b/src/libscotch/hmesh_order_hx.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2018-2020,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2018-2020,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**                # Version 6.1  : from : 29 oct 2019     **/
+ /**                                 to   : 26 jan 2020     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 20 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -103,7 +103,7 @@ Gnum * restrict const         pfreptr)
+   Gnum * restrict const       elentax = elentab - 1;
+   const Gnum * restrict const verttax = meshptr->m.verttax;
+   const Gnum * restrict const vendtax = meshptr->m.vendtax;
+-  const Gnum * restrict const velotax = meshptr->m.velotax;
++  const Gnum * restrict const vnlotax = meshptr->m.vnlotax;
+   const Gnum * restrict const edgetax = meshptr->m.edgetax;
+ 
+   n     = meshptr->m.velmnbr + meshptr->m.vnodnbr;
+@@ -127,7 +127,7 @@ Gnum * restrict const         pfreptr)
+ 
+     petax[vertnum]  = edgenum;
+     lentax[vertnum] = vendtax[vnodnum] - verttax[vnodnum];
+-    nvtax[vertnum]  = (velotax != NULL) ? velotax[vnodnum] : 1;
++    nvtax[vertnum]  = (vnlotax != NULL) ? vnlotax[vnodnum] : 1;
+ 
+     for (enodnum = verttax[vnodnum], nghbnbr = -1; /* -1 since loop edge will be processed in the main loop */
+          enodnum < vendtax[vnodnum]; enodnum ++) {
+@@ -165,7 +165,7 @@ Gnum * restrict const         pfreptr)
+     petax[vertnum]   = edgenum;
+     lentax[vertnum]  = (degrval != 0) ? degrval : (-1 - norig);
+     elentax[vertnum] = 0;
+-    nvtax[vertnum]   = (velotax != NULL) ? velotax[vnodnum] : 1;
++    nvtax[vertnum]   = (vnlotax != NULL) ? vnlotax[vnodnum] : 1;
+ 
+     for (enodnum = verttax[vnodnum];
+          enodnum < vendtax[vnodnum]; enodnum ++)
+diff --git a/src/libscotch/mesh_induce_sepa.c b/src/libscotch/mesh_induce_sepa.c
+index 89b43cf..b8f195a 100644
+--- a/src/libscotch/mesh_induce_sepa.c
++++ b/src/libscotch/mesh_induce_sepa.c
+@@ -177,13 +177,13 @@ Mesh * restrict const             indmeshptr)     /* Pointer to induced submesh
+   hashmsk = hashmsk * 4 + 3;                      /* Compute size of node hash table */
+ 
+   indvertnbr = indvelmnbr + orgsepanbr;           /* Upper bound on number of all vertices */
+-  if (orgmeshptr->velotax != NULL) {
++  if (orgmeshptr->vnlotax != NULL) {
+     p = memAllocGroup ((void **) (void *)
+           &indmeshptr->verttax, (size_t) (indvertnbr * sizeof (Gnum)), /* verttab is not compact */
+           &indmeshptr->vendtax, (size_t) (indvertnbr * sizeof (Gnum)),
+           &indmeshptr->vnumtax, (size_t) (orgsepanbr * sizeof (Gnum)), /* vnumtab is of size indnodenbr                */
+-          &indmeshptr->velotax, (size_t) (orgsepanbr * sizeof (Gnum)), NULL); /* Element vertices assumed not weighted */
+-    indmeshptr->velotax -= indmeshptr->vnodbas;
++          &indmeshptr->vnlotax, (size_t) (orgsepanbr * sizeof (Gnum)), NULL); /* Element vertices assumed not weighted */
++    indmeshptr->vnlotax -= indmeshptr->vnodbas;
+   }
+   else
+     p = memAllocGroup ((void **) (void *)
+@@ -224,12 +224,12 @@ Mesh * restrict const             indmeshptr)     /* Pointer to induced submesh
+       orgindxtax[orgvnodnum] = indvnodnum ++;     /* One more node vertex created                */
+     indmeshptr->verttax[orgindxtax[orgvnodnum]] = indedgenum; /* Set beginning of edge sub-array */
+     indmeshptr->vnumtax[orgindxtax[orgvnodnum]] = orgvnodnum - (orgmeshptr->vnodbas - orgmeshptr->baseval);
+-    if (indmeshptr->velotax != NULL) {
++    if (indmeshptr->vnlotax != NULL) {
+       Gnum                indvnloval;
+ 
+-      indvnloval  = orgmeshptr->velotax[orgvnodnum];
++      indvnloval  = orgmeshptr->vnlotax[orgvnodnum];
+       indvnlosum += indvnloval;
+-      indmeshptr->velotax[orgindxtax[orgvnodnum]] = indvnloval;
++      indmeshptr->vnlotax[orgindxtax[orgvnodnum]] = indvnloval;
+     }
+ 
+     indenodnum  = indedgenum;                     /* Record position of node edge sub-array */
+@@ -344,7 +344,7 @@ Mesh * restrict const             indmeshptr)     /* Pointer to induced submesh
+   indmeshptr->edgetax -= indmeshptr->baseval;
+ 
+   indmeshptr->velosum = indmeshptr->velmnbr;      /* TODO: account for element weights */
+-  indmeshptr->vnlosum = (indmeshptr->velotax == NULL) ? orgsepanbr : indvnlosum;
++  indmeshptr->vnlosum = (indmeshptr->vnlotax == NULL) ? orgsepanbr : indvnlosum;
+   indmeshptr->degrmax = orgmeshptr->degrmax;      /* Rough estimate */
+ 
+   if (orgmeshptr->vnumtax != NULL) {              /* If mesh is a submesh */
+-- 
+2.47.3
+

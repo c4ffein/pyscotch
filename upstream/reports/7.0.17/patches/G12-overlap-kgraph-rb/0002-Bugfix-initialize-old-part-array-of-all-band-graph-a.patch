@@ -1,0 +1,83 @@
+From 267395a5a30f9f0d59c2121de75c23c964f6077f Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:12:54 +0000
+Subject: [PATCH 2/9] Bugfix: initialize old part array of all band graph
+ anchors [report R. Perry]
+
+In `kgraphBand()`, the band graph has as many anchor vertices as there
+are domains in the current mapping, but the old part array of the
+anchors was initialized according to the number of domains of the old
+mapping. When remapping onto more parts than the old mapping had, the
+old parts of some anchors were left uninitialized and used as domain
+indices by `kgraphMapFmPartAdd()`; when remapping onto fewer parts,
+the old parts of regular band vertices were overwritten.
+
+Add a remapping test case onto more parts, with a band strategy.
+
+Refs: GRA-05
+---
+ src/check/CMakeLists.txt    | 5 ++++-
+ src/check/Makefile          | 2 ++
+ src/libscotch/kgraph_band.c | 6 +++---
+ 3 files changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index d395dd5..3f5ff36 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -692,7 +692,10 @@ add_test(NAME gpart_overlap_4 COMMAND ${BASH} -c "'$<TARGET_FILE:gpart>' -o 24 '
+ 
+ # check_prog_gpart_remap
+ 
+-add_test(NAME gpart_remap COMMAND $<TARGET_FILE:gpart> 32 ${dat}/bump_imbal_32.grf ${dev_null} -ro${dat}/bump_old.map -vmt)
++add_test(NAME gpart_remap_1 COMMAND $<TARGET_FILE:gpart> 32 ${dat}/bump_imbal_32.grf ${dev_null} -ro${dat}/bump_old.map -vmt)
++
++add_test(NAME gpart_remap_2 COMMAND ${BASH} -c "'$<TARGET_FILE:gpart>' 2 '${dat}/m16x16.grf' m16x16_k2.map && \
++  '$<TARGET_FILE:gpart>' 4 '${dat}/m16x16.grf' '${dev_null}' -rom16x16_k2.map -vmt '-Mr{sep=h{pass=10}}b{width=3,bnd=f{move=120,pass=-1,bal=0.05},org=f{move=120,pass=-1,bal=0.05}}'")
+ 
+ # check_prog_gscat
+ 
+diff --git a/src/check/Makefile b/src/check/Makefile
+index ff1e510..e8b3fd7 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -780,6 +780,8 @@ check_prog_gpart_overlap	:
+ 
+ check_prog_gpart_remap		:
+ 					$(EXECS) $(SCOTCHBINDIR)/gpart 32 data/bump_imbal_32.grf /dev/null -rodata/bump_old.map -vmt
++					$(EXECS) $(SCOTCHBINDIR)/gpart 2 data/m16x16.grf $(TMPDIR)/m16x16_k2.map
++					$(EXECS) $(SCOTCHBINDIR)/gpart 4 data/m16x16.grf /dev/null -ro$(TMPDIR)/m16x16_k2.map -vmt '-Mr{sep=h{pass=10}}b{width=3,bnd=f{move=120,pass=-1,bal=0.05},org=f{move=120,pass=-1,bal=0.05}}'
+ 
+ check_prog_gscat		:
+ 					$(EXECS) $(SCOTCHBINDIR)/gscat 4 data/small1.grf $(TMPDIR)/small1-%r.grf
+diff --git a/src/libscotch/kgraph_band.c b/src/libscotch/kgraph_band.c
+index f1722b8..1efe10a 100644
+--- a/src/libscotch/kgraph_band.c
++++ b/src/libscotch/kgraph_band.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2009-2011,2013-2016,2018,2019,2021,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2009-2011,2013-2016,2018,2019,2021,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -45,7 +45,7 @@
+ /**                # Version 6.1  : from : 19 apr 2021     **/
+ /**                                 to   : 30 jun 2021     **/
+ /**                # Version 7.0  : from : 24 aug 2019     **/
+-/**                                 to   : 19 jul 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # This code derives from the code of    **/
+ /**                  kdgraph_band.c in version 5.2 for     **/
+@@ -264,7 +264,7 @@ fail:
+       errorPrint ("kgraphBand: out of memory (5)");
+       goto fail;
+     }
+-    memSet (bandparotax + bandvertnbr - bandgrafptr->r.m.domnnbr, ~0, bandgrafptr->r.m.domnnbr * sizeof (Gnum)); /* Old parts of anchors are unspecified */
++    memSet (bandparotax + bandvertnbr - domnnbr, ~0, domnnbr * sizeof (Gnum)); /* Old parts of anchors are unspecified */
+     bandparotax -= bandgrafptr->s.baseval;
+     bandgrafptr->r.m.flagval |= MAPPINGINCOMPLETE | MAPPINGFREEPART; /* Remapping may be incomplete */
+     bandgrafptr->r.m.parttax  = bandparotax;
+-- 
+2.47.3
+

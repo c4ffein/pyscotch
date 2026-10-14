@@ -1,0 +1,40 @@
+{
+ "license": "SIL OFL 1.1 (Inter, JetBrains Mono) via @fontsource 5.3.0",
+ "fonts": [
+  {
+   "family": "Inter",
+   "weight": 400,
+   "file": "inter-latin-400-normal.woff2",
+   "url": "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/files/inter-latin-400-normal.woff2",
+   "sha256": "8909904ab6c872eb994093482a88a28eca2cd95912d7b6fecd72103b0dc07edc"
+  },
+  {
+   "family": "Inter",
+   "weight": 600,
+   "file": "inter-latin-600-normal.woff2",
+   "url": "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/files/inter-latin-600-normal.woff2",
+   "sha256": "f9a06e79cd3a2a20951c0f0e28f66dd0e6d3fda73911d640a2125c8fcb78f21a"
+  },
+  {
+   "family": "Inter",
+   "weight": 700,
+   "file": "inter-latin-700-normal.woff2",
+   "url": "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/files/inter-latin-700-normal.woff2",
+   "sha256": "6f56409fd3d64bb85f7d070bce20749db2d66b6d63cec586cc22d1c761be2491"
+  },
+  {
+   "family": "JetBrains Mono",
+   "weight": 400,
+   "file": "jetbrains-mono-latin-400-normal.woff2",
+   "url": "https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.3.0/files/jetbrains-mono-latin-400-normal.woff2",
+   "sha256": "14425ba9c695763c1547f48a206b7aa60350a33ae23de09f0407877f3fcd89eb"
+  },
+  {
+   "family": "JetBrains Mono",
+   "weight": 600,
+   "file": "jetbrains-mono-latin-600-normal.woff2",
+   "url": "https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.3.0/files/jetbrains-mono-latin-600-normal.woff2",
+   "sha256": "400c6bfda18d5d14acad1c15d6dcb9f8e13c015e7286317e0b9a482539bef147"
+  }
+ ]
+}

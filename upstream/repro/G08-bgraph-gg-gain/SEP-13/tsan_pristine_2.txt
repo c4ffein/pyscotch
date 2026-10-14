@@ -1,0 +1,825 @@
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by thread T3:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Thread T3 (tid=175697, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f730 by main thread:
+    #0 _SCOTCHintRandVal3 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_integer.c:443 (libscotch.so+0x3d33c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 _SCOTCHintRandVal /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_integer.c:471 (libscotch.so+0x3d39f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:196 (libscotch.so+0x37ddf) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:322 (libscotch.so+0x39bce) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:335 (libscotch.so+0x3a3e9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #13 _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:391 (libscotch.so+0x79919) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #14 _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb.c:157 (libscotch.so+0x750d7) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #15 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #16 kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:383 (libscotch.so+0x73413) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #17 _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:412 (libscotch.so+0x7416c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #18 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #19 graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:294 (libscotch.so+0x83e02) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #20 SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:318 (libscotch.so+0x83f17) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #21 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:469 (gpart+0x3160) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Previous read of size 8 at 0x7f59dfc9f730 by thread T3:
+    #0 _SCOTCHintRandSpawn /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_integer.c:296 (libscotch.so+0x3d0b9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:177 (libscotch.so+0x37876) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is global '_SCOTCHintranddat' of size 32 at 0x7f59dfc9f720 (libscotch.so+0xe3730)
+
+  Thread T3 (tid=175697, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_integer.c:443 in _SCOTCHintRandVal3
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by main thread:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:322 (libscotch.so+0x39bce) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:335 (libscotch.so+0x3a3e9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:391 (libscotch.so+0x79919) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #13 _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb.c:157 (libscotch.so+0x750d7) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #14 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #15 kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:383 (libscotch.so+0x73413) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #16 _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:412 (libscotch.so+0x7416c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #17 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #18 graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:294 (libscotch.so+0x83e02) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #19 SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:318 (libscotch.so+0x83f17) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #20 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:469 (gpart+0x3160) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by main thread:
+    #0 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:245 (libscotch.so+0x3798c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:322 (libscotch.so+0x39bce) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:338 (libscotch.so+0x3a419) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:391 (libscotch.so+0x79919) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb.c:157 (libscotch.so+0x750d7) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #13 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #14 kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:383 (libscotch.so+0x73413) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #15 _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:412 (libscotch.so+0x7416c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #16 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #17 graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:294 (libscotch.so+0x83e02) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #18 SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:318 (libscotch.so+0x83f17) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #19 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:469 (gpart+0x3160) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by main thread:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:322 (libscotch.so+0x39bce) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:338 (libscotch.so+0x3a419) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:391 (libscotch.so+0x79919) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #13 _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb.c:157 (libscotch.so+0x750d7) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #14 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #15 kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:383 (libscotch.so+0x73413) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #16 _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:412 (libscotch.so+0x7416c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #17 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #18 graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:294 (libscotch.so+0x83e02) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #19 SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:318 (libscotch.so+0x83f17) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #20 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:469 (gpart+0x3160) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T3:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:245 (libscotch.so+0x3798c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T3 (tid=175697, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T3:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:216 (libscotch.so+0x379f0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T3 (tid=175697, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T1:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHthreadContextImport2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:623 (libscotch.so+0x40f47) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:255 (libscotch.so+0x3b8f1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by main thread:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:335 (libscotch.so+0x3a3e9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:258 (libscotch.so+0x3b91a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #13 _SCOTCHcontextThreadLaunchSplit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:301 (libscotch.so+0x3be58) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #14 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:316 (libscotch.so+0x795a4) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #15 _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:391 (libscotch.so+0x79919) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #16 _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb.c:157 (libscotch.so+0x750d7) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #17 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #18 kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:383 (libscotch.so+0x73413) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #19 _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:412 (libscotch.so+0x7416c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #20 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #21 graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:294 (libscotch.so+0x83e02) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #22 SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:318 (libscotch.so+0x83f17) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #23 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:469 (gpart+0x3160) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T1 (tid=175695, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:335 (libscotch.so+0x3a3e9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:266 (libscotch.so+0x3b97f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by main thread:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:335 (libscotch.so+0x3a3e9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:258 (libscotch.so+0x3b91a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #13 _SCOTCHcontextThreadLaunchSplit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:301 (libscotch.so+0x3be58) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #14 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:316 (libscotch.so+0x795a4) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #15 _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:391 (libscotch.so+0x79919) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #16 _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb.c:157 (libscotch.so+0x750d7) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #17 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #18 kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:383 (libscotch.so+0x73413) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #19 _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:412 (libscotch.so+0x7416c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #20 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #21 graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:294 (libscotch.so+0x83e02) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #22 SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:318 (libscotch.so+0x83f17) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #23 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:469 (gpart+0x3160) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:335 (libscotch.so+0x3a3e9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:266 (libscotch.so+0x3b97f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by thread T1:
+    #0 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:216 (libscotch.so+0x379f0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextImport2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:623 (libscotch.so+0x40f47) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:255 (libscotch.so+0x3b8f1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Thread T1 (tid=175695, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:335 (libscotch.so+0x3a3e9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:266 (libscotch.so+0x3b97f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by main thread:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:338 (libscotch.so+0x3a419) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:258 (libscotch.so+0x3b91a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #13 _SCOTCHcontextThreadLaunchSplit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:301 (libscotch.so+0x3be58) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #14 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:316 (libscotch.so+0x795a4) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #15 _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:391 (libscotch.so+0x79919) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #16 _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb.c:157 (libscotch.so+0x750d7) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #17 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #18 kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:383 (libscotch.so+0x73413) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #19 _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:412 (libscotch.so+0x7416c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #20 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #21 graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:294 (libscotch.so+0x83e02) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #22 SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:318 (libscotch.so+0x83f17) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #23 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:469 (gpart+0x3160) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Read of size 8 at 0x7ffff7bae9f0 by thread T3:
+    #0 _SCOTCHintRandSpawn /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_integer.c:296 (libscotch.so+0x3d0b9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:177 (libscotch.so+0x37876) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHthreadContextImport2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:623 (libscotch.so+0x40f47) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:263 (libscotch.so+0x3b946) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7ffff7bae9f0 by thread T2:
+    #0 _SCOTCHintRandVal3 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_integer.c:443 (libscotch.so+0x3d33c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 _SCOTCHintRandVal /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_integer.c:471 (libscotch.so+0x3d39f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:196 (libscotch.so+0x37ddf) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:335 (libscotch.so+0x3a3e9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:266 (libscotch.so+0x3b97f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #13 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is stack of main thread.
+
+  Location is global '<null>' at 0x000000000000 ([stack]+0x1e9f0)
+
+  Thread T3 (tid=175697, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_integer.c:296 in _SCOTCHintRandSpawn
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T1:
+    #0 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:216 (libscotch.so+0x379f0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextImport2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:623 (libscotch.so+0x40f47) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:255 (libscotch.so+0x3b8f1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by thread T3:
+    #0 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:216 (libscotch.so+0x379f0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextImport2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:623 (libscotch.so+0x40f47) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:263 (libscotch.so+0x3b946) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T1 (tid=175695, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Thread T3 (tid=175697, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:216 in bgraphBipartGg2
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:216 (libscotch.so+0x379f0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:335 (libscotch.so+0x3a3e9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:266 (libscotch.so+0x3b97f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by thread T1:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHthreadContextImport2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:623 (libscotch.so+0x40f47) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:255 (libscotch.so+0x3b8f1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Thread T1 (tid=175695, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:216 in bgraphBipartGg2
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T1:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHthreadContextImport2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:623 (libscotch.so+0x40f47) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:255 (libscotch.so+0x3b8f1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by thread T3:
+    #0 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:216 (libscotch.so+0x379f0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextImport2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:623 (libscotch.so+0x40f47) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:263 (libscotch.so+0x3b946) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T1 (tid=175695, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Thread T3 (tid=175697, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 _SCOTCHbgraphBipartFm /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_fm.c:442 (libscotch.so+0x346d1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:303 (libscotch.so+0x3a2f1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:335 (libscotch.so+0x3a3e9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:266 (libscotch.so+0x3b97f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by thread T1:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHthreadContextImport2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:623 (libscotch.so+0x40f47) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:255 (libscotch.so+0x3b8f1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Thread T1 (tid=175695, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 _SCOTCHbgraphBipartFm /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_fm.c:442 (libscotch.so+0x346d1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:303 (libscotch.so+0x3a2f1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:335 (libscotch.so+0x3a3e9) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:266 (libscotch.so+0x3b97f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by main thread:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 _SCOTCHbgraphBipartFm /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_fm.c:442 (libscotch.so+0x346d1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:303 (libscotch.so+0x3a2f1) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:338 (libscotch.so+0x3a419) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:258 (libscotch.so+0x3b91a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 _SCOTCHcontextThreadLaunchSplit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:301 (libscotch.so+0x3be58) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:316 (libscotch.so+0x795a4) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #13 _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:391 (libscotch.so+0x79919) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #14 _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb.c:157 (libscotch.so+0x750d7) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #15 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #16 kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:383 (libscotch.so+0x73413) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #17 _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_ml.c:412 (libscotch.so+0x7416c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #18 _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_st.c:392 (libscotch.so+0x79d7e) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #19 graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:294 (libscotch.so+0x83e02) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #20 SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_graph_map.c:318 (libscotch.so+0x83f17) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #21 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:469 (gpart+0x3160) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=175693)
+  Write of size 8 at 0x7f59dfc9f7c8 by thread T3:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHthreadContextImport2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:623 (libscotch.so+0x40f47) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:263 (libscotch.so+0x3b946) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Previous write of size 8 at 0x7f59dfc9f7c8 by thread T2:
+    #0 _SCOTCHgainTablAddLog /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 (libscotch.so+0x42317) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #1 bgraphBipartGg2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:246 (libscotch.so+0x378dc) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:374 (libscotch.so+0x40c3b) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_gg.c:359 (libscotch.so+0x3831f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:301 (libscotch.so+0x3a2d0) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:330 (libscotch.so+0x39844) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_ml.c:359 (libscotch.so+0x3a23c) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #8 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:383 (libscotch.so+0x3a5ef) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #9 _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/bgraph_bipart_st.c:338 (libscotch.so+0x3a419) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #10 kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/kgraph_map_rb_part.c:274 (libscotch.so+0x7933a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #11 contextThreadLaunchSplit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:266 (libscotch.so+0x3b97f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #12 threadWait /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:327 (libscotch.so+0x40ac3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+
+  Location is global 'gainLinkDummy' of size 24 at 0x7f59dfc9f7c0 (libscotch.so+0xe37c8)
+
+  Thread T3 (tid=175697, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+  Thread T2 (tid=175696, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1022 (libtsan.so.2+0x568a6) (BuildId: 99ef88596cb10a8ccf307fe1a9070f66a44b1624)
+    #1 threadCreate /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:780 (libscotch.so+0x4048a) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #2 _SCOTCHthreadContextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_thread.c:142 (libscotch.so+0x408b3) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #3 _SCOTCHcontextThreadInit2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:201 (libscotch.so+0x3bbc5) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #4 _SCOTCHcontextThreadInit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:227 (libscotch.so+0x3bc37) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #5 _SCOTCHcontextCommit /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/common_context.c:127 (libscotch.so+0x3bc8d) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #6 SCOTCH_contextBindGraph /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/library_context_graph.c:98 (libscotch.so+0x7e22f) (BuildId: 384708fb5a9bc5e5471ba1b1955d00fef0aa7721)
+    #7 main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/scotch/gmap.c:436 (gpart+0x35a0) (BuildId: 58e7ed6b22724b78ebcd99158ebdec936c99ea32)
+
+SUMMARY: ThreadSanitizer: data race /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/tsan/pristine/src/libscotch/gain.c:311 in _SCOTCHgainTablAddLog
+==================
+ThreadSanitizer: reported 18 warnings

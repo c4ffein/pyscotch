@@ -1,0 +1,163 @@
+From 1ef8a655fa346bb6fa25699a330e0c5e08a59c04 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:44:16 +0000
+Subject: [PATCH] Bugfix: rework error handling of `dgraphGatherAll2()` [report
+ R. Perry]
+
+On allocation failure, the error path of `dgraphGatherAll2()`
+dereferenced the centralized graph pointer, which is NULL on non-root
+processes, and freed the receive count array, which was never assigned
+when the root failed to allocate its graph arrays. Moreover, in
+non-debug builds, the error was not agreed upon, so that the failing
+process returned while the other ones entered the gather operations.
+
+Restructure the allocation phase as in `hdgraphGather()`: assume an
+error, jump to a common label, always agree on the error before any
+collective operation, and only free what was allocated.
+
+In `hdgraphGather()`, the error path had the same kind of defects:
+the halo count array pointer and the centralized edge array pointer
+were read uninitialized on early root allocation failures, and the
+centralized graph was freed with an uninitialized base value. Set
+them before the first allocation.
+
+Refs: DGR-10, PS-DGR-4
+---
+ src/libscotch/dgraph_gather_all.c | 49 +++++++++++++++----------------
+ src/libscotch/hdgraph_gather.c    |  6 ++--
+ 2 files changed, 28 insertions(+), 27 deletions(-)
+
+diff --git a/src/libscotch/dgraph_gather_all.c b/src/libscotch/dgraph_gather_all.c
+index 2b398f3..b37850f 100644
+--- a/src/libscotch/dgraph_gather_all.c
++++ b/src/libscotch/dgraph_gather_all.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2010,2012,2018,2021,2023,2025 Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2010,2012,2018,2021,2023,2025,2026 Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -49,7 +49,7 @@
+ /**                # Version 6.1  : from : 18 jun 2021     **/
+ /**                                 to   : 04 dec 2021     **/
+ /**                # Version 7.0  : from : 04 aug 2018     **/
+-/**                                 to   : 29 sep 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # The definitions of MPI_Gather and     **/
+ /**                  MPI_Gatherv indicate that elements in **/
+@@ -151,8 +151,9 @@ const int                     protnum)            /* -1 means allgather */
+ 
+   baseval = dgrfptr->baseval;
+ 
+-  cheklocval = 0;
+-  if (cgrfptr != NULL) {                          /* If root process */
++  cheklocval = 1;                                 /* Assume an error */
++  recvcnttab = NULL;                              /* In case of error */
++  if (cgrfptr != NULL) {                          /* If root process  */
+     Gnum                velonbr;
+     Gnum                vnumnbr;
+     Gnum                vlblnbr;
+@@ -169,13 +170,13 @@ const int                     protnum)            /* -1 means allgather */
+                        &cgrfptr->vnumtax, (size_t) (vnumnbr                   * sizeof (Gnum)),
+                        &cgrfptr->vlbltax, (size_t) (vlblnbr                   * sizeof (Gnum)), NULL) == NULL) {
+       errorPrint ("dgraphGatherAll2: out of memory (1)");
+-      cheklocval = 1;
++      goto fail;
+     }
+-    else if (memAllocGroup ((void **) (void *)
+-                            &cgrfptr->edgetax, (size_t) (dgrfptr->edgeglbnbr * sizeof (Gnum)),
+-                            &cgrfptr->edlotax, (size_t) (edlonbr             * sizeof (Gnum)), NULL) == NULL) {
++    if (memAllocGroup ((void **) (void *)
++                       &cgrfptr->edgetax, (size_t) (dgrfptr->edgeglbnbr * sizeof (Gnum)),
++                       &cgrfptr->edlotax, (size_t) (edlonbr             * sizeof (Gnum)), NULL) == NULL) {
+       errorPrint ("dgraphGatherAll2: out of memory (2)");
+-      cheklocval = 1;
++      goto fail;
+     }
+   }
+ 
+@@ -188,28 +189,26 @@ const int                     protnum)            /* -1 means allgather */
+     edgelocnbr = dgrfptr->edgelocnbr;
+   }
+ 
+-  if (cheklocval == 0) {
+-    if (memAllocGroup ((void **) (void *)
+-                       &recvcnttab, (size_t) (dgrfptr->procglbnbr * sizeof (Gnum)), /* Allocated for non-roots too but don't care as these are very small */
+-                       &recvdsptab, (size_t) (dgrfptr->procglbnbr * sizeof (Gnum)),
+-                       &vertloctax, (size_t) (vertlocnbr          * sizeof (Gnum)),
+-                       &edgeloctab, (size_t) (edgelocnbr          * sizeof (Gnum)), NULL) == NULL) {
+-      errorPrint ("dgraphGatherAll2: out of memory (3)");
+-      cheklocval = 1;
+-    }
++  if (memAllocGroup ((void **) (void *)
++                     &recvcnttab, (size_t) (dgrfptr->procglbnbr * sizeof (Gnum)), /* Allocated for non-roots too but don't care as these are very small */
++                     &recvdsptab, (size_t) (dgrfptr->procglbnbr * sizeof (Gnum)),
++                     &vertloctax, (size_t) (vertlocnbr          * sizeof (Gnum)),
++                     &edgeloctab, (size_t) (edgelocnbr          * sizeof (Gnum)), NULL) == NULL) {
++    errorPrint ("dgraphGatherAll2: out of memory (3)");
++    goto fail;
+   }
+-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication cannot be merged with a useful one */
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, dgrfptr->proccomm) != MPI_SUCCESS) {
++
++  cheklocval = 0;                                 /* Everything went well */
++fail:
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, dgrfptr->proccomm) != MPI_SUCCESS) { /* All processes must agree before performing gather operations */
+     errorPrint ("dgraphGatherAll2: communication error (2)");
+-    return (1);
++    chekglbval = 1;
+   }
+-#else /* SCOTCH_DEBUG_DGRAPH1 */
+-  chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+   if (chekglbval != 0) {
+     if (recvcnttab != NULL)
+       memFree (recvcnttab);
+-    if (cgrfptr->verttax != NULL) {
++    if ((cgrfptr != NULL) &&                      /* Non-root processes have no centralized graph */
++        (cgrfptr->verttax != NULL)) {
+       if (cgrfptr->edgetax != NULL)
+         memFree (cgrfptr->edgetax);               /* Arrays are not based yet */
+       memFree (cgrfptr->verttax);
+diff --git a/src/libscotch/hdgraph_gather.c b/src/libscotch/hdgraph_gather.c
+index 3352ef4..ae378fb 100644
+--- a/src/libscotch/hdgraph_gather.c
++++ b/src/libscotch/hdgraph_gather.c
+@@ -47,7 +47,7 @@
+ /**                # Version 6.0  : from : 27 nov 2012     **/
+ /**                                 to   : 23 may 2018     **/
+ /**                # Version 7.0  : from : 04 aug 2018     **/
+-/**                                 to   : 04 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -124,6 +124,7 @@ Hgraph * restrict const     cgrfptr)              /*+ Centralized halo graph +*/
+   degrmax = dgrfptr->s.degrglbmax;                /* Distributed degree does not account for halo edges */
+ 
+   cheklocval = 1;                                 /* Assume an error    */
++  verthaltax = NULL;                              /* In case of error   */
+   if (cgrfptr != NULL) {                          /* If process is root */
+     Gnum                vnohnbr;
+     Gnum                vertnbr;
+@@ -140,6 +141,8 @@ Hgraph * restrict const     cgrfptr)              /*+ Centralized halo graph +*/
+     edgenbr = dgrfptr->s.edgeglbnbr + 2 * reduglbtab[3]; /* Twice since halo vertices will be created for real  */
+ 
+     cgrfptr->s.flagval = GRAPHFREEEDGE | GRAPHEDGEGROUP | GRAPHFREEVERT | GRAPHVERTGROUP; /* In case of premature freeing on error */
++    cgrfptr->s.baseval = dgrfptr->s.baseval;      /* Base value is needed for premature freeing of based arrays */
++    cgrfptr->s.edgetax = NULL;
+     recvcnttab = NULL;
+     if (memAllocGroup ((void **) (void *)
+                        &cgrfptr->s.verttax, (size_t) ((vertnbr + 1) * sizeof (Gnum)), /* Compact vertex array */
+@@ -167,7 +170,6 @@ Hgraph * restrict const     cgrfptr)              /*+ Centralized halo graph +*/
+       goto fail;
+     }
+ 
+-    cgrfptr->s.baseval = dgrfptr->s.baseval;
+     cgrfptr->s.vertnbr = vertnbr;
+     cgrfptr->s.vertnnd = vertnbr + dgrfptr->s.baseval;
+     cgrfptr->s.vendtax = cgrfptr->s.verttax + 1;  /* Compact edge array                                  */
+-- 
+2.47.3
+

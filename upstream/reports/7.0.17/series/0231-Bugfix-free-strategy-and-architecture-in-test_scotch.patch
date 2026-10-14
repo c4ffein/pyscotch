@@ -1,0 +1,38 @@
+From bd963ee5a4309b25a76c7b673358aec6ceec85c0 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:42:04 +0000
+Subject: [PATCH 231/240] Bugfix: free strategy and architecture in
+ `test_scotch_arch_build.c` [report PyScotch]
+
+The strategy that `SCOTCH_archBuild0()` creates in the caller's
+`SCOTCH_Strat` object and the built architectures were never freed,
+so that the test failed under AddressSanitizer's leak detection
+(26544 bytes in 240 allocations).
+---
+ src/check/test_scotch_arch_build.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/check/test_scotch_arch_build.c b/src/check/test_scotch_arch_build.c
+index 610c194..c4591d7 100644
+--- a/src/check/test_scotch_arch_build.c
++++ b/src/check/test_scotch_arch_build.c
+@@ -211,6 +211,7 @@ const SCOTCH_Num            vertnbr)              /* Number of path vertices */
+     return (1);
+   }
+ 
++  SCOTCH_stratExit (&stradat);
+   SCOTCH_graphExit (&grafdat);
+ 
+   return (0);
+@@ -463,6 +464,8 @@ char *                      argv[])
+         SCOTCH_errorPrint ("main: invalid architecture (2)");
+         exit (EXIT_FAILURE);
+       }
++
++      SCOTCH_archExit (&archdat);
+     }
+   }
+ 
+-- 
+2.47.3
+

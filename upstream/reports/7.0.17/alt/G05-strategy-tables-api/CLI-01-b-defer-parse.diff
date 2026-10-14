@@ -1,0 +1,26 @@
+Alternative for CLI-01: do not parse -m in the option loop; only remember the
+pointer, and after the exclusivity check do `if (straptr != NULL)
+SCOTCH_stratDgraphMap(&stradat, straptr); else { Build... }' (the gmap.c
+structure). Also removes the redundant Exit/Init pair. Slightly larger diff;
+same user-visible behaviour as the recommended guard. Not chosen because the
+minimal guard is a smaller, lower-risk change matching dgord.c.
+
+--- a/src/scotch/dgmap.c (sketch)
++++ b/src/scotch/dgmap.c
+@@ option 'm' @@
+           straptr = &argv[i][2];
+-          SCOTCH_stratExit (&stradat);
+-          SCOTCH_stratInit (&stradat);
+-          SCOTCH_stratDgraphMap (&stradat, straptr);
+           break;
+@@ before SCOTCH_contextBindDgraph @@
+-  if ((flagval & C_FLAGCLUSTER) != 0)
+-    SCOTCH_stratDgraphClusterBuild (...);
+-  else
+-    SCOTCH_stratDgraphMapBuild (...);
++  if (straptr != NULL)
++    SCOTCH_stratDgraphMap (&stradat, straptr);
++  else if ((flagval & C_FLAGCLUSTER) != 0)
++    SCOTCH_stratDgraphClusterBuild (...);
++  else
++    SCOTCH_stratDgraphMapBuild (...);

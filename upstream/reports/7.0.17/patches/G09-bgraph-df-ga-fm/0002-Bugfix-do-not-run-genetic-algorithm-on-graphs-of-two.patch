@@ -1,0 +1,72 @@
+From 8fe2ca43d242bb237d731aff988e68e10ac4ace0 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:56:45 +0000
+Subject: [PATCH 2/9] Bugfix: do not run genetic algorithm on graphs of two
+ vertices [report R. Perry]
+
+The crossing-over point is drawn in [1, vertnbr - 2], which requires at
+least three vertices; with exactly two vertices, as regularly produced by
+recursive bipartitioning, `intRandVal()` was called with a zero modulus
+and the process crashed with a floating-point exception. Raise the bound
+of the existing guard, and add a test on a 4-vertex graph that exercises
+the genetic method on 2-vertex subgraphs.
+
+Refs: SEP-04
+---
+ src/check/CMakeLists.txt         | 4 +++-
+ src/check/Makefile               | 1 +
+ src/libscotch/bgraph_bipart_ga.c | 4 ++--
+ 3 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index d395dd5..4ff036a 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -633,7 +633,9 @@ add_test(NAME gpart_3 COMMAND $<TARGET_FILE:gpart> 9 ${dat}/nocoarsen.grf ${CMAK
+ 
+ add_test(NAME gpart_4 COMMAND $<TARGET_FILE:gpart> 5 ${dat}/bump_b100000.grf bump_k5.map -vmt -Mr{bal=0.05,sep=m{vert=120,low=h{pass=10}f{bal=0.05,move=120},asc=b{bnd=f{bal=0.05,move=120},org=f{bal=0.05,move=120}}}}|m{vert=1000,low=r{bal=0.05,sep=m{vert=120,low=h{pass=10}f{bal=0.05,move=120},asc=b{bnd=f{bal=0.05,move=120},org=f{bal=0.05,move=120}}}},asc=b{bnd=f{bal=0.05,move=120},org=f{bal=0.05,move=120}}})
+ 
+-set_tests_properties(gpart_1 gpart_2 gpart_3 gpart_4 PROPERTIES FIXTURES_SETUP GPART_DEPS)
++add_test(NAME gpart_5 COMMAND $<TARGET_FILE:gpart> 4 ${dat}/p2-p2.grf p2-p2_k4.map -vmt -Mr{sep=a})
++
++set_tests_properties(gpart_1 gpart_2 gpart_3 gpart_4 gpart_5 PROPERTIES FIXTURES_SETUP GPART_DEPS)
+ 
+ # check_prog_gout
+ 
+diff --git a/src/check/Makefile b/src/check/Makefile
+index ff1e510..9b044fc 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -760,6 +760,7 @@ check_prog_gpart		:
+ 					$(EXECS) $(SCOTCHBINDIR)/gpart 9 data/bump_b100000.grf $(TMPDIR)/bump_k9_b100000.map -Cu -vmt
+ 					$(EXECS) $(SCOTCHBINDIR)/gpart 9 data/nocoarsen.grf $(TMPDIR)/nocoarsen_k9.map -Cr -vmt
+ 					$(EXECS) $(SCOTCHBINDIR)/gpart 5 data/bump_b100000.grf $(TMPDIR)/bump_k5.map -Cf -vmt '-Mr{bal=0.05,sep=m{vert=120,low=(h{pass=10}|a)f{bal=0.05,move=120},asc=b{bnd=f{bal=0.05,move=120},org=f{bal=0.05,move=120}}}}|m{vert=1000,low=r{bal=0.05,sep=m{vert=120,low=(h{pass=10}|a)f{bal=0.05,move=120},asc=b{bnd=f{bal=0.05,move=120},org=f{bal=0.05,move=120}}}},asc=b{bnd=f{bal=0.05,move=120},org=f{bal=0.05,move=120}}}'
++					$(EXECS) $(SCOTCHBINDIR)/gpart 4 data/p2-p2.grf $(TMPDIR)/p2-p2_k4.map -vmt '-Mr{sep=a}'
+ 
+ check_prog_gpart_clustering	:
+ 					$(EXECS) $(SCOTCHBINDIR)/gpart -q 1 data/bump.grf $(TMPDIR)/bump_part_cls_9.map -vmt
+diff --git a/src/libscotch/bgraph_bipart_ga.c b/src/libscotch/bgraph_bipart_ga.c
+index c681f1e..434621f 100644
+--- a/src/libscotch/bgraph_bipart_ga.c
++++ b/src/libscotch/bgraph_bipart_ga.c
+@@ -48,7 +48,7 @@
+ /**                  anchor of part 1.                     **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 15 feb 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -290,7 +290,7 @@ const BgraphBipartGaParam * const paraptr)        /* Method parameters */
+   const Gnum                demenbr = DEMENBR (paraptr->popunbr, thrdnbr); /* Size of thread local deme */
+   const Gnum                sortnbr = demenbr * thrdnbr; /* Overall number of individuals to sort       */
+ 
+-  if (grafptr->s.vertnbr < 2)                     /* If less than two vertices, no crossing-over possible and nothing relevant to do */
++  if (grafptr->s.vertnbr < 3)                     /* If less than three vertices, no crossing-over possible and nothing relevant to do */
+     return (0);
+ 
+   if (memAllocGroup ((void **) (void *)
+-- 
+2.47.3
+

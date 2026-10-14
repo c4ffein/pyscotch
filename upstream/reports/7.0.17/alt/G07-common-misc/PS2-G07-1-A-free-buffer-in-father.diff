@@ -1,0 +1,49 @@
+From 831e8da9bc5a0aaef9492adec2e3ff1845a88034 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:17:46 +0000
+Subject: [PATCH] Bugfix: free data buffer of forked (de)compression tasks in
+ father process [report PyScotch]
+
+In fork mode, the data buffer allocated in the (de)compression
+structure is only used by the son process, which frees its own copy
+in `fileCompress2()` / `fileDecompress2()`. The copy of the father was
+never freed, which LeakSanitizer reports on every program that reads
+or writes a compressed file.
+
+Free the buffer in the father process right after forking.
+---
+ src/libscotch/common_file_compress.c   | 3 ++-
+ src/libscotch/common_file_decompress.c | 3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/common_file_compress.c b/src/libscotch/common_file_compress.c
+index 2862f85..a5476bf 100644
+--- a/src/libscotch/common_file_compress.c
++++ b/src/libscotch/common_file_compress.c
+@@ -271,7 +271,8 @@ const FileCompressType      typeval)              /*+ Compression algorithm
+       fileCompress2 (compptr);                    /* Perform compression                                   */
+       _exit (EXIT_SUCCESS);                       /* Exit without flushing stdio buffers inherited from father */
+     default :                                     /* We are the father process                             */
+-      close (pipetab[0]);                         /* Close the reader pipe end                             */
++      close   (pipetab[0]);                       /* Close the reader pipe end                             */
++      memFree (compptr->bufftab);                 /* Data buffer is only used by the son process           */
+   }
+ #endif /* COMMON_PTHREAD_FILE */
+ 
+diff --git a/src/libscotch/common_file_decompress.c b/src/libscotch/common_file_decompress.c
+index cf31f83..fdbae7b 100644
+--- a/src/libscotch/common_file_decompress.c
++++ b/src/libscotch/common_file_decompress.c
+@@ -244,7 +244,8 @@ const FileCompressType      typeval)              /*+ (De)compression algorithm
+       fileDecompress2 (compptr);                  /* Perform decompression                                 */
+       _exit (EXIT_SUCCESS);                       /* Exit without flushing stdio buffers inherited from father */
+     default :                                     /* We are the father process                             */
+-      close (pipetab[1]);                         /* Close the writer pipe end                             */
++      close   (pipetab[1]);                       /* Close the writer pipe end                             */
++      memFree (compptr->bufftab);                 /* Data buffer is only used by the son process           */
+   }
+ #endif /* COMMON_PTHREAD_FILE */
+ 
+-- 
+2.47.3
+

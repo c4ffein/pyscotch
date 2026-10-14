@@ -106,6 +106,27 @@ class TestDiagnosis:
         assert sb._diagnose_make_output("some unrelated failure") == ""
 
 
+class TestVersionKey:
+    def test_plain_releases_order_numerically(self):
+        assert sb._version_key("7.0.9") < sb._version_key("7.0.17") < sb._version_key("7.1.0")
+
+    def test_release_candidate_sorts_before_its_release(self):
+        assert sb._version_key("7.0.18rc1") < sb._version_key("7.0.18")
+        assert sb._version_key("7.0.17") < sb._version_key("7.0.18rc1")
+
+    def test_rc_numbers_and_spellings(self):
+        assert sb._version_key("7.0.18rc1") < sb._version_key("7.0.18rc2") < sb._version_key("7.0.18rc10")
+        assert sb._version_key("7.0.18-rc1") == sb._version_key("7.0.18rc1") == sb._version_key("7.0.18.rc1")
+
+    def test_stage_order(self):
+        keys = [sb._version_key(v) for v in ("7.0.18alpha1", "7.0.18beta1", "7.0.18rc1", "7.0.18")]
+        assert keys == sorted(keys)
+
+    def test_garbage_is_rejected_loudly(self):
+        with pytest.raises(ValueError, match="unrecognised Scotch version"):
+            sb._version_key("seven")
+
+
 class TestLatestVersion:
     def test_latest_is_numerically_greatest_non_skipped(self):
         candidates = [v for v in sb._KNOWN_VERSIONS if v not in sb._SKIPPED_VERSIONS]

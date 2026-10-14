@@ -1,0 +1,33 @@
+SEP-13 (+ PS2-G08-1 deterministic option): threaded bgraphBipartGg() seeding race and
+thread-count dependence. Graph: src/check/data/m16x16_b100000_v.grf, gpart into 4 parts,
+default strategy, one fresh process per run, partition files compared by md5sum.
+
+Builds: pristine 32-bit ASan = /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/asan ; patched = /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build (series 0001-0004);
+spawn_only = series up to 0002 (SEP-13 fix without the deterministic-option fix);
+pristine TSan = /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/tsan/pristine ; patched TSan = /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/tsan (-O1 -fsanitize=thread).
+
+1. Determinism (30 fresh processes per thread count):
+   for thr in 1 2 4 8; do for i in $(seq 1 30); do
+     SCOTCH_DETERMINISTIC=1 SCOTCH_PTHREAD_NUMBER=$thr LD_LIBRARY_PATH=<lib> <bin>/gpart 4 m16x16_b100000_v.grf run_$i.map
+   done; md5sum run_*.map | awk '{print $1}' | sort -u | wc -l; done
+   pristine 7.0.17 (pristine/):  thr=1 distinct=1   thr=2 distinct=3 (24/4/2)   thr=4 distinct=1 (racy side varies per run)
+   after 0002 only (spawn_only/): thr=1 1 (1d497d7d)  thr=2 1 (d02c4de7)  thr=4 1 (944fb99a)  -> reproducible, but thread-count dependent
+   after 0001-0004 (final/):      thr=1 1 (1d497d7d)  thr=2 1 (e180dfcf)  thr=4 1 (e180dfcf)  thr=8 1 (e180dfcf)
+   64-bit build (final64/, 10 runs each): thr=1 1 (1d497d7d)  thr=2 1 (e180dfcf)  thr=4 1 (e180dfcf)
+   The remaining 1-thread vs >=2-thread difference is not in this module: see PS2-G08-2 (kgraph_map_rb_part.c:316
+   splits the context into two sub-contexts with a second random stream whenever >= 2 threads exist, deterministic or not).
+   strat/ shows it: 'r{sep=h{pass=20}}' thr1 != thr2 == thr4 ; 'r{sep=m{...}}' variants thr1 == thr2 == thr4 ; k=2 thr1 == thr2.
+
+2. ThreadSanitizer, 4 threads, SCOTCH_DETERMINISTIC=1 (tsan_pristine_*.txt) and =0 (tsan_pristine_d0_*.txt):
+   SCOTCH_DETERMINISTIC=1 SCOTCH_PTHREAD_NUMBER=4 LD_LIBRARY_PATH=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/tsan/pristine/lib /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/tsan/pristine/bin/gpart 4 m16x16_b100000_v.grf /dev/null
+   pristine det=1: 19/18/19 reports per run: gain.c:311 (gainTablAddLog, 14), bgraph_bipart_gg.c:216 (gainTablDel macro, 2),
+     common_integer.c:443 intRandVal3 (thread 0) vs common_integer.c:296 intRandSpawn (worker) (1), bgraph_bipart_fm.c:524 (1).
+   pristine det=0: 26/24 reports: gain.c:311 (27), gg.c:216/245 (7), intRandVal3/intRandSpawn (4), graph_match_scan.c (12, by design).
+   patched det=1 (tsan_patched_d1_*.txt): 0 reports in 5 runs.
+   patched det=0 (tsan_patched_d0_*.txt): 4-9 reports in 5 runs, ALL in graph_match_scan.c:112/156 (lock-free matching,
+     intentional in non-deterministic mode); none in gain.c, bgraph_bipart_gg.c, common_integer.c.
+   First report of pristine run 1 (tsan_pristine_1.txt):
+     WARNING: ThreadSanitizer: data race
+       Write of size 8 ... by thread T2: #0 _SCOTCHgainTablAddLog gain.c:311  #1 bgraphBipartGg2 bgraph_bipart_gg.c:246
+       Previous write of size 8 ... by thread T3: #0 bgraphBipartGg2 bgraph_bipart_gg.c:216
+       Location is global 'gainLinkDummy' of size 24

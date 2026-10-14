@@ -1,0 +1,493 @@
+[
+ {
+  "id": "SEP-07",
+  "our_title": "meshSave element/node load array pairing, fixed upstream; both orders verified by round trip",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); UBSAN_OPTIONS=print_stacktrace=1; see repro/README. cd $WORK/repro/SEP-07; $INFRA/asan/bin/mcv w_ef.msh w_ef.msh.out -is -os; diff w_ef.msh w_ef.msh.out -> identical; same for w_nf.msh (nodes first). $INFRA/asan/bin/mtst w_ef.msh.out -> 'S\\tElements\\tnbr=2'. Files: elements first, element loads 1,2, node loads 3..6, and the nodes-first twin.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "As the review: silent wrong file output (fixed).",
+  "location_7_0_17": "src/libscotch/mesh_io.c:353-357",
+  "evidence": "7.0.17 mesh_io.c:353 `velotabtab[0] = meshptr->velotax;` ... :356 `velotabtab[1] = meshptr->vnlotax;` (7.0.16 had `velotabtab[0]` twice).",
+  "upstream_change": "fd6c780 Bugfix: assign proper variable [report R. Perry] (mesh_io.c only; meshGeomSaveScot calls meshSave so it is covered).",
+  "review_accuracy": "accurate",
+  "first_pass_critique": "Correct status and evidence. It only tested elements-first meshes; the nodes-first branch (lines 360-365) was already right and is now also verified by round trip.",
+  "extra_instances": [],
+  "fix_options": [],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "No further instance of a doubly-assigned table entry in mesh_io.c, mesh_io_scot.c or graph_io*.c (grep for 'tab\\[0\\] =' pairs)."
+ },
+ {
+  "id": "PS-SEP-1",
+  "our_title": "MESHVERTGROUP shares bit 0x0010 with MESHFREEOTHR; meshFree frees interior vlbltab of grouped meshes",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); UBSAN_OPTIONS=print_stacktrace=1; see repro/README. cd $WORK/repro/PS-SEP-1; $INFRA/asan/bin/mtst m16_lbl.msh -> '==ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed: ... #1 _SCOTCHmeshFree mesh.c:132 #2 _SCOTCHmeshExit mesh.c:88 #3 SCOTCH_meshExit library_mesh.c:133 #4 main mtst.c:167' ('0x50b000000060 is located 32 bytes inside of 104-byte region'). Patched: $WORK/build/bin/mtst m16_lbl.msh prints statistics and exits 0; also on data/small2_lbl.msh and in 64-bit.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Every labeled mesh file loaded by mtst/mcv/mord/gmk_msh/SCOTCH_meshLoad ends in an invalid free (abort with glibc); input is a user file but the file need not be malformed.",
+  "location_7_0_17": "src/libscotch/mesh.h:66,68; src/libscotch/mesh.c:130-133; src/libscotch/mesh_io.c:147",
+  "evidence": "mesh.h:66 `#define MESHFREEOTHR 0x0010` and :68 `#define MESHVERTGROUP 0x0010`; mesh_io.c:147 `meshptr->flagval = MESHFREEVERT | MESHVERTGROUP;` with vlbltax inside the memAllocGroup of :159-163; mesh.c:130-132 `if ((meshptr->flagval & MESHFREEOTHR) != 0) { if (meshptr->vlbltax != NULL) memFree (meshptr->vlbltax + meshptr->baseval);`.",
+  "upstream_change": "",
+  "review_accuracy": "not in the review (first-pass finding)",
+  "first_pass_critique": "Status, mechanism and preferred option are right. 'Not compiled' is now done: every user of the flags was checked (mesh_io.c, mesh_io_habo.c MESHFREETABS, hmesh_induce.c and mesh_induce_sepa.c FREETABS|VERTGROUP, hmesh_order_cp.c FREEVERT|VERTGROUP, library_mesh.c, library_mesh_order.c `&= ~MESHFREETABS`, hmesh.c:75); renumbering changes no other behaviour: hmeshExit's VERTGROUP test is reached only with FREETABS|VERTGROUP meshes, and library_mesh_order.c clears FREETABS before meshExit. The first pass did not notice that option 2 would also silence the vnumtab debug check and keep hmeshExit's test wrong.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/mesh.h:64",
+    "quote": "#define MESHFREEVEND                0x0004        /* Free verttab array        */",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Give MESHVERTGROUP its own bit (0x0020)",
+    "summary": "mesh.h: MESHVERTGROUP = 0x0020 like GRAPHVERTGROUP; fix the MESHFREEVEND comment; add data/small2_lbl.msh loaded by mtst in check_prog_mcv.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0001-Bugfix-give-MESHVERTGROUP-its-own-flag-bit-report-Py.patch",
+    "tested": "32/64-bit builds, 0 warnings; mtst on m16_lbl.msh and small2_lbl.msh clean under ASan; check_prog_mmk/mcv/mord/gmk_msh, check_scotch_mesh_graph, check_mesh_base pass in both builds.",
+    "tradeoffs": "Flag values are internal (mesh.h is not installed); no ABI change. Meshes with MESHFREETABS alone no longer 'have' VERTGROUP, which only matters for hmeshExit (no such Hmesh exists).",
+    "preferred": true,
+    "maintainer_fit": "This is what graph.h does (GRAPHFREEOTHR 0x0008, GRAPHVERTGROUP 0x0010, graph.h:84-86); one-line, same family as his 'assign proper variable' fixes."
+   },
+   {
+    "label": "Test MESHVERTGROUP before freeing vlbltab in meshFree",
+    "summary": "mesh.c: `if ((vlbltax != NULL) && ((flagval & MESHVERTGROUP) == 0))` like graphFree does for velotax/vlbltax.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS-SEP-1-b-meshfree-guard.diff",
+    "tested": "syntax-checked only (gcc -fsyntax-only with build CFLAGS)",
+    "tradeoffs": "Leaves the two flags aliased: a mesh that wants both 'grouped' and 'free others' is impossible, MESHFREETABS keeps implying VERTGROUP for hmeshExit, and the debug vnumtab check stays silenced.",
+    "preferred": false,
+    "maintainer_fit": "He would not keep two flags on one bit once seen; graphFree has the same guard only because the bits are distinct."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0001-Bugfix-give-MESHVERTGROUP-its-own-flag-bit-report-Py.patch"
+  ],
+  "cleanup_done": "none needed (fixed the stale MESHFREEVEND comment in the same block)",
+  "test_added": "src/check/data/small2_lbl.msh + `mtst data/small2_lbl.msh` in check_prog_mcv (Makefile) and CMake test mtst_small2_lbl (later folded into the mcv round-trip line by patch 0011): loads, checks and frees a labeled mesh.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "SEP-23",
+  "our_title": "meshBase skips load arrays; hmeshBase rebases halo end array with wrong range and double adjustment when aliased",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); UBSAN_OPTIONS=print_stacktrace=1; see repro/README. cd $WORK/repro/SEP-23; ./base (pristine lib) -> 'check0=0' then '==ERROR: AddressSanitizer: global-buffer-overflow ... #0 _SCOTCHmeshCheck mesh_check.c:199 #1 main base.c:22' (velotax read at the old base after meshBase (m, 0)). Patched: 'meshBase->0 old=1 check=0', 'meshBase->1 old=0 check=0', 'velotax[1..2]=2 3 vnlotax[3..6]=1 2 3 4', 'hmeshBase(alias)->0 old=1 check=0 alias=1', '...->1 old=0 check=0 alias=1', 'hmeshBase(distinct)->0 old=1 check=0 vehd=3 6', '...->1 old=0 check=0 vehd=4 7'. Same in 64-bit (bin64/base: 6 lines with check=0).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Internal routines with no caller in the tree (latent); the review's 'info' understates that both routines corrupt memory when used (OOB read of load arrays, OOB write of vehdtax by baseadj entries when rebasing upwards).",
+  "location_7_0_17": "src/libscotch/mesh.c:147-191 (meshBase); src/libscotch/hmesh.c:91-115 (hmeshBase)",
+  "evidence": "mesh.c:175-182 shifts verttax/vendtax/edgetax/vnumtax/vlbltax but has no `velotax -= baseadj` / `vnlotax -= baseadj`; hmesh.c:106-112 `meshBase (&meshptr->m, baseval); for (velmnum = meshptr->m.velmbas; velmnum < meshptr->m.velmnnd; velmnum ++) meshptr->vehdtax[velmnum] += baseadj; ... meshptr->vehdtax -= baseadj;` (new range on old-based array; when vehdtax == m.vendtax the entries were already rebased by meshBase).",
+  "upstream_change": "",
+  "review_accuracy": "accurate; its fix line ('shift all arrays and rebase vehdtax before looping') misses the aliased case: when vehdtax == m.vendtax, rebasing before looping still adds baseadj a second time to entries meshBase() already rebased, and leaves the pointer different from m.vendtax.",
+  "first_pass_critique": "Status and tests right, and it did notice the aliasing. But its mesh.c sketch is wrong: velotax and vnlotax are two pointer fields, so shifting each once cannot 'shift it twice' even when both point to the same array (meshLoad); the 'shared load array' special case is dead complexity. Its hmesh.c sketch (vehdflag) is equivalent to the patch but keeps the loop body duplicated across the branches of the flag.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/hmesh.c:73-76 (hmeshExit)",
+    "quote": "(meshptr->vehdtax != (meshptr->m.vendtax + (meshptr->m.baseval - meshptr->m.velmbas))) &&",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Rebase every array consistently (graphBase idiom)",
+    "summary": "meshBase: shift velotax/vnlotax when non-NULL (as graphBase does, graph_base.c). hmeshBase: if vehdtax aliases m.vendtax, call meshBase and re-alias; else call meshBase, rebase the vehdtax access first, then add baseadj to the entries of the new element range. Add test_mesh_base (internal API, like test_fibo/test_common_thread).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0002-Bugfix-rebase-load-arrays-and-halo-end-array-in-mesh.patch",
+    "tested": "32/64-bit builds 0 warnings; repro/SEP-23/base all checks 0; check_mesh_base passes on both builds and fails on the pristine library with the same global-buffer-overflow.",
+    "tradeoffs": "No behaviour change for callers (none exist). Test uses internal headers like test_common_thread.c.",
+    "preferred": true,
+    "maintainer_fit": "graphBase() (graph_base.c:95-100) shifts velotax/vnumtax/vlbltax/edlotax; hmeshCheck() (hmesh_check.c:92) uses the plain `vehdtax != m.vendtax` alias test the patch reuses."
+   },
+   {
+    "label": "Remove meshBase/hmeshBase",
+    "summary": "Delete both routines, their prototypes and module.h renames (no caller in src/).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/SEP-23-b-remove-base-routines.diff",
+    "tested": "syntax-checked only; `git grep -n 'meshBase\\|hmeshBase' src` shows no other user.",
+    "tradeoffs": "Zero risk now; loses the mesh twins of graphBase() that SCOTCH_meshBase-style API could need later.",
+    "preferred": false,
+    "maintainer_fit": "He kept graphBase() and exposes SCOTCH_graphBase(); deleting the mesh twins instead of fixing them is not his pattern (he fixed hmeshMesh's latent branch in f36ab36 rather than removing it)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0002-Bugfix-rebase-load-arrays-and-halo-end-array-in-mesh.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0003-Bugfix-fix-alias-test-of-halo-end-array-in-hmeshExit.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "src/check/test_mesh_base.c (check_mesh_base in Makefile and CMakeLists.txt): builds a loaded elements-first mesh with SCOTCH_meshBuild, rebases 1->0->1 and checks loads, then a halo mesh with aliased and with distinct vehdtax, checked by hmeshCheck after each rebase.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The hmeshExit alias-test defect found while reading hmesh.c is PS2-G11-mesh-struct-io-4 (patch 0003, repro/hmeshExit)."
+ },
+ {
+  "id": "SEP-21",
+  "our_title": "hmeshMesh nodes-first memCpy size fixed upstream, but the branch still miscounts isolated fake elements",
+  "status": "partially-fixed",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); UBSAN_OPTIONS=print_stacktrace=1; see repro/README. cd $WORK/repro/SEP-21; ./hmeshmesh (pristine 7.0.17 lib; nodes-first halo mesh: nodes 0..3 with node 3 halo, elements 4,5) -> 'hmeshCheck=0' then 'ERROR: meshCheck: invalid number of isolated element vertices' 'hmeshMesh=0 meshCheck=1 velmnbr=3 velmbas=3 vnodnbr=3 edgenbr=8'. The memCpy itself is correct (no sanitizer report; with the 7.0.16 expression the size would be (3 - 3*4) as size_t). Patched: 'hmeshMesh=0 meshCheck=0 velmnbr=3 velmbas=3 vnodnbr=3 edgenbr=8' (32 and 64-bit).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Latent: the only caller, hmeshOrderNd (hmesh_order_nd.c:138), receives either halo-free meshes (clone branch) or elements-first induced meshes; the remaining defect is a wrong meshCheck/`internal error` under SCOTCH_DEBUG_HMESH2 rather than a memory error.",
+  "location_7_0_17": "src/libscotch/hmesh_mesh.c:130 (fixed); :87,:133-135 (veisnbr/velosum not updated); :114,:126 (error messages name hmeshHgraph)",
+  "evidence": "hmesh_mesh.c:130 `(hmshptr->m.vnodnbr - hmshptr->vnohnbr) * sizeof (Gnum)` (parenthesised in 7.0.17); :87 `meshptr->veisnbr = hmshptr->m.veisnbr + hmshptr->veihnbr;` is never increased by the `vnodnbr - vnohnbr` fake empty elements created at :130-133; :114 `errorPrint (\"hmeshHgraph: out of memory (1)\");`.",
+  "upstream_change": "f36ab36 Bugfix: use parentheses to restore operator precedence [report R. Perry]",
+  "review_accuracy": "accurate for the precedence error; it did not look further into the branch.",
+  "first_pass_critique": "Status 'fixed' is right for the lead as stated, but 'source-read' with 'the branch has no caller' stopped short: running the branch shows the resulting mesh is invalid (veisnbr, and velosum for unweighted elements), so the upstream fix alone does not make the branch work.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/hmesh_mesh.c:87,133",
+    "quote": "meshptr->veisnbr = hmshptr->m.veisnbr + hmshptr->veihnbr; /* Add halo isolated elements to isolated elements */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/hmesh_mesh.c:114,126",
+    "quote": "errorPrint (\"hmeshHgraph: out of memory (1)\");",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Count the fake elements as isolated (and as unit loads)",
+    "summary": "In the nodes-first branch add `vnodnbr - vnohnbr` to veisnbr, and to velosum when velotax == NULL; name the routine in its errorPrint.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0004-Bugfix-count-fake-isolated-elements-in-hmeshMesh-rep.patch",
+    "tested": "repro/SEP-21/hmeshmesh: meshCheck=0 after the patch, 32 and 64-bit; mord checks pass.",
+    "tradeoffs": "Weighted elements with a nodes-first halo mesh still cannot be represented (fake elements have no velotax entry); left as is since no caller builds such meshes.",
+    "preferred": true,
+    "maintainer_fit": "Same spirit as f36ab36: repair the latent branch rather than remove it; message naming follows the rule 'errorPrint with the C routine name as prefix'."
+   },
+   {
+    "label": "Reject nodes-first halo meshes in hmeshMesh",
+    "summary": "Replace the branch by an errorPrint + return (1).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS2-2-b-hmeshmesh-reject-nodes-first.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Removes an unreachable but intended feature; would make f36ab36 pointless.",
+    "preferred": false,
+    "maintainer_fit": "He just fixed this branch upstream, so he intends to keep it."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0004-Bugfix-count-fake-isolated-elements-in-hmeshMesh-rep.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "none: the branch is only reachable through internal structures built by hand; the internal harness is in repro/SEP-21 (test_mesh_base covers the halo-free hmesh paths).",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Extra defect recorded as PS2-G11-mesh-struct-io-2."
+ },
+ {
+  "id": "SEP-08",
+  "our_title": "Harwell-Boeing mesh loader indexes arrays with unchecked file values, hangs on huge field widths, leaves velosum 0",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); UBSAN_OPTIONS=print_stacktrace=1; see repro/README. cd $WORK/repro/SEP-08; ./hbload hb_ok.mtx -> 'ERROR: meshCheck: invalid element vertex load sum' 'load=0 check=1'; ./hbload hb_badvar.mtx -> '==ERROR: AddressSanitizer: heap-buffer-overflow ... READ of size 4 ... #0 _SCOTCHmeshGeomLoadHabo mesh_io_habo.c:242'; ./hbload hb_badptr2.mtx -> 'AddressSanitizer: SEGV on unknown address ... #0 _SCOTCHmeshGeomLoadHabo mesh_io_habo.c:282'; timeout 5 $INFRA/asan/bin/mcv ../fuzz/before/crashes/c0355.rsa /dev/null -ib -os -> killed after 5 s (format '(3I9999999999)'). Patched: 'load=0 check=0', 'bad input (10)', 'bad input (7)', 'bad input (9)' respectively; fuzz 'meshSave' and 'TIMEOUT' buckets gone; 32 and 64-bit.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "User file -> heap overflow / wild read; velosum makes every loaded HB mesh fail meshCheck (functional).",
+  "location_7_0_17": "src/libscotch/mesh_io_habo.c:121-125 (unchecked header counts), 128-132 (field widths), 180-186 (velosum missing), 194-197 and 226-229 (EOF loop on field width), 203-208 and 235-240 (checks under SCOTCH_DEBUG_MESH2 only, no meshFree), 242 and 282 (OOB writes)",
+  "evidence": "mesh_io_habo.c:203-208 `#ifdef SCOTCH_DEBUG_MESH2 if ((habcolval < 1) || (habcolval > (habvixnbr + 1))) { errorPrint (\"meshGeomLoadHabo: bad input (7)\"); return (1); } #endif`; :242 `meshptr->verttax[habnodval] ++;`; :186 `meshptr->vnlosum = habvarnbr;` with no velosum; :194 `for (habcolidx = 1; habcolidx < habcolsiz; habcolidx ++) { if ((c = getc (filesrcptr)) != ' ')`.",
+  "upstream_change": "",
+  "review_accuracy": "accurate but incomplete: intermediate ELTPTR values must also be non-decreasing (a decreasing pointer makes the rescan skip arcs and yields an inconsistent mesh), the debug checks leak the mesh, negative header counts become array bases, and a huge field width hangs the reader.",
+  "first_pass_critique": "Status, evidence and preferred option right (its diff is close to the patch). It missed the header-count validation, the field-width hang (its own fuzz would have shown the TIMEOUT bucket) and did not remove the debug check made redundant by the unconditional one (mesh_io_habo.c:272-276). Option 2 was 'not compiled'; a compiled version is alt/SEP-08-b.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/mesh_io_habo.c:121-125",
+    "quote": "habvixnbr = (Gnum) atol (&habmatbuf[2][43]); ... habvarnbr = (Gnum) atol (&habmatbuf[2][14]);  (no sign check before memAlloc and velmbas = habvarnbr + 1)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/mesh_io_habo.c:194-197,226-229",
+    "quote": "for (habcolidx = 1; habcolidx < habcolsiz; habcolidx ++) { if ((c = getc (filesrcptr)) != ' ')  (loops habcolsiz times on EOF)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/mesh_io_habo.c:238 (patched numbering), digit accumulation",
+    "quote": "habnodval = habnodval * 10 + c - '0';  (signed overflow on 80+ digit fields, UBSan only; same in graph_io_habo.c:233,270, G14 PS2-G14-1)",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Unconditional range checks, header validation, EOF-bounded fields, velosum",
+    "summary": "Check habvarnbr/habeltnbr/habvixnbr >= 0 and field widths >= 1 ('bad input (11)'); check every ELTPTR (bounds + non-decreasing) and VARIND value unconditionally with meshFree on error; stop field loops at EOF; set velosum = habeltnbr; drop the redundant debug check. Add data/hb3.pue -> hb3.msh conversion to check_prog_mcv.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0007-Bugfix-validate-Harwell-Boeing-mesh-data-and-set-ele.patch",
+    "tested": "All four repro files and the hang mutant behave as listed; check_prog_mcv (with the new hb3 lines) passes 32/64-bit; mcv on hb3.pue with the pristine library produces a mesh that mtst rejects ('invalid element vertex load sum').",
+    "tradeoffs": "Two comparisons per value; malformed files now fail cleanly instead of corrupting memory.",
+    "preferred": true,
+    "maintainer_fit": "Mirrors G14's GRA-11 patch for graph_io_habo.c ('bad input (9)' unconditional after decoding) and his rule that user-controlled values are checked outside debug blocks."
+   },
+   {
+    "label": "Factor a validated fixed-width field reader",
+    "summary": "static meshGeomLoadHaboInt (stream, width, min, max, &val) used for ELTPTR and VARIND; velosum set.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/SEP-08-b-field-reader-helper.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Smaller loops, but a static helper diverges from graph_io_habo.c's inline decoding, and the header checks are still needed.",
+    "preferred": false,
+    "maintainer_fit": "He keeps the two loaders structurally parallel; the inline form is what he patched in the graph twin."
+   },
+   {
+    "label": "Bound field widths to 80 characters",
+    "summary": "Reject habcolsiz/habnzrsiz outside [1, 80] (HB lines are 80 columns), which also stops the digit-accumulation overflow for sane widths.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS2-6-b-bound-habo-field-width.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Could be combined with option 1; rejects nonstandard but harmless wide formats.",
+    "preferred": false,
+    "maintainer_fit": "Possible addition; not needed once the EOF test is there."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0007-Bugfix-validate-Harwell-Boeing-mesh-data-and-set-ele.patch"
+  ],
+  "cleanup_done": "removed the SCOTCH_DEBUG_MESH2 'internal error (2)' range check made redundant by the unconditional VARIND check (renumbered (3) to (2)).",
+  "test_added": "src/check/data/hb3.pue (3-element PUE matrix) and data/hb3.msh (expected conversion): `mcv data/hb3.pue -ib -os`, diff, `mtst` in check_prog_mcv and CMake test mcv_pue_hb3.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Fuzz: before 12 buckets (incl. meshSave crash after HB load and TIMEOUT), after 6, all UBSan-overflow on absurd header values (see repro/fuzz/README). Related extra: PS2-G11-mesh-struct-io-6."
+ },
+ {
+  "id": "API-08",
+  "our_title": "meshGeomLoadHabo dereferences a NULL tag string, which its Fortran wrapper always passes",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); UBSAN_OPTIONS=print_stacktrace=1; see repro/README. cd $WORK/repro/API-08; ./fhabo ../SEP-08/hb_ok.mtx (calls scotchfmeshgeomloadhabo_) -> 'mesh_io_habo.c:94:21: runtime error: null pointer passed as argument 1, which is declared to never be null' '#0 _SCOTCHmeshGeomLoadHabo mesh_io_habo.c:94 ... #2 SCOTCHFMESHGEOMLOADHABO library_mesh_io_habo_f.c:115' then SEGV in atol. Patched: 'ierr=0 check=0' (32 and 64-bit).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Public Fortran API unusable (crash); C callers passing NULL crash too.",
+  "location_7_0_17": "src/libscotch/mesh_io_habo.c:94-98; src/libscotch/library_mesh_io_habo_f.c:115",
+  "evidence": "mesh_io_habo.c:94 `if (((habmattag = atol (dataptr)) == 0) && (dataptr[0] != '0') && (dataptr[0] != '\\0'))`; library_mesh_io_habo_f.c:115 `o = SCOTCH_meshGeomLoadHabo (meshptr, geomptr, filegrfstream, filegeostream, NULL);`. The graph twin graph_io_habo.c:108-116 tests `(dataptr != NULL)` first.",
+  "upstream_change": "",
+  "review_accuracy": "accurate; both of its fixes work, 'treat NULL as matrix 0' is exactly what the graph loader already does.",
+  "first_pass_critique": "Status right. Its preferred option (copy the Fortran string) is not what the tree does: the graph twin GRAPHGEOMLOADHABO (library_graph_io_habo_f.c:116) also passes NULL and graphGeomLoadHabo() accepts it, so the maintainer's own precedent is option 2; honouring the string would have to be done in both wrappers to be consistent (alt/API-08-b, recorded as PS2-G11-mesh-struct-io-9 since the documentation says the string is the matrix rank).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/library_mesh_io_habo.c:80 and mesh_io_habo.c:74",
+    "quote": "const char * const            dataptr)            /* No use */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/library_graph_io_habo_f.c:78,116 (graph twin)",
+    "quote": "const char * const          dataptr, /* No use */ \\ ... SCOTCH_graphGeomLoadHabo (grafptr, geomptr, filegrfstream, filegeostream, NULL);",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Accept NULL (first matrix) in the loader, as graphGeomLoadHabo does",
+    "summary": "habmattag = 0 by default; parse only if dataptr != NULL and non-empty; fix the '/* No use */' comments.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0006-Bugfix-accept-a-null-tag-string-in-meshGeomLoadHabo-.patch",
+    "tested": "repro/API-08/fhabo ierr=0; hbload with explicit '0' tag unchanged; check_prog_mcv passes.",
+    "tradeoffs": "Fortran callers get matrix 0 regardless of the string they pass (as for graphs).",
+    "preferred": true,
+    "maintainer_fit": "Verbatim twin of graph_io_habo.c:108-116, his code."
+   },
+   {
+    "label": "Honour the documented rank string in both Fortran wrappers",
+    "summary": "Copy datanbr bytes into a NUL-terminated buffer (idiom of library_graph_map_f.c:319-331) and pass it, in MESHGEOMLOADHABO and GRAPHGEOMLOADHABO.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/API-08-b-fortran-rank-string.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Makes the Fortran API match doc/src/scotch/s_l.tex ('the string field contains ... the rank of the mesh'); needs the loader NULL guard anyway for C callers; touches the graph wrapper (not in this group).",
+    "preferred": false,
+    "maintainer_fit": "Doc/code mismatch is his call: either this diff or a doc fix saying the Fortran string is ignored."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0006-Bugfix-accept-a-null-tag-string-in-meshGeomLoadHabo-.patch"
+  ],
+  "cleanup_done": "none needed (comments corrected)",
+  "test_added": "none: the Fortran wrapper is only reachable from Fortran; no src/check Fortran test loads HB files (test_scotch_mesh_build_f builds meshes in memory); the C path is covered by the hb3.pue test of patch 0007.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "SEP-16",
+  "our_title": "meshGeomLoadScot matches coordinates against the first vertices' labels, not node labels; also keeps dimnnbr in a local",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); UBSAN_OPTIONS=print_stacktrace=1; see repro/README. cd $WORK/repro/SEP-16; ./geoload m16u.msh m16u.xyz (elements labelled 0,1, nodes 2..5, geometry keyed 2..5) pristine -> 'ERROR: meshGeomLoadScot: vertex geometry data not found (0)' load=1. Patched -> 'load=0 check=0' 'dimnnbr=2' 'node 0: 0 0' ... and the geometry is saved back keyed 2..5 (32 and 64-bit). Round trip test: test_scotch_mesh_geom data/small2.msh data/small2.xyz -> diff identical; with the pristine library the same test prints 'vertex geometry data not found (0)'.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Geometry of elements-first meshes (the common case) cannot be loaded, or is silently attached to wrong nodes when element and node label ranges overlap; plus (GRA-09 twin) the loaded geometry can never be saved (dimension 0).",
+  "location_7_0_17": "src/libscotch/mesh_io_scot.c:169 (label range), 179-181 (unlabeled: labels 0..vnodnbr-1 while meshGeomSaveScot:237 writes vnodnum in [vnodbas, vnodnnd)), 114-118 (geomtab reused, dimnnbr never stored), 188 (%d with a Gnum), 99-105 (coornbr sign unchecked)",
+  "evidence": "mesh_io_scot.c:169 `vnodsorttab[vnodnum].labl = meshptr->vlbltax[vnodnum + meshptr->baseval];`; :180-181 `vnodsorttab[vnodnum].labl = vnodsorttab[vnodnum].num  = vnodnum;` vs :237 `(meshptr->vlbltax != NULL) ? meshptr->vlbltax[vnodnum] : vnodnum` for vnodnum from vnodbas; :114-115 `if ((geomptr->geomtab == NULL) && ((geomptr->geomtab = (double *) memAlloc (...` with no `geomptr->dimnnbr =`.",
+  "upstream_change": "",
+  "review_accuracy": "accurate for the labeled branch; it did not see that the unlabeled branch has the same vnodbas problem (save/load mismatch even at base 0) nor the GRA-09 twin in the same routine.",
+  "first_pass_critique": "Status and option right for line 169. Missed: the unlabeled branch (data/small2.msh + its own saved geometry cannot be reloaded on pristine), the dimnnbr/realloc twin of GRA-09 that G14 fixed in graph_io_scot.c, and the '%d' format. Its evidence relies on m16.msh whose element and node labels overlap, which the label-semantics fix (patch 0011) now rejects as duplicate labels.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/mesh_io_scot.c:179-181",
+    "quote": "vnodsorttab[vnodnum].labl =\n      vnodsorttab[vnodnum].num  = vnodnum;",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/mesh_io_scot.c:114-118",
+    "quote": "if ((geomptr->geomtab == NULL) &&               /* Allocate geometry if necessary */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/mesh_io_scot.c:188",
+    "quote": "errorPrint (\"meshGeomLoadScot: vertex geometry data not found (%d)\",",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/graph_io_scot.c:183-186,192 (graph twin: unlabeled labels 0-based vs graphGeomSaveScot based numbers; %d)",
+    "quote": "vertsorttab[vertnum].labl =\n      vertsorttab[vertnum].num  = vertnum;",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Index node labels from vnodbas, use node numbers for unlabeled meshes, store dimnnbr",
+    "summary": "vlbltax[vnodnum + vnodbas]; unlabeled labl = vnodnum + vnodbas (what meshGeomSaveScot writes); memRealloc geomtab + geomptr->dimnnbr (exact twin of G14 patch 0006); GNUMSTRING; coornbr < 0 rejected. New test_scotch_mesh_geom.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0008-Bugfix-match-geometry-data-against-node-labels-in-me.patch",
+    "tested": "repro and check_scotch_mesh_geom (unlabeled small2, and labeled small2_lbl after patch 0011) pass 32/64-bit; pristine fails the test.",
+    "tradeoffs": "Unlabeled geometry files keyed 0..vnodnbr-1 (which only the loader ever accepted) stop loading; files written by meshGeomSaveScot (and gout-style based numbering, cf. data/bump_b100000.xyz) now load.",
+    "preferred": true,
+    "maintainer_fit": "Same discipline as G14's GRA-09 patch (memRealloc + dimnnbr) so he sees one fix in both loaders; the review's own fix for line 169."
+   },
+   {
+    "label": "Loop on based node numbers",
+    "summary": "Iterate vnodnum in [vnodbas, vnodnnd) and derive the un-based index, which makes the range explicit.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/SEP-16-b-absolute-node-loop.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Same effect for the labeled branch; more lines; still needs the other fixes.",
+    "preferred": false,
+    "maintainer_fit": "Equivalent; the one-token form keeps the code parallel to graph_io_scot.c."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0008-Bugfix-match-geometry-data-against-node-labels-in-me.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0011-Bugfix-keep-vertex-labels-of-mesh-files-unchanged-in.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "src/check/test_scotch_mesh_geom.c (check_scotch_mesh_geom): loads data/small2.msh + new data/small2.xyz (and small2_lbl.msh + small2_lbl.xyz after patch 0011), checks the mesh, writes the geometry back and diffs it.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The graph twin's unlabeled-convention mismatch and '%d' are left to G14's file (alt/PS2-7-a-graph-geom-unlabeled-numbers.diff, PS2-G11-mesh-struct-io-7)."
+ },
+ {
+  "id": "API-06",
+  "our_title": "Three mesh I/O entry points and SCOTCH_meshExit still take the handle without container unwrapping",
+  "status": "partially-fixed",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); UBSAN_OPTIONS=print_stacktrace=1; see repro/README. cd $WORK/repro/API-12; ./bound 2 $WORK/scotch/src/check/data/small2.msh (SCOTCH_contextBindMesh then SCOTCH_meshGeomLoadScot on the container) pristine -> 'meshGeomLoadScot(container)=0' 'underlying mesh vnodnbr=0 check=0' + LeakSanitizer (mesh loaded over the container). Patched -> 'underlying mesh vnodnbr=7 check=0'. ./bound 3 (SCOTCH_meshExit on the container) -> no visible effect in either build (the container flag word has no MESHFREE bit); the guard mirrors SCOTCH_graphExit. meshOrderInit/meshCheck/meshSize on bound meshes (fixed part): check_scotch_context and the first pass's msh.c-style modes pass.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "The heap overflow of the lead (meshOrderInit) is fixed; the remaining routines write a mesh over the container (no overflow, sizeof(SCOTCH_Mesh) >= sizeof(Mesh)) and leak it, or read container bytes as a mesh (save/check of an empty mesh).",
+  "location_7_0_17": "src/libscotch/library_mesh_io_habo.c:82; src/libscotch/library_mesh_io_scot.c:82,100; src/libscotch/library_mesh.c:133 (meshExit)",
+  "evidence": "library_mesh_io_habo.c:82 `return (meshGeomLoadHabo ((Mesh *) meshptr, ...` while library_graph_io_habo.c:85 has `(Graph *) CONTEXTOBJECT (grafptr)`; library_mesh_io_scot.c:82 `meshGeomLoadScot ((Mesh *) meshptr,` and :100 `meshGeomSaveScot ((Mesh *) meshptr,`; library_mesh.c:133 `meshExit ((Mesh *) meshptr);` while library_graph.c:140 and library_dmesh.c:129 test `contextContainerTrue`.",
+  "upstream_change": "6a030db Bugfix: guard `SCOTCH_mesh*()` API routines with `Context` pass-through macros [report R. Perry] (library_mesh.c, library_mesh_graph.c input side, library_mesh_order.c)",
+  "review_accuracy": "accurate; its list of locations did not include the mesh geometry I/O wrappers, which have the same defect.",
+  "first_pass_critique": "Marked 'fixed' after testing only the routines the review listed; `git grep '(Mesh \\*) meshptr' src/libscotch/library_*.c` shows the three I/O wrappers it missed, and it did not compare SCOTCH_meshExit with its graph/dmesh twins.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/library_mesh_io_habo.c:82",
+    "quote": "return (meshGeomLoadHabo ((Mesh *) meshptr, (Geom *) geomptr, filesrcptr, filegeoptr, dataptr));",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/library_mesh_io_scot.c:82,100",
+    "quote": "return (meshGeomLoadScot ((Mesh *) meshptr, (Geom *) geomptr, filesrcptr, filegeoptr, NULL));",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/library_mesh.c:133",
+    "quote": "meshExit ((Mesh *) meshptr);",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "CONTEXTOBJECT on the remaining mesh handles, container guard in SCOTCH_meshExit",
+    "summary": "Unwrap in the three geometry I/O wrappers (plus #include context.h and the Makefile dependency lines, as 6a030db did), `if (! contextContainerTrue (meshptr))` in SCOTCH_meshExit.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0005-Bugfix-guard-remaining-mesh-and-graph-API-routines-w.patch",
+    "tested": "repro/API-12/bound modes 2 and 3; check_scotch_context, mesh checks, 32/64-bit, 0 warnings.",
+    "tradeoffs": "None (containers behave like the bound object everywhere).",
+    "preferred": true,
+    "maintainer_fit": "Direct continuation of 6a030db and of library_graph_io_habo.c/scot.c, which already unwrap; the Exit guard copies library_graph.c:140."
+   },
+   {
+    "label": "Reject containers in the I/O wrappers",
+    "summary": "errorPrint + return (1) when contextContainerTrue (meshptr).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/API-12-b-reject-output-containers.diff",
+    "tested": "syntax-checked only (diff covers the output-handle routines; same shape for the I/O wrappers)",
+    "tradeoffs": "Breaks symmetry with the graph wrappers which accept containers.",
+    "preferred": false,
+    "maintainer_fit": "Opposite of the direction he took in 6a030db."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0005-Bugfix-guard-remaining-mesh-and-graph-API-routines-w.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "none: no src/check test binds meshes to contexts (test_scotch_context covers graphs); the harness is repro/API-12/bound.c.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "API-12",
+  "our_title": "Output graph handles of mesh/dmesh dual builders and graphDump's handle skip container unwrapping",
+  "status": "partially-fixed",
+  "method": "partly-run",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); UBSAN_OPTIONS=print_stacktrace=1; see repro/README. cd $WORK/repro/API-12; ./bound 0 small2.msh (SCOTCH_graphDump of a bound graph) pristine -> 'SCOTCH_Num pverttabs[] = {\\n};' (empty arrays: container bytes read as a graph with vertnbr 0); patched -> 'SCOTCH_Num pverttabs[] = {\\n  0, 3, 9, 12, 15, 18, 21, 24\\n};'. ./bound 1 (SCOTCH_meshGraph into a bound graph) pristine -> 'meshGraph=0' 'underlying graph vertnbr=0 check=0' + 'LeakSanitizer: detected memory leaks ... 296 byte(s)'; patched -> 'underlying graph vertnbr=7 check=0', no leak (32 and 64-bit). SCOTCH_dgraphGather: 7.0.17 library_dgraph_gather.c:85,92 use CONTEXTOBJECT (fixed).",
+  "read_only": "SCOTCH_dmeshDgraphDual (library_dmesh_dgraph.c:78): read only; the patched library passes check_libparmetis_v3 (mpirun -np 3) but no test binds a Dgraph output.",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "graphDump prints garbage/empty data (the first pass saw a stack over-read with a stack-allocated container); meshGraph into a bound graph leaks a whole graph and leaves the bound graph empty. The review's 'writes a whole graph over the small container' overstates: SCOTCH_Graph is at least as large as Graph.",
+  "location_7_0_17": "src/libscotch/library_graph_dump.c:87; src/libscotch/library_mesh_graph.c:83,100; src/libscotch/library_dmesh_dgraph.c:78; (library_dgraph_gather.c:85,92 fixed)",
+  "evidence": "library_graph_dump.c:87 `grafptr = (const Graph *) libgrafptr;`; library_mesh_graph.c:83 `return (meshGraphNodal ((Mesh *) CONTEXTOBJECT (meshptr), (Graph *) grafptr));`; library_dmesh_dgraph.c:78 `return (dmeshDgraphDual ((Dmesh *) meshptr, (Dgraph *) grafptr, noconbr));`.",
+  "upstream_change": "04c85e9 (SCOTCH_dgraphGather) and 6a030db (input mesh handles of SCOTCH_meshGraph/meshGraphDual); the output handles were left.",
+  "review_accuracy": "accurate on locations; overstated the overflow for meshGraph (see severity_note).",
+  "first_pass_critique": "Right status and option, and it correctly corrected the review's 'overflow' wording. It did not add the Makefile dependency lines for the new context.h includes (6a030db does), which the patch adds.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "CONTEXTOBJECT on the four remaining handles",
+    "summary": "graphDump input, meshGraph/meshGraphDual/dmeshDgraphDual output; context.h includes and Makefile deps.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0005-Bugfix-guard-remaining-mesh-and-graph-API-routines-w.patch",
+    "tested": "repro modes 0 and 1; check_scotch_graph_dump, check_scotch_mesh_graph, check_libparmetis_v3 (MPI, dmesh twin compiled and exercised without containers); 32/64-bit.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Output handles are unwrapped the same way in library_graph_induce.c:88 (srcindgrafptr), library_dgraph_induce.c:142 and library_dgraph_coarsen.c:122 (coargrafptr)."
+   },
+   {
+    "label": "Reject containers on output handles and in graphDump",
+    "summary": "errorPrint and return (1) when contextContainerTrue().",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/API-12-b-reject-output-containers.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Safer if an output container were considered meaningless, but diverges from induce/coarsen which fill the bound graph.",
+    "preferred": false,
+    "maintainer_fit": "Not his direction (see precedents above)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0005-Bugfix-guard-remaining-mesh-and-graph-API-routines-w.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "none: the existing check_scotch_graph_dump test uses a plain graph; test_scotch_context does not bind output graphs. Harness in repro/API-12.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Shared commit with API-06 (same logical defect: handles cast without CONTEXTOBJECT)."
+ }
+]

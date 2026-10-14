@@ -1,0 +1,14 @@
+--- a/src/libscotch/vmesh_separate_fm.c
++++ b/src/libscotch/vmesh_separate_fm.c
+@@ -151,9 +151,8 @@
+     hnodtab[hnodnew] = hnodtld[hnodold];          /* Move node data to new position */
+   }
+ 
+-/* TODO */
+-  fprintf (stderr, "hertnum no longer valid !\n");
+-  exit    (1);
++  errorPrint ("vmeshSeparateFmResize: resizing not implemented"); /* TODO: finish element re-hashing and list rebuilding */
++  return (1);
+ 
+   addradj = (byte *) helmtab - (byte *) (*helmptr); /* Compute address difference */
+ 

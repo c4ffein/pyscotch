@@ -1,0 +1,12 @@
+Shared reproducer material (WORK = /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G09-bgraph-df-ga-fm).
+  gridgraph.h   n x n grid graph builder (SCOTCH_Graph, base 0, optional vertex/edge loads)
+  mapgrid.c     map a grid onto a 2D mesh target (parts/2 x 2) with 'thr' threads and a strategy;
+                prints rc, part sizes, hash of the part array. DET=1 sets the deterministic option.
+  partgrid.c    partition a grid 'runs' times with the same seed; prints rc, sizes, hash and the
+                number of distinct results. DET=1 sets the deterministic option.
+  fixgrid.c     fixed-vertex mapping of a grid (first row fixed to part 0, last row to part 1).
+  failnth.c     LD_PRELOAD fault injector: FAIL_MALLOC_NTH=n / FAIL_REALLOC_NTH=n fail the n-th call,
+                FAIL_TRACE=1 prints call counts at exit. With ASan-built libraries, run with
+                ASAN_OPTIONS=verify_asan_link_order=0 and LD_PRELOAD=failnth.so (failnth first).
+  cc.sh         cc.sh <build tree> <src.c> <out>: compile a driver against a build tree.
+Build: gcc -O1 -g -shared -fPIC -o failnth.so failnth.c -ldl; ./cc.sh $WORK/build mapgrid.c mapgrid_build (etc.)

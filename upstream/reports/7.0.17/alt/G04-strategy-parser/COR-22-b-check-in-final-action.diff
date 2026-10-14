@@ -1,0 +1,26 @@
+--- a/src/libscotch/parser_yy.y
++++ b/src/libscotch/parser_yy.y
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 30 sep 2014     **/
+ /**                                 to   : 27 apr 2018     **/
+ /**                # Version 7.0  : from : 02 mar 2018     **/
+-/**                                 to   : 25 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -467,6 +467,14 @@
+                 penvptr->straptr = ($<SAVE>1).strat; /* Restore current method    */
+                 penvptr->paraptr = ($<SAVE>1).param; /* Restore current parameter */
+ 
++                if (penvptr->paraptr->typeval != STRATPARAMSTRAT) { /* If parameter cannot hold a strategy */
++                  errorPrint ("stratParserParse: invalid value for parameter \"%s\" of method \"%s\", line %d, column %d, before \"%s\"",
++                              penvptr->paraptr->nameptr, penvptr->straptr->tablptr->methtab[penvptr->straptr->data.methdat.methnum].nameptr,
++                              (@2).libenum, (@2).cobenum, (@2).tebeptr);
++                  stratExit ($2);
++                  YYABORT;
++                }
++
+                 if ((penvptr->paraptr->typeval & STRATPARAMDEPRECATED) == 0) { /* If parameter is not deprecated */
+ #ifdef SCOTCH_DEBUG_PARSER2
+                   if (((penvptr->paraptr->doffptr - penvptr->paraptr->dbasptr) + sizeof (Strat *)) > sizeof (StratNodeMethodData)) {

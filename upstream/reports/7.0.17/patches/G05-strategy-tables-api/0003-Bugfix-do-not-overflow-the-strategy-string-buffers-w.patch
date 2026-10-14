@@ -1,0 +1,305 @@
+From 78d0d16d66f80d3913e2584999ebd36f17bbe1f5 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:02:55 +0000
+Subject: [PATCH 3/7] Bugfix: do not overflow the strategy-string buffers with
+ large ratios [report R. Perry]
+
+The predefined strategy builders formatted their imbalance and density ratios
+into small fixed stack buffers with `sprintf (buf, "%lf", val)'. A value such as
+the `1e300' that some callers use as a "no constraint" sentinel expands to more
+than three hundred characters and smashed the stack (stack-buffer-overflow
+confirmed with AddressSanitizer for the sequential and the parallel builders);
+even `1e30' overflowed the 32-byte buffers. Non-finite values silently produced
+unparsable `nan'/`inf' tokens.
+
+Reject non-finite and negative ratios up front, as the `gmap'/`dgmap' tools
+already do for their `-b' option, and bound each conversion with `snprintf()',
+returning the documented error value `1' when the ratio does not fit. Valid
+ratios keep their exact `"%lf"' textual form. All eight sequential and parallel
+map, cluster, overlap-partitioning and ordering builders are fixed, and
+`test_strat_seq' / `test_strat_par' gain a rejection check.
+
+Refs: API-07
+---
+ src/check/test_strat_par.c             | 22 +++++++++++++++++++++-
+ src/check/test_strat_seq.c             | 21 +++++++++++++++++++++
+ src/libscotch/library_dgraph_map.c     | 19 ++++++++++++++-----
+ src/libscotch/library_dgraph_order.c   |  8 ++++++--
+ src/libscotch/library_graph_map.c      | 19 ++++++++++++++-----
+ src/libscotch/library_graph_order.c    |  8 ++++++--
+ src/libscotch/library_graph_part_ovl.c |  8 ++++++--
+ src/libscotch/library_mesh_order.c     |  8 ++++++--
+ 8 files changed, 94 insertions(+), 19 deletions(-)
+
+diff --git a/src/check/test_strat_par.c b/src/check/test_strat_par.c
+index 35dbdec..fcffe28 100644
+--- a/src/check/test_strat_par.c
++++ b/src/check/test_strat_par.c
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 6.0  : from : 08 jan 2012     **/
+ /**                                 to   : 22 may 2018     **/
+ /**                # Version 7.0  : from : 04 jul 2025     **/
+-/**                                 to   : 26 mar 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -73,6 +73,7 @@ int                 argc,
+ char *              argv[])
+ {
+   SCOTCH_Strat        stradat;
++  int                 i;
+   int                 o;
+ 
+   SCOTCH_errorProg (argv[0]);
+@@ -132,5 +133,24 @@ char *              argv[])
+   o |= SCOTCH_stratDgraphOrderBuild (&stradat, SCOTCH_STRATSEPASIMPLE, 1, 0, 0.2);
+   SCOTCH_stratExit (&stradat);
+ 
++  printf ("Parallel strategy builders, invalid ratios (error messages expected)\n");
++
++  for (i = 0; i < 3; i ++) {                      /* Non-finite, out-of-range and huge-but-finite ratios must all be rejected */
++    volatile double     zeroval;                  /* Volatile to build a NaN without a compile-time division */
++    double              balval;
++
++    zeroval = 0.0;
++    balval  = (i == 0) ? (zeroval / zeroval) : ((i == 1) ? -1.0 : 1e300); /* NaN, negative, huge finite */
++
++    SCOTCH_stratInit (&stradat);
++    if ((SCOTCH_stratDgraphMapBuild     (&stradat, SCOTCH_STRATDEFAULT, 3, 4, balval)         == 0) ||
++        (SCOTCH_stratDgraphClusterBuild (&stradat, SCOTCH_STRATDEFAULT, 3, 4, balval, balval) == 0) ||
++        (SCOTCH_stratDgraphOrderBuild   (&stradat, SCOTCH_STRATDEFAULT, 3, 0, balval)         == 0)) {
++      SCOTCH_errorPrint ("main: invalid ratio accepted");
++      o |= 1;
++    }
++    SCOTCH_stratExit (&stradat);
++  }
++
+   exit ((o == 0) ? EXIT_SUCCESS : EXIT_FAILURE);
+ }
+diff --git a/src/check/test_strat_seq.c b/src/check/test_strat_seq.c
+index affdd35..07dd627 100644
+--- a/src/check/test_strat_seq.c
++++ b/src/check/test_strat_seq.c
+@@ -234,5 +234,26 @@ char *              argv[])
+     SCOTCH_stratExit (&stradat);
+   }
+ 
++  printf ("Sequential strategy builders, invalid ratios (error messages expected)\n");
++
++  for (i = 0; i < 3; i ++) {                      /* Non-finite, out-of-range and huge-but-finite ratios must all be rejected */
++    volatile double     zeroval;                  /* Volatile to build a NaN without a compile-time division */
++    double              balval;
++
++    zeroval = 0.0;
++    balval  = (i == 0) ? (zeroval / zeroval) : ((i == 1) ? -1.0 : 1e300); /* NaN, negative, huge finite */
++
++    SCOTCH_stratInit (&stradat);
++    if ((SCOTCH_stratGraphMapBuild     (&stradat, SCOTCH_STRATDEFAULT, 4, balval)         == 0) ||
++        (SCOTCH_stratGraphClusterBuild (&stradat, SCOTCH_STRATDEFAULT, 4, balval, balval) == 0) ||
++        (SCOTCH_stratGraphPartOvlBuild (&stradat, SCOTCH_STRATDEFAULT, 4, balval)         == 0) ||
++        (SCOTCH_stratGraphOrderBuild   (&stradat, SCOTCH_STRATDEFAULT, 0, balval)         == 0) ||
++        (SCOTCH_stratMeshOrderBuild    (&stradat, SCOTCH_STRATDEFAULT, balval)            == 0)) {
++      SCOTCH_errorPrint ("main: invalid ratio accepted");
++      o |= 1;
++    }
++    SCOTCH_stratExit (&stradat);
++  }
++
+   exit ((o == 0) ? EXIT_SUCCESS : EXIT_FAILURE);
+ }
+diff --git a/src/libscotch/library_dgraph_map.c b/src/libscotch/library_dgraph_map.c
+index ff5f853..5c5a03b 100644
+--- a/src/libscotch/library_dgraph_map.c
++++ b/src/libscotch/library_dgraph_map.c
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 14 nov 2012     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 08 feb 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -304,8 +304,12 @@ const double                kbalval)              /*+ Desired imbalance ratio
+   char *              exasptr;
+   char *              muceptr;
+ 
+-  sprintf (kbaltab, "%lf", kbalval);
+-  sprintf (bbaltab, "%lf", kbalval);
++  if ((! isfinite (kbalval)) || (kbalval < 0.0) || /* Reject non-finite or negative ratios that would not parse or overflow */
++      (snprintf (kbaltab, sizeof (kbaltab), "%lf", kbalval) >= (int) sizeof (kbaltab)) ||
++      (snprintf (bbaltab, sizeof (bbaltab), "%lf", kbalval) >= (int) sizeof (bbaltab))) {
++    errorPrint (STRINGIFY (SCOTCH_stratDgraphMapBuild) ": invalid imbalance ratio");
++    return (1);
++  }
+ 
+   vertnbr = MAX (2000 * procnbr, 10000);
+   vertnbr = MIN (vertnbr, 100000);
+@@ -378,8 +382,13 @@ const double                bbalval)              /*+ Maximum imbalance ratio
+   char *              exasptr;
+   char *              muceptr;
+ 
+-  sprintf (bbaltab, "%lf", bbalval);
+-  sprintf (denstab, "%lf", densval);
++  if ((! isfinite (bbalval)) || (bbalval < 0.0) || /* Reject non-finite or negative ratios that would not parse or overflow */
++      (! isfinite (densval)) || (densval < 0.0) ||
++      (snprintf (bbaltab, sizeof (bbaltab), "%lf", bbalval) >= (int) sizeof (bbaltab)) ||
++      (snprintf (denstab, sizeof (denstab), "%lf", densval) >= (int) sizeof (denstab))) {
++    errorPrint (STRINGIFY (SCOTCH_stratDgraphClusterBuild) ": invalid imbalance or density ratio");
++    return (1);
++  }
+   sprintf (pwgttab, GNUMSTRING, pwgtval);
+ 
+   vertnbr = MAX (2000 * procnbr, 10000);
+diff --git a/src/libscotch/library_dgraph_order.c b/src/libscotch/library_dgraph_order.c
+index 179bb8a..a8e8ca6 100644
+--- a/src/libscotch/library_dgraph_order.c
++++ b/src/libscotch/library_dgraph_order.c
+@@ -48,7 +48,7 @@
+ /**                # Version 6.1  : from : 24 sep 2021     **/
+ /**                                 to   : 25 sep 2021     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 08 feb 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -400,7 +400,11 @@ const double                balrat)               /*+ Desired imbalance ratio
+   vertnbr = MAX (2000 * procnbr, 10000);
+   vertnbr = MIN (vertnbr, 1000000);
+ 
+-  sprintf (bbaltab, "%lf", balrat);
++  if ((! isfinite (balrat)) || (balrat < 0.0) ||  /* Reject non-finite or negative ratios that would not parse or overflow */
++      (snprintf (bbaltab, sizeof (bbaltab), "%lf", balrat) >= (int) sizeof (bbaltab))) {
++    errorPrint (STRINGIFY (SCOTCH_stratDgraphOrderBuild) ": invalid imbalance ratio");
++    return (1);
++  }
+   sprintf (levltab, GNUMSTRING, levlnbr);
+   sprintf (verttab, GNUMSTRING, vertnbr);
+ 
+diff --git a/src/libscotch/library_graph_map.c b/src/libscotch/library_graph_map.c
+index 49d052c..a7dd59d 100644
+--- a/src/libscotch/library_graph_map.c
++++ b/src/libscotch/library_graph_map.c
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 03 mar 2011     **/
+ /**                                 to   : 15 may 2018     **/
+ /**                # Version 7.0  : from : 07 may 2019     **/
+-/**                                 to   : 08 feb 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -666,8 +666,12 @@ const double                kbalval)              /*+ Desired imbalance ratio
+   const char *        exasptr;
+   const char *        exaxptr;
+ 
+-  sprintf (bbaltab, "%lf", kbalval);
+-  sprintf (kbaltab, "%lf", kbalval);
++  if ((! isfinite (kbalval)) || (kbalval < 0.0) || /* Reject non-finite or negative ratios that would not parse or overflow */
++      (snprintf (bbaltab, sizeof (bbaltab), "%lf", kbalval) >= (int) sizeof (bbaltab)) ||
++      (snprintf (kbaltab, sizeof (kbaltab), "%lf", kbalval) >= (int) sizeof (kbaltab))) {
++    errorPrint (STRINGIFY (SCOTCH_stratGraphMapBuild) ": invalid imbalance ratio");
++    return (1);
++  }
+   sprintf (kmovtab, GNUMSTRING, (Gnum) (((flagval & SCOTCH_STRATQUALITY) != 0) ? 200 : 80));
+   sprintf (mvrttab, GNUMSTRING, (Gnum) (MAX ((20 * partnbr), 10000)));
+ 
+@@ -727,8 +731,13 @@ const double                bbalval)              /*+ Maximum imbalance ratio +*
+   char *              difsptr;
+   char *              exasptr;
+ 
+-  sprintf (bbaltab, "%lf", bbalval);
+-  sprintf (denstab, "%lf", densval);
++  if ((! isfinite (bbalval)) || (bbalval < 0.0) || /* Reject non-finite or negative ratios that would not parse or overflow */
++      (! isfinite (densval)) || (densval < 0.0) ||
++      (snprintf (bbaltab, sizeof (bbaltab), "%lf", bbalval) >= (int) sizeof (bbaltab)) ||
++      (snprintf (denstab, sizeof (denstab), "%lf", densval) >= (int) sizeof (denstab))) {
++    errorPrint (STRINGIFY (SCOTCH_stratGraphClusterBuild) ": invalid imbalance or density ratio");
++    return (1);
++  }
+   sprintf (pwgttab, GNUMSTRING, pwgtval);
+ 
+   strcpy (bufftab, "r{job=u,map=t,poli=L,sep=/((load><PWGT>)&!(edge>vert*<DENS>*(vert-1)))?(<BIPA>m{vert=80,low=h{pass=10}f{bal=<BBAL>,move=80},asc=b{bnd=<DIFS>,org=f{bal=<BBAL>,move=80}}})<EXAS>;}");
+diff --git a/src/libscotch/library_graph_order.c b/src/libscotch/library_graph_order.c
+index 8d30fa8..cb7a108 100644
+--- a/src/libscotch/library_graph_order.c
++++ b/src/libscotch/library_graph_order.c
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 08 jan 2012     **/
+ /**                                 to   : 29 sep 2019     **/
+ /**                # Version 7.0  : from : 07 may 2019     **/
+-/**                                 to   : 08 feb 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -511,7 +511,11 @@ const double                balrat)               /*+ Desired imbalance ratio
+   char *              oleaptr;
+   char *              osepptr;
+ 
+-  sprintf (bbaltab, "%lf", balrat);
++  if ((! isfinite (balrat)) || (balrat < 0.0) ||  /* Reject non-finite or negative ratios that would not parse or overflow */
++      (snprintf (bbaltab, sizeof (bbaltab), "%lf", balrat) >= (int) sizeof (bbaltab))) {
++    errorPrint (STRINGIFY (SCOTCH_stratGraphOrderBuild) ": invalid imbalance ratio");
++    return (1);
++  }
+   sprintf (levltab, GNUMSTRING, levlnbr);
+ 
+   sprintf (bufftab, (((flagval & SCOTCH_STRATDISCONNECTED) != 0) ? "o{strat=%s}" : "%s"),
+diff --git a/src/libscotch/library_graph_part_ovl.c b/src/libscotch/library_graph_part_ovl.c
+index f1cdb08..8eabbe9 100644
+--- a/src/libscotch/library_graph_part_ovl.c
++++ b/src/libscotch/library_graph_part_ovl.c
+@@ -44,7 +44,7 @@
+ /**                # Version 6.1  : from : 02 dec 2021     **/
+ /**                                 to   : 20 dec 2021     **/
+ /**                # Version 7.0  : from : 07 may 2019     **/
+-/**                                 to   : 08 feb 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -166,7 +166,11 @@ const double                balrat)               /*+ Desired imbalance ratio
+   char                bufftab[8192];              /* Should be enough */
+   char                kbaltab[64];
+ 
+-  sprintf (kbaltab, "%lf", balrat);
++  if ((! isfinite (balrat)) || (balrat < 0.0) ||  /* Reject non-finite or negative ratios that would not parse or overflow */
++      (snprintf (kbaltab, sizeof (kbaltab), "%lf", balrat) >= (int) sizeof (kbaltab))) {
++    errorPrint (STRINGIFY (SCOTCH_stratGraphPartOvlBuild) ": invalid imbalance ratio");
++    return (1);
++  }
+ 
+   if ((flagval & SCOTCH_STRATRECURSIVE) != 0)
+     strcpy (bufftab, "<RECU>");                   /* Use only the recursive bipartitioning framework */
+diff --git a/src/libscotch/library_mesh_order.c b/src/libscotch/library_mesh_order.c
+index 1de5681..be40146 100644
+--- a/src/libscotch/library_mesh_order.c
++++ b/src/libscotch/library_mesh_order.c
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 14 nov 2012     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 12 sep 2019     **/
+-/**                                 to   : 08 feb 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -411,7 +411,11 @@ const double                balrat)               /*+ Desired imbalance ratio +*
+ 
+   strcpy (bufftab, "c{rat=0.7,cpr=n{sep=/(vnod>120)?m{vnod=100,low=h{pass=10},asc=f{bal=<BBAL>}}:;,ole=v{strat=d{cmin=0,cmax=10000000,frat=0}},ose=g},unc=n{sep=/(vnod>120)?m{vnod=100,low=h{pass=10},asc=f{bal=<BBAL>}}:;,ole=v{strat=d{cmin=0,cmax=10000000,frat=0}},ose=g}}");
+ 
+-  sprintf (bbaltab, "%lf", balrat);
++  if ((! isfinite (balrat)) || (balrat < 0.0) ||  /* Reject non-finite or negative ratios that would not parse or overflow */
++      (snprintf (bbaltab, sizeof (bbaltab), "%lf", balrat) >= (int) sizeof (bbaltab))) {
++    errorPrint (STRINGIFY (SCOTCH_stratMeshOrderBuild) ": invalid imbalance ratio");
++    return (1);
++  }
+   stringSubst (bufftab, "<BBAL>", bbaltab);
+ 
+   return (SCOTCH_stratMeshOrder (stratptr, bufftab));
+-- 
+2.47.3
+

@@ -1,0 +1,4 @@
+Usage is:
+  atst [<input target file> [<output data file>]] <options>
+    -h  : Display this help
+    -V  : Print program version and copyright

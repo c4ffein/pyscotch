@@ -1,0 +1,20 @@
+GRA-19 -- kgraphCost isolated-anchor handling was dead, and the naive fix double-counts
+=======================================================================================
+kgraph_cost.c searched for an isolated anchor with a loop whose body was
+`if (degree != 0) continue;' -- both outcomes continue, so domnnum always ended
+at domnnbr and the `if (domnnum != domnnbr)' block (which freezes isolated
+anchors at their own load) never ran. Empty parts of a band graph therefore got
+an *average* load target they can never reach.
+
+Just turning the search into `== 0) break;' (the review's one-word fix) is not
+enough: the final loop then recomputes comploadavg for ALL domains, including the
+isolated anchors the block already handled, subtracting their share twice. The fix
+also skips isolated anchors in that final loop.
+
+Reproducer gra19.c builds, via kgraphBand(), a band graph around a 2-part mapping
+of a 16x16 grid onto cmplt(4) in which parts 2 and 3 are empty, so their anchors
+are isolated (degree 0, load 1):
+  cc.sh <build> GRA-19/gra19 GRA-19/gra19.c ; LD_LIBRARY_PATH=<build>/lib ./GRA-19/gra19
+  pristine 7.0.17 : band avg 65 65 65 65   dlt 64 64 -64 -64   (block dead: empty parts get an average share)
+  patched         : band avg 129 129 1 1   dlt  0  0   0   0   (block live: empty-part anchors frozen at load 1)
+Both keep sum(dlt)=0; the patched targets are the physically meaningful ones.

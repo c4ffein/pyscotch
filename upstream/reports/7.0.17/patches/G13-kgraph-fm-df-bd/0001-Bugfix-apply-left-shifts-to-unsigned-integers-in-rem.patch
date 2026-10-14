@@ -1,0 +1,142 @@
+From 2d1face4f41a3a20a416367f830f93450236c270 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:07:00 +0000
+Subject: [PATCH 1/7] Bugfix: apply left shifts to unsigned integers in
+ remaining bit sets [report R. Perry]
+
+Commit 6a00c51 made the bit-set left shifts unsigned in the ordering and
+mapping modules, but left the generic `flagSize'/`flagVal'/`flagSet' macros
+in common.h operating on signed `int' arrays with `(1 << bit)'. When the
+flagged vertex index is 31 modulo 32, `1 << 31' shifts into the sign bit of
+`int', which is undefined behaviour. These macros are used by the PT-Scotch
+bipartitioners `bdgraphBipartEx()' and `bdgraphBipartBd()'; their flag arrays
+are changed from `int' to `unsigned int' accordingly.
+
+Refs: GRA-16
+---
+ src/libscotch/bdgraph_bipart_bd.c | 10 +++++-----
+ src/libscotch/bdgraph_bipart_ex.c | 14 +++++++-------
+ src/libscotch/common.h            |  8 ++++----
+ 3 files changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/src/libscotch/bdgraph_bipart_bd.c b/src/libscotch/bdgraph_bipart_bd.c
+index 553c4bd..bd35a9c 100644
+--- a/src/libscotch/bdgraph_bipart_bd.c
++++ b/src/libscotch/bdgraph_bipart_bd.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2010,2011,2014,2018,2019,2021,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2010,2011,2014,2018,2019,2021,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -48,7 +48,7 @@
+ /**                # Version 6.0  : from : 11 sep 2011     **/
+ /**                                 to   : 15 may 2018     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 17 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # Since only edges from local vertices  **/
+ /**                  to local anchors are created in       **/
+@@ -109,7 +109,7 @@ const BdgraphBipartBdParam * const  paraptr)      /*+ Method parameters +*/
+   Gnum                    bndedlolocval;
+   Gnum                    bndfronlocnum;
+   Gnum                    orgfronlocnum;
+-  int * restrict          orgflagloctab;
++  unsigned int * restrict orgflagloctab;
+   Gnum                    orgvertlocnum;
+   Gnum                    orgedlolocval;
+   const int * restrict    orgprocsidtab;
+@@ -234,7 +234,7 @@ const BdgraphBipartBdParam * const  paraptr)      /*+ Method parameters +*/
+   reduloctab[1] = (Gnum) bndgrafdat.partgsttax[bndvertancnnd + 1];
+   reduloctab[2] = complocsizeadj0;
+   reduloctab[3] = 0;                              /* Assume memory allocation is all right */
+-  if ((orgflagloctab = memAlloc (flagSize (orggrafptr->s.vertlocnnd) * sizeof (int))) == NULL) { /* Eventually keep space for based indices */
++  if ((orgflagloctab = memAlloc (flagSize (orggrafptr->s.vertlocnnd) * sizeof (unsigned int))) == NULL) { /* Eventually keep space for based indices */
+     errorPrint ("bdgraphBipartBd: out of memory (2)");
+     reduloctab[3] = 1;
+   }
+@@ -330,7 +330,7 @@ const BdgraphBipartBdParam * const  paraptr)      /*+ Method parameters +*/
+     }
+   }
+ 
+-  memSet (orgflagloctab, 0, flagSize (orggrafptr->s.vertlocnnd) * sizeof (int)); /* Set vertices as not already considered */
++  memSet (orgflagloctab, 0, flagSize (orggrafptr->s.vertlocnnd) * sizeof (unsigned int)); /* Set vertices as not already considered */
+ 
+   for (bndfronlocnum = orgfronlocnum = 0; bndfronlocnum < bndgrafdat.fronlocnbr; bndfronlocnum ++) { /* Project back separator except for last layer */
+     Gnum                bndvertlocnum;
+diff --git a/src/libscotch/bdgraph_bipart_ex.c b/src/libscotch/bdgraph_bipart_ex.c
+index f816de5..36fafe1 100644
+--- a/src/libscotch/bdgraph_bipart_ex.c
++++ b/src/libscotch/bdgraph_bipart_ex.c
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 11 sep 2011     **/
+ /**                                 to   : 31 aug 2014     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -99,8 +99,8 @@ const BdgraphBipartExParam * restrict const paraptr) /*+ Method parameters +*/
+   Gnum                  commlocgain;
+   Gnum                  commlocgainextn;
+   Gnum                  fronlocnbr;
+-  int * restrict        movegsttab;
+-  int * restrict        flagloctab;
++  unsigned int * restrict movegsttab;
++  unsigned int * restrict flagloctab;
+   int                   cheklocval;
+   int                   chekglbval;
+   BdgraphBipartExSort * sorttab;
+@@ -149,8 +149,8 @@ const BdgraphBipartExParam * restrict const paraptr) /*+ Method parameters +*/
+                      &frstloctab, (size_t) (gainsiz * sizeof (Gnum)),
+                      &nextloctab, (size_t) (grafptr->fronlocnbr   * sizeof (Gnum)),
+                      &loadglbtab, (size_t) (grafptr->s.procglbnbr * sizeof (Gnum)),
+-                     &movegsttab, (size_t) (flagSize (grafptr->s.vertgstnbr + grafptr->s.baseval) * sizeof (int)), /* TRICK: use based vertices as flag array indices */
+-                     &flagloctab, (size_t) (flagSize (grafptr->s.vertlocnbr + grafptr->s.baseval) * sizeof (int)),
++                     &movegsttab, (size_t) (flagSize (grafptr->s.vertgstnbr + grafptr->s.baseval) * sizeof (unsigned int)), /* TRICK: use based vertices as flag array indices */
++                     &flagloctab, (size_t) (flagSize (grafptr->s.vertlocnbr + grafptr->s.baseval) * sizeof (unsigned int)),
+                      &sorttab,    (size_t) (sortsiz), NULL) == NULL) {
+     errorPrint ("bdgraphBipartEx: out of memory");
+     cheklocval = 1;
+@@ -159,8 +159,8 @@ const BdgraphBipartExParam * restrict const paraptr) /*+ Method parameters +*/
+     memSet (gainloctab,  0, gainsiz * sizeof (Gnum)); /* Initialize gain array  */
+     memSet (frstloctab, ~0, gainsiz * sizeof (Gnum)); /* Initialize linked list */
+     memSet (nextloctab, ~0, grafptr->fronlocnbr * sizeof (Gnum));
+-    memSet (movegsttab,  0, flagSize (grafptr->s.vertgstnbr + grafptr->s.baseval) * sizeof (int)); /* TRICK: based sizes */
+-    memSet (flagloctab,  0, flagSize (grafptr->s.vertlocnbr + grafptr->s.baseval) * sizeof (int));
++    memSet (movegsttab,  0, flagSize (grafptr->s.vertgstnbr + grafptr->s.baseval) * sizeof (unsigned int)); /* TRICK: based sizes */
++    memSet (flagloctab,  0, flagSize (grafptr->s.vertlocnbr + grafptr->s.baseval) * sizeof (unsigned int));
+   }
+ 
+ #ifdef SCOTCH_DEBUG_BDGRAPH1
+diff --git a/src/libscotch/common.h b/src/libscotch/common.h
+index cd68e67..1a1e603 100644
+--- a/src/libscotch/common.h
++++ b/src/libscotch/common.h
+@@ -58,7 +58,7 @@
+ /**                # Version 6.1  : from : 02 apr 2021     **/
+ /**                                 to   : 24 jun 2021     **/
+ /**                # Version 7.0  : from : 03 jun 2018     **/
+-/**                                 to   : 11 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -316,9 +316,9 @@ extern IntRandContext       intranddat;           /*+ Global random context +*/
+ **  Handling of flag arrays.
+ */
+ 
+-#define flagSize(n)                 (((n) + (sizeof (int) << 3) - 1) / (sizeof (int) << 3))
+-#define flagVal(a,n)                (((a)[(n) / (sizeof (int) << 3)] >> ((n) & ((sizeof (int) << 3) - 1))) & 1)
+-#define flagSet(a,n)                (a)[(n) / (sizeof (int) << 3)] |= (1 << ((n) & ((sizeof (int) << 3) - 1)))
++#define flagSize(n)                 (((n) + (sizeof (unsigned int) << 3) - 1) / (sizeof (unsigned int) << 3))
++#define flagVal(a,n)                (((a)[(n) / (sizeof (unsigned int) << 3)] >> ((n) & ((sizeof (unsigned int) << 3) - 1))) & 1)
++#define flagSet(a,n)                (a)[(n) / (sizeof (unsigned int) << 3)] |= (1U << ((n) & ((sizeof (unsigned int) << 3) - 1)))
+ 
+ /*
+ **  Handling of timers.
+-- 
+2.47.3
+

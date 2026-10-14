@@ -1,0 +1,88 @@
+######## COR-02 PRISTINE
+cmplt_bad: ret=1 sanitizer-hits=0
+######## COR-02 PATCHED
+cmplt_bad: ret=1 sanitizer-hits=0
+######## COR-03 PRISTINE
+sub_range: ret= sanitizer-hits=2 msg=
+sub_toomany: ret= sanitizer-hits=2 msg=
+sub_dup: ret= sanitizer-hits=2 msg=archSubArchBuild: cannot create sub-architecture (2)
+sub_zero: ret= sanitizer-hits=2 msg=
+sub_neg: ret= sanitizer-hits=2 msg=
+SCOTCH_archSub {0,99}: ret= sanitizer-hits=2
+######## COR-03 PATCHED
+sub_range: ret=1 sanitizer-hits=0 msg=archSubArchBuild: invalid vertex number in vertex list
+sub_toomany: ret=1 sanitizer-hits=0 msg=archSubArchBuild: invalid number of terminal domains
+sub_dup: ret=1 sanitizer-hits=0 msg=archSubArchBuild: duplicate vertex number in vertex list
+sub_zero: ret=1 sanitizer-hits=0 msg=archSubArchLoad: bad input (1)
+sub_neg: ret=1 sanitizer-hits=0 msg=archSubArchLoad: bad input (1)
+SCOTCH_archSub {0,99}: ret=2 sanitizer-hits=0
+######## COR-04 PRISTINE
+sub_badtype: ret= sanitizer-hits=5
+sub_badinner: ret= sanitizer-hits=5
+sub_short: ret= sanitizer-hits=5
+sub_var: ret= sanitizer-hits=5
+sub_dup: ret= sanitizer-hits=2
+v_subtleaf: ret= sanitizer-hits=5
+######## COR-04 PATCHED
+sub_badtype: ret=1 sanitizer-hits=0
+sub_badinner: ret=1 sanitizer-hits=0
+sub_short: ret=1 sanitizer-hits=0
+sub_var: ret=1 sanitizer-hits=0
+sub_dup: ret=1 sanitizer-hits=0
+v_subtleaf: ret=1 sanitizer-hits=0
+######## COR-05 PRISTINE
+dist_ok:  sanitizer-hits=5
+dist_bad:  sanitizer-hits=5
+dist_var:  sanitizer-hits=5
+dist_sub:  sanitizer-hits=5
+dist_zero:  sanitizer-hits=5
+dist_subsub:  sanitizer-hits=5
+######## COR-05 PATCHED
+dist_ok: load ret=0 save ret=0 reload ret=0  sanitizer-hits=0
+dist_bad: load ret=1  sanitizer-hits=0
+dist_var: load ret=0 save ret=0 reload ret=0  sanitizer-hits=0
+dist_sub: load ret=0 save ret=0 reload ret=0  sanitizer-hits=0
+dist_zero: load ret=1  sanitizer-hits=0
+dist_subsub: load ret=0 save ret=0 reload ret=0  sanitizer-hits=0
+######## PS-COR-3 PRISTINE
+SCOTCH_archSub {0,0} (Build fails): ret= leak-reports=1 other-sanitizer-hits=1
+######## PS-COR-3 PATCHED
+SCOTCH_archSub {0,0} (Build fails): ret=2 leak-reports=0 other-sanitizer-hits=0
+######## COR-27 PRISTINE
+n=5:
+  level 0: fine=5 coarse=3 nextpass=0 single: 4 covered=5
+  level 1: fine=3 coarse=2 nextpass=0 single: 2 covered=3
+  level 2: fine=2 coarse=1 nextpass=0 single: covered=2
+n=9:
+  level 0: fine=9 coarse=5 nextpass=0 single: 8 covered=9
+  level 1: fine=5 coarse=3 nextpass=0 single: 4 covered=5
+  level 2: fine=3 coarse=2 nextpass=0 single: 2 covered=3
+  level 3: fine=2 coarse=1 nextpass=0 single: covered=2
+n=11:
+  level 0: fine=11 coarse=6 nextpass=0 single: 10 covered=11
+  level 1: fine=6 coarse=3 nextpass=0 single: covered=6
+######## COR-27 PATCHED
+n=5:
+  level 0: fine=5 coarse=3 nextpass=1 single: 4 covered=5
+  level 1: fine=3 coarse=2 nextpass=0 single: 0 covered=3
+  level 2: fine=2 coarse=1 nextpass=0 single: covered=2
+n=9:
+  level 0: fine=9 coarse=5 nextpass=1 single: 8 covered=9
+  level 1: fine=5 coarse=3 nextpass=0 single: 0 covered=5
+  level 2: fine=3 coarse=2 nextpass=1 single: 2 covered=3
+  level 3: fine=2 coarse=1 nextpass=1 single: covered=2
+n=11:
+  level 0: fine=11 coarse=6 nextpass=1 single: 10 covered=11
+  level 1: fine=6 coarse=3 nextpass=1 single: covered=6
+######## PS2-G01-1 PRISTINE
+sub_one:  sanitizer-hits=4
+sub_one_hcub:  sanitizer-hits=4
+sub_one0: load ret=0 save ret=0 reload ret=0  sanitizer-hits=0
+SCOTCH_archBuild2 m4x4 vertex 5: ret= sanitizer-hits=4
+SCOTCH_archBuild2 m4x4 vertex 0: ret=0 sanitizer-hits=0
+######## PS2-G01-1 PATCHED
+sub_one: load ret=0 save ret=0 reload ret=0  sanitizer-hits=0
+sub_one_hcub: load ret=0 save ret=0 reload ret=0  sanitizer-hits=0
+sub_one0: load ret=0 save ret=0 reload ret=0  sanitizer-hits=0
+SCOTCH_archBuild2 m4x4 vertex 5: ret=0 sanitizer-hits=0
+SCOTCH_archBuild2 m4x4 vertex 0: ret=0 sanitizer-hits=0

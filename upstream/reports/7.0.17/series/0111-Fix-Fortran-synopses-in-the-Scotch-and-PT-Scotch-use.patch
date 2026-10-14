@@ -1,0 +1,453 @@
+From 87055636bdcb2e8c54d393fb4553ea64d0358c58 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:42:40 +0000
+Subject: [PATCH 111/240] Fix Fortran synopses in the Scotch and PT-Scotch
+ user's manuals [report R. Perry]
+
+Make the synopses match the library:
+- routine names: "scotchfarchcmpltw", "scotchfarchdomdist",
+  "scotchfdgraphorderexit", "scotchfdgraphordersavemap", "metis_nodewnd"
+  and "metis_partmeshdual" were misspelled;
+- missing trailing "ierr" for "scotchfdgraphredist" and the eight
+  "scotchf*geom{load,save}*" routines, which do return an error value;
+- "ierr" of "scotchfmeshbuild" and "scotchfmeshbuildelem" is a plain
+  "integer", "nocoval" of "scotchfmeshgraphdual" and
+  "scotchfdmeshdgraphdual" is an "integer*num", "edloidx" of
+  "scotchfgraphdata" is an "integer*idx", "procnum" of
+  "scotchfrandomproc" is a plain "integer" (as in C), "dimntab" of
+  "scotchfarchmeshx" and "scotchfarchtorusx" is an array;
+- malformed type names "integer{\it num}" and "character{\it num}";
+- "mapmin" comes before "mapmax" in "scotchfdgraphmapstat", as in C;
+- the synopses of `SCOTCH_dmeshBuildAdm()` described another routine;
+- "velotab" of `SCOTCH_archCmpltw()` is a pointer, `SCOTCH_graphBase()`
+  returns a `SCOTCH_Num` and `SCOTCH_version()` returns nothing.
+
+Refs: API-24, PS-API-6
+---
+ doc/src/ptscotch/p_l.tex |  47 ++++++---------
+ doc/src/scotch/s_l.tex   | 126 +++++++++++++++++++++------------------
+ 2 files changed, 85 insertions(+), 88 deletions(-)
+
+diff --git a/doc/src/ptscotch/p_l.tex b/doc/src/ptscotch/p_l.tex
+index 6305b45..f425db9 100644
+--- a/doc/src/ptscotch/p_l.tex
++++ b/doc/src/ptscotch/p_l.tex
+@@ -2343,7 +2343,8 @@ scotchfdgraphredist ( & doubleprecision (*)   & orggrafdat, \\
+                       & integer*{\it num} (*) & permgsttab, \\
+                       & integer*{\it num}     & vertlocdlt, \\
+                       & integer*{\it num}     & edgelocdlt, \\
+-                      & doubleprecision (*)   & redgrafptr)
++                      & doubleprecision (*)   & redgrafdat, \\
++                      & integer               & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -3126,8 +3127,8 @@ scotchfdgraphmapstat ( & doubleprecision (*)   & grafdat, \\
+                        & doubleprecision (*)   & mappdat, \\
+                        & integer*{\it num}     & tgtnbr,  \\
+                        & integer*{\it num}     & mapnbr,  \\
+-                       & integer*{\it num}     & mapmax,  \\
+                        & integer*{\it num}     & mapmin,  \\
++                       & integer*{\it num}     & mapmax,  \\
+                        & doubleprecision       & mapavg,  \\
+                        & doubleprecision       & mapdlt,  \\
+                        & integer*{\it num}     & ngbsum,  \\
+@@ -3422,7 +3423,7 @@ void SCOTCH\_dgraphOrderExit ( & const SCOTCH\_Dgraph * & grafptr, \\
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-scotchfgraphdorderexit ( & doubleprecision (*) & grafdat, \\
++scotchfdgraphorderexit ( & doubleprecision (*) & grafdat, \\
+                          & doubleprecision (*) & ordedat)
+ \end{tabular}}
+ 
+@@ -3527,7 +3528,7 @@ int SCOTCH\_dgraphOrderSaveMap ( & const SCOTCH\_Dgraph *    & grafptr, \\
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-scotchfgraphdordersavemap ( & doubleprecision (*) & grafdat, \\
++scotchfdgraphordersavemap ( & doubleprecision (*) & grafdat, \\
+                             & doubleprecision (*) & ordedat, \\
+                             & integer             & fildes,  \\
+                             & integer             & ierr)
+@@ -3881,33 +3882,21 @@ has been successfully allocated, and {\tt NULL} else.
+ {\tt\begin{tabular}{l@{}ll}
+ int SCOTCH\_dmeshBuildAdm ( & SCOTCH\_Dmesh *     & meshptr,    \\
+                             & const SCOTCH\_Num   & baseval,    \\
+-                            & const SCOTCH\_Num   & vertlocnbr, \\
+-                            & const SCOTCH\_Num   & vertlocmax, \\
+-                            & const SCOTCH\_Num * & vertloctab, \\
+-                            & const SCOTCH\_Num * & vendloctab, \\
+-                            & const SCOTCH\_Num * & veloloctab, \\
+-                            & const SCOTCH\_Num * & vlblocltab, \\
+-                            & const SCOTCH\_Num   & edgelocnbr, \\
+-                            & const SCOTCH\_Num   & edgelocsiz, \\
+-                            & const SCOTCH\_Num * & edgeloctab, \\
+-                            & const SCOTCH\_Num * & edgegsttab, \\
+-                            & const SCOTCH\_Num * & edloloctab)
++                            & const SCOTCH\_Num   & velmlocnbr, \\
++                            & SCOTCH\_Num *       & velmloctab, \\
++                            & const SCOTCH\_Num   & eelmlocnbr, \\
++                            & SCOTCH\_Num *       & eelmloctab, \\
++                            & const SCOTCH\_Num   & vnodglbnbr)
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+ scotchfdmeshbuildadm ( & doubleprecision (*)   & meshdat,    \\
+                        & integer*{\it num}     & baseval,    \\
+-                       & integer*{\it num}     & vertlocnbr, \\
+-                       & integer*{\it num}     & vertlocmax, \\
+-                       & integer*{\it num} (*) & vertloctab, \\
+-                       & integer*{\it num} (*) & vendloctab, \\
+-                       & integer*{\it num} (*) & veloloctab, \\
+-                       & integer*{\it num} (*) & vlblloctab, \\
+-                       & integer*{\it num}     & edgelocnbr, \\
+-                       & integer*{\it num}     & edgelocsiz, \\
+-                       & integer*{\it num} (*) & edgeloctab, \\
+-                       & integer*{\it num} (*) & edgegsttab, \\
+-                       & integer*{\it num} (*) & edloloctab, \\
++                       & integer*{\it num}     & velmlocnbr, \\
++                       & integer*{\it num} (*) & velmloctab, \\
++                       & integer*{\it num}     & eelmlocnbr, \\
++                       & integer*{\it num} (*) & eelmloctab, \\
++                       & integer*{\it num}     & vnodglbnbr, \\
+                        & integer               & ierr)
+ \end{tabular}}
+ 
+@@ -4066,7 +4055,7 @@ int SCOTCH\_dmeshDgraphDual ( & const SCOTCH\_Dmesh * & meshptr, \\
+ {\tt\begin{tabular}{l@{}ll}
+ scotchfdmeshdgraphdual ( & doubleprecision (*) & meshdat, \\
+                          & doubleprecision (*) & grafdat, \\
+-                         & integer             & nocoval, \\
++                         & integer*{\it num}   & nocoval, \\
+                          & integer             & ierr)
+ \end{tabular}}
+ 
+@@ -4855,11 +4844,11 @@ Section~\ref{sec-lib-func-context}).
+ \progsyn
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-void SCOTCH\_randomProc ( & SCOTCH\_Num & procnum)
++void SCOTCH\_randomProc ( & int & procnum)
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-scotchfrandomproc ( & integer*{\it num} & procnum)
++scotchfrandomproc ( & integer & procnum)
+ \end{tabular}}
+ 
+ \progdes
+diff --git a/doc/src/scotch/s_l.tex b/doc/src/scotch/s_l.tex
+index 8922ce3..2b99e19 100644
+--- a/doc/src/scotch/s_l.tex
++++ b/doc/src/scotch/s_l.tex
+@@ -2105,16 +2105,16 @@ architecture has been successfully built, and $1$ else.
+ \progsyn
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-int SCOTCH\_archCmpltw ( & SCOTCH\_Arch *    & archptr, \\
+-                         & const SCOTCH\_Num & vertnbr, \\
+-                         & const SCOTCH\_Num & velotab)
++int SCOTCH\_archCmpltw ( & SCOTCH\_Arch *      & archptr, \\
++                         & const SCOTCH\_Num   & vertnbr, \\
++                         & const SCOTCH\_Num * & velotab)
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-scotchfarchcmplt ( & doubleprecision (*)   & archdat, \\
+-                   & integer*{\it num}     & vertnbr, \\
+-                   & integer*{\it num} (*) & velotab, \\
+-                   & integer               & ierr)
++scotchfarchcmpltw ( & doubleprecision (*)   & archdat, \\
++                    & integer*{\it num}     & vertnbr, \\
++                    & integer*{\it num} (*) & velotab, \\
++                    & integer               & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -2282,10 +2282,10 @@ int SCOTCH\_archMeshX ( & SCOTCH\_Arch *      & archptr, \\
+ \end{tabular}}
+ 
+ \texttt{\begin{tabular}{l@{}ll}
+-scotchfarchmeshx ( & doubleprecision (*) & archdat, \\
+-                   & integer*{\it num}   & dimnnbr, \\
+-                   & integer*{\it num}   & dimntab, \\
+-                   & integer             & ierr)
++scotchfarchmeshx ( & doubleprecision (*)   & archdat, \\
++                   & integer*{\it num}     & dimnnbr, \\
++                   & integer*{\it num} (*) & dimntab, \\
++                   & integer               & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -2462,10 +2462,10 @@ int SCOTCH\_archTorusX ( & SCOTCH\_Arch *      & archptr, \\
+ \end{tabular}}
+ 
+ \texttt{\begin{tabular}{l@{}ll}
+-scotchfarchtorusx ( & doubleprecision (*) & archdat, \\
+-                    & integer*{\it num}   & dimnnbr, \\
+-                    & integer*{\it num}   & dimntab, \\
+-                    & integer             & ierr)
++scotchfarchtorusx ( & doubleprecision (*)   & archdat, \\
++                    & integer*{\it num}     & dimnnbr, \\
++                    & integer*{\it num} (*) & dimntab, \\
++                    & integer               & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -2780,7 +2780,7 @@ SCOTCH\_Num SCOTCH\_archDomDist ( & SCOTCH\_Arch *          & archptr, \\
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-scotchfarchdomwght ( & doubleprecision (*) & archdat, \\
++scotchfarchdomdist ( & doubleprecision (*) & archdat, \\
+                      & doubleprecision (*) & dom0dat, \\
+                      & doubleprecision (*) & dom1dat, \\
+                      & integer*{\it num}   & distval)
+@@ -2870,8 +2870,8 @@ has been successfully allocated, and {\tt NULL} else.
+ \progsyn
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-int SCOTCH\_graphBase ( & SCOTCH\_Graph * & grafptr, \\
+-                        & SCOTCH\_Num     & baseval)
++SCOTCH\_Num SCOTCH\_graphBase ( & SCOTCH\_Graph * & grafptr, \\
++                                & SCOTCH\_Num     & baseval)
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+@@ -3228,8 +3228,8 @@ int SCOTCH\_graphColor ( & const SCOTCH\_Graph * & grafptr, \\
+ {\tt\begin{tabular}{l@{}ll}
+ scotchfgraphcolor ( & doubleprecision (*)   & grafdat, \\
+                     & integer*{\it num} (*) & colotab, \\
+-                    & integer{\it num}      & colonbr, \\
+-                    & integer{\it num}      & flagval, \\
++                    & integer*{\it num}     & colonbr, \\
++                    & integer*{\it num}     & flagval, \\
+                     & integer               & ierr)
+ 
+ \end{tabular}}
+@@ -3289,7 +3289,7 @@ scotchfgraphdata ( & doubleprecision (*)   & grafdat, \\
+                    & integer*{\it idx}     & vlblidx, \\
+                    & integer*{\it num}     & edgenbr, \\
+                    & integer*{\it idx}     & edgeidx, \\
+-                   & integer*{\it num}     & edloidx)
++                   & integer*{\it idx}     & edloidx)
+ \end{tabular}}
+ 
+ \progdes
+@@ -3360,7 +3360,7 @@ SCOTCH\_Num SCOTCH\_graphDiamPV ( & const SCOTCH\_Graph * & grafptr)
+ 
+ {\tt\begin{tabular}{l@{}ll}
+ scotchfgraphdiampv ( & doubleprecision (*) & grafdat, \\
+-                     & integer{\it num}    & diamval)
++                     & integer*{\it num}   & diamval)
+ 
+ \end{tabular}}
+ 
+@@ -3479,7 +3479,7 @@ int SCOTCH\_graphInduceList ( & const SCOTCH\_Graph * & orggrafptr, \\
+ {\tt\begin{tabular}{l@{}ll}
+ scotchfgraphinducelist ( & doubleprecision (*)   & orggrafdat, \\
+                          & integer*{\it num}     & vnumnbr,    \\
+-                         & integer{\it num} (*)  & vnumtab,    \\
++                         & integer*{\it num} (*) & vnumtab,    \\
+                          & doubleprecision (*)   & indgrafdat, \\
+                          & integer               & ierr)
+ 
+@@ -3513,12 +3513,12 @@ int SCOTCH\_graphInducePart ( & const SCOTCH\_Graph * & orggrafptr, \\
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-scotchfgraphinducepart ( & doubleprecision (*)    & orggrafdat, \\
+-                         & integer*{\it num}      & vnumnbr,    \\
+-                         & character{\it num} (*) & parttab,    \\
+-                         & character{\it num}     & partval,    \\
+-                         & doubleprecision (*)    & indgrafdat, \\
+-                         & integer                & ierr)
++scotchfgraphinducepart ( & doubleprecision (*) & orggrafdat, \\
++                         & integer*{\it num}   & vnumnbr,    \\
++                         & integer*1 (*)       & parttab,    \\
++                         & integer*1           & partval,    \\
++                         & doubleprecision (*) & indgrafdat, \\
++                         & integer             & ierr)
+ 
+ \end{tabular}}
+ 
+@@ -5384,7 +5384,7 @@ scotchfmeshbuild ( & doubleprecision (*)   & meshdat, \\
+                    & integer*{\it num} (*) & vlbltab, \\
+                    & integer*{\it num}     & edgenbr, \\
+                    & integer*{\it num} (*) & edgetab, \\
+-                   & integer*{\it num}     & ierr)
++                   & integer               & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -5482,7 +5482,7 @@ scotchfmeshbuildelem ( & doubleprecision (*)   & meshdat, \\
+                        & integer*{\it num} (*) & vlbltab, \\
+                        & integer*{\it num}     & edgenbr, \\
+                        & integer*{\it num} (*) & edgetab, \\
+-                       & integer*{\it num}     & ierr)
++                       & integer               & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -5758,7 +5758,7 @@ int SCOTCH\_meshGraphDual ( & const SCOTCH\_Mesh * & meshptr, \\
+ {\tt\begin{tabular}{l@{}ll}
+ scotchfmeshgraphdual ( & doubleprecision (*) & meshdat, \\
+                        & doubleprecision (*) & grafdat, \\
+-                       & integer             & nocoval, \\
++                       & integer*{\it num}   & nocoval, \\
+                        & integer             & ierr)
+ \end{tabular}}
+ 
+@@ -7093,7 +7093,8 @@ scotchfgraphgeomloadchac ( & doubleprecision (*) & grafdat,    \\
+                            & doubleprecision (*) & geomdat,    \\
+                            & integer             & graffildes, \\
+                            & integer             & geomfildes, \\
+-                           & character (*)       & string)
++                           & character (*)       & string,     \\
++                           & integer             & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -7134,7 +7135,8 @@ scotchfgraphgeomloadhabo ( & doubleprecision (*) & grafdat,    \\
+                            & doubleprecision (*) & geomdat,    \\
+                            & integer             & graffildes, \\
+                            & integer             & geomfildes, \\
+-                           & character (*)       & string)
++                           & character (*)       & string,     \\
++                           & integer             & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -7178,7 +7180,8 @@ scotchfgraphgeomloadscot ( & doubleprecision (*) & grafdat,    \\
+                            & doubleprecision (*) & geomdat,    \\
+                            & integer             & graffildes, \\
+                            & integer             & geomfildes, \\
+-                           & character (*)       & string)
++                           & character (*)       & string,     \\
++                           & integer             & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -7221,7 +7224,8 @@ scotchfgraphgeomsavechac ( & doubleprecision (*) & grafdat,    \\
+                            & doubleprecision (*) & geomdat,    \\
+                            & integer             & graffildes, \\
+                            & integer             & geomfildes, \\
+-                           & character (*)       & string)
++                           & character (*)       & string,     \\
++                           & integer             & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -7261,7 +7265,8 @@ scotchfgraphgeomsavescot ( & doubleprecision (*) & grafdat, \\
+                            & doubleprecision (*) & geomdat, \\
+                            & integer             & graffildes, \\
+                            & integer             & geomfildes, \\
+-                           & character (*)       & string)
++                           & character (*)       & string,     \\
++                           & integer             & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -7304,7 +7309,8 @@ scotchfmeshgeomloadhabo ( & doubleprecision (*) & meshdat, \\
+                           & doubleprecision (*) & geomdat, \\
+                           & integer             & meshfildes, \\
+                           & integer             & geomfildes, \\
+-                          & character (*)       & string)
++                          & character (*)       & string,     \\
++                          & integer             & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -7348,7 +7354,8 @@ scotchfmeshgeomloadscot ( & doubleprecision (*) & meshdat, \\
+                           & doubleprecision (*) & geomdat, \\
+                           & integer             & meshfildes, \\
+                           & integer             & geomfildes, \\
+-                          & character (*)       & string)
++                          & character (*)       & string,     \\
++                          & integer             & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -7391,7 +7398,8 @@ scotchfmeshgeomsavescot ( & doubleprecision (*) & meshdat, \\
+                           & doubleprecision (*) & geomdat, \\
+                           & integer             & meshfildes, \\
+                           & integer             & geomfildes, \\
+-                          & character (*)       & string)
++                          & character (*)       & string,     \\
++                          & integer             & ierr)
+ \end{tabular}}
+ 
+ \progdes
+@@ -7629,11 +7637,11 @@ Section~\ref{sec-lib-context}).
+ \progsyn
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-void SCOTCH\_randomProc ( & SCOTCH\_Num & procnum)
++void SCOTCH\_randomProc ( & int & procnum)
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-scotchfrandomproc ( & integer*{\it num} & procnum)
++scotchfrandomproc ( & integer & procnum)
+ \end{tabular}}
+ 
+ \progdes
+@@ -8511,9 +8519,9 @@ access to the ``{\tt scotch.h}'' include file.
+ \progsyn
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-int SCOTCH\_version ( & int * & versptr, \\
+-                      & int * & relaptr, \\
+-                      & int * & patcptr)
++void SCOTCH\_version ( & int * & versptr, \\
++                       & int * & relaptr, \\
++                       & int * & patcptr)
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+@@ -8707,7 +8715,7 @@ void METIS\_NodeWND ( & const SCOTCH\_Num * & n,       \\
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-metis\_nodwend ( & integer*{\it num}     & n,       \\
++metis\_nodewnd ( & integer*{\it num}     & n,       \\
+                  & integer*{\it num} (*) & xadj,    \\
+                  & integer*{\it num} (*) & adjncy,  \\
+                  & integer*{\it num} (*) & vwgt,    \\
+@@ -8937,19 +8945,19 @@ int METIS\_PartMeshDual ( & const SCOTCH\_Num * const & ne,      \\
+ \end{tabular}}
+ 
+ {\tt\begin{tabular}{l@{}ll}
+-metis\_metistodual ( & integer*{\it num}     & ne,      \\
+-                     & integer*{\it num}     & nn,      \\
+-                     & integer*{\it num} (*) & eptr,    \\
+-                     & integer*{\it num} (*) & eind,    \\
+-                     & integer*{\it num} (*) & vwgt,    \\
+-                     & integer*{\it num} (*) & vsize,   \\
+-                     & integer*{\it num}     & ncommon, \\
+-                     & integer*{\it num}     & nparts,  \\
+-                     & doubleprecision* (*)  & tpwgts,  \\
+-                     & integer*{\it num} (*) & options, \\
+-                     & integer*{\it num}     & objval,  \\
+-                     & integer*{\it num} (*) & epart,   \\
+-                     & integer*{\it num} (*) & npart)
++metis\_partmeshdual ( & integer*{\it num}     & ne,      \\
++                      & integer*{\it num}     & nn,      \\
++                      & integer*{\it num} (*) & eptr,    \\
++                      & integer*{\it num} (*) & eind,    \\
++                      & integer*{\it num} (*) & vwgt,    \\
++                      & integer*{\it num} (*) & vsize,   \\
++                      & integer*{\it num}     & ncommon, \\
++                      & integer*{\it num}     & nparts,  \\
++                      & doubleprecision (*)   & tpwgts,  \\
++                      & integer*{\it num} (*) & options, \\
++                      & integer*{\it num}     & objval,  \\
++                      & integer*{\it num} (*) & epart,   \\
++                      & integer*{\it num} (*) & npart)
+ \end{tabular}}
+ 
+ \progdes
+-- 
+2.47.3
+

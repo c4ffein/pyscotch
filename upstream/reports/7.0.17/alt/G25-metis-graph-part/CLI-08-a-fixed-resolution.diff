@@ -1,0 +1,91 @@
+--- a/src/libscotchmetis/metis_graph_part.c
++++ b/src/libscotchmetis/metis_graph_part.c
+@@ -202,7 +202,7 @@
+ ** - void  : in all cases.
+ */
+ 
+-#define EPSILON 1e-6
++#define DOUBADJVAL 1e6                            /* Fixed resolution of integer weights */
+ 
+ void
+ _SCOTCH_METIS_doubleToInt (
+@@ -210,23 +210,10 @@
+ const double * const        doubtab,
+ SCOTCH_Num * const          intetab)
+ {
+-  double              doubadj;
+   SCOTCH_Num          i;
+ 
+-  for (i = 0, doubadj = 1.0; i < valunbr; i ++) {
+-    double              doubval;
+-    double              doubtmp;
+-
+-    doubval  = doubtab[i];
+-    doubval *= doubadj;                         /* See if renormalization factor works        */
+-    doubtmp  = doubval - floor (doubval + EPSILON); /* Determine its possible fractional part */
+-    if (fabs (doubtmp) >= EPSILON) {            /* If a residual fractional part exists       */
+-      doubtmp = doubadj / doubtmp;              /* Incorporate it in renormalization factor   */
+-      doubadj = (doubadj * doubtmp) / (double) intGcd ((int) round (doubadj), (int) round (doubtmp));
+-    }
+-  }
+   for (i = 0; i < valunbr; i ++)
+-    intetab[i] = (SCOTCH_Num) round (doubtab[i] * doubadj);
++    intetab[i] = (SCOTCH_Num) round (doubtab[i] * DOUBADJVAL);
+ }
+ 
+ /* This routine is the interface between MeTiS
+--- a/src/libscotchmetis/parmetis_dgraph_part.c
++++ b/src/libscotchmetis/parmetis_dgraph_part.c
+@@ -72,7 +72,7 @@
+ ** - void  : in all cases.
+ */
+ 
+-#define EPSILON 1e-6F
++#define FLOTADJVAL 1e6F                           /* Fixed resolution of integer weights */
+ 
+ static
+ void
+@@ -81,41 +81,10 @@
+ const float * const         flottab,
+ SCOTCH_Num * const          intetab)
+ {
+-  SCOTCH_Num          inteold;                    /* Previous value to avoid recomputing things */
+-  float               flotold;                    /* Previous value to avoid recomputing things */
+-  float               flotadj;
+   SCOTCH_Num          i;
+ 
+-  flotold = -1.0F;                                /* No previous value yet */
+-  for (i = 0, flotadj = 1.0; i < valunbr; i ++) {
+-    float               flotval;
+-    float               flottmp;
+-
+-    flotval = flottab[i];
+-    if (flotval == flotold)                       /* Skip if same value */
+-      continue;
+-
+-    flotold  = flotval;                           /* Remember old value                        */
+-    flotval *= flotadj;                           /* See if renormalization factor works       */
+-    flottmp  = flotval - floorf (flotval + EPSILON); /* Determine its possible fractional part */
+-    if (fabs (flottmp) >= EPSILON) {              /* If a residual fractional part exists      */
+-      flottmp = flotadj / flottmp;                /* Incorporate it in renormalization factor  */
+-      flotadj = (flotadj * flottmp) / (float) intGcd ((SCOTCH_Num) round (flotadj), (SCOTCH_Num) round (flottmp));
+-    }
+-  }
+-
+-  flotold = -1.0F;                                /* No previous value yet */
+-  inteold = 0;
+-  for (i = 0; i < valunbr; i ++) {
+-    float               flotval;
+-
+-    flotval = flottab[i];
+-    if (flotval != flotold) {                     /* If not same value  */
+-      flotold = flotval;                          /* Remember old value */
+-      inteold = (SCOTCH_Num) round (flotval * flotadj);
+-    }
+-    intetab[i] = inteold;
+-  }
++  for (i = 0; i < valunbr; i ++)
++    intetab[i] = (SCOTCH_Num) round (flottab[i] * FLOTADJVAL);
+ }
+ 
+ int

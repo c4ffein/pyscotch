@@ -1,0 +1,35 @@
+Usage is:
+  gmap [<input source file> [<input target file> [<output mapping file> [<output log file>]]]] <options>
+  gpart [<nparts/pwght>] [<input source file> [<output mapping file> [<output log file>]]] <options>
+    -b<val>    : Load imbalance tolerance (default: 0.01)
+    -C<opt>    : Choose execution context options according to one or several of <opt>:
+                   d  : deterministic behavior (even across multiple threads; implies 'f')
+                   f  : fixed random seed
+                   r  : variable random seed
+                   u  : undeterministic behavior (may be faster with several threads)
+                   Default behavior depends on compilation flags
+    -c<opt>    : Choose default mapping strategy according to one or several of <opt>:
+                   b  : enforce load balance as much as possible
+                   q  : privilege quality over speed (default)
+                   r  : use only recursive bipartitioning
+                   s  : privilege speed over quality
+                   t  : enforce safety
+    -f<file>   : Fixed vertices input file
+    -h         : Display this help
+    -m<strat>  : Set mapping strategy (see user's manual)
+    -o         : Use partitioning with overlap (only for gpart)
+    -q         : Do graph clustering instead of graph partitioning (for gpart)
+    -q<pwght>  : Do graph clustering instead of static mapping (for gmap)
+    -ro<file>  : Old mapping input file (for remapping)
+    -rr<val>   : Edge migration ratio (for remapping, default: 1)
+    -rv<file>  : Vertex migration cost input file (for remapping)
+    -s<obj>    : Force unity weights on <obj>:
+                   e  : edges
+                   v  : vertices
+    -V         : Print program version and copyright
+    -v<verb>   : Set verbose mode to <verb>:
+                   m  : mapping information
+                   s  : strategy information
+                   t  : timing information
+  
+  See default strategy with option '-vs'

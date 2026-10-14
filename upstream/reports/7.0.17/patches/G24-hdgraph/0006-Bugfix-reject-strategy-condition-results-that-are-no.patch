@@ -1,0 +1,84 @@
+From 9d476799905b5d033409c7d240464f249cd7bbbe Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:18:12 +0000
+Subject: [PATCH 6/8] Bugfix: reject strategy condition results that are not
+ logical values [report R. Perry]
+
+The debug-mode checks of the results of strategy conditions in
+`hdgraphOrderSt()`, `hgraphOrderSt()`, `hmeshOrderSt()` and
+`vmeshSeparateSt()` only reported an error when the result was
+neither a value nor a logical, whereas it must be both, as the
+checks of the other strategy dispatchers do.
+
+Refs: DMO-18
+---
+ src/libscotch/hdgraph_order_st.c  | 2 +-
+ src/libscotch/hgraph_order_st.c   | 2 +-
+ src/libscotch/hmesh_order_st.c    | 2 +-
+ src/libscotch/vmesh_separate_st.c | 4 ++--
+ 4 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/libscotch/hdgraph_order_st.c b/src/libscotch/hdgraph_order_st.c
+index 2f03f46e..6093bbc8 100644
+--- a/src/libscotch/hdgraph_order_st.c
++++ b/src/libscotch/hdgraph_order_st.c
+@@ -187,7 +187,7 @@ const Strat * restrict const  straptr)            /*+ Graph ordering strategy +*
+       o = stratTestEval (straptr->data.conddat.testptr, &testdat, (void *) grafptr); /* Evaluate expression */
+       if (o == 0) {                               /* If evaluation was correct */
+ #ifdef SCOTCH_DEBUG_HDGRAPH2
+-        if ((testdat.testval != STRATTESTVAL) &&
++        if ((testdat.testval != STRATTESTVAL) ||
+             (testdat.nodeval != STRATPARAMLOG)) {
+           errorPrint ("hdgraphOrderSt: invalid test result");
+           o = 1;
+diff --git a/src/libscotch/hgraph_order_st.c b/src/libscotch/hgraph_order_st.c
+index b5b708f2..62dc9ec7 100644
+--- a/src/libscotch/hgraph_order_st.c
++++ b/src/libscotch/hgraph_order_st.c
+@@ -281,7 +281,7 @@ const Strat * restrict const    straptr)          /*+ Graph ordering strategy
+       o = stratTestEval (straptr->data.conddat.testptr, &testdat, (void *) grafptr); /* Evaluate expression */
+       if (o == 0) {                               /* If evaluation was correct */
+ #ifdef SCOTCH_DEBUG_HGRAPH2
+-        if ((testdat.testval != STRATTESTVAL) &&
++        if ((testdat.testval != STRATTESTVAL) ||
+             (testdat.nodeval != STRATPARAMLOG)) {
+           errorPrint ("hgraphOrderSt: invalid test result");
+           o = 1;
+diff --git a/src/libscotch/hmesh_order_st.c b/src/libscotch/hmesh_order_st.c
+index 68d3925d..ce4cbc57 100644
+--- a/src/libscotch/hmesh_order_st.c
++++ b/src/libscotch/hmesh_order_st.c
+@@ -261,7 +261,7 @@ const Strat * restrict const    straptr)          /*+ Mesh ordering strategy
+       o = stratTestEval (straptr->data.conddat.testptr, &testdat, (void *) meshptr); /* Evaluate expression */
+       if (o == 0) {                               /* If evaluation was correct */
+ #ifdef SCOTCH_DEBUG_HMESH2
+-        if ((testdat.testval != STRATTESTVAL) &&
++        if ((testdat.testval != STRATTESTVAL) ||
+             (testdat.nodeval != STRATPARAMLOG)) {
+           errorPrint ("hmeshOrderSt: invalid test result");
+           o = 1;
+diff --git a/src/libscotch/vmesh_separate_st.c b/src/libscotch/vmesh_separate_st.c
+index 06efe3b0..0af26aa0 100644
+--- a/src/libscotch/vmesh_separate_st.c
++++ b/src/libscotch/vmesh_separate_st.c
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 06 jun 2018     **/
+ /**                                 to   : 06 jun 2018     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -237,7 +237,7 @@ const Strat * restrict const  straptr)            /*+ Separation strategy +*/
+       o = stratTestEval (straptr->data.conddat.testptr, &testdat, (void *) meshptr); /* Evaluate expression */
+       if (o == 0) {                               /* If evaluation was correct */
+ #ifdef SCOTCH_DEBUG_VMESH2
+-        if ((testdat.testval != STRATTESTVAL) &&
++        if ((testdat.testval != STRATTESTVAL) ||
+             (testdat.nodeval != STRATPARAMLOG)) {
+           errorPrint ("vmeshSeparateSt: invalid test result");
+           o = 1;
+-- 
+2.47.3
+

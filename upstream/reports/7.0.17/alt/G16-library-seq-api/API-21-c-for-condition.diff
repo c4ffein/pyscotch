@@ -1,0 +1,11 @@
+--- a/src/libscotch/library_graph_map_io.c
++++ b/src/libscotch/library_graph_map_io.c
+@@ -160,7 +160,7 @@
+     if (vertsortflag != 1)                        /* If graph label data not sorted     */
+       intSort2asc1 (vertsorttab, vertnbr);        /* Sort sort area by ascending labels */
+ 
+-    for (vertsortnum = 0, mappfilenum = 0; vertsortnum < vertnbr; vertsortnum ++) { /* For all vertices in graph */
++    for (vertsortnum = 0, mappfilenum = 0; (vertsortnum < vertnbr) && (mappfilenum < mappfilenbr); vertsortnum ++) { /* For all vertices in graph while mapping data remains */
+       while (mappsorttab[mappfilenum].labl < vertsorttab[vertsortnum].labl) {
+         mappfilenum ++;                           /* Search mapping vertex with same label */
+         if (mappfilenum >= mappfilenbr)           /* If all mapping data processed         */

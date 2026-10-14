@@ -1,0 +1,6 @@
+CLI-13: atst initialises its minimum distance with an unsigned shift that truncates to -1 on 32-bit SCOTCH_Num (src/scotch/atst.c).
+Run:  B=$TREE/bin; export LD_LIBRARY_PATH=$TREE/lib
+  $B/atst c8.tgt; $B/atst c1.tgt; $B/amk_m2 4 4 | $B/atst
+Pristine 32-bit: min=-1 for all three. Pristine 64-bit ($INFRA/asan rebuilt with -DINTSIZE64): min=1 / min=9223372036854775807
+  (single terminal: the sentinel leaks) / min=1.
+Patched 32-bit and 64-bit: min=1 / min=0 / min=1.

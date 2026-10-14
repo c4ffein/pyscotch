@@ -1,0 +1,19 @@
+# SKETCH (not a clean apply): alternative to the recommended GRA-17 fix.
+# Remove kgraphMapFmEdgeResize entirely by allocating edxxtab for its worst case
+# up front (sum over hashed vertices of distinct neighbour domains, bounded by
+# grafptr->s.edgenbr), so no in-flight growth -- and therefore no growth failure
+# -- can occur.
+#
+# --- a/src/libscotch/kgraph_map_fm.c
+# @@ initial edxxsiz computation
+# -  edxxsiz = 4 * (grafptr->fronnbr + paraptr->movenbr + grafptr->s.degrmax) * 4;
+# -  if (edxxsiz > grafptr->s.edgenbr)
+# -    edxxsiz = grafptr->s.edgenbr;
+# +  edxxsiz = grafptr->s.edgenbr;                 /* Worst-case: every arc a distinct extended edge */
+#   ... and delete kgraphMapFmEdgeResize and all its call sites.
+#
+# Trade-off: removes the failure mode but allocates the full edge-count array up
+# front for every FM run; the lazy doubling exists precisely to avoid that memory
+# cost on large graphs. Behaviour-neutral but a performance/memory regression.
+# Not preferred; the recommended fix keeps the lazy growth and just handles its
+# failure correctly.

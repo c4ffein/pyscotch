@@ -1,0 +1,47 @@
+From cd0e82e256f2a6c0a471a88e245d9a5638b9c4bf Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:39:49 +0000
+Subject: [PATCH 7/9] Bugfix: compute communication delta in
+ `SCOTCH_dgraphMapView()` as in `SCOTCH_graphMapView()` [report R. Perry]
+
+The formula ignored communication expansion and dilation. It is now
+the ratio of average expansion over average dilation, as in the
+sequential routine.
+
+Refs: API-18
+---
+ src/libscotch/library_dgraph_map_view.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/libscotch/library_dgraph_map_view.c b/src/libscotch/library_dgraph_map_view.c
+index 85e2b15..be800f1 100644
+--- a/src/libscotch/library_dgraph_map_view.c
++++ b/src/libscotch/library_dgraph_map_view.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2008-2010,2012,2018,2019,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2008-2010,2012,2018,2019,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 29 nov 2012     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 19 sep 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -145,7 +145,8 @@ FILE * const                  stream)
+   fprintf (stream, "M\tCommDelta=%f\n",
+            (((double) cmlosum  * (double) cmdisum) == 0.0L)
+            ? (double) 0.0L
+-           : ((double) grafptr->edgeglbnbr) / (double) (cmlosum * 2));
++           : ((double) cmexsum * (double) (grafptr->edgeglbnbr / 2)) /
++             ((double) cmlosum * (double) cmdisum));
+ 
+   for (cdstnum = 0; cdstnum <= cdstmax; cdstnum ++) /* Print distance histogram */
+     fprintf (stream, "M\tCmlosum[" ANUMSTRING "]=%f\n",
+-- 
+2.47.3
+

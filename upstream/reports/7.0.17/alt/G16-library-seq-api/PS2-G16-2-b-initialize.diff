@@ -1,0 +1,10 @@
+--- a/src/libscotch/library_dgraph_stat.c
++++ b/src/libscotch/library_dgraph_stat.c
+@@ -272,6 +272,7 @@
+     edloglbsum         = 0;
+     edloglbavg         = 0.0L;
+   }
++  srclstadat.edlosum = 0;                         /* Field not used; do not reduce uninitialized data */
+   srclstadat.edlodlt = edlolocdlt;
+ 
+ #if ((defined MPI_VERSION) && (MPI_VERSION >= 3))

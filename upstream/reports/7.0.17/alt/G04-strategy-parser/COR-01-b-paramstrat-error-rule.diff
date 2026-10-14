@@ -1,0 +1,45 @@
+diff --git a/src/libscotch/parser_yy.y b/src/libscotch/parser_yy.y
+index 742ca33..0418570 100644
+--- a/src/libscotch/parser_yy.y
++++ b/src/libscotch/parser_yy.y
+@@ -134,8 +134,8 @@ YY_DECL;                                          /* Definition of yylex(); Flex
+ %type <TESTOP>       TESTRELOP     TESTEXPR1OP   TESTEXPR2OP   TESTEXPR3OP
+ %type <DOUBLE>       VALSDOUBLE
+ %type <INTEGER>      VALSINT
+-%type <STRAT>        STRATCONCAT   STRATTEST     STRATTESTELSE STRATEMPTY
+-%type <STRAT>        STRATGROUP    STRATMETHOD   STRATSELECT
++%type <STRAT>        PARAMSTRAT    STRATCONCAT   STRATTEST     STRATTESTELSE
++%type <STRAT>        STRATEMPTY    STRATGROUP    STRATMETHOD   STRATSELECT
+ 
+ %start STRAT
+ 
+@@ -465,11 +465,14 @@ PARAMVAL      : VALCASE
+                 penvptr->straptr = NULL;
+                 penvptr->paraptr = NULL;
+               }
+-                STRATSELECT
++                PARAMSTRAT
+               {
+                 penvptr->straptr = ($<SAVE>1).strat; /* Restore current method    */
+                 penvptr->paraptr = ($<SAVE>1).param; /* Restore current parameter */
+ 
++                if (($2) == NULL)                 /* If strategy could not be parsed */
++                  YYERROR;                        /* Report invalid parameter value  */
++
+                 if ((penvptr->paraptr->typeval & STRATPARAMDEPRECATED) == 0) { /* If parameter is not deprecated */
+ #ifdef SCOTCH_DEBUG_PARSER2
+                   if (((penvptr->paraptr->doffptr - penvptr->paraptr->dbasptr) + sizeof (Strat *)) > sizeof (StratNodeMethodData)) {
+@@ -491,6 +494,13 @@ PARAMVAL      : VALCASE
+               }
+               ;
+ 
++PARAMSTRAT    : STRATSELECT
++              | error
++              {
++                ($$) = NULL;                      /* Strategy could not be parsed */
++              }
++              ;
++
+ TEST          : TESTOR
+               ;
+ 

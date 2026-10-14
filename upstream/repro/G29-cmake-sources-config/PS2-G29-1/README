@@ -1,0 +1,11 @@
+PS2-G29-1: dead common_error.c compiled into the CMake libscotch, exporting un-prefixed symbols.
+
+  grep -n common_error $WORK/src-base/src/libscotch/Makefile      -> nothing (never built by the Makefile)
+  git log --oneline -S'common_error' -- src/libscotch/Makefile       -> nothing; added to CMake by e79c930 "Add CMake support"
+  nm -D $WORK/cm/base32/lib/libscotch.so | grep -E ' [TU] (errorPrint|errorPrintW|errorProg|SCOTCH_errorPrint)$'
+    U SCOTCH_errorPrint
+    T errorPrint
+    T errorPrintW
+    T errorProg
+  nm -D INFRA/asan/lib/libscotch.so (Makefile build): only "U SCOTCH_errorPrint", "U SCOTCH_errorPrintW"
+  patched: nm -D $WORK/cm/patched32/lib/libscotch.so | grep -c ' T errorP' -> 0

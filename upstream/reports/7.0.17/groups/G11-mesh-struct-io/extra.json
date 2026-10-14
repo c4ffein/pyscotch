@@ -1,0 +1,379 @@
+[
+ {
+  "local_id": "PS2-G11-mesh-struct-io-1",
+  "our_title": "SCOTCH_meshOrderSave* index the label array by element positions, so orderings of labeled meshes carry wrong labels",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); see repro/README. $WORK/build/bin/mord $WORK/scotch/src/check/data/small2_lbl.msh /dev/stdout (patched series, labels verbatim: elements 10..15, nodes 20..26) -> '7' then '10\\t13' '11\\t20' '12\\t12' ...: the first column should list the node labels 20..26 and the second column node labels too; element labels are printed instead. Pristine prints the same kind of garbage ('0 3','1 2',... for m16_lbl.msh: labels of vertices 0..3 = two elements then two nodes).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/library_mesh_order.c:147,164,181; src/libscotch/order_io.c:155-160",
+  "evidence": "library_mesh_order.c:147 `return (orderSave (&((LibOrder *) ordeptr)->o, ((Mesh *) CONTEXTOBJECT (meshptr))->vlbltax, stream));` while order_io.c:158-159 reads `vlbltax[vertnum + ordeptr->baseval]` and `vlbltax[permtab[vertnum]]` for node ordinals vertnum in [0, vnodnbr): with elements first those are element positions (mesh.h:98-104 states node ordering indices are based at baseval, not vnodbas).",
+  "related_ids": [
+   "API-06",
+   "SEP-16"
+  ],
+  "fix_options": [
+   {
+    "label": "Shift the label array to the node range",
+    "summary": "Pass `vlbltax + (vnodbas - baseval)` (NULL stays NULL) in the three SCOTCH_meshOrderSave* routines.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS2-1-a-mesh-order-save-labels.diff",
+    "tested": "syntax-checked only (file not in this group; not in the series)",
+    "tradeoffs": "Nodes-first meshes have vnodbas == baseval so the offset is 0 there; elements-first meshes get the right labels.",
+    "preferred": true,
+    "maintainer_fit": "One-line, same shape as the CONTEXTOBJECT edits he made in this file in 6a030db."
+   },
+   {
+    "label": "Document that mesh ordering files use node ordinals, not labels",
+    "summary": "Pass NULL as label array for meshes.",
+    "diff_file": "",
+    "tested": "untested: documentation choice",
+    "tradeoffs": "Loses the label feature for meshes; simplest.",
+    "preferred": false,
+    "maintainer_fit": "Less likely: the API advertises vertex labels in orderings."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G11-mesh-struct-io-2",
+  "our_title": "hmeshMesh nodes-first branch does not count fake empty elements in veisnbr (and velosum)",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); see repro/README. cd $WORK/repro/SEP-21; ./hmeshmesh -> pristine 'ERROR: meshCheck: invalid number of isolated element vertices' 'hmeshMesh=0 meshCheck=1'; patched 'hmeshMesh=0 meshCheck=0 velmnbr=3 velmbas=3 vnodnbr=3 edgenbr=8'.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/hmesh_mesh.c:87,124-136",
+  "evidence": "hmesh_mesh.c:87 `meshptr->veisnbr = hmshptr->m.veisnbr + hmshptr->veihnbr;` and :133 `meshptr->velmnbr = hmshptr->m.velmnbr + hmshptr->m.vnodnbr - hmshptr->vnohnbr; /* Turn halo node vertices into element vertices */` with no veisnbr/velosum update; mesh_check.c:109-110,145-148 counts zero-degree elements and compares.",
+  "related_ids": [
+   "SEP-21"
+  ],
+  "fix_options": [
+   {
+    "label": "Add the fake elements to veisnbr and (unit loads) velosum",
+    "summary": "See patch 0004; also fix the 'hmeshHgraph' error prefixes.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0004-Bugfix-count-fake-isolated-elements-in-hmeshMesh-rep.patch",
+    "tested": "repro/SEP-21 32/64-bit; mord checks.",
+    "tradeoffs": "Weighted elements remain unrepresentable in this branch (latent).",
+    "preferred": true,
+    "maintainer_fit": "Continues f36ab36 on the same lines."
+   },
+   {
+    "label": "Reject nodes-first halo meshes",
+    "summary": "errorPrint + return (1).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS2-2-b-hmeshmesh-reject-nodes-first.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Drops an intended branch.",
+    "preferred": false,
+    "maintainer_fit": "Contradicts his f36ab36 fix."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0004-Bugfix-count-fake-isolated-elements-in-hmeshMesh-rep.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G11-mesh-struct-io-3",
+  "our_title": "SCOTCH_meshLoad with a base different from the file base yields an invalid mesh (edge ends not rebased)",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); see repro/README. cd $WORK/repro/meshLoad; ./loadbase $WORK/scotch/src/check/data/small2.msh 1 -> pristine 'ERROR: meshCheck: element vertices must not be connected together' 'load=0 check=1'; test_scotch_mesh_graph (patched, bases -1/0/1) against the pristine library: 'ERROR: meshCheck: arc data do not match (1)'. Patched: 'load=0 check=0' for small2.msh base 1, hb3.msh (nodes first, base 1) base 0, ship001.msh base -1; check_scotch_mesh_graph passes 32/64-bit.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/mesh_io.c:138-146,182-197,266",
+  "evidence": "mesh_io.c:185 `edgeadjtab[0] = meshptr->vnodbas - meshptr->baseval;` (new bases, no baseadj) and :266 `meshptr->edgetax[edgenum] = edgeval + edgeadj;` whereas graph_io.c:256 uses `edgeval + baseadj`. Scotch tools always pass -1 (mtst.c:144, mord.c:215, gmk_msh.c:144), so only API users see it.",
+  "related_ids": [
+   "GRA-10"
+  ],
+  "fix_options": [
+   {
+    "label": "Add baseadj to the edge end shifts",
+    "summary": "edgeadjtab[i] = otherbas - baseval + baseadj; extend test_scotch_mesh_graph to bases -1, 0, 1 with meshCheck.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0009-Bugfix-adjust-edge-ends-to-the-requested-base-in-mes.patch",
+    "tested": "as above",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Twin of graphLoad's `edgeval + baseadj`."
+   },
+   {
+    "label": "Reject base changes",
+    "summary": "errorPrint 'base change not supported' when baseval != file base.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS2-3-b-reject-base-change.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Documented API parameter would stop working.",
+    "preferred": false,
+    "maintainer_fit": "He documents baseval for SCOTCH_meshLoad (s_l.tex), so he would fix it."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0009-Bugfix-adjust-edge-ends-to-the-requested-base-in-mes.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G11-mesh-struct-io-4",
+  "our_title": "hmeshExit alias test of the halo end array is wrong for nodes-first meshes, freeing an interior pointer",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); see repro/README. cd $WORK/repro/hmeshExit; ./hexit (nodes-first Hmesh, vehdtax == m.vendtax, distinct vendtab, MESHFREEVEND) -> pristine 'hmeshCheck=0' then '==ERROR: AddressSanitizer: attempting free on address which was not malloc()-ed ... #1 _SCOTCHhmeshExit hmesh.c:76'; patched 'hmeshExit done' (32/64-bit).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/hmesh.c:73-76",
+  "evidence": "hmesh.c:74 `(meshptr->vehdtax != (meshptr->m.vendtax + (meshptr->m.baseval - meshptr->m.velmbas))) &&` while hmesh_check.c:92 tests `if (meshptr->vehdtax != meshptr->m.vendtax)`; all aliasing sites assign `vehdtax = m.vendtax` (hmesh_order_nd.c:220, hmesh_order_cp.c:363, library_mesh_order.c:235). Latent: every nodes-first aliased Hmesh in the tree carries MESHVERTGROUP, which short-circuits the test.",
+  "related_ids": [
+   "SEP-23",
+   "PS-SEP-1"
+  ],
+  "fix_options": [
+   {
+    "label": "Compare the based accesses directly",
+    "summary": "`vehdtax != m.vendtax`, as hmeshCheck does.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0003-Bugfix-fix-alias-test-of-halo-end-array-in-hmeshExit.patch",
+    "tested": "repro/hmeshExit; check_mesh_base; mord checks.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Same test as hmeshCheck (his code)."
+   },
+   {
+    "label": "Compare the table pointers",
+    "summary": "`vehdtax + velmbas != m.vendtax + baseval` (vehdtab vs vendtab).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS2-4-b-hmeshexit-tab-compare.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Equivalent only when the two tabs coincide; the aliasing sites alias the tax, not the tab.",
+    "preferred": false,
+    "maintainer_fit": "Does not match how the field is aliased."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0003-Bugfix-fix-alias-test-of-halo-end-array-in-hmeshExit.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G11-mesh-struct-io-5",
+  "our_title": "meshLoad shifts vertex labels by the kind base while meshSave writes them raw: labeled mesh files are not stable and lose their labels",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); see repro/README. $INFRA/asan/bin/mcv $WORK/repro/PS-SEP-1/m16_lbl.msh /dev/stdout -is -os (pristine; nodes labeled 0..3 in the file) -> node lines '2\\t1\\t0' '3\\t2\\t0\\t1' ... i.e. labels 2..5 written (then the PS-SEP-1 crash); $WORK/build/bin/mcv (patched) on data/small2_lbl.msh -> output identical to the input (diff), mtst OK; test_scotch_mesh_geom with small2_lbl.xyz keyed by the file labels passes; pristine mcv on small2_lbl.msh differs from the input. Also with pristine semantics a labeled base-1 file cannot be loaded unless its edge ends are label+1 (dead agent's m16_lbl_b1.msh), and the first pass's m16.msh (labels overlapping across kinds) is now rejected: 'graphLoad2: duplicate vertex label'.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/mesh_io.c:221-223,266 (load) vs :383,392 (save); doc/src/scotch/s_f.tex:166-176",
+  "evidence": "mesh_io.c:221 `meshptr->vlbltax[vertnum] = vlblval + vertbas + baseadj; /* Adjust vertex label */`; :266 `meshptr->edgetax[edgenum] = edgeval + edgeadj;` then graphLoad2 relabels; meshSave:383 writes `meshptr->vlbltax[vertnum]` and :392 `meshptr->vlbltax[meshptr->edgetax[edgenum]]` raw. s_f.tex:170-176 only says the first velmnbr lines are elements 'irrespective of their vertex labels'; graphLoad stores labels verbatim (graph_io.c:199).",
+  "related_ids": [
+   "SEP-16",
+   "PS-SEP-1",
+   "GRA-04"
+  ],
+  "fix_options": [
+   {
+    "label": "Store labels verbatim; edge ends of labeled meshes are labels (graphLoad semantics)",
+    "summary": "Drop the `+ vertbas + baseadj`; set edgeadjtab to 0 for labeled meshes; graphLoad2 enforces label uniqueness across both kinds. Add the mcv round trip of small2_lbl.msh and the labeled geometry test.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0011-Bugfix-keep-vertex-labels-of-mesh-files-unchanged-in.patch",
+    "tested": "check_prog_mcv/mord/gmk_msh, check_scotch_mesh_geom, mtst 32/64-bit; fuzz after-run.",
+    "tradeoffs": "Behaviour change for base-0 labeled files whose element and node labels overlap: they now fail with 'duplicate vertex label' (they loaded before but produced shifted labels on every output). Design decision for the maintainer: this commit is last in the series so it can be dropped without conflicts.",
+    "preferred": true,
+    "maintainer_fit": "Matches graphLoad/graphSave (his files) and the doc; keeps mcv idempotent, which check_prog_mcv already requires for unlabeled meshes."
+   },
+   {
+    "label": "Keep the shifted in-memory labels and make meshSave undo the shift",
+    "summary": "Write vlbltax - vertbas for labels and label - otherbase + baseval for edge ends.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS2-5-b-symmetric-save.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Round trip restored, but labels in orderings and geometry files stay shifted and overlapping labels across kinds stay ambiguous.",
+    "preferred": false,
+    "maintainer_fit": "Preserves an undocumented encoding; he prefers one convention shared with graphs."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0011-Bugfix-keep-vertex-labels-of-mesh-files-unchanged-in.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G11-mesh-struct-io-6",
+  "our_title": "Harwell-Boeing mesh loader: negative header counts used as array bases, and a huge field width loops on EOF (hang)",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); see repro/README. timeout 5 $INFRA/asan/bin/mcv $WORK/repro/fuzz/before/crashes/c0355.rsa /dev/null -ib -os -> 'Terminated' (exit 143) [format '(3I9999999999)']; patched -> 'mcv: ERROR: meshGeomLoadHabo: bad input (9)' at once. Fuzz 'rsa TIMEOUT' bucket (first_iter=355) gone after the series.",
+  "read_only": "negative header counts: read only (the memAlloc of `(habeltnbr + habvarnbr + 1) * sizeof (Gnum)` with a negative sum fails or allocates a small block before `verttax[velmnum]` is written from velmbas = habvarnbr + 1).",
+  "why_not_run": "a negative-count mutant did not come up in 1200 iterations; the check is in the patch anyway",
+  "location_7_0_17": "src/libscotch/mesh_io_habo.c:121-132,164,181,194-197,226-229",
+  "evidence": "mesh_io_habo.c:194 `for (habcolidx = 1; habcolidx < habcolsiz; habcolidx ++) { if ((c = getc (filesrcptr)) != ' ')` (c == EOF only tested after the loop); :121-125 atol() results used unchecked; :181 `meshptr->velmbas = habvarnbr + 1;`.",
+  "related_ids": [
+   "SEP-08",
+   "PS2-G14-1"
+  ],
+  "fix_options": [
+   {
+    "label": "Validate header counts and widths, stop fields at EOF",
+    "summary": "Folded into the SEP-08 commit ('bad input (11)', `&& (c != EOF)`).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0007-Bugfix-validate-Harwell-Boeing-mesh-data-and-set-ele.patch",
+    "tested": "as SEP-08",
+    "tradeoffs": "Digit accumulation on an 80+ digit field still overflows (UBSan only; value is range-checked afterwards), same as graph_io_habo.c.",
+    "preferred": true,
+    "maintainer_fit": "Same commit as SEP-08: one loader, one validation pass."
+   },
+   {
+    "label": "Bound field widths to 80",
+    "summary": "Reject widths outside [1, 80].",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS2-6-b-bound-habo-field-width.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Also curbs the digit overflow; may reject exotic but valid files.",
+    "preferred": false,
+    "maintainer_fit": "Could be added; not required."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0007-Bugfix-validate-Harwell-Boeing-mesh-data-and-set-ele.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G11-mesh-struct-io-7",
+  "our_title": "graphGeomLoadScot expects 0-based labels for unlabeled graphs while graphGeomSaveScot writes based vertex numbers; '%d' with a Gnum",
+  "severity": "low",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "graph_io_scot.c:183-186 and :238-243 compared; data/bump_b100000.xyz (labels from 100000 for a base-100000 graph) is read by gout's own C_geoLoad, not by the library loader, so no shipped test exercises the mismatch.",
+  "why_not_run": "graph twin of SEP-16's unlabeled branch; file owned by G14 (its patch 0006 touches the same routine), so no patch here to avoid collisions",
+  "location_7_0_17": "src/libscotch/graph_io_scot.c:183-186,192",
+  "evidence": "graph_io_scot.c:184-185 `vertsorttab[vertnum].labl =\n      vertsorttab[vertnum].num  = vertnum;` vs :242 `(grafptr->vlbltax != NULL) ? grafptr->vlbltax[vertnum] : vertnum` for vertnum from baseval; :192 `errorPrint (\"graphGeomLoadScot: vertex geometry data not found (%d)\",`.",
+  "related_ids": [
+   "SEP-16",
+   "GRA-09"
+  ],
+  "fix_options": [
+   {
+    "label": "Use based vertex numbers as labels, GNUMSTRING",
+    "summary": "Mirror of patch 0008's unlabeled branch.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS2-7-a-graph-geom-unlabeled-numbers.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Base-1 geometry files keyed 0..n-1 stop loading (only the loader ever accepted them).",
+    "preferred": true,
+    "maintainer_fit": "Keeps both geometry loaders identical after patch 0008; to be rebased onto G14's 0006."
+   },
+   {
+    "label": "Write 0-based labels in graphGeomSaveScot instead",
+    "summary": "Change the saver.",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "Breaks compatibility with existing .xyz files such as data/bump_b100000.xyz.",
+    "preferred": false,
+    "maintainer_fit": "Unlikely."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G11-mesh-struct-io-8",
+  "our_title": "meshLoad trusts labels, degrees and edge ends from the file (mesh twin of GRA-04/GRA-10/febaef7)",
+  "severity": "high",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$INFRA/asan/lib (pristine) or $WORK/build/lib (patched); see repro/README. cd $WORK/repro/meshLoad; $INFRA/asan/bin/mord bad_edge_hi.msh /dev/null -> '==ERROR: AddressSanitizer: heap-buffer-overflow ... #0 _SCOTCHhallOrderHdR2Halmd hall_order_hd.c:710 #1 _SCOTCHhgraphOrderHd'; mord bad_edge_neg.msh -> heap-buffer-overflow at hall_order_hd.c:672; gmk_msh bad_edge_huge.msh -> 'mesh_io.c:266:45: runtime error: signed integer overflow: 6 + 2147483647'. Patched: 'meshLoad: invalid arc end number' / 'bad input (7)' / 'bad input (5)'; fuzz 'meshFree', 'hmeshHgraph', 'hmeshOrderCp' and the msh TIMEOUT buckets gone.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/mesh_io.c:116-132,216-223,237-251,261-266",
+  "evidence": "mesh_io.c:216 `if (intLoad (stream, &vlblval) != 1)` (no sign test), :237 `if (intLoad (stream, &degrval) != 1)`, :246-247 `degrval += edgenum; if (degrval > edgennd)`, :261-266 `if (intLoad (stream, &edgeval) != 1) {...} meshptr->edgetax[edgenum] = edgeval + edgeadj;` with no range check; header has no `edgenbr < 0` test (graph_io.c:135 has one).",
+  "related_ids": [
+   "GRA-04",
+   "GRA-10"
+  ],
+  "fix_options": [
+   {
+    "label": "Validate at read time (twin of G14 patch 0001 + febaef7)",
+    "summary": "Negative labels/degrees/edge ends/arc count rejected with the same 'bad input (n)' messages; overflow-safe arc-count test; edge ends of unlabeled meshes checked against the other kind's range ('invalid arc end number').",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0010-Bugfix-validate-vertex-labels-degrees-and-edge-ends-.patch",
+    "tested": "repro files, fuzz after-run, all mesh checks 32/64-bit.",
+    "tradeoffs": "Files with out-of-range edge ends that happened to pass mord now fail at load.",
+    "preferred": true,
+    "maintainer_fit": "Same validation placement and wording as graphLoad after G14's GRA-04/GRA-10 patch."
+   },
+   {
+    "label": "Call meshCheck unconditionally at the end of meshLoad",
+    "summary": "Reject any inconsistent mesh (arc symmetry too).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS2-8-b-meshcheck-after-load.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "O(edges*degree) extra pass on every load; does not stop the overflow UB before the check; graphLoad does not do it either.",
+    "preferred": false,
+    "maintainer_fit": "He validates values as they are read (febaef7)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0010-Bugfix-validate-vertex-labels-degrees-and-edge-ends-.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G11-mesh-struct-io-9",
+  "our_title": "Fortran HB loaders document a matrix-rank string but both wrappers ignore it",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "doc/src/scotch/s_l.tex:7296-7318 and the graph entry say 'the string field contains ... the rank of the mesh to read'; library_mesh_io_habo_f.c:78,115 and library_graph_io_habo_f.c:78,116 mark it 'No use' and pass NULL.",
+  "why_not_run": "documentation/API conformance question, not a runtime defect once API-08 is fixed",
+  "location_7_0_17": "src/libscotch/library_mesh_io_habo_f.c:78,115; src/libscotch/library_graph_io_habo_f.c:78,116; doc/src/scotch/s_l.tex:7300-7318",
+  "evidence": "library_mesh_io_habo_f.c:115 `o = SCOTCH_meshGeomLoadHabo (meshptr, geomptr, filegrfstream, filegeostream, NULL);`",
+  "related_ids": [
+   "API-08"
+  ],
+  "fix_options": [
+   {
+    "label": "Copy and pass the Fortran string in both wrappers",
+    "summary": "memAlloc/memCpy/terminate idiom of library_graph_map_f.c:319-331.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/API-08-b-fortran-rank-string.diff",
+    "tested": "syntax-checked only",
+    "tradeoffs": "Makes the documented parameter work; touches the graph wrapper (outside this group).",
+    "preferred": true,
+    "maintainer_fit": "His choice: either this or a doc note."
+   },
+   {
+    "label": "Document that the Fortran string is ignored",
+    "summary": "s_l.tex edit.",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "Keeps code as is.",
+    "preferred": false,
+    "maintainer_fit": ""
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G11-mesh-struct-io-10",
+  "our_title": "mesh_io.h declares meshLoad2(), which does not exist (meshLoad calls graphLoad2)",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "`git grep -n meshLoad2 src` -> only src/libscotch/mesh_io.h:53; mesh_io.c:294 calls graphLoad2 and includes graph_io.h.",
+  "why_not_run": "cleanup only",
+  "location_7_0_17": "src/libscotch/mesh_io.h:53",
+  "evidence": "mesh_io.h:53 `int                         meshLoad2           (const Gnum, const Gnum, const Gnum * const, const Gnum * const, Gnum * const, const Gnum, const Gnum * const);`",
+  "related_ids": [],
+  "fix_options": [
+   {
+    "label": "Remove the stale prototype",
+    "summary": "Leaves mesh_io.h with no declarations; the header, its include in mesh_io.c and its Makefile/CMake dependency could then be removed too.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/alt/PS2-10-a-remove-stale-meshload2-prototype.diff",
+    "tested": "untested: removing the header is a layout decision",
+    "tradeoffs": "None at runtime.",
+    "preferred": true,
+    "maintainer_fit": "He removes dead declarations ('Remove useless structure definition' commits in 7.0.17); whether to delete the file is his call."
+   },
+   {
+    "label": "Leave as is",
+    "summary": "",
+    "diff_file": "",
+    "tested": "",
+    "tradeoffs": "",
+    "preferred": false,
+    "maintainer_fit": ""
+   }
+  ],
+  "patch_files": []
+ }
+]

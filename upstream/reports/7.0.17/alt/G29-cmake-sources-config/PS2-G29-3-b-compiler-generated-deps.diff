@@ -1,0 +1,33 @@
+diff --git a/src/libscotch/Makefile b/src/libscotch/Makefile
+index 1ea320e..e818568 100644
+--- a/src/libscotch/Makefile
++++ b/src/libscotch/Makefile
+@@ -83,7 +83,9 @@ endif
+ ##
+ 
+ %$(OBJ)	:	%.c
+-					$(CC) $(CFLAGS) $(CLIBFLAGS) -c $(<) -o $(@) -DSCOTCH_VERSION_NUM=$(VERSION) -DSCOTCH_RELEASE_NUM=$(RELEASE) -DSCOTCH_PATCHLEVEL_NUM=$(PATCHLEVEL)
++					$(CC) $(CFLAGS) $(CLIBFLAGS) -MMD -MP -c $(<) -o $(@) -DSCOTCH_VERSION_NUM=$(VERSION) -DSCOTCH_RELEASE_NUM=$(RELEASE) -DSCOTCH_PATCHLEVEL_NUM=$(PATCHLEVEL)
++
++-include $(wildcard *.d)
+ 
+ %$(EXE)	:	%.c
+ 					$(CC) $(CFLAGS) -DSCOTCH_VERSION_NUM=$(VERSION) -DSCOTCH_RELEASE_NUM=$(RELEASE) -DSCOTCH_PATCHLEVEL_NUM=$(PATCHLEVEL) $(<) -o $(@) $(LDFLAGS)
+@@ -797,7 +799,7 @@ arch_torus$(OBJ)		:	arch_torus.c				\
+ 					arch_mesh.h				\
+ 					arch_torus.h
+ 
+-arch_vcpmlt$(OBJ)		:	arch_vcmplt.c				\
++arch_vcmplt$(OBJ)		:	arch_vcmplt.c				\
+ 					module.h				\
+ 					common.h				\
+ 					arch.h					\
+@@ -2168,7 +2170,7 @@ library_arch_build_f$(OBJ)	:	library_arch_build_f.c			\
+ 					common.h				\
+ 					scotch.h
+ 
+-library_arch_dom$(OBJ)		:	library_arch.c				\
++library_arch_dom$(OBJ)		:	library_arch_dom.c			\
+ 					module.h				\
+ 					common.h				\
+ 					arch.h					\

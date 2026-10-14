@@ -1,0 +1,463 @@
+[
+ {
+  "id": "COR-06",
+  "our_title": "ltleaf permutation size and duplicates unchecked in release; mismatches read out of bounds",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "cd repro/common; ./archload 'ltleaf 1 4 1 4 0 0 1 2' -> load ret=0 name=ltleaf size=4 (duplicate accepted); gmap -vm m4x4.grf on it -> 'M\\tProcessors 3/4 (0.75)' (terminal lost; peritab[3] never written). ./archload 'ltleaf 1 4 1 3 2 1 0' -> load ret=0; gmap -vm -> 'AddressSanitizer: heap-buffer-overflow READ of size 4 #0 _SCOTCHarchTleafDomDist arch_tleaf.c:497 #1 graphMapView2' (4 bytes before the sizetab region). ./archbuild 1 (SCOTCH_archLtleaf with duplicate indices) -> r=0 then 'heap-buffer-overflow READ #0 _SCOTCHarchLtleafDomNum arch_tleaf.c:801' when the uninitialised peritab slot is used. Patched: the three inputs are rejected ('archLtleafArchBuild2: duplicate permutation index' / 'permutation size does not match level boundaries'), valid files ('ltleaf 3 32 10 2 5 4 1 8 0 2 4 6 1 3 5 7', 'ltleaf 2 2 1 2 1 1 0', 'ltleaf 2 2 1 2 1 4 3 2 1 0') load as before. Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "User target file; out-of-bounds read (mismatched size) or silently wrong mapping (duplicate); same as the review.",
+  "location_7_0_17": "src/libscotch/arch_tleaf.c:692-705 (level-boundary check under SCOTCH_DEBUG_ARCH2), 712-730 (duplicate check under SCOTCH_DEBUG_ARCH2), 733-735 (inverse permutation), 799-801 and 828-831 (uses)",
+  "evidence": "arch_tleaf.c:692 '#ifdef SCOTCH_DEBUG_ARCH2' ... :697-698 'for (levlnum = archptr->levlnbr - 1, sizeval = archptr->sizetab[levlnum]; sizeval != archptr->permnbr; levlnum --, sizeval *= archptr->sizetab[levlnum]) { if (levlnum < 0) {' (increment indexes sizetab[-1] before the test); :723-730 duplicate loop under SCOTCH_DEBUG_ARCH2; :735 'archptr->peritab[archptr->permtab[permnum]] = permnum;' leaves slots unwritten on duplicates.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate on mechanism and fix. Its exact string 'ltleaf 1 4 1 4 0 0 1 2' gives an uninitialised peritab slot, which reads out of bounds at line 801 only when the garbage value makes the modulo negative (seen through SCOTCH_archLtleaf under ASan, not through gmap, where the symptom is a lost terminal); the mismatched-size variant is the one that crashes deterministically (line 497).",
+  "first_pass_critique": "Status, evidence and the sizetab[-1] reading are right. Its preferred option A (loader-only, O(n) marking) is correct for files but leaves SCOTCH_archLtleaf with the same holes (it addressed those separately in API-10 by duplicating the checks in library_arch.c, i.e. two copies of the same validation, which is not what the tree does for cmpltw/sub). Its diff keeps `peritab[...] = -1` sentinels instead of the tree's ~0 idiom, and does not make archTleafArchFree tolerate a half-built body.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/library_arch.c:559-562 (SCOTCH_archLtleaf)",
+    "quote": "tgtarchdatptr->peritab[tgtarchdatptr->permtab[permnum]] = permnum;",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A. Loader-only unconditional checks (first pass)",
+    "summary": "Promote both debug checks to release in archLtleafArchLoad, test levlnum before indexing, detect duplicates by marking peritab while reading.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/COR-06-A-loader-only-checks-firstpass.diff",
+    "tested": "applies to v7.0.17, compiles (0 diagnostics); behaviour tested by the first pass only",
+    "tradeoffs": "Smallest diff; the API builder keeps its own unchecked copy of the same logic, so the two paths keep drifting.",
+    "preferred": false,
+    "maintainer_fit": "He would take the unconditional checks, but he keeps one implementation per class (archCmpltwArchBuild, archSubArchBuild), so a loader-only fix leaves API-10 to be fixed with a second copy."
+   },
+   {
+    "label": "B. One shared build routine per class (recommended)",
+    "summary": "New archTleafArchBuild() and archLtleafArchBuild() (with static archLtleafArchBuild2 for the permutation) hold every check and allocation; loaders parse into temporaries and call them, SCOTCH_archTleaf/Ltleaf become thin wrappers; fields published only on success; archTleafArchFree empties and tolerates an empty body.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0002-Bugfix-validate-tree-leaf-architectures-in-one-place.patch",
+    "tested": "repro/COR-06, repro/COR-07, repro/API-10, repro/PS-API-4 (pristine fails, patched passes); Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+    "tradeoffs": "Larger diff (loaders now read into a temporary array, one extra small allocation per load); files previously accepted (duplicate or mismatched permutations, levlnbr 0) are now rejected, which is what s_f.tex already documents.",
+    "preferred": true,
+    "maintainer_fit": "Precedents: SCOTCH_archCmpltw() / archCmpltwArchBuild() (library_arch.c:307, arch_cmpltw.c:201) and SCOTCH_archSub() / archSubArchBuild(): library builders are thin wrappers over an archXxxArchBuild() that owns the checks and allocations; archCmpltwArchLoad2() reads into a temporary array and validates in the same routine; G01's archSub/archDist series (same discipline: loader NULLs its fields, Build publishes only on success, Free tolerates an empty body); d555f2c (archLoad frees through the class hook on failure); 'bad input (n)' / 'invalid ...' error strings and unconditional checks for user-controlled data as in c5baef9."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0002-Bugfix-validate-tree-leaf-architectures-in-one-place.patch"
+  ],
+  "cleanup_done": "Removed the two SCOTCH_DEBUG_ARCH2 blocks and the permtmp variable they used; removed the separate inverse-permutation loop; removed SCOTCH_archTleaf/Ltleaf's local copies of the allocation code and their tgtarchdatptr/levlnum/sizeval/permnum locals; the debug-only NULLing in archTleafArchFree became unconditional (no dead #ifdef left).",
+  "test_added": "src/check/test_scotch_arch.c: an ltleaf architecture whose 12-entry permutation spans the two lowest levels (sizes 3 and 4) is built, saved, reloaded and sub-architected like the others (ARCHNBR 27 -> 29). No negative test: no test_*.c in src/check exercises error paths.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Design note for the maintainer: validation of user-controlled architecture data is now unconditional in the Build routines, exactly as archCmpltwArchBuild2 and the G01 archSub series do; the loaders free nothing of the body on failure (archLoad does, through the class hook, as d555f2c relies on)."
+ },
+ {
+  "id": "COR-19",
+  "our_title": "hcub shifts an int by the dimension; 64-bit builds accept 31..62 and get garbage",
+  "status": "partially-fixed",
+  "method": "ran",
+  "ran": "32-bit pristine: ./archload 'hcub 31' and 'hcub 32' -> 'archHcubArchLoad: bad input' (c5baef9 bound works), 'hcub 30' -> size=1073741824. 64-bit pristine (build64 before patching): ./archload64 'hcub 31' -> 'arch_hcub.c:261:13: runtime error: left shift of 1 by 31 places cannot be represented in type int', size=-2147483648; 'hcub 40' -> 'shift exponent 40 is too large for 32-bit type int', size=256; 'hcub 62' -> size=1073741824; 'hcub 63' rejected. Same from SCOTCH_archHcub(40) (./archbuild64 3 40). Patched 64-bit: 'hcub 31' size=2147483648, 'hcub 40' size=1099511627776, 'hcub 62' size=4611686018427387904, 'hcub 63' and 'hcub 0' rejected by archHcubArchBuild, no UBSan; 32-bit unchanged. Fuzzer 64-bit: the 107 arch_hcub.c:261 hits of the pristine run are gone. Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "User target file / API argument; wrong terminal counts and allocation sizes on 64-bit Gnum builds only (32-bit is fixed by c5baef9); needs an unrealistic 2^31+ hypercube to matter. Same as the review.",
+  "location_7_0_17": "src/libscotch/arch_hcub.c:158 (archHcubMatchInit), 242 (archHcubDomTerm), 261 (archHcubDomSize), 380 (archHcubDomBipart); bound at 104-106",
+  "evidence": "arch_hcub.c:158 'vertnbr = 1 << archptr->dimnnbr;' :242 'if (domnnum < (1 << archptr->dimnnbr)) {' :261 'return (1 << domnptr->dimncur);' :380 'dom1ptr->bitsset = domnptr->bitsset | (1 << dom1ptr->dimncur);' with :106 '(archptr->dimnnbr > (Anum) ((sizeof (Anum) << 3) - 2))' allowing 62 on 64-bit.",
+  "upstream_change": "c5baef9 'Set tighter boundary on hypercube dimension in archHcubArchLoad()': bound lowered to bits(Anum)-2; the shifts were left as int.",
+  "review_accuracy": "Accurate; both halves of its fix were needed, 7.0.17 applied the bound only.",
+  "first_pass_critique": "Correct status and diagnosis. Its diff casts the four sites (same as mine) but changed the alignment of the comment at line 242 ('{        /* If valid label */' became misaligned) and did not look for the same pattern elsewhere (arch_sub.c:543, arch_deco2.c:407, kgraph_band.c:155, kgraph_map_rb.c:243/411, dgraph_build_hcub.c:110, the generators).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/arch_sub.c:543 and src/libscotch/arch_deco2.c:407 (MatchInit)",
+    "quote": "multnbr = 1 << levlnbr;                         /* Maximum number of multinodes is the size of last level */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/kgraph_band.c:155",
+    "quote": "termhashsiz = 1 << (termhashsiz + 2);         /* Fill hash table at 25% maximum */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/kgraph_map_rb.c:243 and :411",
+    "quote": "hashsiz = 1 << (hashsiz + 2);                   /* Fill hash table at 25% maximum                         */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/dgraph_build_hcub.c:110 (dgraphBuildHcub, no caller in the tree)",
+    "quote": "vertglbnbr = 1 << hcubdim;",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/scotch/amk_hy.c:149-150, gmk_hy.c:146-147, gmk_ub2.c:164-165, amk_fft2.c:154-155,168,180,213,222, amk_ccc.c:157-159,170,204",
+    "quote": "hnbr =  1 << hdim;",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/bdgraph_bipart_ex.c:140 (strategy parameter sbbt)",
+    "quote": "sbbtmsk = (1 << sbbtnbr) - 1;",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/gain.c:163 and src/check/test_scotch_arch_build.c:147",
+    "quote": "tablptr->submask = (1 << (subbits + 1)) - 1;",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A. Shift an Anum at the four hcub sites only (first pass)",
+    "summary": "(Anum) 1 << ... at lines 158, 242, 261, 380.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS-API-3-A-anum-shifts-only-firstpass.diff",
+    "tested": "applies, compiles; behaviour tested by the first pass",
+    "tradeoffs": "Fixes the loader path; SCOTCH_archHcub still accepts any dimension, other int shifts by architecture-derived widths remain.",
+    "preferred": false,
+    "maintainer_fit": "Too narrow: 6a00c51 fixed a whole class of shifts across six files in one commit."
+   },
+   {
+    "label": "B. Cap the dimension at 30 for every Anum size",
+    "summary": "Keep int shifts, bound dimnnbr <= 30.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/COR-19-B-cap-dimension-at-30.diff",
+    "tested": "applies, compiles; not run",
+    "tradeoffs": "Forbids 2^31..2^62 hypercubes on 64-bit builds; contradicts the comment he wrote in c5baef9 ('enough bits in ArchHcubDom bitsset field').",
+    "preferred": false,
+    "maintainer_fit": "He deliberately reasons in bits of Anum (c5baef9); he would not cap at an int-derived constant."
+   },
+   {
+    "label": "C. Shift the target type everywhere and share the bound (recommended)",
+    "summary": "(Anum)/(Gnum)/(SCOTCH_Num) 1 << n at every site where the width derives from user data; new archHcubArchBuild() carries the c5baef9 bound and is used by the loader and by SCOTCH_archHcub; generators bounded so that all their values fit.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0003-Bugfix-shift-architecture-sized-values-not-ints-by-h.patch",
+    "tested": "repro/COR-19, repro/CLI-24, repro/API-10; Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+    "tradeoffs": "Touches files of other areas with one-token casts (kgraph_band.c, kgraph_map_rb.c, arch_sub.c, arch_deco2.c, dgraph_build_hcub.c); SCOTCH_archHcub now rejects 0 and > bits-2 (was accepted silently).",
+    "preferred": true,
+    "maintainer_fit": "Mirrors 6a00c51 (one commit for all shifts of a class, cast style '(T) 1 << n' / '1U << n') and c5baef9's bound; builder/loader sharing as archCmpltwArchBuild."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0003-Bugfix-shift-architecture-sized-values-not-ints-by-h.patch"
+  ],
+  "cleanup_done": "SCOTCH_archHcub: tgtarchdatptr local removed; archHcubArchLoad reads into a local and no longer carries the bound. none else needed.",
+  "test_added": " test_scotch_arch already builds 'hcub 4' and round-trips it; a dimension >= 31 cannot be exercised there (2^31 terminals).",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "bdgraph_bipart_ex.c:140 is a strategy-parameter width (different validation mechanism, DMO-10's file); reported as PS2-G02-arch-tleaf-hcub-build-3 with alt/PS2-G02-3-sbbt-bound.diff rather than folded into this commit. gain.c and the test use compile-time constants."
+ },
+ {
+  "id": "PS-API-3",
+  "our_title": "SCOTCH_archHcub accepts any dimension; shifts undefined from 31 on all builds",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "32-bit pristine: ./archbuild 3 70 -> 'arch_hcub.c:261:13: runtime error: shift exponent 70 is too large for 32-bit type int', archHcub(70) r=0 size=64; ./archbuild 3 31 -> 'left shift of 1 by 31', size=-2147483648; ./archbuild 3 0 -> r=0 size=1. 64-bit pristine: ./archbuild64 3 40 -> shift exponent 40, size=256. Patched: archHcub(0/31/40/62/63/70) -> 'archHcubArchBuild: invalid number of dimensions' r=1 on 32-bit (31..70) and r=1 for 0/63/70 on 64-bit, where 31/40/62 give 2147483648 / 1099511627776 / 4611686018427387904. Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Public API argument; garbage sizes, no memory corruption observed; absurd dimensions only.",
+  "location_7_0_17": "src/libscotch/library_arch.c:339-359 (SCOTCH_archHcub, no check) and src/libscotch/arch_hcub.c:158, 242, 261, 380",
+  "evidence": "library_arch.c:356 'tgtarchdatptr->dimnnbr = (Anum) dimnnbr;' with no test; arch_hcub.c:261 'return (1 << domnptr->dimncur);'",
+  "upstream_change": "",
+  "review_accuracy": "Not in the review (first-pass finding); it is the API-side half of COR-19 plus the missing builder bound of API-10.",
+  "first_pass_critique": "Correct. Its 'Lower the limit' alternative misstates the 32-bit case: after the Anum cast the c5baef9 bound (bits-2 = 30) is already exact on 32-bit, nothing needs lowering.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A. Anum shifts only (first pass)",
+    "summary": "Cast the shifts, leave SCOTCH_archHcub unchecked.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS-API-3-A-anum-shifts-only-firstpass.diff",
+    "tested": "applies, compiles",
+    "tradeoffs": "SCOTCH_archHcub(70) still produces a 2^(70 mod 64) architecture on 64-bit and UB on 32-bit.",
+    "preferred": false,
+    "maintainer_fit": "Incomplete: the builder must apply the loader's bound, as every other builder that has a Build routine does."
+   },
+   {
+    "label": "B. Shared archHcubArchBuild() with the c5baef9 bound plus Anum shifts (recommended)",
+    "summary": "See COR-19 option C.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0003-Bugfix-shift-architecture-sized-values-not-ints-by-h.patch",
+    "tested": "see COR-19",
+    "tradeoffs": "SCOTCH_archHcub(0) now fails (it built a 1-vertex architecture the loader refuses).",
+    "preferred": true,
+    "maintainer_fit": "Precedents: SCOTCH_archCmpltw() / archCmpltwArchBuild() (library_arch.c:307, arch_cmpltw.c:201) and SCOTCH_archSub() / archSubArchBuild(): library builders are thin wrappers over an archXxxArchBuild() that owns the checks and allocations; archCmpltwArchLoad2() reads into a temporary array and validates in the same routine; G01's archSub/archDist series (same discipline: loader NULLs its fields, Build publishes only on success, Free tolerates an empty body); d555f2c (archLoad frees through the class hook on failure); 'bad input (n)' / 'invalid ...' error strings and unconditional checks for user-controlled data as in c5baef9."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0003-Bugfix-shift-architecture-sized-values-not-ints-by-h.patch"
+  ],
+  "cleanup_done": "see COR-19",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "API-10",
+  "our_title": "Hcub, Tleaf and Ltleaf builders validate nothing; bad permutation writes out of bounds",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "32-bit pristine ASan (repro/common/archbuild, manual prototype): mode 0 SCOTCH_archLtleaf(levl 1, size {2}, perm {5,0}) -> 'heap-buffer-overflow WRITE of size 4 #0 SCOTCH_archLtleaf library_arch.c:562'; mode 3 70 -> UBSan shift exponent 70, r=0 size=64; mode 3 0 -> r=0 size=1; mode 4 SCOTCH_archTleaf sizes {0,-3} -> r=0 size=0; mode 5 levlnbr -1 -> 'AddressSanitizer: requested allocation size 0xfffffffffffffffc ... SCOTCH_archTleaf library_arch.c:510'; mode 6 levlnbr 0 -> r=0 size=1; mode 7 sizes {65536,65536} -> 'library_arch.c:522:13: runtime error: signed integer overflow'. Patched: each returns 1 with 'archLtleafArchBuild2: invalid permutation index' / 'archHcubArchBuild: invalid number of dimensions' / 'archTleafArchBuild: invalid level size or link cost' / 'invalid number of levels' / 'too many terminal domains', followed by a clean SCOTCH_archExit; valid builds unchanged (mode 8 saves 'ltleaf\\n2 2 3 4 1\\n8 0 2 4 6 1 3 5 7'). Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Public API; heap write with a caller-controlled index (Ltleaf); same as the review.",
+  "location_7_0_17": "src/libscotch/library_arch.c:339-359 (SCOTCH_archHcub), 489-527 (SCOTCH_archTleaf), 534-565 (SCOTCH_archLtleaf)",
+  "evidence": "library_arch.c:510 'memAlloc ((levlnbr * 2 + 1) * sizeof (Anum))' with unchecked levlnbr; :519-523 copies sizetab/linktab and multiplies without checks; :552 'memAlloc (permnbr * 2 * sizeof (Anum))' with unchecked permnbr; :562 'tgtarchdatptr->peritab[tgtarchdatptr->permtab[permnum]] = permnum;' with unchecked index.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate, including 'free arrays on failure' (see PS-API-4 for what that really is).",
+  "first_pass_critique": "Correct findings. Its preferred option duplicates the loaders' checks inside library_arch.c (two implementations to keep in sync, exactly the drift that produced this bug) and keeps the O(n^2)-free marking only in the builder; it named the shared-Build option itself as 'the architecture-conformant one' but did not write it. Its diff also resets clasptr to NULL on failure, which no builder in the tree does (they rely on archInit + Free).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/library_arch.c:366-454, 572-660 (SCOTCH_archMesh2/3/X, SCOTCH_archTorus2/3/X)",
+    "quote": "tgtarchdatptr->c[0]    = (Anum) dimxval;",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A. Duplicate the loaders' checks in the builders (first pass)",
+    "summary": "Range/bounds/duplicate checks inline in SCOTCH_archHcub/Tleaf/Ltleaf, free and reset clasptr on failure.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/API-10-A-duplicate-checks-in-builders-firstpass.diff",
+    "tested": "applies, compiles; behaviour tested by the first pass",
+    "tradeoffs": "Two copies of each validation (loader and builder) that already diverged once; no overflow check on the size product; no hcub shift fix.",
+    "preferred": false,
+    "maintainer_fit": "Not the tree's shape: builders are wrappers over archXxxArchBuild (cmpltw, cmpltws, sub, deco)."
+   },
+   {
+    "label": "B. Shared Build routines (recommended)",
+    "summary": "archTleafArchBuild/archLtleafArchBuild (patch 0002) and archHcubArchBuild (patch 0003) hold the checks; builders and loaders call them.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0002-Bugfix-validate-tree-leaf-architectures-in-one-place.patch",
+    "tested": "repro/API-10; Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+    "tradeoffs": "Behaviour change for callers that relied on accepted-but-wrong values (hcub 0, tleaf 0, non-positive sizes).",
+    "preferred": true,
+    "maintainer_fit": "Precedents: SCOTCH_archCmpltw() / archCmpltwArchBuild() (library_arch.c:307, arch_cmpltw.c:201) and SCOTCH_archSub() / archSubArchBuild(): library builders are thin wrappers over an archXxxArchBuild() that owns the checks and allocations; archCmpltwArchLoad2() reads into a temporary array and validates in the same routine; G01's archSub/archDist series (same discipline: loader NULLs its fields, Build publishes only on success, Free tolerates an empty body); d555f2c (archLoad frees through the class hook on failure); 'bad input (n)' / 'invalid ...' error strings and unconditional checks for user-controlled data as in c5baef9."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0002-Bugfix-validate-tree-leaf-architectures-in-one-place.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0003-Bugfix-shift-architecture-sized-values-not-ints-by-h.patch"
+  ],
+  "cleanup_done": "see COR-06 and COR-19",
+  "test_added": "src/check/test_scotch_arch.c: ltleaf built through the API (see COR-06).",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The mesh/torus builders have the same 'no check' shape (dimensions <= 0 accepted, no product check) but belong to G03 (COR-07 meshXD half, COR-21); listed as an uncovered instance, not patched here."
+ },
+ {
+  "id": "PS-API-2",
+  "our_title": "SCOTCH_archLtleaf exported and documented but absent from library.h",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "gcc ... archbuild.c (without the manual prototype) against build/include/scotch.h -> 'error: implicit declaration of function SCOTCH_archLtleaf; did you mean SCOTCH_archTleaf?'; nm -D build/lib/libscotch.so | grep archLtleaf -> T SCOTCH_archLtleaf. doc/src/scotch/s_l.tex:2164-2206 documents SCOTCH_archLtleaf and 'scotchfarchltleaf'. git log -S: exported since the 6.0 import (eca6fb5). Patched: compiles with -DHAVE_LTLEAF_PROTO (declaration in library.h:199), and test_scotch_arch now calls it.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Usability / documentation mismatch; no runtime effect.",
+  "location_7_0_17": "src/libscotch/library.h:198-204 (archHcub ... archTleaf declared, archLtleaf missing); src/libscotch/library_arch.c:534 (definition); src/libscotch/library_arch_f.c:363 (ARCHTLEAF only, no ARCHLTLEAF)",
+  "evidence": "library.h:198 'int SCOTCH_archHcub (SCOTCH_Arch * const, const SCOTCH_Num);' then :199 'int SCOTCH_archMesh2 ...' (no Ltleaf); s_l.tex:2179 'scotchfarchltleaf ( & doubleprecision (*) & archdat,' has no counterpart in library_arch_f.c.",
+  "upstream_change": "",
+  "review_accuracy": "Not in the review (first-pass finding). API-24 (Fortran) is related.",
+  "first_pass_critique": "Correct; it missed that the manual also documents a Fortran routine scotchfarchltleaf that does not exist (reported here as PS2-G02-arch-tleaf-hcub-build-2).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/library_arch_f.c:363-373 (ARCHTLEAF wrapper; no ARCHLTLEAF although s_l.tex:2179 documents scotchfarchltleaf)",
+    "quote": "ARCHTLEAF, archtleaf, (               \\\\",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A. Declare it in library.h (recommended)",
+    "summary": "Add the prototype between SCOTCH_archHcub and SCOTCH_archMesh2 (alphabetical, as the block is).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0001-Declare-SCOTCH_archLtleaf-in-the-library-header-repo.patch",
+    "tested": "compiles; scotch.h generated by the build carries it; test_scotch_arch uses it. Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+    "tradeoffs": "None (ABI unchanged; ptscotch.h is generated from the same header).",
+    "preferred": true,
+    "maintainer_fit": "The manual (s_l.tex) already documents the C routine; the header is simply incomplete, as e9e0877 shows him maintaining library.h prototypes by hand."
+   },
+   {
+    "label": "B. Also add the documented Fortran twin",
+    "summary": "ARCHLTLEAF wrapper in library_arch_f.c following ARCHTLEAF.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS-API-2-B-fortran-twin.diff",
+    "tested": "applies to v7.0.17, compiles (0 diagnostics); not run (no Fortran test harness here)",
+    "tradeoffs": "Belongs with the API-* Fortran consistency work (G17); harmless on its own.",
+    "preferred": false,
+    "maintainer_fit": "He would add it (every exported routine has a Fortran twin); left to the Fortran group to avoid colliding edits in library_arch_f.c."
+   },
+   {
+    "label": "C. Withdraw the routine and its documentation",
+    "summary": "Delete SCOTCH_archLtleaf from library_arch.c and the s_l.tex subsection.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS-API-2-C-remove-export.diff",
+    "tested": "applies; not compiled (deletion)",
+    "tradeoffs": "Breaks users who declared it themselves; ltleaf would then be file-only.",
+    "preferred": false,
+    "maintainer_fit": "Unlikely: he documented and kept the routine for twelve years."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0001-Declare-SCOTCH_archLtleaf-in-the-library-header-repo.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "src/check/test_scotch_arch.c calls SCOTCH_archLtleaf (patch 0002), which fails to compile without the declaration.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Fortran twin missing: extra.json PS2-G02-arch-tleaf-hcub-build-2 (G17's area)."
+ },
+ {
+  "id": "PS-API-4",
+  "our_title": "Failed ltleaf build leaks its tree part and leaves a half-built architecture",
+  "status": "still-present",
+  "method": "partly-run",
+  "ran": "Plain (non-sanitized) trees, FAILMALLOC=n MALLOC_CHECK_=3 LD_PRELOAD=./failmalloc.so ./archbuild_plainpristine 9|10: n=1 -> 'SCOTCH_archTleaf: out of memory' r=1 'exit ok'; n=2 (mode 9) -> 'SCOTCH_archLtleaf: out of memory' r=1 'exit ok' (SCOTCH_archExit after the failure neither crashes nor double-frees: the failed memAlloc stored NULL in the field it assigned). Patched: n=1 -> 'archTleafArchBuild: out of memory'; n=2 -> 'archLtleafArchBuild2: out of memory', then exit ok.",
+  "read_only": "The leak itself (sizetab left allocated after SCOTCH_archLtleaf's permtab allocation fails, when the caller does not call SCOTCH_archExit on a failed build) was established from library_arch.c:546-555 and archTleafArchFree; LeakSanitizer cannot be combined with the malloc-failure preload (ASan owns malloc).",
+  "why_not_run": "",
+  "severity": "info",
+  "severity_note": "Lower than the first pass's 'low': its stated mechanism (archExit on indeterminate pointers) does not happen; what remains is a leak on an allocation-failure path plus an inconsistent body, both only reachable under memory exhaustion.",
+  "location_7_0_17": "src/libscotch/library_arch.c:505-513 (clasptr set before memAlloc), 546-555 (SCOTCH_archLtleaf overrides the class and fails without freeing sizetab)",
+  "evidence": "library_arch.c:550 'tgtarchptr->clasptr = archClass (\"ltleaf\");     /* Override class */' then :552-555 'if ((tgtarchdatptr->permtab = memAlloc (...)) == NULL) { errorPrint (...); return (1); }' with sizetab still allocated.",
+  "upstream_change": "",
+  "review_accuracy": "Not in the review (first-pass finding); the review's API-10 'free arrays on failure' covers it.",
+  "first_pass_critique": "The claim 'A later SCOTCH_archExit then calls archTleafArchFree on indeterminate pointers' is wrong: a failed memAlloc assigns NULL to the field, so archExit is safe (shown at runtime). The real defect is the leak of sizetab when permtab fails and the caller does not archExit, plus the inconsistent body. Method 'source-read' was honest; the conclusion overstated.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A. Build routines publish on success, Free empties the body (recommended)",
+    "summary": "archLtleafArchBuild frees the tree part when the permutation part fails; archTleafArchFree NULLs its fields unconditionally and tolerates NULL, so SCOTCH_archExit after any failed build is a no-op.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0002-Bugfix-validate-tree-leaf-architectures-in-one-place.patch",
+    "tested": "repro/PS-API-4 plain-tree sweep; Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+    "tradeoffs": "archTleafArchFree does three extra stores in release builds.",
+    "preferred": true,
+    "maintainer_fit": "G01's archSubArchFree/archDistArchFree tolerate an unbuilt body; the maintainer guide defines Free as leaving an empty, reusable object."
+   },
+   {
+    "label": "B. Clear the body on failure in the builders",
+    "summary": "memFree the tree part and memSet the Arch to zero in SCOTCH_archTleaf/Ltleaf failure paths.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/PS-API-4-B-clear-body-on-failure.diff",
+    "tested": "applies, compiles; not run",
+    "tradeoffs": "Keeps the builder-side duplication; archLoad's failure idiom (memSet of the body) applied to builders.",
+    "preferred": false,
+    "maintainer_fit": "Acceptable but local; superseded by the shared Build routines."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0002-Bugfix-validate-tree-leaf-architectures-in-one-place.patch"
+  ],
+  "cleanup_done": "see COR-06",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "CLI-24",
+  "our_title": "amk/gmk generators shift int 1 by an unbounded dimension",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Pristine, both trees (UBSAN_OPTIONS=print_stacktrace=0, timeout 5 bin/<tool> <dim> >/dev/null): amk_hy 30 -> 'amk_hy.c:150:13: left shift of 1 by 31 places', amk_hy 40 -> 'amk_hy.c:149:13: shift exponent 40 is too large for 32-bit type int'; gmk_hy 31 -> gmk_hy.c:146:12; gmk_hy 27 (32-bit) -> 'gmk_hy.c:151:31: signed integer overflow: 27 * 134217728'; gmk_ub2 31 -> :164:13, gmk_ub2 29 (32-bit) -> ':169:28: 536870912 * 4'; amk_fft2 15 (32-bit) -> ':171:11: left shift of 1073741824 by 1', amk_fft2 31 (64-bit) -> ':171:11: left shift of 4611686018427387904 by 1' in long; amk_ccc 31 -> :157-159. Patched: 32-bit accepts/rejects at amk_hy 29/30, gmk_hy 25/26, gmk_ub2 28/29, amk_fft2 14/15, amk_ccc 24/25; 64-bit at 61/62, 57/58, 60/61, 30/31, 56/57 ('main: invalid dimension'); no UBSan line on any accepted dimension (first lines before the 20 s timeout of the huge outputs); check_prog_amk / check_prog_gmk (dimension 5) pass on both trees. Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Command-line tools; undefined arithmetic and wrong headers, but a dimension >= 15..31 means an output of gigabytes anyway. Same as the review.",
+  "location_7_0_17": "src/scotch/amk_hy.c:149-150; gmk_hy.c:146-147,151; gmk_ub2.c:164-165,169; amk_fft2.c:154-157,168,180,213,222; amk_ccc.c:157-159,170,204",
+  "evidence": "amk_hy.c:120 'if ((hdim = atoi (argv[i])) < 1)' (lower bound only); :149 'hnbr =  1 << hdim;' :150 'hmax = (1 << (hdim + 1)) - 1;'; amk_fft2.c:154 'fnbr = (fdim + 1) * (1 << fdim);' :157 'fmax = (fmax << 2) | 2;' (2*fdim+1 bits); amk_ccc.c:159 'for (ccmax = ((1 << (ccdim + 1)) - 1), i = ccdim - 1;'.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate; its line list misses amk_fft2.c:168/180/213/222 and amk_ccc.c:204 (shifts by vertex levels, bounded by the dimension) and the products that overflow below the shift limit (gmk_hy 27, gmk_ub2 29, amk_fft2 15 on 32-bit).",
+  "first_pass_critique": "Correct status and evidence, and it noticed the products. Its sketch proposes one bound 'bits - 3' for all tools, which still leaves gmk_hy 27..29, gmk_ub2 29..30 and amk_fft2 15..29 overflowing on 32-bit (it saw those overflows in its own evidence but did not derive the bounds from them).",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A. Widen the shifts only",
+    "summary": "(SCOTCH_Num) 1 << ... at every site, no dimension bound.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/CLI-24-B-widen-shifts-only.diff",
+    "tested": "applies to v7.0.17, all five files compile with 0 diagnostics; not run",
+    "tradeoffs": "Shifts >= bits and the products (hdim * hnbr, 4 * ubnbr, fmax, ccmax) remain undefined for large dimensions.",
+    "preferred": false,
+    "maintainer_fit": "Half a fix; the review itself asks for the bound."
+   },
+   {
+    "label": "B. Per-tool bound derived from the largest computed value, plus SCOTCH_Num shifts (recommended)",
+    "summary": "amk_hy <= B-3 (hmax), gmk_hy <= B-7 (hdim*hnbr arcs), gmk_ub2 <= B-4 (4*ubnbr arcs), amk_fft2 <= (B-3)/2 (fmax has 2d+1 bits), amk_ccc <= B-8 (ccmax has d+1+bits(d-1) bits), B = bits of SCOTCH_Num, checked in the existing 'invalid dimension' errorPrint; all shifts on (SCOTCH_Num) 1.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0003-Bugfix-shift-architecture-sized-values-not-ints-by-h.patch",
+    "tested": "boundary sweep above on both trees; Builds: 32-bit and 64-bit Gnum ASan+UBSan trees, 0 warnings; every touched file also compiled with -DSCOTCH_DEBUG_ALL. Targets (both word sizes): check_scotch_arch, check_scotch_arch_deco, check_prog_atst, check_prog_amk, check_prog_amk_grf, check_prog_gmk, check_prog_gmap pass with no sanitizer output; check_scotch_arch_build and check_scotch_graph_map show only the pre-existing archDecoArchBuild2 leak and bgraph_bipart_ml.c:195 / kgraph_map_ml.c:239 null-offset UBSan (identical to pristine, other groups). Fuzzing (repro/fuzz, 2000 mutated tleaf/ltleaf/hcub/sub strings, seed 1): pristine 32-bit 29 signatures / 343 hits, 64-bit 36 / 366; with G01 + this series: 32-bit 6 / 152 (all intLoad overflow in common_integer.c:121, another group), 64-bit 3 / 47 (intLoad, plus two arch_sub.c cases listed in extra.json). Series exported with format-patch and re-applied with git am on a fresh v7.0.17 clone after G01's five patches.",
+    "tradeoffs": "Five slightly different constants, each commented with the quantity it protects; a 32-bit amk_fft2 is limited to 14 (15 already overflowed).",
+    "preferred": true,
+    "maintainer_fit": "Same idiom as c5baef9's '(Anum) ((sizeof (Anum) << 3) - 2)' with an explanatory comment; the tools keep their errorPrint-and-exit parse-time check."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0003-Bugfix-shift-architecture-sized-values-not-ints-by-h.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The man pages (man/man1/amk_*.1.txt, gmk_*.1.txt) do not state a dimension limit, so nothing to update."
+ },
+ {
+  "id": "COR-07",
+  "our_title": "tleaf accepts zero/negative level counts and overflows the terminal product (meshXD half is G03's)",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "./archload 'tleaf 0' -> load ret=0 size=1; './archload 'sub 1 0 tleaf 0' -> 'AddressSanitizer: heap-buffer-overflow READ of size 4 #0 _SCOTCHarchTleafMatchInit arch_tleaf.c:255 #1 _SCOTCHarchSubArchBuild arch_sub.c:414'; './archload 'tleaf -1 2 1' -> 'AddressSanitizer: requested allocation size 0xfffffffffffffffc ... #1 archTleafArchLoad arch_tleaf.c:120'; './archload 'tleaf 2 65536 1 65536 1' -> 'arch_tleaf.c:136:13: runtime error: signed integer overflow: 65536 * 65536', load ret=0 size=0; 64-bit: 'tleaf 2 3037000500 1 3037000500 1' -> overflow in long, size=-9223372036709301616. LeakSanitizer on 'tleaf 2 3 1 -1 1' (bad input (2)): no leak (archLoad frees through the class hook, d555f2c). Patched: 'tleaf 0' / 'tleaf -1 2 1' / 31 levels -> 'archTleafArchLoad2: bad input (1)'; the overflowing products -> 'archTleafArchBuild: too many terminal domains'; 30 levels of 2 (2^30) and 64-bit 3037000499^2 still load. Verification as COR-06.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "User target file; out-of-bounds read through 'sub' and silent wrong terminal count; same as the review.",
+  "location_7_0_17": "src/libscotch/arch_tleaf.c:115-118 (levlnbr unchecked), 120 (levlnbr*2+1 allocation), 128-137 (product), 241-255 (archTleafMatchInit reads sizetab[-1] when levlnbr == 0)",
+  "evidence": "arch_tleaf.c:115 'if (intLoad (stream, &archptr->levlnbr) != 1) {' (no bound); :136 'sizeval *= archptr->sizetab[levlnum];' (no overflow test); :255 'matcptr->levlsiz = sizetab[levlnnd];' with levlnnd = levlnbr - 1.",
+  "upstream_change": "d555f2c made archLoad free through the class hook only when it exists; as a side effect the sizetab leak the review saw on 'bad input (2)' is gone in 7.0.17. The validation itself is unchanged.",
+  "review_accuracy": "Accurate for the counts and the product; the 'sizetab leaking on bad input (2)' sub-claim no longer holds in 7.0.17 (not observable with LeakSanitizer).",
+  "first_pass_critique": "Correct, including the leak observation. Its upper bound '(ANUMMAX - 1) / 2' only protects the allocation arithmetic; the real bound is bits(Anum)-2 because every level at least doubles the terminal count (the product check then makes it exact). It flagged a possible levlnbr==0 contract in library_arch_build.c: there is none (archBuild builds deco architectures, never tleaf).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/library_arch.c:510-524 (SCOTCH_archTleaf: same allocation and product with no check)",
+    "quote": "sizeval *= tgtarchdatptr->sizetab[levlnum];",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/arch_mesh.c archMeshXArchLoad (dimnnbr lower bound, product) -- G03's half",
+    "quote": "(archptr->dimnnbr > ARCHMESHDIMNMAX)) {",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A. Loader-only bounds and product check (first pass)",
+    "summary": "levlnbr in [1, (ANUMMAX-1)/2], 'sizeval > ANUMMAX / sizetab[levlnum]' before multiplying, in archTleafArchLoad.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/COR-06-A-loader-only-checks-firstpass.diff",
+    "tested": "applies, compiles; behaviour tested by the first pass",
+    "tradeoffs": "SCOTCH_archTleaf keeps the same holes.",
+    "preferred": false,
+    "maintainer_fit": "Right checks, wrong place for half of the callers."
+   },
+   {
+    "label": "B. Guard the consumer (archTleafMatchInit) only",
+    "summary": "Reject levlnbr < 1 in archTleafMatchInit.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/alt/COR-07-B-guard-match-init.diff",
+    "tested": "applies, compiles; not run",
+    "tradeoffs": "Negative levlnbr still wraps the allocation; the product still overflows; every other consumer (DomSize, DomNum, DomDist) would need the same guard.",
+    "preferred": false,
+    "maintainer_fit": "He validates at the source (loader / builder), as in c5baef9 and G01's archSubArchLoad."
+   },
+   {
+    "label": "C. Shared archTleafArchBuild with full validation (recommended)",
+    "summary": "See COR-06 option B: levlnbr >= 1 (loader additionally bounds it by bits-2 before allocating its temporary), sizes >= 2, links >= 1, product checked against ANUMMAX.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0002-Bugfix-validate-tree-leaf-architectures-in-one-place.patch",
+    "tested": "repro/COR-07; verification as COR-06",
+    "tradeoffs": "'tleaf 0' (a one-terminal architecture) is now refused, consistent with 'hcub 0' being refused.",
+    "preferred": true,
+    "maintainer_fit": "Precedents: SCOTCH_archCmpltw() / archCmpltwArchBuild() (library_arch.c:307, arch_cmpltw.c:201) and SCOTCH_archSub() / archSubArchBuild(): library builders are thin wrappers over an archXxxArchBuild() that owns the checks and allocations; archCmpltwArchLoad2() reads into a temporary array and validates in the same routine; G01's archSub/archDist series (same discipline: loader NULLs its fields, Build publishes only on success, Free tolerates an empty body); d555f2c (archLoad frees through the class hook on failure); 'bad input (n)' / 'invalid ...' error strings and unconditional checks for user-controlled data as in c5baef9."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G02-arch-tleaf-hcub-build/patches/0002-Bugfix-validate-tree-leaf-architectures-in-one-place.patch"
+  ],
+  "cleanup_done": "see COR-06",
+  "test_added": "see COR-06",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Only the tree-leaf half is handled here; archMeshXArchLoad belongs to G03."
+ }
+]

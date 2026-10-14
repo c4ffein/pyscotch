@@ -1,0 +1,32 @@
+From 4246830d363ab6b6c86bf22cab4b925b887f6335 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:15:37 +0000
+Subject: [PATCH 09/11] Bugfix: do not base the null label array of non-root
+ processes in `dmapSave()` [report PyScotch]
+
+Since commit 4290e22, the receive label array is based before being
+gathered, but on non-root processes it is a null pointer, to which a
+non-zero offset was applied, which is undefined behavior (reported by
+UBSan on every non-root process with a based, labeled graph). Base the
+array on the root process only.
+---
+ src/libscotch/dmapping_io.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/libscotch/dmapping_io.c b/src/libscotch/dmapping_io.c
+index 2250269..2cd315b 100644
+--- a/src/libscotch/dmapping_io.c
++++ b/src/libscotch/dmapping_io.c
+@@ -175,7 +175,8 @@ FILE * restrict const           stream)
+   }
+ 
+   if (grafptr->vlblloctax != NULL) {
+-    vlbltax -= grafptr->baseval;                  /* Base label array since displacement array is based */
++    if (vlbltax != NULL)                          /* Base label array of root process since displacement array is based */
++      vlbltax -= grafptr->baseval;
+ 
+     if (commGatherv (grafptr->vlblloctax + grafptr->baseval, grafptr->vertlocnbr, GNUM_MPI,
+                      vlbltax, grafptr->proccnttab, grafptr->procdsptab, GNUM_MPI, protnum, grafptr->proccomm) != MPI_SUCCESS) {
+-- 
+2.47.3
+

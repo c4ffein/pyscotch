@@ -1,0 +1,12 @@
+BLD-14: JOB_INT=64 adds no flags; CMake jobs use default options only.
+Evidence: ci/env_makefile.sh case 64) exports JOBBUILDFLAGS unchanged; only 32-64 adds -DINTSIZE64 -DIDXSIZE64;
+.gitlab-ci.yml matrix_64 has JOB_INT [64] only (tags 64bits); ci/build_cmake.sh passes no option.
+Patched:
+  JOB_INT=64-64 bash -c 'source ci/env_makefile.sh' -> env-64-64.txt:
+    -O0 -g -fPIC -DINTSIZE64 -DIDXSIZE64 -DSCOTCH_MPI_ASYNC_COLL
+  The new build_cmake_gcc_64 job's options were run locally on the patched tree ($W/cm64):
+    cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON -DINTSIZE=64 -DIDXSIZE=64
+          -DSCOTCH_NAME_SUFFIX=_64 -DSCOTCH_DETERMINISTIC=FULL; make -j4; ctest -j4
+    results in $W/verify-cm64.status
+  64-bit Makefile build (-DINTSIZE64 -DIDXSIZE64) with make check / ptcheck: $W/verify.status (build64).
+Runner architectures behind the 32bits/64bits tags cannot be verified from the repository.

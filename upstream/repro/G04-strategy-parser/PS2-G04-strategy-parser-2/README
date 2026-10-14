@@ -1,0 +1,5 @@
+PS2-G04-strategy-parser-2: columns are 1-based on line 1 and 0-based on the following lines.
+  cd ../common
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'r{sep=m{asc=b{x}}}'                  -> 'line 1, column 15'  (x is the 15th character: 1-based)
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine "$(printf 'r{\nsep=m{asc=b{x}}}')"  -> 'line 2, column 12'  (x is the 13th character of line 2: 0-based)
+  LD_LIBRARY_PATH=$WORK/build/lib ./st_pristine "$(printf 'r{\nsep=m{asc=b{x}}}')"   -> 'line 2, column 13'

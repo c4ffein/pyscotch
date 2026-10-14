@@ -1,0 +1,70 @@
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+gpart: ERROR: bgraphCheck: invalid communication loads
+
+=================================================================
+==253120==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 5832 byte(s) in 1 object(s) allocated from:
+    #0 0x7f5abbc6bb58 in realloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:85
+    #1 0x7f5abb2a6cde in graphCoarsen3 /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/graph_coarsen.c:470
+    #2 0x7f5abb286c5d in _SCOTCHthreadLaunch /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/common_thread.c:363
+    #3 0x7f5abb2a79d7 in graphCoarsen2 /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/graph_coarsen.c:542
+    #4 0x7f5abb2a8443 in _SCOTCHgraphCoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/graph_coarsen.c:621
+    #5 0x7f5abb25e1c6 in bgraphBipartMlCoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_ml.c:106
+    #6 0x7f5abb262771 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_ml.c:321
+    #7 0x7f5abb262b50 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_ml.c:359
+    #8 0x7f5abb2642e4 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_st.c:383
+    #9 0x7f5abb263402 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_st.c:335
+    #10 0x7f5abb3caa63 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_rb_part.c:274
+    #11 0x7f5abb3ccccf in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_rb_part.c:391
+    #12 0x7f5abb3ae5c5 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_rb.c:157
+    #13 0x7f5abb3ce45b in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_st.c:392
+    #14 0x7f5abb3ad0a0 in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_ml.c:383
+    #15 0x7f5abb3ad261 in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_ml.c:412
+    #16 0x7f5abb3ce45b in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_st.c:392
+    #17 0x7f5abb3ec03c in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/library_graph_map.c:294
+    #18 0x7f5abb3ec2a1 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/library_graph_map.c:318
+    #19 0x55ce2713caad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg_s19b/src/scotch/gmap.c:469
+    #20 0x7f5aba413ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+
+Direct leak of 3848 byte(s) in 1 object(s) allocated from:
+    #0 0x7f5abbc6cc57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7f5abb2830b8 in _SCOTCHmemAllocGroup /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/common_memory.c:508
+    #2 0x7f5abb2b3d07 in _SCOTCHgraphLoad /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/graph_io.c:165
+    #3 0x7f5abb3db92a in SCOTCH_graphLoad /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/library_graph.c:191
+    #4 0x55ce2713c2c1 in main /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg_s19b/src/scotch/gmap.c:369
+    #5 0x7f5aba413ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+
+Direct leak of 2056 byte(s) in 1 object(s) allocated from:
+    #0 0x7f5abbc6cc57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7f5abb2830b8 in _SCOTCHmemAllocGroup /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/common_memory.c:508
+    #2 0x7f5abb2b3b54 in _SCOTCHgraphLoad /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/graph_io.c:161
+    #3 0x7f5abb3db92a in SCOTCH_graphLoad /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/library_graph.c:191
+    #4 0x55ce2713c2c1 in main /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg_s19b/src/scotch/gmap.c:369
+    #5 0x7f5aba413ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+
+Direct leak of 524 byte(s) in 1 object(s) allocated from:
+    #0 0x7f5abbc6cc57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7f5abb2655c7 in _SCOTCHbgraphCheck /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_check.c:122
+    #2 0x7f5abb2599bf in _SCOTCHbgraphBipartGg /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg_s19b/src/libscotch/bgraph_bipart_gg.c:446
+    #3 0x7f5abb2642e4 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_st.c:383
+    #4 0x7f5abb262ecd in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_st.c:301
+    #5 0x7f5abb262999 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_ml.c:330
+    #6 0x7f5abb262792 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_ml.c:322
+    #7 0x7f5abb262b50 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_ml.c:359
+    #8 0x7f5abb2642e4 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_st.c:383
+    #9 0x7f5abb263402 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/bgraph_bipart_st.c:335
+    #10 0x7f5abb3caa63 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_rb_part.c:274
+    #11 0x7f5abb3ccccf in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_rb_part.c:391
+    #12 0x7f5abb3ae5c5 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_rb.c:157
+    #13 0x7f5abb3ce45b in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_st.c:392
+    #14 0x7f5abb3ad0a0 in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_ml.c:383
+    #15 0x7f5abb3ad261 in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_ml.c:412
+    #16 0x7f5abb3ce45b in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/kgraph_map_st.c:392
+    #17 0x7f5abb3ec03c in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/library_graph_map.c:294
+    #18 0x7f5abb3ec2a1 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg/src/libscotch/library_graph_map.c:318
+    #19 0x55ce2713caad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg_s19b/src/scotch/gmap.c:469
+    #20 0x7f5aba413ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+
+SUMMARY: AddressSanitizer: 12260 byte(s) leaked in 4 allocation(s).

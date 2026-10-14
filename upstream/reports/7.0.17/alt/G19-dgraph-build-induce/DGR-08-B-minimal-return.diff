@@ -1,0 +1,17 @@
+diff --git a/src/libscotch/dgraph_ghst.c b/src/libscotch/dgraph_ghst.c
+index 7f199b1..7b2d922 100644
+--- a/src/libscotch/dgraph_ghst.c
++++ b/src/libscotch/dgraph_ghst.c
+@@ -150,10 +150,9 @@ const int                   flagval)              /* Replacement flag */
+   reduloctab[1] =
+   reduloctab[2] = 0;
+   if (cheklocval != 0) {                          /* TRICK: Processes not on error will perform collective communication at end of routine */
+-    if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0) {
++    if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0)
+       errorPrint ("dgraphGhst: communication error (1)");
+-      return (1);
+-    }
++    return (1);                                   /* Ghost edge array, if allocated, will be freed by dgraphFree() */
+   }
+ 
+   vertlocmin = procvrttab[grafptr->proclocnum];

@@ -1,0 +1,27 @@
+--- a/src/libscotch/parser_yy.y
++++ b/src/libscotch/parser_yy.y
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 30 sep 2014     **/
+ /**                                 to   : 27 apr 2018     **/
+ /**                # Version 7.0  : from : 02 mar 2018     **/
+-/**                                 to   : 25 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -647,6 +647,15 @@
+               {
+                 StratTest *         testptr;
+ 
++                if ((($3)->testval == STRATTESTVAL) && /* If divisor is a null constant */
++                    (($3)->nodeval == STRATPARAMINT) &&
++                    (($3)->data.val.valint == 0)) {
++                  errorPrint    ("stratParserParse: modulus by zero, line %d, column %d, at \"%s\"",
++                                 (@3).libenum, (@3).cobenum, (@3).tebeptr);
++                  stratTestExit ($1);
++                  stratTestExit ($3);
++                  YYABORT;
++                }
+                 if ((testptr = (StratTest *) memAlloc (sizeof (StratTest))) == NULL) {
+                   errorPrint    ("stratParserParse: out of memory (12)");
+                   stratTestExit ($1);

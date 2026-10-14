@@ -1,0 +1,45 @@
+# DGR-17 option B (NOT preferred): record the end of each send sub-array in a debug-only per-neighbor array, as the point-to-point variant does with nsnddsptab[procngbnum + 1]. Independent of the multiplier but adds an #ifdef'd array to the allocation group for a one-token fix. Compiles; not run.
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/dgraph_band_grow.c b/src/libscotch/dgraph_band_grow.c
+index 05840dd..c44f61a 100644
+--- a/src/libscotch/dgraph_band_grow.c
++++ b/src/libscotch/dgraph_band_grow.c
+@@ -102,6 +102,9 @@ Context *                         contptr)        /*+ Execution context
+   int * restrict          vrcvdsptab;
+   int * restrict          vsnddsptab;
+   int * restrict          nsndidxtab;
++#ifdef SCOTCH_DEBUG_DGRAPH2
++  int * restrict          nsndendtab;             /* End indices of send sub-arrays, per neighbor */
++#endif /* SCOTCH_DEBUG_DGRAPH2 */
+   int                     vrcvdspnum;
+   int                     vsnddspnum;
+   Gnum                    queuheadidx;            /* Index of head of queue                */
+@@ -133,6 +136,9 @@ Context *                         contptr)        /*+ Execution context
+       (memAllocGroup ((void **) (void *)
+                       &procvgbtab, (size_t) ((procngbnbr + 1)    * sizeof (Gnum)),
+                       &nsndidxtab, (size_t) (procngbnbr          * sizeof (int)),
++#ifdef SCOTCH_DEBUG_DGRAPH2
++                      &nsndendtab, (size_t) (procngbnbr          * sizeof (int)),
++#endif /* SCOTCH_DEBUG_DGRAPH2 */
+                       &vrcvcnttab, (size_t) (grafptr->procglbnbr * sizeof (int)),
+                       &vsndcnttab, (size_t) (grafptr->procglbnbr * sizeof (int)), /* TRICK: vsndcnttab, vrcvdsptab, vrcvdattab, vrcvdattab joined */
+                       &vrcvdsptab, (size_t) (grafptr->procglbnbr * sizeof (int)),
+@@ -173,6 +179,9 @@ Context *                         contptr)        /*+ Execution context
+     vsnddsptab[procglbnum] = vsnddspnum;
+     vrcvdspnum += DGRAPHBANDGROWSMUL (grafptr->procsndtab[procglbnum]); /* Senders and receivers are reversed */
+     vsnddspnum += DGRAPHBANDGROWSMUL (grafptr->procrcvtab[procglbnum]);
++#ifdef SCOTCH_DEBUG_DGRAPH2
++    nsndendtab[procngbnum] = vsnddspnum;          /* Record end of send sub-array */
++#endif /* SCOTCH_DEBUG_DGRAPH2 */
+   }
+   procvgbtab[procngbnum] = grafptr->procvrttab[grafptr->procglbnbr];
+ 
+@@ -236,7 +245,7 @@ Context *                         contptr)        /*+ Execution context
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+           if ((grafptr->procvrttab[grafptr->procngbtab[procngbnum]]     >  vertglbend) ||
+               (grafptr->procvrttab[grafptr->procngbtab[procngbnum] + 1] <= vertglbend) ||
+-              (nsndidxtab[procngbnum] >= (vsnddsptab[grafptr->procngbtab[procngbnum]] + grafptr->procrcvtab[grafptr->procngbtab[procngbnum]]))) {
++              (nsndidxtab[procngbnum] >= nsndendtab[procngbnum])) {
+             errorPrint (DGRAPHBANDGROWNSTR "Coll: internal error (1)");
+             return (1);
+           }

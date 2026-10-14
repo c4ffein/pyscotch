@@ -1,0 +1,75 @@
+== man page acpl.1.txt
+== man page amk_ccc.1.txt
+== man page amk_grf.1.txt
+== man page atst.1.txt
+== man page dgmap.1.txt
+   usage option not in man: -C<opt>    : Choose execution context options according to one or several of <opt>:
+   usage option not in man: -s<obj>    : Force unity weights on <obj>:
+== man page dgord.1.txt
+   usage option not in man: -C<opt>    : Choose execution context options according to one or several of <opt>:
+   usage option not in man: -b         : Output block ordering data instead of plain ordering data
+== man page dgscat.1.txt
+== man page dgtst.1.txt
+== man page gbase.1.txt
+== man page gcv.1.txt
+== man page gdump.1.txt
+== man page gmap.1.txt
+   usage option not in man: -C<opt>    : Choose execution context options according to one or several of <opt>:
+   usage option not in man: -f<file>   : Fixed vertices input file
+   usage option not in man: -o         : Use partitioning with overlap (only for gpart)
+   usage option not in man: -ro<file>  : Old mapping input file (for remapping)
+   usage option not in man: -rr<val>   : Edge migration ratio (for remapping, default: 1)
+   usage option not in man: -rv<file>  : Vertex migration cost input file (for remapping)
+   usage option not in man: -s<obj>    : Force unity weights on <obj>:
+== man page gmk_hy.1.txt
+   usage option not in man: -y        : Invert y coordinate in geometry
+== man page gmk_m2.1.txt
+== man page gmk_msh.1.txt
+== man page gmtst.1.txt
+   usage option not in man: -o  : Consider it is a partitioning with overlap (from gpart)
+== man page gord.1.txt
+   usage option not in man: -C<opt>    : Choose execution context options according to one or several of <opt>:
+== man page gotst.1.txt
+== man page gout.1.txt
+   man entry duplicated   : -h (2 times)
+== man page gtst.1.txt
+== man page mcv.1.txt
+== man page mmk_m2.1.txt
+== man page mord.1.txt
+== man page mtst.1.txt
+== manual section acpl
+== manual section amk\_
+== manual section amk\_grf
+   usage option not in manual: -2         : Create a 'deco 2' instead of a 'deco 1' architecture
+== manual section atst
+== manual section dgmap
+   usage option not in manual: -C<opt>    : Choose execution context options according to one or several of <opt>:
+   usage option not in manual: -q<pwght>  : Do graph clustering instead of static mapping (for dgmap)
+== manual section dgord
+   usage option not in manual: -C<opt>    : Choose execution context options according to one or several of <opt>:
+   usage option not in manual: -b         : Output block ordering data instead of plain ordering data
+== manual section dgscat
+== manual section dgtst
+== manual section gbase
+   NO MANUAL SECTION
+== manual section gcv
+== manual section gdump
+   NO MANUAL SECTION
+== manual section gmap
+   usage option not in manual: -f<file>   : Fixed vertices input file
+   usage option not in manual: -ro<file>  : Old mapping input file (for remapping)
+   usage option not in manual: -rr<val>   : Edge migration ratio (for remapping, default: 1)
+   usage option not in manual: -rv<file>  : Vertex migration cost input file (for remapping)
+== manual section gmk\_
+== manual section gmk\_msh
+== manual section gmtst
+   usage option not in manual: -o  : Consider it is a partitioning with overlap (from gpart)
+== manual section gord
+== manual section gotst
+== manual section gout
+== manual section gtst
+== manual section mcv
+== manual section mmk\_
+== manual section mord
+== manual section mtst
+mismatches: 27

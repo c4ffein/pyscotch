@@ -1,0 +1,17 @@
+PS2-G26-1: meshGraphDual(), meshGraphNodal(), graphLoad() and graphGeomLoadChac() free the vertex array
+when their second allocation fails but keep its address in a graph flagged GRAPHFREETABS, so the caller's
+graphExit() (or graphLoad's own graphFree) frees it again.
+Files: gload_fail.c (SCOTCH_graphLoad / SCOTCH_graphGeomLoadChac then SCOTCH_graphExit, linked with the
+non-exiting error library), plus CLI-05/pm_plain (METIS_PartMeshDual -> meshGraphDual -> graphExit).
+  gcc -g -O0 -I$P/include gload_fail.c -o gload_fail -L$P/lib -lscotch -lscotcherr -lz -lm -lrt -pthread
+  FAILMALLOC_FUNC=_SCOTCHmemAllocGroup FAILMALLOC_NTH=2 LD_PRELOAD=../tools/failmalloc.so ./gload_fail s $SRC/check/data/bump.grf
+    pristine: "double free or corruption (top)" (abort 134); patched: "load returned 1 ... done", exit 0
+  ... ./gload_fail c ../CLI-15/bump.chac
+    pristine: "free(): invalid pointer" (graphExit frees verttax + baseval, base 1); patched: exit 0
+  FAILMALLOC_FUNC=_SCOTCHmeshGraphDual FAILMALLOC_NTH=2 LD_PRELOAD=... ../CLI-05/pm_plain 1
+    pristine: "free(): double free detected in tcache 2"; patched: "ret=-3 objval=-3", exit 0
+The shipped tools (gtst, gcv) hide it because they link -lscotcherrexit (exit at the first errorPrint).
+meshGraphNodal(): mnodal_fail.c (SCOTCH_meshBuildElem + SCOTCH_meshGraph + SCOTCH_graphExit), linked once against the
+patched library and once with the base-combined mesh_graph.c object interposed (mesh_graph_pristine.o):
+  FAILMALLOC_FUNC=_SCOTCHmeshGraphNodal FAILMALLOC_NTH=2 LD_PRELOAD=... ./mnodal_pristine -> "free(): double free detected" (134)
+  ./mnodal_patched -> "SCOTCH_meshGraph returned 1; now calling SCOTCH_graphExit()" / "done", exit 0

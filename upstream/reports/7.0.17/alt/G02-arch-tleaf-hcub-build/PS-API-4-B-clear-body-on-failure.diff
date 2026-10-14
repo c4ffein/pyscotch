@@ -1,0 +1,21 @@
+diff --git a/src/libscotch/library_arch.c b/src/libscotch/library_arch.c
+index 9c1fc3a..3cc19af 100644
+--- a/src/libscotch/library_arch.c
++++ b/src/libscotch/library_arch.c
+@@ -509,6 +509,7 @@ const SCOTCH_Num * const    linktab)              /*+ Link cost array, by increa
+ 
+   if ((tgtarchdatptr->sizetab = memAlloc ((levlnbr * 2 + 1) * sizeof (Anum))) == NULL) { /* TRICK: One more slot for linktab[-1] */
+     errorPrint (STRINGIFY (SCOTCH_archTleaf) ": out of memory");
++    memSet (tgtarchptr, 0, sizeof (Arch));        /* Leave an empty architecture */
+     return (1);
+   }
+   tgtarchdatptr->levlnbr     = (Anum) levlnbr;
+@@ -551,6 +552,8 @@ const SCOTCH_Num * const    permtab)              /*+ Permutation array
+ 
+   if ((tgtarchdatptr->permtab = memAlloc (permnbr * 2 * sizeof (Anum))) == NULL) { /* TRICK: space for peritab too */
+     errorPrint (STRINGIFY (SCOTCH_archLtleaf) ": out of memory");
++    memFree (tgtarchdatptr->sizetab);             /* Free tree part              */
++    memSet  (tgtarchptr, 0, sizeof (Arch));       /* Leave an empty architecture */
+     return (1);
+   }
+   tgtarchdatptr->permnbr = (Anum) permnbr;

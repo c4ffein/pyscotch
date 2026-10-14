@@ -1,0 +1,59 @@
+From 389193185fd8a0fdde47b928fe7a65ea87f86ddd Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:11:49 +0000
+Subject: [PATCH 227/240] Bugfix: do not store the Sonar token in a CI artifact
+ [report R. Perry]
+
+"ci/analysis.sh" expanded the SONARQUBE_LOGIN variable into
+"sonar-project.properties", a file that the "scotch_sonar" job then
+kept as a downloadable artifact for 15 days, along with the debug log
+of "sonar-scanner -X" redirected into "sonar.log". Pass the token to
+the scanner through the SONAR_TOKEN environment variable instead, let
+the scanner output go to the job log, where GitLab masks it, and stop
+archiving the properties file and the logs.
+
+Refs: BLD-03
+---
+ .gitlab-ci.yml | 6 +++---
+ ci/analysis.sh | 1 -
+ 2 files changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 9719836..0716677 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -124,16 +124,16 @@ scotch_sonar:
+     - if: $CI_PIPELINE_SOURCE == "schedule"
+   stage: sonar
+   tags: ['sonar']
++  variables:
++    SONAR_TOKEN: $SONARQUBE_LOGIN
+   script:
+     - ci/analysis.sh
+-    - sonar-scanner -X > sonar.log
++    - sonar-scanner
+   allow_failure: true
+   coverage: /^\s*lines:\s*\d+.\d+\%/
+   artifacts:
+     paths:
+       - analyzer_reports
+-      - sonar-project.properties
+-      - ./*.log
+       - ./*.cov
+       - ./*.xml
+     reports:
+diff --git a/ci/analysis.sh b/ci/analysis.sh
+index b763a17..c643db6 100755
+--- a/ci/analysis.sh
++++ b/ci/analysis.sh
+@@ -25,7 +25,6 @@ rats -w 3 --xml `cat filelist.txt` > scotch-rats.xml
+ # "sonar.lang.patterns.c++=**/*.cpp,**/*.hpp" : needed so that C files are not considered as C++ files
+ cat > sonar-project.properties << EOF
+ sonar.host.url=https://sonarqube.inria.fr/sonarqube
+-sonar.login=$SONARQUBE_LOGIN
+ 
+ sonar.links.homepage=$CI_PROJECT_URL
+ sonar.links.scm=$CI_REPOSITORY_URL
+-- 
+2.47.3
+

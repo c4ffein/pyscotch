@@ -1,0 +1,10 @@
+PS2-G30-3 (info, not fixed): with the Makefile generator, CMake emits the custom commands of a generated
+source into every target that lists the output as a source. In src/check, the suffixed Fortran sources
+are consumed by the *_src custom targets AND by the test executables (test_libmetis_dual_f.f90 by two
+executables), so each build.make carries a copy of the rule:
+  grep -l cmake_sed_test_scotch_mesh_build_f $W/cm/src/check/CMakeFiles/*/build.make
+  -> test_scotch_mesh_build_f.dir/build.make and test_scotch_mesh_build_f.f90_src.dir/build.make
+A toy project ($W/cmdup/CMakeLists.txt, WITHDEP=0/1) shows add_dependencies() does not remove the
+duplicate. Pre-existing (pristine and patched); harmless unless "make -j" runs both copies at the same
+instant. The clean fix (only the custom target owns the rules, executables depend on it) requires
+restructuring the way the generated sources are listed; left to the maintainer.

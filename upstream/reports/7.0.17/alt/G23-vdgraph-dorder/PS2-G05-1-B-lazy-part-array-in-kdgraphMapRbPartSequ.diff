@@ -1,0 +1,19 @@
+diff --git a/src/libscotch/kdgraph_map_rb_part.c b/src/libscotch/kdgraph_map_rb_part.c
+index c60c710..a196098 100644
+--- a/src/libscotch/kdgraph_map_rb_part.c
++++ b/src/libscotch/kdgraph_map_rb_part.c
+@@ -119,6 +119,14 @@ const KdgraphMapRbPartData * restrict const dataptr)
+     kgraphExit (&kgrfdat);
+     return (1);
+   }
++  if (kgrfdat.m.parttax == NULL) {                /* If strategy did not compute any mapping */
++    if (mapAlloc (&kgrfdat.m) != 0) {
++      errorPrint ("kdgraphMapRbPartSequ: cannot allocate mapping array");
++      kgraphExit (&kgrfdat);
++      return (1);
++    }
++    kgraphFrst (&kgrfdat);                        /* Map all vertices to the initial domain */
++  }
+ 
+   if (((fragptr = memAlloc (sizeof (DmappingFrag))) == NULL) ||
+       ((fragptr->vnumtab = memAlloc (cgrfptr->vertnbr * sizeof (Gnum))) == NULL)) {

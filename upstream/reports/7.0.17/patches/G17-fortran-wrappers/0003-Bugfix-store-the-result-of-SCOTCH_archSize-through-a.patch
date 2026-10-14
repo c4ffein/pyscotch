@@ -1,0 +1,40 @@
+From 629da0e8cb7603b9b5c8f39f9f9b36426e88b35b Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:35:47 +0000
+Subject: [PATCH 3/7] Bugfix: store the result of `SCOTCH_archSize()` through a
+ `SCOTCH_Num` pointer in the Fortran API [report R. Perry]
+
+The Fortran wrapper stored the `SCOTCH_Num` result into an "int", while
+the manual documents the output parameter as "integer*num". With 64-bit
+`SCOTCH_Num`, the upper half of the Fortran variable was left untouched.
+
+Refs: API-13
+---
+ src/libscotch/library_arch_f.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/library_arch_f.c b/src/libscotch/library_arch_f.c
+index b838d39..0cff505 100644
+--- a/src/libscotch/library_arch_f.c
++++ b/src/libscotch/library_arch_f.c
+@@ -50,7 +50,7 @@
+ /**                # Version 6.1  : from : 15 mar 2021     **/
+ /**                                 to   : 15 mar 2021     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 11 jul 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -217,7 +217,7 @@ int * const                 charptr), \
+ SCOTCH_FORTRAN (                      \
+ ARCHSIZE, archsize, (                 \
+ SCOTCH_Arch * const         archptr,  \
+-int * const                 sizeptr), \
++SCOTCH_Num * const          sizeptr), \
+ (archptr, sizeptr))
+ {
+   *sizeptr = SCOTCH_archSize (archptr);
+-- 
+2.47.3
+

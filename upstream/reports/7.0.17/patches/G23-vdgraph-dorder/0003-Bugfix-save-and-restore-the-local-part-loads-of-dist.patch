@@ -1,0 +1,157 @@
+From fa70803ff961b09f1e5d176760241f2ed6a4956a Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:12:56 +0000
+Subject: [PATCH 03/11] Bugfix: save and restore the local part loads of
+ distributed separators [report R. Perry]
+
+`VdgraphStore` did not record the local part loads, so that restoring
+a saved separator with `vdgraphStoreUpdt()` left `complocload[]` with
+the values of the separator computed since. After a selection ('|')
+strategy, `vdgraphSeparateBd()` passed the stale local loads to
+`dgraphBand()` as anchor loads, and `vdgraphSeparateZr()`, which
+rightly trusts the global part sizes to skip `vdgraphZero()`, kept
+them as well.
+
+Save and restore the local loads of both parts, deriving the local
+separator load as is done for the global loads, and make
+`vdgraphCheck()` compare the local part loads, which it only summed
+into global values before. Also fix the routine name in two of its
+error messages.
+
+Refs: DMO-12, PS-DMO-1
+---
+ src/libscotch/vdgraph.h       | 19 ++++++++++---------
+ src/libscotch/vdgraph_check.c | 15 +++++++++++----
+ src/libscotch/vdgraph_store.c |  9 +++++++--
+ 3 files changed, 28 insertions(+), 15 deletions(-)
+
+diff --git a/src/libscotch/vdgraph.h b/src/libscotch/vdgraph.h
+index bfa083b..431a25f 100644
+--- a/src/libscotch/vdgraph.h
++++ b/src/libscotch/vdgraph.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2010,2018,2019 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2010,2018,2019,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**                # Version 6.0  : from : 06 jun 2018     **/
+ /**                                 to   : 06 jun 2018     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 27 aug 2019     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -72,13 +72,14 @@ typedef struct Vdgraph_ {
+ /*+ The graph separator storing structure. +*/
+ 
+ typedef struct VdgraphStore_ {
+-  Gnum                      fronglbnbr;           /*+ Number of frontier nodes          +*/
+-  Gnum                      compglbloaddlt;       /*+ Difference from the average       +*/
+-  Gnum                      compglbload[2];       /*+ Load in both parts                +*/
+-  Gnum                      compglbsize0;         /*+ Number of vertices in part 0      +*/
+-  Gnum                      complocsize0;         /*+ Number of vertices in parts       +*/
+-  Gnum                      fronlocnbr;           /*+ Number of local frontier vertices +*/
+-  byte *                    datatab;              /*+ Variable-sized data array         +*/
++  Gnum                      fronglbnbr;           /*+ Number of frontier nodes           +*/
++  Gnum                      compglbloaddlt;       /*+ Difference from the average        +*/
++  Gnum                      compglbload[2];       /*+ Load in both parts                 +*/
++  Gnum                      compglbsize0;         /*+ Number of vertices in part 0       +*/
++  Gnum                      complocload[2];       /*+ Local loads in both parts          +*/
++  Gnum                      complocsize0;         /*+ Number of local vertices in part 0 +*/
++  Gnum                      fronlocnbr;           /*+ Number of local frontier vertices  +*/
++  byte *                    datatab;              /*+ Variable-sized data array          +*/
+ } VdgraphStore;
+ 
+ /*
+diff --git a/src/libscotch/vdgraph_check.c b/src/libscotch/vdgraph_check.c
+index e008248..e44a82a 100644
+--- a/src/libscotch/vdgraph_check.c
++++ b/src/libscotch/vdgraph_check.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 5.0  : from : 07 feb 2006     **/
+ /**                                 to   : 01 mar 2008     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 20 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -227,11 +227,18 @@ const Vdgraph * const       grafptr)
+     memFree (grafdat.procsidtab);
+   memFree (partgsttax + grafptr->s.baseval);
+ 
++  if ((cheklocval == 0) &&
++      ((complocload[0] != grafptr->complocload[0]) ||
++       (complocload[1] != grafptr->complocload[1]) ||
++       (complocload[2] != grafptr->complocload[2]))) {
++    errorPrint ("vdgraphCheck: invalid local part loads");
++    cheklocval = 1;
++  }
+   if ((cheklocval == 0) &&
+       ((complocsize[0] != grafptr->complocsize[0]) ||
+        (complocsize[1] != grafptr->complocsize[1]) ||
+        (complocsize[2] != grafptr->complocsize[2]))) {
+-    errorPrint ("vgraphCheck: invalid local part sizes");
++    errorPrint ("vdgraphCheck: invalid local part sizes");
+     cheklocval = 1;
+   }
+ 
+@@ -259,7 +266,7 @@ const Vdgraph * const       grafptr)
+   if ((grafptr->compglbsize[0] != reduglbtab[3]) ||
+       (grafptr->compglbsize[1] != reduglbtab[4]) ||
+       (grafptr->compglbsize[2] != reduglbtab[5])) {
+-    errorPrint ("vgraphCheck: invalid global part sizes");
++    errorPrint ("vdgraphCheck: invalid global part sizes");
+     cheklocval = 1;
+   }
+ 
+diff --git a/src/libscotch/vdgraph_store.c b/src/libscotch/vdgraph_store.c
+index 14d44d5..3198f26 100644
+--- a/src/libscotch/vdgraph_store.c
++++ b/src/libscotch/vdgraph_store.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 4.0  : from : 08 mar 2006     **/
+ /**                                 to   : 01 mar 2008     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 20 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -119,6 +119,8 @@ VdgraphStore * const        storptr)
+   storptr->compglbload[0] = grafptr->compglbload[0];
+   storptr->compglbload[1] = grafptr->compglbload[1];
+   storptr->compglbsize0   = grafptr->compglbsize[0];
++  storptr->complocload[0] = grafptr->complocload[0];
++  storptr->complocload[1] = grafptr->complocload[1];
+   storptr->complocsize0   = grafptr->complocsize[0];
+   storptr->fronlocnbr     = grafptr->complocsize[2];
+ 
+@@ -150,6 +152,9 @@ const VdgraphStore * const  storptr)
+   grafptr->compglbsize[0] = storptr->compglbsize0;
+   grafptr->compglbsize[1] = grafptr->s.vertglbnbr - (storptr->compglbsize0 + storptr->fronglbnbr);
+   grafptr->compglbsize[2] = storptr->fronglbnbr;
++  grafptr->complocload[0] = storptr->complocload[0];
++  grafptr->complocload[1] = storptr->complocload[1];
++  grafptr->complocload[2] = grafptr->s.velolocsum - (storptr->complocload[0] + storptr->complocload[1]);
+   grafptr->complocsize[0] = storptr->complocsize0;
+   grafptr->complocsize[1] = grafptr->s.vertlocnbr - (storptr->complocsize0 + storptr->fronlocnbr);
+   grafptr->complocsize[2] = storptr->fronlocnbr;
+-- 
+2.47.3
+

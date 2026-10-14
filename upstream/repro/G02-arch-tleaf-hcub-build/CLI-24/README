@@ -1,0 +1,10 @@
+CLI-24: generators shift int 1 by the dimension
+
+Pristine (both trees; UBSAN_OPTIONS=print_stacktrace=0; timeout 5 $B/bin/<tool> <dim> >/dev/null):
+  amk_hy 30/31/40: amk_hy.c:149/150 'left shift of 1 by 31' / 'shift exponent 40 is too large'; gmk_hy 27 (32-bit): gmk_hy.c:151 '27 * 134217728' overflow
+  gmk_ub2 29 (32-bit): gmk_ub2.c:169 '536870912 * 4'; amk_fft2 15 (32-bit): amk_fft2.c:171 'left shift of 1073741824 by 1'; 64-bit amk_fft2 31: :171 overflow in long
+  amk_ccc 31: amk_ccc.c:157-159 shifts
+Patched (patches/0003), bounds [1, B-3] amk_hy, [1, B-7] gmk_hy, [1, B-4] gmk_ub2, [1, (B-3)/2] amk_fft2, [1, B-8] amk_ccc, B = bits of SCOTCH_Num:
+  32-bit: amk_hy 29 ok/30 rejected; gmk_hy 25/26; gmk_ub2 28/29; amk_fft2 14/15; amk_ccc 24/25 -- no UBSan line on the accepted ones
+  64-bit: amk_hy 61/62; gmk_hy 57/58; gmk_ub2 60/61; amk_fft2 30/31; amk_ccc 56/57. 'invalid dimension' uses the tools' errorPrint (exits).
+  check_prog_amk and check_prog_gmk pass on both trees.

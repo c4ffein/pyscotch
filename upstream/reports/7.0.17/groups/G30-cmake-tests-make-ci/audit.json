@@ -1,0 +1,488 @@
+[
+ {
+  "id": "BLD-05",
+  "our_title": "CMake gpart_overlap_2 runs gmtst without -o, reading the overlap map as a plain mapping",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "cmake 4.4.4 build of base-combined ($W/cm, RelWithDebInfo, shared). ctest -V -R '^gpart_overlap_2$' (pristine): gmtst prints 'M Processors 32/32 (1) ... M Neighbors min=0 max=0 sum=0 ... CommCutSz=0.000000 (0)' and the test Passes. Direct: gmtst data/bump_imbal_32.grf tgt/k32.tgt bump_imbal_32_part_ovl_32.map -> same plain-mapping lines, rc=0; gmtst -o ... -> 'P sep=1201 / P min=385 max=465 avg=421.188 / P maxavg=1.10402 minavg=0.914082', rc=0. Patched: ctest -V shows the 'P sep=' lines, Passed. Full ctest of the patched tree: 100% of 181 tests passed.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Lower than the review's medium: the test never asserted anything in either mode (gmtst exits 0 in both); what is lost is only the exercise of the overlap-statistics code path, which gpart_overlap_1 and _4 still cover in CMake.",
+  "location_7_0_17": "src/check/CMakeLists.txt:738-739 (base-combined numbering; 7.0.17: 685-686)",
+  "evidence": "add_test(NAME gpart_overlap_2 COMMAND ${BASH} -c \"'$<TARGET_FILE:gpart>' -o 32 '${dat}/bump_imbal_32.grf' bump_imbal_32_part_ovl_32.map -vmt && \\\n  '$<TARGET_FILE:gmtst>' '${dat}/bump_imbal_32.grf' '${tgt}/k32.tgt' bump_imbal_32_part_ovl_32.map\")  vs src/check/Makefile:844: $(SCOTCHBINDIR)/gmtst -o data/bump_imbal_32.grf $(SCOTCHTGTDIR)/k32.tgt ...",
+  "upstream_change": "",
+  "review_accuracy": "Accurate on the omission; the quoted 'Processors 0/32' output is not what 7.0.17's gpart/gmtst produce here (32/32), but the point stands: the overlap map is read as a plain mapping.",
+  "first_pass_critique": "Status, location and evidence right; its 'Processors 0/32' line came from a run of a different map; it did not run the CMake test itself (no cmake), which I did.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Add -o (match the Makefile)",
+    "summary": "Insert -o in the gmtst call of gpart_overlap_2.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0007-Bugfix-test-overlap-partition-statistics-in-CMake-te.patch",
+    "tested": "ctest -V -R gpart_overlap_2 on the patched tree shows the overlap statistics; full ctest 181/181.",
+    "tradeoffs": "One token; no behaviour change elsewhere.",
+    "preferred": true,
+    "maintainer_fit": "Matches the Makefile line 844 and the two other overlap tests in the same file; the maintainer did exactly this once already (20ac409 'Bugifx: added missing option -o to gmtst command')."
+   },
+   {
+    "label": "Also assert on the output",
+    "summary": "Pipe gmtst -o into grep -q '^P[[:space:]]*sep=' so the test fails if the overlap statistics are not printed.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/BLD-05-b-assert-on-output.diff",
+    "tested": "untested: would need pipefail semantics in the bash -c string; sketch only.",
+    "tradeoffs": "Gives the test teeth but diverges from the Makefile twin and from every other gmtst test in the file.",
+    "preferred": false,
+    "maintainer_fit": "Not his style: the check suite only checks exit statuses of the tools; he would add a real assertion in gmtst, not in a grep."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0007-Bugfix-test-overlap-partition-statistics-in-CMake-te.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Verified with a real cmake (installed as a uv tool into $W/bin); not available system-wide."
+ },
+ {
+  "id": "BLD-08",
+  "our_title": "CMake test_dgscat* chain dgscat, dggath and compare_files with ';' so a stale output passes",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "$W/cm (pristine): ctest -R '^test_dgscat$' passes and leaves src/check/out_dggat.grf; then bin/dgscat and bin/dggath replaced by '#!/bin/sh exit 1' stubs: ctest -R '^test_dgscat' -> test_dgscat Passed, test_dgscat_b100000 Failed, test_dgscat_b1 Failed (the last two had no stale file), stubs' 'stub failure' printed four times. Patched tree, same stubs and stale file: all three Failed (verify-cm.status). Full patched ctest with real binaries: 181/181 passed.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "",
+  "location_7_0_17": "src/check/CMakeLists.txt:795-814 (base-combined; 7.0.17: 739-758)",
+  "evidence": "${BASH} -c \"'${MPIEXEC_EXECUTABLE}' ... '$<TARGET_FILE:dgscat>' -r1 -c '${dat}/m16x16.grf' out_dgscat-%r.grf ; '${MPIEXEC_EXECUTABLE}' ... '$<TARGET_FILE:dggath>' -r1 -c out_dgscat-%r.grf out_dggat.grf ; '${CMAKE_COMMAND}' -E compare_files '${dat}/m16x16.grf' out_dggat.grf\"",
+  "upstream_change": "",
+  "review_accuracy": "Accurate.",
+  "first_pass_critique": "Right; it demonstrated the mechanism with a shell stand-in only. Its preferred option also prefixed 'rm -f' of the outputs, which is unnecessary once the chain uses '&&' (a failing producer stops the chain before the comparison) and would be the only such rm in the file.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Chain with && (file idiom)",
+    "summary": "Replace the two ';' of each of the three tests by '&&'.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0008-Bugfix-fail-CMake-scatter-gather-tests-when-a-progra.patch",
+    "tested": "Stub experiment above: the three tests now fail when the programs fail; real run passes.",
+    "tradeoffs": "No behaviour change when everything passes.",
+    "preferred": true,
+    "maintainer_fit": "Every other multi-command test in the file uses '&& \\' (test_common_file_compress, gpart_cluster_*, gtst...)."
+   },
+   {
+    "label": "Split into CTest fixtures",
+    "summary": "Scatter, gather, compare and a cleanup test linked by FIXTURES_SETUP/REQUIRED/CLEANUP.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/BLD-08-b-ctest-fixtures.diff",
+    "tested": "untested: sketch for one of the three tests.",
+    "tradeoffs": "Better diagnostics (which stage failed) and the stale files are removed; four tests per case instead of one, diverges from the Makefile.",
+    "preferred": false,
+    "maintainer_fit": "The file uses fixtures only to order dependent tests (GPART_DEPS...), never to split one Makefile rule into several tests."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0008-Bugfix-fail-CMake-scatter-gather-tests-when-a-progra.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "grep '; \\\\$' finds no other ';'-chained test in the file."
+ },
+ {
+  "id": "BLD-09",
+  "our_title": "CMake scotchf.h and ptscotchf.h custom commands depend on library.h, not on the Fortran templates",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "$W/cm (pristine): touch src/libscotch/library_f.h library_pt_f.h; make -C cm/src/libscotch -> scotchf.h regenerated: NO, ptscotchf.h regenerated: NO (generated files in cm/src/include). touch library.h -> '[  3%] Generate scotchf.h' '[  4%] Generate ptscotchf.h' (spurious). Patched: touch library_f.h library_pt_f.h -> both regenerated: yes; touch library.h -> scotch.h yes, scotchf.h NO. Clean build and full ctest of the patched tree OK (181/181).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Lower than the review's medium: affects developers editing the Fortran templates (a clean build is always right); no user-visible effect.",
+  "location_7_0_17": "src/libscotch/CMakeLists.txt:78-80 and 101-103",
+  "evidence": "add_custom_command(OUTPUT ${GENERATED_INCLUDE_DIR}/scotchf.h\\n  COMMAND $<TARGET_FILE:dummysizes>  \"-s${SCOTCH_NAME_SUFFIX}\"\\n  ${CMAKE_CURRENT_SOURCE_DIR}/library_f.h ${GENERATED_INCLUDE_DIR}/scotchf.h DEPENDS dummysizes\\n  DEPENDS library.h   /   ... library_pt_f.h ${GENERATED_INCLUDE_DIR}/ptscotchf.h DEPENDS ptdummysizes\\n    DEPENDS library.h",
+  "upstream_change": "",
+  "review_accuracy": "Accurate.",
+  "first_pass_critique": "Right but source-read only (no cmake); I ran it. Its option 2 (depend on both) is unnecessary: the sizes dummysizes embeds come from the compiled dummysizes target, already a dependency, not from library.h.",
+  "extra_instances": [
+   {
+    "location": "src/libscotchmetis/CMakeLists.txt:58,67,154",
+    "quote": "DEPENDS library_metis.h / library_metis_f.h / library_parmetis.h",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Depend on the template actually processed",
+    "summary": "DEPENDS library_f.h for scotchf.h, library_pt_f.h for ptscotchf.h.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0005-Bugfix-make-generated-Fortran-headers-depend-on-thei.patch",
+    "tested": "touch experiments above, clean build, full ctest.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Mirrors the scotch.h/ptscotch.h rules just above and the libscotchmetis rules; a5bf460 ('make ptscotchf.h depend from ptdummysizes') shows he fixes these one dependency at a time."
+   },
+   {
+    "label": "Depend on both headers",
+    "summary": "DEPENDS library.h library_f.h (and library.h library_pt_f.h).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/BLD-09-b-depend-on-both-templates.diff",
+    "tested": "untested",
+    "tradeoffs": "Spurious regeneration on every library.h edit (the current behaviour) kept for no reason.",
+    "preferred": false,
+    "maintainer_fit": "He would not keep a dependency that has no cause; ptscotch.h depends on scotch_h only because library_pt.h includes scotch.h, and library_pt_f.h includes nothing."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0005-Bugfix-make-generated-Fortran-headers-depend-on-thei.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The libscotchmetis entries listed as extra instances are correct already (listed for completeness of the hunt)."
+ },
+ {
+  "id": "BLD-10",
+  "our_title": "suffix_fortran_file() depends on undefined ${file} and on a target, so template edits never regenerate",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "$W/cm (pristine): touch src/check/test_scotch_mesh_build_f.f90.in; make -C cm/src/check -> 'Built target test_scotch_mesh_build_f.f90_tmp/_src', tmp regenerated: NO, f90 regenerated: NO. Patched: tmp yes, f90 yes, executable relinked yes; same for test_libmetis_dual_f.f90.in. Clean configure+build with make -j4 and full ctest: 181/181; Fortran tests after the later template change: 3/3.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Lower than the review's medium: developer-only staleness, a clean build is right.",
+  "location_7_0_17": "src/check/CMakeLists.txt:67-103 (DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${file} at 78-79, COMMENT at 80, DEPENDS ${file_we}_tmp at 100-101)",
+  "evidence": "function(suffix_fortran_file src)\\n  get_filename_component(file_we ${src} NAME_WLE)\\n  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${file_we}.tmp ... DEPENDS dummysizes DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${file} COMMENT \"Generate ${file}.f90\") ... add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${file_we} ... DEPENDS ${file_we}_tmp)",
+  "upstream_change": "",
+  "review_accuracy": "Accurate, including the second half (target-level dependency on *_tmp gives no file-level dependency).",
+  "first_pass_critique": "Right (source-read); its sketch kept '${file_we}_tmp' in DEPENDS next to the file path and so the now-useless *_tmp ALL target; the patch removes it.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Depend on the real input files",
+    "summary": "DEPENDS on ${CMAKE_CURRENT_SOURCE_DIR}/${src} and on the .tmp file; fix the COMMENTs; drop the *_tmp target.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0006-Bugfix-track-Fortran-test-templates-in-CMake-report-.patch",
+    "tested": "touch experiments, clean build, full ctest, suffixed 64-bit build (cm64).",
+    "tradeoffs": "None; the *_tmp target had no other user.",
+    "preferred": true,
+    "maintainer_fit": "Minimal correction of the authors' two-stage structure; removing the dead target is his habit (847a5ff 'removed superfluous dependencies')."
+   },
+   {
+    "label": "Single custom command",
+    "summary": "Run dummysizes and the cmake -P substitution as two COMMANDs of one add_custom_command with one OUTPUT.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/BLD-10-b-single-custom-command.diff",
+    "tested": "untested",
+    "tradeoffs": "Fewer moving parts, but rewrites the function and loses the .tmp intermediate as a separate rule.",
+    "preferred": false,
+    "maintainer_fit": "Bigger rewrite than he does for a dependency bug."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0006-Bugfix-track-Fortran-test-templates-in-CMake-report-.patch"
+  ],
+  "cleanup_done": "removed the ${file_we}_tmp ALL custom target (no longer referenced)",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Pre-existing duplication of these custom-command rules in every consuming target (PS2-G30-3 in extra.json) is unchanged by the fix."
+ },
+ {
+  "id": "BLD-11",
+  "our_title": "parmetis_dgraph_dual_f rule lacks parmetis.h; 65 libscotch rules and others lack included headers",
+  "status": "still-present",
+  "method": "partly-run",
+  "ran": "Built tree: cd src/libscotchmetis; touch parmetis.h; make -n ptscotch | grep -o -- '-c parmetis[a-z_]*\\.c': pristine lists 5 objects (dual_f missing), patched lists 6. Race: 8 x (make clean; make -j8 ptscotch) -> 0 failures. Patched libscotch Makefile: touch hgraph_order_cc.h; make -n scotch recompiles hgraph_order_st.c (was not); touch library_arch_dom.c -> '-c library_arch_dom.c'. Both ASan trees (32/64-bit) rebuilt from clean with the patched Makefiles: 0 warnings; make check/ptcheck/escheck (see notes).",
+  "read_only": "The 'compiled before parmetis.h exists' race was not provoked (make starts the parmetis.h goal first; dummysizes finishes before the preprocessor reaches the include).",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Lower than the review's medium: stale object after a header edit is a developer-only problem; the -j race did not reproduce in 8 clean parallel builds.",
+  "location_7_0_17": "src/libscotchmetis/Makefile:205-208; also 237-241 (adm2dgr lists scotch.h, includes ptscotch.h); src/libscotch/Makefile (65 rules, e.g. 2171 library_arch_dom based on library_arch.c, 1567 hdgraph_order_st, 2108 kgraph_map_st, 3133/3147 parser_ll/parser_yy); src/scotch/Makefile:344 gout",
+  "evidence": "parmetis_dgraph_dual_f_$(V)$(OBJ):\\tparmetis_dgraph_dual_f.c ../libscotch/module.h ../libscotch/common.h $(SCOTCHINCLUDEDIR)/ptscotch.h   (no parmetis.h; parmetis_dgraph_dual_f.c:54 #include \"parmetis.h\"); library_arch_dom$(OBJ) : library_arch.c module.h common.h arch.h scotch.h (library_arch_dom.c includes graph.h too)",
+  "upstream_change": "",
+  "review_accuracy": "Accurate on the missing prerequisite; the race half is plausible but not observed.",
+  "first_pass_critique": "Right on the one rule; it did not look for the same omission elsewhere (65 rules in src/libscotch/Makefile, the mis-sourced library_arch_dom rule, adm2dgr, gout, three esmumps rules).",
+  "extra_instances": [
+   {
+    "location": "src/libscotchmetis/Makefile:237-241 (adm2dgr)",
+    "quote": "$(SCOTCHINCLUDEDIR)/scotch.h  (adm2dgr.c includes ptscotch.h)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/Makefile:2171",
+    "quote": "library_arch_dom$(OBJ)\\t\\t:\\tlibrary_arch.c",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/Makefile, 65 object rules (list in repro/BLD-11/README and patch 0002)",
+    "quote": "e.g. hdgraph_order_st$(OBJ): ... (graph.h, order.h, hgraph.h, hgraph_order_st.h missing)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/scotch/Makefile:344-348 (gout)",
+    "quote": "gout$(EXE) : gout_c.c gout_o.c $(SCOTCHINCLUDEDIR)/scotch.h ... (module.h, common.h, gout_c.h, gout_o.h missing)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/esmumps/Makefile:181-204 (symbol_cost: dof.h; symbol_fax, symbol_fax_graph: symbol_fax.h)",
+    "quote": "symbol_cost$(OBJ) : symbol_cost.c module.h $(SCOTCHSRCLIBSCOTCHDIR)/common.h symbol.h symbol_cost.h",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "List the missing direct includes (file convention)",
+    "summary": "Add every header a source includes directly to its rule, in include order; fix the library_arch_dom source; adm2dgr and gout too.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0002-Bugfix-add-missing-dependencies-in-Makefile-s-report.patch",
+    "tested": "make -n checks above; clean 32/64-bit ASan builds with 0 warnings; check/ptcheck/escheck.",
+    "tradeoffs": "Makefile only; 118 insertions.",
+    "preferred": true,
+    "maintainer_fit": "This is exactly what his own 'Bugfix: add missing Makefile dependencies' commits do (4d1fedd, 5382ba7, ba026c3, 08766ee, 8d951e1); the Makefile deliberately lists direct includes per object."
+   },
+   {
+    "label": "Order-only pattern prerequisite",
+    "summary": "parmetis_%_$(V)$(OBJ): | parmetis.h ensures generation order for all parmetis objects without rebuild-on-change.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/BLD-11-b-order-only-pattern.diff",
+    "tested": "untested",
+    "tradeoffs": "Fixes only the race half for libscotchmetis; GNU-make specific; not the file's style.",
+    "preferred": false,
+    "maintainer_fit": "Not his idiom; and it leaves the stale-rebuild defect."
+   },
+   {
+    "label": "esmumps rules (owned by G26)",
+    "summary": "Same additions for src/esmumps/Makefile.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/BLD-11-c-esmumps-deps-G26-owned.diff",
+    "tested": "untested: not applied, G26 owns src/esmumps/Makefile.",
+    "tradeoffs": "",
+    "preferred": false,
+    "maintainer_fit": "Same as the preferred option; left out of the series only to avoid colliding with G26."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0002-Bugfix-add-missing-dependencies-in-Makefile-s-report.patch"
+  ],
+  "cleanup_done": "none needed (the wrong library_arch.c prerequisite is replaced, not kept)",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Transitive includes (arch.h pulls every arch_*.h, 1384 such edges per gcc -MM, see repro/BLD-11) are not listed anywhere in the Makefile by design; not changed. make check in both ASan trees stops at check_scotch_arch_build because of a pre-existing leak in the test (PS2-G30-5, pristine 7.0.17 leaks the same; fixed by patch 0013); make -k check shows no other failing target; ptcheck and escheck pass."
+ },
+ {
+  "id": "BLD-03",
+  "our_title": "Sonar token expanded into sonar-project.properties, archived for 15 days with the -X scanner log",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "everything: no CI secret was used and no scanner run; only the script and job text were read",
+  "why_not_run": "running the job needs the GitLab runner, the Sonar server and the real token; none of that is wanted here",
+  "severity": "high",
+  "severity_note": "Agrees with the review: a credential in a downloadable artifact; mitigated only by the schedule-only rule and the project's artifact permissions.",
+  "location_7_0_17": "ci/analysis.sh:26-28; .gitlab-ci.yml:127-146 (scotch_sonar)",
+  "evidence": "cat > sonar-project.properties << EOF\\nsonar.host.url=https://sonarqube.inria.fr/sonarqube\\nsonar.login=$SONARQUBE_LOGIN  /  script: - sonar-scanner -X > sonar.log ; artifacts: paths: - analyzer_reports - sonar-project.properties - ./*.log ... expire_in: 15 days",
+  "upstream_change": "",
+  "review_accuracy": "Accurate. sonar.login is also deprecated (SonarQube 10) in favour of sonar.token / SONAR_TOKEN.",
+  "first_pass_critique": "Right. Its preferred sketch exported SONAR_TOKEN in the script; the patch sets it with the job's variables: block (no shell line, no echo) and also stops archiving ./*.log, which its sketch kept.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Token through SONAR_TOKEN, nothing archived",
+    "summary": "Drop sonar.login from the heredoc; variables: SONAR_TOKEN: $SONARQUBE_LOGIN; run sonar-scanner without -X and without redirection; archive neither the properties file nor logs.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0009-Bugfix-do-not-store-the-Sonar-token-in-a-CI-artifact.patch",
+    "tested": "YAML parsed with pyyaml (job keys as intended); no scanner run.",
+    "tradeoffs": "Needs a SonarScanner CLI that reads SONAR_TOKEN (4.7+); output goes to the job trace, which GitLab masks; -X debug output lost (re-add it when debugging, it stays in the trace).",
+    "preferred": true,
+    "maintainer_fit": "Smallest change that removes the secret from disk and artifacts; same shape as his CI edits (variables blocks per job)."
+   },
+   {
+    "label": "-Dsonar.token on the command line",
+    "summary": "sonar-scanner -Dsonar.token=\"$SONARQUBE_LOGIN\"; drop the file and logs from artifacts.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/BLD-03-b-token-on-command-line.diff",
+    "tested": "untested",
+    "tradeoffs": "Works with any scanner version, but the token is visible in the runner's process list.",
+    "preferred": false,
+    "maintainer_fit": "Acceptable fallback if the runner's scanner is older than 4.7."
+   },
+   {
+    "label": "Keep the file, stop archiving it",
+    "summary": "Leave analysis.sh; remove sonar-project.properties and ./*.log from artifacts; drop -X.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/BLD-03-c-keep-file-stop-archiving.diff",
+    "tested": "untested",
+    "tradeoffs": "Token still written to the runner workspace; one artifacts glob away from leaking again.",
+    "preferred": false,
+    "maintainer_fit": "Half a fix."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0009-Bugfix-do-not-store-the-Sonar-token-in-a-CI-artifact.patch"
+  ],
+  "cleanup_done": "removed the sonar.log redirection and the two artifact paths that carried the secret",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "none-found",
+  "needs_note": "The token already archived in past pipelines must be rotated by the project owners; not a code change.",
+  "notes": "Never printed or copied any token value; the heredoc line was deleted, not edited."
+ },
+ {
+  "id": "BLD-07",
+  "our_title": "ci/build_makefile.sh pipes make into tee without pipefail, so build jobs cannot fail",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Local dry run of the script on copies of the tree (lzma/bz2 flags stripped since the headers are absent here; 'make -j' capped by a shim). JOB_INT=32 ... ./ci/build_makefile.sh with '#error' inserted in graph.c: pristine script exit status 0 (log shows the compile error); patched script exit status 1; patched script on the unbroken tree exit status 0 (repro/BLD-07/*.status).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "",
+  "location_7_0_17": "ci/build_makefile.sh:19 (and :1 shebang, no set -o pipefail)",
+  "evidence": "eval '${SCAN}make -j scotch ptscotch esmumps ptesmumps COVERAGE=$COVERAGE 2>&1 | tee ../scotch-build-${JOBNAME}.log' || fatal",
+  "upstream_change": "",
+  "review_accuracy": "Accurate.",
+  "first_pass_critique": "Right; it only demonstrated with 'false | tee'. I ran the real script.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "set -o pipefail",
+    "summary": "Add 'set -o pipefail' after the shebang.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0010-Bugfix-make-CI-build-failures-fatal-and-test-64-bit-.patch",
+    "tested": "Dry runs above (broken -> 1, good -> 0).",
+    "tradeoffs": "Also applies to the scan-build variant; nothing else in the script pipes.",
+    "preferred": true,
+    "maintainer_fit": "One line; the ci scripts are bash already ([[ ]], arrays); a5ee23b/ad24b21 show the CI team makes exactly such small script fixes."
+   },
+   {
+    "label": "Check PIPESTATUS",
+    "summary": "Append '; test ${PIPESTATUS[0]} -eq 0' inside the eval string.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/BLD-07-b-pipestatus.diff",
+    "tested": "untested",
+    "tradeoffs": "Works without a global option but is obscure inside eval quoting.",
+    "preferred": false,
+    "maintainer_fit": "Less readable; no reason to prefer it."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0010-Bugfix-make-CI-build-failures-fatal-and-test-64-bit-.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "ci/test_makefile.sh and ci/build_cmake.sh contain no pipes."
+ },
+ {
+  "id": "BLD-14",
+  "our_title": "JOB_INT=64 adds no flags and CMake jobs never set INTSIZE, IDXSIZE, suffix or determinism",
+  "status": "still-present",
+  "method": "partly-run",
+  "ran": "JOB_INT=64-64 bash -c 'source ci/env_makefile.sh' -> '-O0 -g -fPIC -DINTSIZE64 -DIDXSIZE64 -DSCOTCH_MPI_ASYNC_COLL'. The new build_cmake_gcc_64 options were run locally on the series ($W/cm64: cmake -DINTSIZE=64 -DIDXSIZE=64 -DSCOTCH_NAME_SUFFIX=_64 -DSCOTCH_DETERMINISTIC=FULL; make -j4; ctest -j4): the first run failed to build (Fortran test unsuffixed: PS2-G30-4; test_scotch_arch_build.c without module.h: PS2-G30-6), both fixed in patches 0011/0012; final result: 100% of 179 tests passed (cm64 ctest rc=0, build warnings: only the pre-existing test_scotch_graph_induce.c memset one). 64-bit Makefile tree (-DINTSIZE64 -DIDXSIZE64, ASan): check/ptcheck/escheck as in BLD-11 notes. YAML validated with pyyaml.",
+  "read_only": "the runner architectures behind the 32bits/64bits tags and the pipeline itself (GitLab not reachable)",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "",
+  "location_7_0_17": "ci/env_makefile.sh:7-14; .gitlab-ci.yml:7-46 and 150-206; ci/build_cmake.sh:11",
+  "evidence": "     64 )\\n       export JOBBUILDFLAGS=\"${JOBBUILDFLAGS}\" ;;   /  .matrix_64: JOB_INT: [64] only  /  cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON .. || fatal",
+  "upstream_change": "",
+  "review_accuracy": "Accurate; its 'only exercised on 32-bit runners' reading of the tags is the natural one but cannot be verified from the repository.",
+  "first_pass_critique": "Its preferred option redefines JOB_INT=64 to mean INTSIZE64, which would silently drop the only rows that test the default int on 64-bit hosts (the common packaged configuration); the naming already encodes host-int as '32-64', so '64-64' is the consistent addition. It did not try the CMake options, which immediately expose two build breaks under a suffix.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Add 64-64 rows and a non-default CMake job",
+    "summary": "env_makefile.sh: 64-64 adds -DINTSIZE64 -DIDXSIZE64; matrix_64 gets [64, 64-64] plain and a 64-64/m/d/a row; build_cmake.sh honours JOB_CMAKE_FLAGS; new build_cmake_gcc_64/test_cmake_gcc_64 jobs with INTSIZE=64 IDXSIZE=64 SCOTCH_NAME_SUFFIX=_64 SCOTCH_DETERMINISTIC=FULL.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0010-Bugfix-make-CI-build-failures-fatal-and-test-64-bit-.patch",
+    "tested": "Local runs above; YAML parse.",
+    "tradeoffs": "+3 Makefile jobs and +2 CMake jobs of CI time; the CMake job needs patches 0011 and 0012 (and G29's suffix work, if any) to be green.",
+    "preferred": true,
+    "maintainer_fit": "Same shape as cbd825d ('Added testing of 32bit build with -DINTSIZE64': a new row, not a redefinition) and 0095b91 (matrix rows added per flag); the per-compiler CMake jobs are extended with one more explicit pair, as 31825e9 did."
+   },
+   {
+    "label": "Redefine JOB_INT=64 as INTSIZE64 (the review's fix)",
+    "summary": "case 64) adds -DINTSIZE64 -DIDXSIZE64.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/BLD-14-b-redefine-JOB_INT-64.diff",
+    "tested": "untested",
+    "tradeoffs": "No new jobs, but the default-int/64-bit-host configuration is no longer tested at all.",
+    "preferred": false,
+    "maintainer_fit": "Loses coverage he explicitly built the matrix for."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0010-Bugfix-make-CI-build-failures-fatal-and-test-64-bit-.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "other-platform",
+  "needs_note": "The GitLab pipeline must be run once by the maintainers. G29's ci/check_sources.sh (its patch 0005) is wired into ci/build_cmake.sh by this series' patch 0010 ('./ci/check_sources.sh || fatal' before mkdir -p build): patch 0010 therefore needs G29's 0005 to be merged too, else the CMake build jobs fail on the missing script.",
+  "notes": "The CMake job found two real suffix breaks (PS2-G30-4, PS2-G30-6), which is the point of BLD-14; both are fixed in this series so that the job is green. G29's PS2-G29-4 is the same defect as PS2-G30-4 (fixed by 0011)."
+ },
+ {
+  "id": "BLD-21",
+  "our_title": "MinGW and Haiku templates define COMMON_WINDOWS / COMMON_FILE_COMPRESS_BZ; four others SCOTCH_RENAME_PARSER",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "all of it: no MinGW, Haiku or FreeBSD host; the two-way grep of -D names against the sources is the evidence (repro/BLD-21/README)",
+  "why_not_run": "other platforms",
+  "severity": "low",
+  "severity_note": "",
+  "location_7_0_17": "src/Make.inc/Makefile.inc.i686_pc_mingw32:29; Makefile.inc.i686_pc_haiku.shlib:13; Makefile.inc.x86-64_pc_haiku.shlib:13; Makefile.inc.{i686_pc_linux3,i686_pc_linux2.c99,i686_pc_freebsd,x86-64_pc_freebsd}:13/18",
+  "evidence": "CFLAGS_DEF = -DCOMMON_RANDOM_FIXED_SEED -DCOMMON_STUB_FORK -DCOMMON_STUB_WAITPID -DCOMMON_WINDOWS -DSCOTCH_PTSCOTCH ... (code: common.h:92 #ifdef COMMON_OS_WINDOWS; common_stub.c:71 #ifdef COMMON_STUB_FORK only); -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_FILE_COMPRESS_BZ -DCOMMON_FILE_COMPRESS_LZMA ... LDFLAGS = -lz -llzma -lbz2 (code: common_file_compress.c:62 #ifdef COMMON_FILE_COMPRESS_BZ2); -DSCOTCH_RENAME -DSCOTCH_RENAME_PARSER (removed from parser_ll.l in 9f51c92, 2020)",
+  "upstream_change": "",
+  "review_accuracy": "Accurate; it names one Haiku file where two carry the typo, and misses COMMON_STUB_WAITPID and SCOTCH_RENAME_PARSER.",
+  "first_pass_critique": "Right on the three files; it did not check the other direction nor the other obsolete names (COMMON_STUB_WAITPID, SCOTCH_RENAME_PARSER), nor the stale '#endif /* COMMON_FILE_COMPRESS_BZ */' comments, nor the '-std' typo in the x86-64 FreeBSD template (PS2-G30-2).",
+  "extra_instances": [
+   {
+    "location": "src/Make.inc/Makefile.inc.i686_pc_mingw32:29",
+    "quote": "-DCOMMON_STUB_WAITPID (no code tests it; waitpid stub is under COMMON_STUB_FORK, common_stub.c:71-88)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/Make.inc/Makefile.inc.{i686_pc_linux3,i686_pc_linux2.c99,i686_pc_freebsd,x86-64_pc_freebsd}",
+    "quote": "-DSCOTCH_RENAME_PARSER (removed from the sources in 9f51c92)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/common_file_compress.c:81, common_file_decompress.c:81",
+    "quote": "#endif /* COMMON_FILE_COMPRESS_BZ */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/Make.inc/Makefile.inc.x86-64_pc_freebsd:18",
+    "quote": "CFLAGS += -std -fPIC (PS2-G30-2, separate commit)",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Rename / remove in the templates",
+    "summary": "COMMON_WINDOWS -> COMMON_OS_WINDOWS, COMMON_FILE_COMPRESS_BZ -> _BZ2, drop COMMON_STUB_WAITPID and SCOTCH_RENAME_PARSER, fix the two #endif comments.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0003-Bugfix-use-the-macro-names-tested-by-the-code-in-Mak.patch",
+    "tested": "untested on the target platforms; grep shows every name now matches a tested macro; the two .c files rebuild with 0 warnings in both ASan trees.",
+    "tradeoffs": "Turns on the Windows paths for MinGW and bzip2 on Haiku (which already link -lbz2): what the templates intended.",
+    "preferred": true,
+    "maintainer_fit": "He already did this rename for the rest of the tree (73468b5, completed by 1faa6bd '[completes scotch@73468b5a]') and missed the template."
+   },
+   {
+    "label": "Accept the old spellings in common.h",
+    "summary": "#define COMMON_OS_WINDOWS when COMMON_WINDOWS is set, same for BZ.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/BLD-21-b-compat-aliases-in-common.h.diff",
+    "tested": "untested",
+    "tradeoffs": "Keeps third-party Makefile.inc's working but cements two names per macro.",
+    "preferred": false,
+    "maintainer_fit": "He removed the old name on purpose in 2020; he would not reintroduce it."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0003-Bugfix-use-the-macro-names-tested-by-the-code-in-Mak.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0004-Bugfix-fix-C-standard-flag-in-x86-64-FreeBSD-Makefil.patch"
+  ],
+  "cleanup_done": "removed the two obsolete -D names; fixed the two stale comments",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "other-platform",
+  "needs_note": "Confirm on a MinGW and a Haiku box that the enabled paths compile.",
+  "notes": "INSTALL.txt already documents COMMON_OS_WINDOWS and COMMON_FILE_COMPRESS_BZ2 (lines 499, 523); nothing to update."
+ }
+]

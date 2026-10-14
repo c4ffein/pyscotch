@@ -1,0 +1,43 @@
+diff --git a/src/libscotchmetis/CMakeLists.txt b/src/libscotchmetis/CMakeLists.txt
+index 49407e7..5b565aa 100644
+--- a/src/libscotchmetis/CMakeLists.txt
++++ b/src/libscotchmetis/CMakeLists.txt
+@@ -85,9 +85,7 @@ foreach(version 3 5)
+     metis_options_f.c
+     ${LIBSCOTCH_INCLUDE_DIR}/module.h
+     ${LIBSCOTCH_INCLUDE_DIR}/common.h
+-    ${GENERATED_INCLUDE_DIR}/scotch.h
+-    ${GENERATED_INCLUDE_DIR}/metis.h
+-    ${GENERATED_INCLUDE_DIR}/metisf.h)
++    ${GENERATED_INCLUDE_DIR}/scotch.h)
+   add_library(SCOTCH::scotchmetisv${version} ALIAS scotchmetisv${version})
+ 
+   set_target_properties(scotchmetisv${version} PROPERTIES VERSION ${SCOTCH_VERSION_LONG}
+@@ -108,7 +106,7 @@ foreach(version 3 5)
+     target_link_libraries(scotchmetisv${version} PRIVATE ${LIBSCOTCHERR})
+   endif()
+ 
+-  add_dependencies(scotchmetisv${version} scotch_h metisf_h)
++  add_dependencies(scotchmetisv${version} scotch_h metis_h metisf_h)
+   if(INSTALL_METIS_HEADERS)
+     set_target_properties(scotchmetisv${version} PROPERTIES PUBLIC_HEADER "${GENERATED_INCLUDE_DIR}/metis.h;${GENERATED_INCLUDE_DIR}/metisf.h")
+   endif()
+@@ -168,8 +166,7 @@ if(BUILD_PTSCOTCH)
+       parmetis_dgraph_part_f.c
+       ${LIBSCOTCH_INCLUDE_DIR}/module.h
+       ${LIBSCOTCH_INCLUDE_DIR}/common.h
+-      ${GENERATED_INCLUDE_DIR}/ptscotch.h
+-      ${GENERATED_INCLUDE_DIR}/parmetis.h)
++      ${GENERATED_INCLUDE_DIR}/ptscotch.h)
+ 
+     set_target_properties(ptscotchparmetisv${version} PROPERTIES VERSION ${SCOTCH_VERSION_LONG}
+       SOVERSION ${SCOTCH_VERSION}.${SCOTCH_RELEASE})
+@@ -190,7 +187,7 @@ if(BUILD_PTSCOTCH)
+       target_link_libraries(ptscotchparmetisv${version} PRIVATE ${LIBPTSCOTCHERR})
+     endif()
+ 
+-    add_dependencies(ptscotchparmetisv${version} ptscotch_h)
++    add_dependencies(ptscotchparmetisv${version} ptscotch_h parmetis_h)
+     if(INSTALL_METIS_HEADERS)
+       set_target_properties(ptscotchparmetisv${version} PROPERTIES PUBLIC_HEADER "${GENERATED_INCLUDE_DIR}/parmetis.h")
+     endif()

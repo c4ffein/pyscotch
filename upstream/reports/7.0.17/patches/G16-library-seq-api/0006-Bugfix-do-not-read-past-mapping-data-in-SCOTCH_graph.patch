@@ -1,0 +1,57 @@
+From 94e52606fb1977317970593a944b217e11d0e875 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:39:49 +0000
+Subject: [PATCH 6/9] Bugfix: do not read past mapping data in
+ `SCOTCH_graphTabLoad()` [report R. Perry]
+
+Once the last mapping pair had been consumed by a label match, the
+next graph vertex read the cell following the mapping array. With
+duplicate graph vertex labels, this assigned a meaningless part
+value to a vertex.
+
+Refs: API-21
+---
+ src/libscotch/library_graph_map_io.c | 12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/src/libscotch/library_graph_map_io.c b/src/libscotch/library_graph_map_io.c
+index 426428e..3bfa889 100644
+--- a/src/libscotch/library_graph_map_io.c
++++ b/src/libscotch/library_graph_map_io.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2011,2012,2015,2018,2019,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2011,2012,2015,2018,2019,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 6.0  : from : 16 apr 2011     **/
+ /**                                 to   : 26 oct 2019     **/
+ /**                # Version 7.0  : from : 07 may 2019     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -161,15 +161,13 @@ FILE * const                  stream)             /*+ Input stream  +*/
+       intSort2asc1 (vertsorttab, vertnbr);        /* Sort sort area by ascending labels */
+ 
+     for (vertsortnum = 0, mappfilenum = 0; vertsortnum < vertnbr; vertsortnum ++) { /* For all vertices in graph */
+-      while (mappsorttab[mappfilenum].labl < vertsorttab[vertsortnum].labl) {
++      while ((mappfilenum < mappfilenbr) && (mappsorttab[mappfilenum].labl < vertsorttab[vertsortnum].labl))
+         mappfilenum ++;                           /* Search mapping vertex with same label */
+-        if (mappfilenum >= mappfilenbr)           /* If all mapping data processed         */
+-          goto skip;                              /* Exit main loop                        */
+-      }
++      if (mappfilenum >= mappfilenbr)             /* If all mapping data processed         */
++        break;
+       if (mappsorttab[mappfilenum].labl == vertsorttab[vertsortnum].labl) /* If label match found */
+         ((Anum *) parttab)[vertsorttab[vertsortnum].num] = mappsorttab[mappfilenum ++].num;
+     }
+-skip: ;
+   }
+   else {                                          /* Graph does not have vertex labels */
+     const Gnum          baseval = grafptr->baseval;
+-- 
+2.47.3
+

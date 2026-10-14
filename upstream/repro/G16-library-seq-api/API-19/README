@@ -1,0 +1,12 @@
+API-19: SCOTCH_graphStat / SCOTCH_dgraphStat edge load sum at two scales.
+  sh ../build.sh $WORK/build _pristine ; ./stat_pristine
+  ASAN_OPTIONS=detect_leaks=0 mpirun --oversubscribe -np 2 ./dstat_pristine
+Pristine (4-vertex path, 3 edges, 6 arcs), identical for graphStat and dgraphStat on 1, 2, 3 procs:
+  no loads:    edlosum=3  avg=1
+  unit loads:  edlosum=6  avg=1          <- same graph, twice the sum
+  loads 2,5,3: edlosum=20 avg=3.33333    <- 2 x 10
+Patched (commit 0004): 3 / 3 / 10, averages unchanged, both routines, 1-3 procs, 32- and 64-bit.
+Shipped tools: gtst and dgtst on src/check/data/m4x4_b1_ev.grf print "Edge load ... sum=118"
+pristine and "sum=59" patched (24 edges, see the "Edge nbr=24" line above it); unweighted
+graphs (m4x4_b1.grf, bump.grf) print the same before and after. check_prog_gtst and
+check_prog_dgtst (which diff gtst and dgtst outputs) pass.

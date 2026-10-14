@@ -1,0 +1,13 @@
+DMO-15 (+ forwarded PS2-G05-1 null part array): what dmapSave accepts
+Build the internal-API driver: B=$WORK/build (or buildp); CF="$(grep '^CFLAGS' $B/src/Makefile.inc | cut -d= -f2-)"
+  mpicc $CF -DSCOTCH_PTSCOTCH -I$B/src/libscotch -I$B/include dmaptest.c -o dmaptest_<tree> -L$B/lib -lptscotch -lscotch -lptscotcherr -lz -lm -lrt -pthread
+Run (np=3): LD_LIBRARY_PATH=$B/lib mpirun --oversubscribe -np 3 -x LD_LIBRARY_PATH ./dmaptest_<tree> 4elt.grf <c|x|n> > out 2> err
+  pristine x (root fragment claims one vertex too many): rc=0 on all ranks, file header 15607 for 15606 vertices.
+  pristine n (root fragment without part array): dmapping_io.c:196:19: runtime error: load of null pointer + SEGV.
+  patched  x: 'dmapSave: invalid mapping (1)' on all ranks, rc=1 ; n: 'dmapSave: invalid mapping (2)' on all ranks, rc=1, no hang ; c: rc=0, 15606 lines.
+User-reachable form (patch 0010 fixes the source):
+  pristine: mpirun --oversubscribe -np 3 $WORK/buildp/bin/dgpart 4 4elt.grf /dev/null -m'r{sep=q{strat=f}}'  -> dmapping_io.c:256:34 null pointer load + SEGV
+            ./dtest_buildp 4elt.grf -1 map 'r{sep=q{strat=f}}' 4 n -  -> dmapping.c:224:47 null pointer load + SEGV (dmapTerm, SCOTCH_dgraphMap)
+  patched:  dgpart writes 15607 lines (parts 0,1,2); dtest Map rc=0 on all ranks.
+G20's guard (alt/PS2-G05-dmapSave-null-parttab-guard.diff of G20) applied to buildfi, run './dtest_buildfi 4elt.grf -1 map "r{sep=q{strat=f}}" 4 s /dev/null':
+  np=1 'invalid mapping (4)' rc=1 ; np=3: '(2): ERROR: dmapSave: invalid mapping (4)', root never returns -> HANG (redo.txt).

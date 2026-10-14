@@ -1,0 +1,57 @@
+--- a/src/libscotch/dgraph_redist.c
++++ b/src/libscotch/dgraph_redist.c
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 6.0  : from : 10 may 2010     **/
+ /**                                 to   : 13 sep 2012     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -124,29 +124,27 @@
+                      &vadjglbtab, (size_t) (vadjglbnbr       * sizeof (Gnum)),
+                      &permgsttax, (size_t) (permgstnbr       * sizeof (Gnum)), NULL) == NULL) {
+     errorPrint ("dgraphRedist: out of memory");
++    if (memAllocGroup ((void **) (void *)         /* TRICK: smaller allocation for synchronization only */
++                       &vadjloctab, (size_t) (procglbnbr * sizeof (Gnum)),
++                       &procdsptab, (size_t) (procglbnbr * sizeof (Gnum)), NULL) == NULL)
++      return (1);                                 /* Cannot do a clean exit */
++    memSet (vadjloctab, ~0, procglbnbr * sizeof (Gnum)); /* Negative counts flag the error to all processes */
++    procvrttab = vadjloctab;                      /* Group leader to free */
+     cheklocval = 1;
+   }
+-#ifdef SCOTCH_DEBUG_DGRAPH2
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, srcgrafptr->proccomm) != MPI_SUCCESS) {
+-    errorPrint ("dgraphRedist: communication error (1)");
+-    return (1);
+-  }
+-#else /* SCOTCH_DEBUG_DGRAPH2 */
+-  chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_DGRAPH2 */
+-  if (chekglbval != 0) {
+-    if (procvrttab != NULL)
+-      memFree (procvrttab);
+-    return (1);
+-  }
+-
+-  memSet (vadjloctab, 0, procglbnbr * sizeof (Gnum));
++  else {
++    memSet (vadjloctab, 0, procglbnbr * sizeof (Gnum));
+ 
+-  for (vertlocnum = srcgrafptr->baseval; vertlocnum < srcgrafptr->vertlocnnd; vertlocnum ++) /* Count number of vertices for each processor */
+-    vadjloctab[srcpartloctax[vertlocnum]] ++;
++    for (vertlocnum = srcgrafptr->baseval; vertlocnum < srcgrafptr->vertlocnnd; vertlocnum ++) /* Count number of vertices for each processor */
++      vadjloctab[srcpartloctax[vertlocnum]] ++;
++  }
+ 
+-  if (MPI_Allreduce (vadjloctab, procdsptab, procglbnbr, GNUM_MPI, MPI_SUM, srcgrafptr->proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (vadjloctab, procdsptab, procglbnbr, GNUM_MPI, MPI_SUM, srcgrafptr->proccomm) != MPI_SUCCESS) { /* TRICK: also agrees on allocation errors */
+     errorPrint ("dgraphRedist: communication error (2)");
++    cheklocval = 1;
++  }
++  if ((cheklocval != 0) || (procdsptab[0] < 0)) { /* If error on some process */
++    memFree (procvrttab);                         /* Free group leader */
+     return (1);
+   }
+ 

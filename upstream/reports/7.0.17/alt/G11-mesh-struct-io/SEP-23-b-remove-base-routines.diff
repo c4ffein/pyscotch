@@ -1,0 +1,134 @@
+--- a/src/libscotch/mesh.c	2026-10-13 08:40:02.911404262 +0000
++++ b/src/libscotch/mesh.c	2026-10-13 13:24:28.301914523 +0000
+@@ -137,55 +137,3 @@
+ #endif /* SCOTCH_DEBUG_MESH2 */
+ }
+ 
+-/* This routine sets the base of the given
+-** mesh to the given base value, and returns
+-** the old base value.
+-** It returns:
+-** - old base value : in all cases.
+-*/
+-
+-Gnum
+-meshBase (
+-Mesh * const                meshptr,
+-const Gnum                  baseval)
+-{
+-  Gnum                baseold;                    /* Old base value  */
+-  Gnum                baseadj;                    /* Base adjustment */
+-  Gnum                vertnum;
+-  Gnum                edgenum;
+-
+-  if (meshptr->baseval == baseval)                /* If nothing to do */
+-    return (baseval);
+-
+-  baseold = meshptr->baseval;                     /* Record old base value */
+-  baseadj = baseval - baseold;                    /* Compute adjustment    */
+-
+-  for (vertnum = meshptr->baseval; vertnum < (meshptr->velmnbr + meshptr->vnodnbr + meshptr->baseval); vertnum ++) {
+-    for (edgenum = meshptr->verttax[vertnum]; edgenum < meshptr->vendtax[vertnum]; edgenum ++)
+-      meshptr->edgetax[edgenum] += baseadj;
+-    meshptr->verttax[vertnum] += baseadj;
+-  }
+-  if (meshptr->vendtax != meshptr->verttax + 1) { /* If distinct vertex end array */
+-    for (vertnum = meshptr->baseval; vertnum < (meshptr->velmnbr + meshptr->vnodnbr + meshptr->baseval); vertnum ++)
+-      meshptr->vendtax[vertnum] += baseadj;
+-  }
+-  else                                            /* If same vertex end array (of size +1)                               */
+-    meshptr->verttax[meshptr->velmnbr + meshptr->vnodnbr + meshptr->baseval] += baseadj; /* Adjust last entry of verttab */
+-
+-  meshptr->verttax -= baseadj;                    /* Adjust array accesses */
+-  meshptr->vendtax -= baseadj;
+-  meshptr->edgetax -= baseadj;
+-
+-  if (meshptr->vnumtax != NULL)
+-    meshptr->vnumtax -= baseadj;
+-  if (meshptr->vlbltax != NULL)
+-    meshptr->vlbltax -= baseadj;
+-
+-  meshptr->baseval  = baseval;                    /* Set new base value    */
+-  meshptr->velmbas += baseadj;                    /* Adjust mesh parameter */
+-  meshptr->velmnnd += baseadj;
+-  meshptr->vnodbas += baseadj;
+-  meshptr->vnodnnd += baseadj;
+-
+-  return (baseold);                               /* Return old base value */
+-}
+--- a/src/libscotch/mesh.h	2026-10-13 08:40:02.911404262 +0000
++++ b/src/libscotch/mesh.h	2026-10-13 13:24:28.301914523 +0000
+@@ -136,7 +136,6 @@
+ void                        meshFree            (Mesh * const);
+ int                         meshLoad            (Mesh * restrict const, FILE * restrict const, const Gnum);
+ int                         meshSave            (const Mesh * restrict const, FILE * restrict const);
+-Gnum                        meshBase            (Mesh * const, const Gnum);
+ int                         meshGraphNodal      (const Mesh * restrict const, Graph * restrict const);
+ int                         meshGraphDual       (const Mesh * restrict const, Graph * restrict const, const Gnum);
+ int                         meshInduceList      (const Mesh *, Mesh *, const VertList *);
+--- a/src/libscotch/hmesh.c	2026-10-13 08:40:02.895403980 +0000
++++ b/src/libscotch/hmesh.c	2026-10-13 13:24:28.301914523 +0000
+@@ -81,35 +81,3 @@
+ #endif /* SCOTCH_DEBUG_HMESH2 */
+ }
+ 
+-/* This routine sets the base of the given
+-** halo mesh to the given base value, and
+-** returns the old base value.
+-** It returns:
+-** - old base value : in all cases.
+-*/
+-
+-Gnum
+-hmeshBase (
+-Hmesh * const               meshptr,
+-const Gnum                  baseval)
+-{
+-  Gnum                baseold;                    /* Old base value  */
+-  Gnum                baseadj;                    /* Base adjustment */
+-  Gnum                velmnum;
+-
+-  if (meshptr->m.baseval == baseval)              /* If nothing to do */
+-    return (baseval);
+-
+-  baseold = meshptr->m.baseval;                   /* Record old base value */
+-  baseadj = baseval - baseold;                    /* Compute adjustment    */
+-
+-  meshBase (&meshptr->m, baseval);                /* Change base of mesh */
+-
+-  for (velmnum = meshptr->m.velmbas; velmnum < meshptr->m.velmnnd; velmnum ++)
+-    meshptr->vehdtax[velmnum] += baseadj;         /* Change base of array */
+-
+-  meshptr->vnohnnd += baseadj;
+-  meshptr->vehdtax -= baseadj;
+-
+-  return (baseold);                               /* Return old base value */
+-}
+--- a/src/libscotch/hmesh.h	2026-10-13 08:40:02.895403980 +0000
++++ b/src/libscotch/hmesh.h	2026-10-13 13:24:28.305914595 +0000
+@@ -98,7 +98,6 @@
+ */
+ 
+ void                        hmeshExit           (Hmesh * const);
+-Gnum                        hmeshBase           (Hmesh * const, const Gnum);
+ #ifdef SCOTCH_HGRAPH_H
+ int                         hmeshHgraph         (const Hmesh * restrict const, Hgraph * restrict const);
+ #endif /* SCOTCH_HGRAPH_H */
+--- a/src/libscotch/module.h	2026-10-13 08:40:02.911404262 +0000
++++ b/src/libscotch/module.h	2026-10-13 13:24:28.305914595 +0000
+@@ -946,7 +946,6 @@
+ 
+ #define hmeshorderststratab         SCOTCH_NAME_INTERN (hmeshorderststratab)
+ #define hmeshExit                   SCOTCH_NAME_INTERN (hmeshExit)
+-#define hmeshBase                   SCOTCH_NAME_INTERN (hmeshBase)
+ #define hmeshCheck                  SCOTCH_NAME_INTERN (hmeshCheck)
+ #define hmeshInducePart             SCOTCH_NAME_INTERN (hmeshInducePart)
+ #define hmeshHgraph                 SCOTCH_NAME_INTERN (hmeshHgraph)
+@@ -1031,7 +1030,6 @@
+ #define meshFree                    SCOTCH_NAME_INTERN (meshFree)
+ #define meshLoad                    SCOTCH_NAME_INTERN (meshLoad)
+ #define meshSave                    SCOTCH_NAME_INTERN (meshSave)
+-#define meshBase                    SCOTCH_NAME_INTERN (meshBase)
+ #define meshCheck                   SCOTCH_NAME_INTERN (meshCheck)
+ #define meshCoarsen                 SCOTCH_NAME_INTERN (meshCoarsen)
+ #define meshGeomLoadHabo            SCOTCH_NAME_INTERN (meshGeomLoadHabo)

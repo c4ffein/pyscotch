@@ -1,0 +1,101 @@
+From e45676eda3c9e6fd7f0b46a0236175ae25e2fac8 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:09:17 +0000
+Subject: [PATCH 002/240] Bugfix: always check terminal numbers when building
+ sub-architectures [report R. Perry]
+
+The range and duplicate checks on the list of terminal numbers given to
+`archSubArchBuild()` were only performed in debug mode, so that an
+invalid "sub" target file, or an invalid vertex list passed to
+`SCOTCH_archSub()`, wrote out of bounds of the coarsening tree array.
+Perform these checks unconditionally, as `archDeco2ArchBuild()` already
+does, and reject empty or oversized terminal lists both in
+`archSubArchLoad()` and in `archSubArchBuild()`.
+
+Refs: COR-03
+---
+ src/libscotch/arch_sub.c | 29 +++++------------------------
+ 1 file changed, 5 insertions(+), 24 deletions(-)
+
+diff --git a/src/libscotch/arch_sub.c b/src/libscotch/arch_sub.c
+index 39b0871..01e118d 100644
+--- a/src/libscotch/arch_sub.c
++++ b/src/libscotch/arch_sub.c
+@@ -91,7 +91,8 @@ FILE * restrict const       stream)
+   subarchptr->archptr = NULL;                     /* Assume nothing allocated yet */
+   subarchptr->termtab = NULL;
+ 
+-  if (intLoad (stream, &termnbr) != 1) {
++  if ((intLoad (stream, &termnbr) != 1) ||
++      (termnbr < 1)) {
+     errorPrint ("archSubArchLoad: bad input (1)");
+     return (1);
+   }
+@@ -377,9 +378,7 @@ const Anum * const          vnumtab)              /* Ordered list of remaining t
+   ArchSubData * restrict  domntab;
+   Anum                    domnnbr;                /* Number of domains                     */
+   Anum                    vnumnum;
+-#ifdef SCOTCH_DEBUG_ARCH1
+   const char *            messptr;                /* Pointer to error message              */
+-#endif /* SCOTCH_DEBUG_ARCH1 */
+   int                     o;
+ 
+   if ((orgarchptr->clasptr->flagval & ARCHVAR) != 0) {
+@@ -394,13 +393,11 @@ const Anum * const          vnumtab)              /* Ordered list of remaining t
+   archDomFrst (orgarchptr, &orgdomndat);          /* Get number of terminal domains in original architecture */
+   orgtermnbr = archDomSize (orgarchptr, &orgdomndat);
+ 
+-#ifdef SCOTCH_DEBUG_ARCH1
+-  if ((vnumnbr < 0) || (vnumnbr > orgtermnbr)) {
++  if ((vnumnbr < 1) || (vnumnbr > orgtermnbr)) {
+     errorPrint ("archSubArchBuild: invalid number of terminal domains");
+     return (2);
+   }
+   messptr = NULL;
+-#endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+   domnnbr = 2 * vnumnbr - 1;
+   if (memAllocGroup ((void **) (void *)
+@@ -435,16 +432,14 @@ const Anum * const          vnumtab)              /* Ordered list of remaining t
+ 
+   for (vnumnum = 0; vnumnum < vnumnbr; vnumnum ++) { /* For all kept terminal numbers         */
+     Anum                orgtermnum;               /* Terminal number in original architecture */
+-#ifdef SCOTCH_DEBUG_ARCH2
+-    int                 o;
+-#endif /* SCOTCH_DEBUG_ARCH2 */
+ 
+     orgtermnum = vnumtab[vnumnum];
+-#ifdef SCOTCH_DEBUG_ARCH1
+     if ((orgtermnum < 0) || (orgtermnum >= orgtermnbr))
+       messptr = "archSubArchBuild: invalid vertex number in vertex list";
+     else if (treetab[orgtermnum].domnsiz != 0)
+       messptr = "archSubArchBuild: duplicate vertex number in vertex list";
++    else if (archDomTerm (orgarchptr, &orgdomndat, orgtermnum) != 0)
++      messptr = "archSubArchBuild: internal error (1)";
+     if (messptr != NULL) {
+       errorPrint (messptr);
+       orgarchptr->clasptr->matchExit (&matcdat);  /* Free matching structure */
+@@ -452,20 +447,6 @@ const Anum * const          vnumtab)              /* Ordered list of remaining t
+       memFree (termtab);
+       return  (2);
+     }
+-#endif /* SCOTCH_DEBUG_ARCH1 */
+-#ifdef SCOTCH_DEBUG_ARCH2
+-    o =
+-#endif /* SCOTCH_DEBUG_ARCH2 */
+-    archDomTerm (orgarchptr, &orgdomndat, orgtermnum);
+-#ifdef SCOTCH_DEBUG_ARCH2
+-    if (o != 0) {
+-      errorPrint ("archSubArchBuild: internal error (1)");
+-      orgarchptr->clasptr->matchExit (&matcdat);  /* Free matching structure */
+-      memFree (treetab - 1);
+-      memFree (termtab);
+-      return  (2);
+-    }
+-#endif /* SCOTCH_DEBUG_ARCH2 */
+     termtab[vnumnum].termnum = vnumtab[vnumnum];  /* Record number of original terminal number */
+ 
+     treetab[orgtermnum].domnsiz = 1;              /* Here lies one terminal vertex */
+-- 
+2.47.3
+

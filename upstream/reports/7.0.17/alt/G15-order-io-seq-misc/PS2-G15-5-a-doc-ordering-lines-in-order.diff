@@ -1,0 +1,14 @@
+Option a (not committed; doc/ is shared with G28): make the manual match orderLoad(), which requires
+ordering lines to be sorted by vertex index ("bad input (3)" otherwise).
+--- a/doc/src/scotch/s_f.tex
++++ b/doc/src/scotch/s_f.tex
+@@ -753,8 +753,9 @@
+ mesh (\texttt{baseval}) to the base value plus the number of vertices
+ (resp\@. nodes), minus one ($\mbox{\texttt{baseval}} +
+ \mbox{\texttt{vertnbr}} - 1$ for graphs, and $\mbox{\texttt{baseval}}
+-+ \mbox{\texttt{vnodnbr}} - 1$ for meshes).  Ordering pairs can be
+-stored in any order in the file; however, indices of source vertices
+-must be all different.
+++ \mbox{\texttt{vnodnbr}} - 1$ for meshes).  Ordering pairs must be
++stored in increasing order of source vertex indices, and ranks must be
++all different.

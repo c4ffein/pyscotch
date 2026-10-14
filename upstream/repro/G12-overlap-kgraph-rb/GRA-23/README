@@ -1,0 +1,11 @@
+GRA-23: archDomTerm() failures ignored. (a) gra23: SCOTCH_graphRemap, old partition with terminal 100 on cmplt(4);
+(b) gra23b: SCOTCH_graphMapFixed, isolated fixed vertex pinned to terminal 100 on cmplt(4).
+Pristine (INFRA/asan/lib):
+  ./gra23.32 100   -> ret=0 new[7]=1          (silently accepted, uninitialized domain in domain array)
+  ./gra23b.32 100  -> kgraph_cost.c:178:34: runtime error: signed integer overflow: 1 - -2147483648 ... ret=0 p[16]=0
+Patched (../build/lib):
+  ./gra23.32 100   -> ERROR: mapBuild3: invalid terminal array / kgraphInit: cannot initialize remapping (2) ; ret=1
+  ./gra23b.32 100  -> ERROR: kgraphMapRbVfloMerge: invalid fixed part array / kgraphMapRb: cannot merge fixed vertex domains ; ret=1
+  valid inputs (./gra23.32 3, ./gra23b.32 3) -> ret=0 as before.
+Behaviour change: gpart 16 data/bump_imbal_32.grf -rodata/bump_old.map (32 old parts onto 16 terminals) is now rejected
+("mapBuild3: invalid terminal array"); it previously "worked" on uninitialized domains.

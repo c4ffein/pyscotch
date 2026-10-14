@@ -1,0 +1,21 @@
+GRA-16 (residual) -- signed 1 << 31 in the common.h bit-set macros
+==================================================================
+Upstream commit 6a00c51 fixed the bit sets in hgraph_order_cp.c, hmesh_order_cp.c,
+kgraph_map_bd.{c,h}, library_dgraph_map_stat.c and mesh_induce_sepa.c, but left the
+generic flagSet/flagVal/flagSize macros in common.h using a signed `int` array and
+`(1 << bit)`. These macros are used by the PT-Scotch band/exactifier bipartitioners
+(bdgraph_bipart_ex.c: movegsttab/flagloctab; bdgraph_bipart_bd.c: orgflagloctab).
+When a flagged (ghost) vertex index is == 31 mod 32, `1 << 31` shifts into the sign
+bit of int -> undefined behaviour (same defect the review reported).
+
+Isolating the exact macro expansion under UBSan (standalone, no MPI needed):
+  gcc -O0 -g -fsanitize=undefined -fno-sanitize-recover=all flagub.c -o flagub_pristine
+  gcc -O0 -g -fsanitize=undefined -fno-sanitize-recover=all -DFIXED flagub.c -o flagub_fixed
+  ./flagub_pristine  -> "runtime error: left shift of 1 by 31 places cannot be represented in type 'int'" (rc=1)
+  ./flagub_fixed     -> tab[0]=2147483648 (rc=0)
+
+The live PT-Scotch path (bdgraphBipartEx / bdgraphBipartBd flagging a local/ghost
+vertex whose based index is 31 mod 32) requires an MPI run on a graph with >=32 such
+vertices; UBSan reports the shift there (as the review observed in the dgmap tests).
+The fix changes the three flag arrays to `unsigned int` and the macros to `1U << ...`,
+mirroring exactly what 6a00c51 did for the kgraph_map_bd.h macros.

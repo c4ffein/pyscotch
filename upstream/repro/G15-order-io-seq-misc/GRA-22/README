@@ -1,0 +1,14 @@
+GRA-22 (+ PS2-G15-2 infinite recursion, PS2-G15-3 trailing zero-weight columns): block ordering 'b' on weighted graphs
+Build: gcc -O0 -g -fsanitize=address,undefined -I<tree>/include bl.c -o bl -L<tree>/lib -lscotch -lscotcherr -lz -lm -lpthread
+Run (LD_LIBRARY_PATH=<tree>/lib UBSAN_OPTIONS=print_stacktrace=1 (pristine tree: INFRA/asan; patched: $WORK/build or $WORK/build64), ASAN_OPTIONS=detect_leaks=0): ./bl <strategy> <cmin> <mode>   (mode 0: 20x20 grid loads 1+((i*7919)%23);
+mode 1: loads 1+i; mode 2: 8-vertex path with loads 1 1 1 1 1 1 0 0). Prints per-block weights read through peritab,
+min/max, number of blocks heavier than 2*cmin+maxload, coverage of rangtab, and SCOTCH_graphOrderCheck() result.
+  ./bl 'b{cmin=1200,strat=g}' 1200 1        pristine: min=24 max=16930 (5 blocks > 2cmin)   patched: min=954 max=1577
+  ./bl 'b{cmin=100,strat=g}' 100 0          pristine: min=66 max=139                        patched: min=88 max=118
+  ./bl 'n{sep=/((vert)>(40))?m{vert=20,low=h{pass=10},asc=f{move=100}};,ole=b{cmin=1200,strat=g},ose=b{cmin=1200,strat=g}}' 1200 1
+                                            pristine: min=233 max=2713                       patched: min=162 max=2235 (ND leaves: induced subgraphs)
+  ./bl 'b{cmin=1,strat=s}' 1 2              pristine: covered=6/8, check=1 (orderCheck fails) patched: covered=8/8 check=0
+  timeout 10 ./bl 'b{cmin=100,strat=n{sep=m{vert=50,low=h{pass=10},asc=f{move=100}},ole=s,ose=s}}' 100 0
+                                            pristine: rc=124 (never terminates)              patched: 207 blocks, check=0
+Mesh twin: timeout 10 mord ../GRA-25/dbl.msh /dev/null '-ob{cmin=2,strat=n{sep=h,ole=s,ose=s}}' : pristine rc=124, patched rc=0.
+Same results with bl64 (64-bit Gnum build).

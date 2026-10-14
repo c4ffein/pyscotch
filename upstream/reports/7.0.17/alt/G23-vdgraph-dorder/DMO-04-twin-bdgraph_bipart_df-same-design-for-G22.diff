@@ -1,0 +1,43 @@
+diff --git a/src/libscotch/bdgraph_bipart_df.c b/src/libscotch/bdgraph_bipart_df.c
+index 8ee0aaa..4affcb1 100644
+--- a/src/libscotch/bdgraph_bipart_df.c
++++ b/src/libscotch/bdgraph_bipart_df.c
+@@ -96,7 +96,7 @@ const BdgraphBipartDfParam * const  paraptr)      /*+ Method parameters +*/
+   Gnum                    commlocloadintn;
+   Gnum                    commlocloadextn;
+   Gnum                    commlocgainextn;
+-  Gnum                    reduloctab[6];
++  Gnum                    reduloctab[6];          /* Anchor degrees and loads, then error flag; TRICK: 6 for final reduction */
+   Gnum                    reduglbtab[6];
+   Gnum                    passnum;
+   float                   cdifval;
+@@ -128,19 +128,22 @@ const BdgraphBipartDfParam * const  paraptr)      /*+ Method parameters +*/
+                      &difogsttax, (size_t) (grafptr->s.vertgstnbr * sizeof (float)),
+                      &difngsttax, (size_t) (grafptr->s.vertgstnbr * sizeof (float)), NULL) == NULL) {
+     errorPrint ("bdgraphBipartDf: out of memory");
+-    reduloctab[0] = -1;
++    reduloctab[4] = 1;                            /* Flag allocation failure for all processes */
++  }
++  else {
++    ielsloctax -= grafptr->s.baseval;
++    difogsttax -= grafptr->s.baseval;
++    difngsttax -= grafptr->s.baseval;
++    veexloctax  = (grafptr->veexloctax != NULL) ? (veexloctax - grafptr->s.baseval) : NULL;
++    reduloctab[4] = 0;
+   }
+-  ielsloctax -= grafptr->s.baseval;
+-  difogsttax -= grafptr->s.baseval;
+-  difngsttax -= grafptr->s.baseval;
+-  veexloctax  = (grafptr->veexloctax != NULL) ? (veexloctax - grafptr->s.baseval) : NULL;
+ 
+-  if (MPI_Allreduce (reduloctab, reduglbtab, 4, GNUM_MPI, MPI_SUM, grafptr->s.proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (reduloctab, reduglbtab, 5, GNUM_MPI, MPI_SUM, grafptr->s.proccomm) != MPI_SUCCESS) {
+     errorPrint ("bdgraphBipartDf: communication error (1)");
+     return     (1);
+   }
+ 
+-  if (reduglbtab[0] < 0) {
++  if (reduglbtab[4] != 0) {                       /* If memory error on some process */
+     if (ielsloctax != NULL)
+       memFree (ielsloctax + grafptr->s.baseval);  /* Free group leader */
+     return (1);

@@ -1,0 +1,99 @@
+From 63e3bdc805802ea5517d97418dc851dc741ba96a Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:37:38 +0000
+Subject: [PATCH 5/5] Bugfix: build sub-architectures made of a single terminal
+ vertex [report PyScotch]
+
+`archSubArchBuild2()` stops coarsening when it is given a single fine
+vertex, and returns the first slot of the array as the root of the
+coarsening tree. Its callers passed it the number of kept terminal
+vertices, so that, at the finest level, where arrays are indexed by
+original vertex numbers, a sub-architecture made of a single terminal
+vertex other than vertex 0 was rooted at an empty slot, which led to
+out-of-bounds writes in `archSubArchBuild3()` and
+`archDeco2BuildBuild3()`, both from "sub" target files and from
+`SCOTCH_archSub()` and `SCOTCH_archBuild2()`.
+
+Pass the number of original vertices instead, in `archSubArchBuild()`
+and in `archDeco2ArchBuild()`, and add a single-vertex sub-architecture
+to `test_scotch_arch`.
+
+Refs: PS2-G01-arch-sub-dist-1
+---
+ src/check/test_scotch_arch.c     | 9 +++++++--
+ src/libscotch/arch_deco2_build.c | 4 ++--
+ src/libscotch/arch_sub.c         | 2 +-
+ 3 files changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/src/check/test_scotch_arch.c b/src/check/test_scotch_arch.c
+index d375c3f..b824b99 100644
+--- a/src/check/test_scotch_arch.c
++++ b/src/check/test_scotch_arch.c
+@@ -61,7 +61,7 @@
+ 
+ #include "scotch.h"
+ 
+-#define ARCHNBR                     26
++#define ARCHNBR                     27
+ 
+ /*********************/
+ /*                   */
+@@ -156,7 +156,7 @@ char *              argv[])
+     exit (EXIT_FAILURE);
+   }
+ 
+-  if ((archnbr * 2) > ARCHNBR) {
++  if (((archnbr * 2) + 1) > ARCHNBR) {
+     SCOTCH_errorPrint ("main: internal error");
+     exit (EXIT_FAILURE);
+   }
+@@ -169,6 +169,11 @@ char *              argv[])
+   }
+   archnbr *= 2;                                   /* Number of architectures has doubled */
+ 
++  if (SCOTCH_archSub (&archtab[archnbr ++], &archtab[0], 1, &vnumtab[1]) != 0) { /* Sub-architecture with a single terminal vertex, which is not vertex 0 */
++    SCOTCH_errorPrint ("main: cannot create single-vertex sub-architecture");
++    exit (EXIT_FAILURE);
++  }
++
+   if ((fileptr = fopen (argv[1], "w+")) == NULL) { /* Write all architectures to file */
+     SCOTCH_errorPrint ("main: cannot open file (1)");
+     exit (EXIT_FAILURE);
+diff --git a/src/libscotch/arch_deco2_build.c b/src/libscotch/arch_deco2_build.c
+index 54a053b..d84a32d 100644
+--- a/src/libscotch/arch_deco2_build.c
++++ b/src/libscotch/arch_deco2_build.c
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 6.0  : from : 02 may 2015     **/
+ /**                                 to   : 22 feb 2018     **/
+ /**                # Version 7.0  : from : 03 aug 2016     **/
+-/**                                 to   : 22 aug 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # The code of the main routine derives  **/
+ /**                  from that of archSubArchBuild().      **/
+@@ -650,7 +650,7 @@ Context * const             contptr)              /*+ Execution context
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+   matcdat.vertsum = vnumnbr;                      /* Account for kept vertices of original graph */
+-  rootptr = archSubArchBuild2 (&matcdat, (Anum (*) (void *, ArchCoarsenMulti * restrict *)) archDeco2BuildMatchMate, treetab, vnumnbr);
++  rootptr = archSubArchBuild2 (&matcdat, (Anum (*) (void *, ArchCoarsenMulti * restrict *)) archDeco2BuildMatchMate, treetab, vertnbr);
+ 
+   if (velotmp != NULL)                            /* Temporary vertex load array will no longer be necessary */
+     memFree (velotmp);
+diff --git a/src/libscotch/arch_sub.c b/src/libscotch/arch_sub.c
+index 01e118d..e20790d 100644
+--- a/src/libscotch/arch_sub.c
++++ b/src/libscotch/arch_sub.c
+@@ -455,7 +455,7 @@ const Anum * const          vnumtab)              /* Ordered list of remaining t
+     treetab[orgtermnum].vertnum = orgtermnum;     /* Vertex number in original architecture                    */
+   }
+ 
+-  rootptr = archSubArchBuild2 (&matcdat, (Anum (*) (void *, ArchCoarsenMulti * restrict *)) orgarchptr->clasptr->matchMate, treetab, vnumnbr);
++  rootptr = archSubArchBuild2 (&matcdat, (Anum (*) (void *, ArchCoarsenMulti * restrict *)) orgarchptr->clasptr->matchMate, treetab, orgtermnbr);
+ 
+   orgarchptr->clasptr->matchExit (&matcdat);      /* Free matching structure */
+ 
+-- 
+2.47.3
+

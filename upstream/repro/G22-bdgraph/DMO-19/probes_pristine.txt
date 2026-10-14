@@ -1,0 +1,36 @@
+== pristine 7.0.17 ASan: gather check veex np=1
+rank 0: gather ret=0
+rank 0: gather veextax=0x530000040400 bad=14280 of 15606, bbalval=1, compload0dlt=7803 compload0avg=7803
+== pristine 7.0.17 ASan: gather check veex np=3
+rank 0: gather ret=0
+rank 0: gather veextax=0x530000020400 bad=14280 of 15606, bbalval=1, compload0dlt=7803 compload0avg=7803
+rank 1: gather ret=0
+rank 1: gather veextax=0x530000020400 bad=14280 of 15606, bbalval=1, compload0dlt=7803 compload0avg=7803
+rank 2: gather ret=0
+rank 2: gather veextax=0x530000020400 bad=14280 of 15606, bbalval=1, compload0dlt=7803 compload0avg=7803
+== pristine: veex q{strat=f} np=3 (uninitialized gathered veextax)
+      1 (0): ERROR: bdgraphCheck: invalid global communication gains
+      1 (0): ERROR: bdgraphCheck: invalid global communication loads
+      1 (1): ERROR: bdgraphCheck: invalid global communication gains
+      1 (1): ERROR: bdgraphCheck: invalid global communication loads
+      1 (2): ERROR: bdgraphCheck: invalid global communication gains
+      1 (2): ERROR: bdgraphCheck: invalid global communication loads
+      1 bgraph_bipart_gg.c:233:17: runtime error: signed integer overflow: -1094795308 + -1094795582 cannot be represented in type 'int'
+      1 bgraph_bipart_gg.c:233:17: runtime error: signed integer overflow: -1094795393 + -1094795582 cannot be represented in type 'int'
+      1 bgraph_bipart_gg.c:233:17: runtime error: signed integer overflow: -1094795523 + -1094795582 cannot be represented in type 'int'
+      3 bgraph_bipart_gg.c:429:15: runtime error: signed integer overflow: -2105376115 - 2105376124 cannot be represented in type 'int'
+      3 bgraph_bipart_gg.c:429:30: runtime error: signed integer overflow: 2 * -1094795586 cannot be represented in type 'int'
+      1 rank 0: check=96
+      1 rank 0: ret=0 load0=7852 dlt=49 size0=7852 comm=-84215623 gainextn=168431625 fron=187 bal=1 balcalc=0.00627963604
+      1 rank 1: check=96
+      1 rank 1: ret=0 load0=7852 dlt=49 size0=7852 comm=-84215623 gainextn=168431625 fron=187 bal=1 balcalc=0.00627963604
+      1 rank 2: check=96
+      1 rank 2: ret=0 load0=7852 dlt=49 size0=7852 comm=-84215623 gainextn=168431625 fron=187 bal=1 balcalc=0.00627963604
+== pristine: veex ml fold=n np=1
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7840 dlt=37 size0=7840 comm=-2177 gainextn=13443 fron=4467 bal=1 balcalc=0.00474176599
+== pristine: veex ml fold=n np=3
+      1 ==1448092==ERROR: AddressSanitizer: heap-use-after-free on address 0x52a00003f1cc at pc 0x7f0bff559980 bp 0x7ffe96d977a0 sp 0x7ffe96d97798
+      1 ==1448093==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x52a00001d348 at pc 0x7fcd921f2886 bp 0x7ffc42069ce0 sp 0x7ffc42069cd8
+      1 ==1448115==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x52a000023fb0 at pc 0x7f7b61e82980 bp 0x7ffc0b1f3c40 sp 0x7ffc0b1f3c38
+      2 SUMMARY: AddressSanitizer: heap-buffer-overflow /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bdgraph_bipart_ml.c:150 in bdgraphBipartMlCoarsen

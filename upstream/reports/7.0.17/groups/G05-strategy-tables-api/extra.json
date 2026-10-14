@@ -1,0 +1,99 @@
+[
+ {
+  "local_id": "PS2-G05-strategy-tables-api-1",
+  "our_title": "Distributed mapping output dereferences a NULL fragment part array for a mapping with no computed parttab",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "mpirun -np 3 build/bin/dgpart 9 bump.grf /dev/null -Cd -m'r{sep=q{strat=f}}' (after the CLI-01 fix lets -m reach the mapper): 'dmapping_io.c:256:34: runtime error: load of null pointer of type Anum' then SIGSEGV across ranks. Pristine masks it by discarding -m (CLI-01).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/dmapping_io.c:256 (dmapSave); fed by SCOTCH_dgraphMapCompute which, unlike the sequential graphMapCompute2, does not pre-allocate the mapping part array",
+  "evidence": "dmapping_io.c:256 `termloctab[fraglocnum] = archDomNum (&dmapptr->archdat, &fragptr->domntab[fragptr->parttab[fraglocnum]]);` with fragptr->parttab == NULL for a strategy fragment that produced no local mapping.",
+  "related_ids": [
+   "CLI-01",
+   "PS2-G12-2"
+  ],
+  "fix_options": [
+   {
+    "label": "Pre-initialise / validate the distributed mapping like graphMapCompute2",
+    "summary": "Either allocate+initialise the kdgraph mapping before running the strategy (the fix this group applied to the sequential graphMapCompute2) or reject a distributed strategy that leaves a fragment unset in dmapSave.",
+    "diff_file": "",
+    "tested": "untested: the fix belongs in library_dgraph_map.c / kdgraph (not a G05 file) and needs the distributed-mapping owner to choose pre-allocate vs reject.",
+    "tradeoffs": "Pre-allocation mirrors the sequential fix; rejection changes the error contract.",
+    "preferred": true,
+    "maintainer_fit": "Parallel of the PS2-G12-2 fix, but in the distributed path owned by the dgraph groups."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G12-2",
+  "our_title": "Mapping strategy with no initial-mapping method dereferences a NULL part array",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/PS2-G12-2/map.c 32-bit ASan: `./map 'f{bal=0.05}'` -> 'kgraph_cost.c:104:13: load of null pointer of type Anum' (m.parttax NULL); `b{width=3,bnd=f,org=f}' same; `d{pass=10}' SEGV. Patched (mapAlloc+kgraphFrst in graphMapCompute2): all ret=0 maxpart=0; default strategy and check_scotch_graph_map/map_copy unchanged.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/library_graph_map.c:272-294 (graphMapCompute2: kgraphInit then kgraphMapSt, no mapAlloc); kgraph.c mapInit leaves m.parttax NULL; consumers kgraph_cost.c:104, kgraph_map_fm/df/bd",
+  "evidence": "graphMapCompute2 ran kgraphMapSt on a Kgraph whose m.parttax was only declared by kgraphInit; only the ml/rb/band methods call mapAlloc, so a refinement-first strategy dereferenced NULL.",
+  "related_ids": [
+   "PS2-G13-1"
+  ],
+  "fix_options": [
+   {
+    "label": "Allocate+initialise the mapping in graphMapCompute2",
+    "summary": "mapAlloc(&mapgrafdat.m)+kgraphFrst after kgraphInit, as kgraphMapMlUncoarsen does, so every method starts from the trivial single-domain mapping.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G05-strategy-tables-api/patches/0007-Bugfix-always-keep-a-valid-part-array-in-graphMapCom.patch",
+    "tested": "32/64-bit ASan repro; check_scotch_graph_map/map_copy/order pass.",
+    "tradeoffs": "One extra allocation (freed by kgraphExit); refinement-first strategies now return the trivial mapping instead of crashing.",
+    "preferred": true,
+    "maintainer_fit": "Same two calls as kgraph_map_ml.c:245-249."
+   },
+   {
+    "label": "Reject strategies whose first method needs a mapping",
+    "summary": "errorPrint+return in kgraphMapSt when m.parttax==NULL for a refinement method.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G05-strategy-tables-api/alt/PS2-G12-2-b-reject-no-initial.diff",
+    "tested": "untested.",
+    "tradeoffs": "Needs a per-method flag; returns an error where a trivial mapping is usable.",
+    "preferred": false,
+    "maintainer_fit": "More machinery."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G05-strategy-tables-api/patches/0007-Bugfix-always-keep-a-valid-part-array-in-graphMapCom.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G13-1",
+  "our_title": "graphMapCompute2 copies back the mapping even after the strategy failed",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Covered by the same repro: once the part array is always allocated (PS2-G12-2 fix), mapTerm no longer reads a NULL array; the added `if (o == 0)` guard also stops a failed mapping from being written to the user array. Verified no regression in check_scotch_graph_map.",
+  "read_only": "The specific failed-mapping path G13 exercised via its GRA-17 resize injection was not re-run here; the guard is a pure error-path change.",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/library_graph_map.c:294-295",
+  "evidence": "Pristine: `o = kgraphMapSt (&mapgrafdat, mapstraptr); mapTerm (&mapgrafdat.m, lmapptr->parttab - baseval);` -- mapTerm runs regardless of o.",
+  "related_ids": [
+   "PS2-G12-2",
+   "GRA-17",
+   "GRA-02"
+  ],
+  "fix_options": [
+   {
+    "label": "Propagate the result only on success",
+    "summary": "Guard mapTerm with `if (o == 0)` so a failed mapping is not exposed.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G05-strategy-tables-api/patches/0007-Bugfix-always-keep-a-valid-part-array-in-graphMapCom.patch",
+    "tested": "built and run with the PS2-G12-2 repro; no regression.",
+    "tradeoffs": "On failure the user array keeps its prior contents and o!=0 is returned, as today on success.",
+    "preferred": true,
+    "maintainer_fit": "Consistent with returning o from graphMapCompute2 and his 'do not touch outputs on error' style; folded into the same commit as PS2-G12-2 (both in graphMapCompute2)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G05-strategy-tables-api/patches/0007-Bugfix-always-keep-a-valid-part-array-in-graphMapCom.patch"
+  ]
+ }
+]

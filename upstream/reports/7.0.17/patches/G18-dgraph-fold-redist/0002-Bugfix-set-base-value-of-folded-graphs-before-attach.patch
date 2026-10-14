@@ -1,0 +1,93 @@
+From f48b9b530a28dc6c69ebfef327a6196660aef7a5 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:28:04 +0000
+Subject: [PATCH 2/7] Bugfix: set base value of folded graphs before attaching
+ based arrays [report R. Perry]
+
+In `dgraphFold2()` and `hdgraphFold2()`, the folded graph structure is
+cleared, then based arrays are attached to it, but its base value was
+only set at the very end. Consequently, premature freeing on error
+through `dgraphExit()` or `hdgraphExit()` freed the based pointers
+with a base value of 0, which corrupts the heap whenever the base value
+of the original graph is not 0.
+
+Set the base value right after the structure is cleared, as is done in
+`hdgraphInduceList()`.
+
+Refs: DGR-02
+---
+ src/libscotch/dgraph_fold.c  | 6 +++---
+ src/libscotch/hdgraph_fold.c | 6 +++---
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/libscotch/dgraph_fold.c b/src/libscotch/dgraph_fold.c
+index 8e0ce93..1763aa2 100644
+--- a/src/libscotch/dgraph_fold.c
++++ b/src/libscotch/dgraph_fold.c
+@@ -47,7 +47,7 @@
+ /**                # Version 6.1  : from : 18 jun 2021     **/
+ /**                                 to   : 19 jun 2021     **/
+ /**                # Version 7.0  : from : 14 sep 2021     **/
+-/**                                 to   : 05 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -193,10 +193,11 @@ MPI_Datatype                  datatype)
+ 
+     memSet (fldgrafptr, 0, sizeof (Dgraph));      /* Pre-initialize graph fields */
+ 
++    fldgrafptr->flagval    = DGRAPHFREEALL | DGRAPHVERTGROUP | DGRAPHEDGEGROUP | DGRAPHFREECOMM; /* For premature freeing on error (folded communicator created by caller) */
++    fldgrafptr->baseval    = orggrafptr->baseval; /* Base value is needed for premature freeing of based arrays */
+     fldgrafptr->proccomm   = fldproccomm;
+     fldgrafptr->procglbnbr = fldprocglbnbr;
+     fldgrafptr->proclocnum = fldproclocnum;
+-    fldgrafptr->flagval    = DGRAPHFREEALL | DGRAPHVERTGROUP | DGRAPHEDGEGROUP | DGRAPHFREECOMM; /* For premature freeing on error (folded communicator created by caller) */
+ 
+     if (memAllocGroup ((void **) (void *)         /* Allocate distributed graph private data */
+                        &fldgrafptr->procdsptab, (size_t) ((fldprocglbnbr + 1) * sizeof (Gnum)),
+@@ -748,7 +749,6 @@ fail2:                                            /* Receivers must fail collect
+       }
+     }
+ 
+-    fldgrafptr->baseval    = orggrafptr->baseval;
+     fldgrafptr->vertlocnbr = fldvertlocnbr;
+     fldgrafptr->vertlocnnd = fldvertlocnbr + orggrafptr->baseval;
+     fldgrafptr->velolocsum = fldvelolocsum;
+diff --git a/src/libscotch/hdgraph_fold.c b/src/libscotch/hdgraph_fold.c
+index 75c6adb..682ad80 100644
+--- a/src/libscotch/hdgraph_fold.c
++++ b/src/libscotch/hdgraph_fold.c
+@@ -45,7 +45,7 @@
+ /**                # Version 6.1  : from : 02 apr 2021     **/
+ /**                                 to   : 19 jun 2021     **/
+ /**                # Version 7.0  : from : 28 aug 2019     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # This code derives from tht of         **/
+ /**                  dgraphFold().                         **/
+@@ -181,10 +181,11 @@ MPI_Comm                        fldproccomm)      /*+ Pre-computed communicator
+ 
+     memSet (fldgrafptr, 0, sizeof (Hdgraph));     /* Pre-initialize graph fields */
+ 
++    fldgrafptr->s.flagval    = DGRAPHFREEALL | DGRAPHVERTGROUP | DGRAPHEDGEGROUP | DGRAPHHASVENDLOC; /* For premature freeing on error; do not free vhndloctab as it is grouped with vertloctab */
++    fldgrafptr->s.baseval    = orggrafptr->s.baseval; /* Base value is needed for premature freeing of based arrays */
+     fldgrafptr->s.proccomm   = fldproccomm;
+     fldgrafptr->s.procglbnbr = fldprocglbnbr;
+     fldgrafptr->s.proclocnum = fldproclocnum;
+-    fldgrafptr->s.flagval    = DGRAPHFREEALL | DGRAPHVERTGROUP | DGRAPHEDGEGROUP | DGRAPHHASVENDLOC; /* For premature freeing on error; do not free vhndloctab as it is grouped with vertloctab */
+ 
+     if (memAllocGroup ((void **) (void *)         /* Allocate distributed graph private data */
+                        &fldgrafptr->s.procdsptab, (size_t) ((fldprocglbnbr + 1) * sizeof (Gnum)),
+@@ -876,7 +877,6 @@ fail2:                                            /* Receivers must fail collect
+     if (fldvhalloctax != NULL)                    /* If process is a pure receiver */
+       memFree (fldvhalloctax + orggrafptr->s.baseval);
+ 
+-    fldgrafptr->s.baseval    = orggrafptr->s.baseval;
+     fldgrafptr->s.vertlocnbr = fldvertlocnbr;
+     fldgrafptr->s.vertlocnnd = fldvertlocnbr + orggrafptr->s.baseval;
+     fldgrafptr->s.velolocsum = fldvelolocsum;
+-- 
+2.47.3
+

@@ -1,0 +1,41 @@
+# PS-DGR-1 option B (NOT preferred, sketch): make dgraphMatchInit()/dgraphMatchExit() tolerate a failed dgraphCoarsenInit() by NULL-initializing the pointers they read. Hides an ordering assumption inside the callee, touches three files, and still leaves the double dgraphCoarsenExit() of a failed dgraphCoarsenInit() (option A removes the self-cleanup instead). Not compiled.
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/dgraph_coarsen.c b/src/libscotch/dgraph_coarsen.c
+index 09540aa..60503cc 100644
+--- a/src/libscotch/dgraph_coarsen.c
++++ b/src/libscotch/dgraph_coarsen.c
+@@ -112,6 +112,9 @@ Dgraph * restrict const             coargrafptr)  /*+ Coarse graph to build
+   coarptr->nsndidxtab = NULL;
+   coarptr->nrcvidxtab = NULL;
+   coarptr->thrdtab    = NULL;
++  coarptr->coargsttax = NULL;                     /* So that dgraphMatchInit() can detect the error */
++  coarptr->finegrafptr = finegrafptr;
++  coarptr->coargrafptr = coargrafptr;
+ 
+   if ((coarptr->coarprvptr = memAllocGroup ((void **) (void *) /* Allocate distributed coarse graph private data */
+                                             &coargrafptr->procdsptab, (size_t) ((procglbnbr + 1) * sizeof (Gnum)),
+diff --git a/src/libscotch/dgraph_match.c b/src/libscotch/dgraph_match.c
+index 2740377..fa23fd6 100644
+--- a/src/libscotch/dgraph_match.c
++++ b/src/libscotch/dgraph_match.c
+@@ -93,6 +93,10 @@ const float                         probval)
+   const int * restrict const  procngbtab = grafptr->procngbtab;
+   const Gnum * restrict const procvrttab = grafptr->procvrttab;
+ 
++  mateptr->procvgbtab = NULL;                     /* In case of error */
++  if (mateptr->c.coargsttax == NULL)              /* If coarsening data could not be initialized */
++    return (1);
++
+   vertlocnbr = grafptr->vertlocnbr;
+   vertgstnbr = grafptr->vertgstnbr;
+ 
+@@ -128,7 +132,8 @@ void
+ dgraphMatchExit (
+ DgraphMatchData * restrict const  mateptr)
+ {
+-  memFree (mateptr->procvgbtab);
++  if (mateptr->procvgbtab != NULL)
++    memFree (mateptr->procvgbtab);
+ }
+ 
+ /* These routines perform a round of computations

@@ -1,0 +1,13 @@
+diff --git a/src/libscotch/dmapping_io.c b/src/libscotch/dmapping_io.c
+index 717381e..d58734f 100644
+--- a/src/libscotch/dmapping_io.c
++++ b/src/libscotch/dmapping_io.c
+@@ -120,7 +120,7 @@ FILE * restrict const           stream)
+     errorPrint ("dmapSave: inconsistent parameters");
+     return (1);
+   }
+-  if ((reduglbtab[1] < 0) && (reduglbtab[1] > grafptr->procglbnbr)) {
++  if ((reduglbtab[1] < 0) || (reduglbtab[1] > grafptr->vertglbnbr)) {
+     errorPrint ("dmapSave: invalid mapping (1)");
+     return (1);
+   }

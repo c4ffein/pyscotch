@@ -1,0 +1,65 @@
+From b7b138fe35e3690673492d0af079f40a3085bf77 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:39:49 +0000
+Subject: [PATCH 5/9] Remove unused field from `DgraphStatData` structure
+
+The `edlosum` field was never set but was reduced across processes;
+the sum of edge loads is reduced separately.
+
+Refs: PS2-G16-2
+---
+ src/libscotch/library_dgraph_stat.c | 3 +--
+ src/libscotch/library_dgraph_stat.h | 5 +++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/libscotch/library_dgraph_stat.c b/src/libscotch/library_dgraph_stat.c
+index 13bfa90..0df2ed6 100644
+--- a/src/libscotch/library_dgraph_stat.c
++++ b/src/libscotch/library_dgraph_stat.c
+@@ -65,7 +65,7 @@
+ **  The static variables.
+ */
+ 
+-static int                  dgraphstatblentab[2] = { 7, 3 };
++static int                  dgraphstatblentab[2] = { 6, 3 };
+ static MPI_Datatype         dgraphstattypetab[2] = { GNUM_MPI, MPI_DOUBLE };
+ 
+ /************************************/
+@@ -102,7 +102,6 @@ const MPI_Datatype * const    typedat)            /* MPI datatype; not used
+     inout->edlomin = in->edlomin;
+   if (inout->edlomax < in->edlomax)
+     inout->edlomax = in->edlomax;
+-  inout->edlosum += in->edlosum;
+   inout->velodlt += in->velodlt;
+   inout->degrdlt += in->degrdlt;
+   inout->edlodlt += in->edlodlt;
+diff --git a/src/libscotch/library_dgraph_stat.h b/src/libscotch/library_dgraph_stat.h
+index 495964f..0492f9e 100644
+--- a/src/libscotch/library_dgraph_stat.h
++++ b/src/libscotch/library_dgraph_stat.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2007 ENSEIRB, INRIA & CNRS
++/* Copyright 2007,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -41,6 +41,8 @@
+ /*                                                        */
+ /*                # Version 5.0  : from : 23 jun 2007     */
+ /*                                 to   : 23 jun 2007     */
++/*                # Version 7.0  : from : 13 oct 2026     */
++/*                                 to   : 13 oct 2026     */
+ /*                                                        */
+ /**********************************************************/
+ 
+@@ -57,7 +59,6 @@ typedef struct DgraphStatData_ {
+   Gnum             degrmax;
+   Gnum             edlomin;
+   Gnum             edlomax;
+-  Gnum             edlosum;
+   double           velodlt;
+   double           degrdlt;
+   double           edlodlt;
+-- 
+2.47.3
+

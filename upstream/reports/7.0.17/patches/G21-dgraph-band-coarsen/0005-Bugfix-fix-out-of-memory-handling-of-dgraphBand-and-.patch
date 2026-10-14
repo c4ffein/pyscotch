@@ -1,0 +1,480 @@
+From 134b6eaac2324ba83fe4d18a6c75913d557338ed Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:11:13 +0000
+Subject: [PATCH 05/11] Bugfix: fix out-of-memory handling of `dgraphBand()`
+ and `SCOTCH_dgraphBand()` [report R. Perry]
+
+When the private data of the band graph could not be allocated, both
+routines wrote their error flag into the NULL private array. The array
+that collects the error flags of all processes was sized in `int`s and
+overflowed when `Gnum`s are wider than `int`s. In `dgraphBand()`, the
+frontier array was freed without having been allocated when a later
+allocation failed, and the index array was freed with the base value
+of the band graph after `dgraphFree()` had reset it, hence from a
+wrong address when the base value is not zero. Errors in the halo
+exchange, in the final build of the band graph and in the debug checks
+returned without freeing anything.
+
+Send the error flag from a local variable, size the error flag array
+in `Gnum`s, attach the edge arrays to the band graph as soon as they
+are allocated, and route all errors through cleanup labels, as in
+`dgraphInduce2()`. Also fix the indentation of two lines.
+
+Refs: DGR-09, API-17
+---
+ src/libscotch/dgraph_band.c         | 127 +++++++++++++---------------
+ src/libscotch/library_dgraph_band.c | 106 +++++++++++------------
+ 2 files changed, 108 insertions(+), 125 deletions(-)
+
+diff --git a/src/libscotch/dgraph_band.c b/src/libscotch/dgraph_band.c
+index 2b3bad8..864da6e 100644
+--- a/src/libscotch/dgraph_band.c
++++ b/src/libscotch/dgraph_band.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2012,2018,2021,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2012,2018,2021,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -43,7 +43,7 @@
+ /**                # Version 6.0  : from : 03 apr 2012     **/
+ /**                                 to   : 22 may 2018     **/
+ /**                # Version 7.0  : from : 08 oct 2021     **/
+-/**                                 to   : 17 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # This code derives from the code of    **/
+ /**                  vdgraph_separate_bd.c in version      **/
+@@ -144,7 +144,6 @@ Context *                           contptr)      /*+ Execution context
+   Gnum                    veloval;
+   const Gnum * restrict   edgegsttax;
+   Gnum                    fronlocnum;
+-  int                     cheklocval;
+   int                     procngbnum;
+ 
+   if (dgraphGhst (grafptr) != 0) {                /* Compute ghost edge array if not already present */
+@@ -152,11 +151,10 @@ Context *                           contptr)      /*+ Execution context
+     return (1);
+   }
+ 
+-  cheklocval = 0;
+-  bandvnumgstsiz = MAX ((grafptr->vertgstnbr * sizeof (Gnum)), (grafptr->procglbnbr * sizeof (int))); /* TRICK: re-use array for further error collective communications */
+- if ((bandvnumgsttax = memAlloc (bandvnumgstsiz)) == NULL) /* Error will be propagated by dgraphBand2*() */
++  bandvnumgstsiz = MAX (grafptr->vertgstnbr, grafptr->procglbnbr) * sizeof (Gnum); /* TRICK: re-use array for further error collective communications */
++  if ((bandvnumgsttax = memAlloc (bandvnumgstsiz)) == NULL) /* Error will be propagated by dgraphBand2*() */
+     errorPrint ("dgraphBand: out of memory (1)");
+- else {
++  else {
+     memSet (bandvnumgsttax, ~0, grafptr->vertgstnbr * sizeof (Gnum)); /* Reset part array */
+     bandvnumgsttax -= grafptr->baseval;
+   }
+@@ -179,83 +177,78 @@ Context *                           contptr)      /*+ Execution context
+   bandgrafptr->flagval = (DGRAPHFREEALL ^ DGRAPHFREECOMM) | DGRAPHVERTGROUP | DGRAPHEDGEGROUP; /* Arrays created by the routine itself */
+   bandgrafptr->baseval = grafptr->baseval;
+ 
++  bandfronloctab = NULL;                          /* In case of error */
++  bandpartgsttax = NULL;
+   if (memAllocGroup ((void **) (void *)           /* Allocate distributed graph private data */
+                      &bandgrafptr->procdsptab, (size_t) ((grafptr->procglbnbr + 1) * sizeof (Gnum)),
+                      &bandgrafptr->proccnttab, (size_t) (grafptr->procglbnbr       * sizeof (Gnum)),
+                      &bandgrafptr->procngbtab, (size_t) (grafptr->procglbnbr       * sizeof (int)),
+                      &bandgrafptr->procrcvtab, (size_t) (grafptr->procglbnbr       * sizeof (int)),
+                      &bandgrafptr->procsndtab, (size_t) (grafptr->procglbnbr       * sizeof (int)), NULL) == NULL) {
++    Gnum                dummval;
++
+     errorPrint ("dgraphBand: out of memory (2)");
+-    cheklocval = 1;
++fail1:                                            /* TRICK: use index array for synchronization, as band graph private data may not exist */
++    dummval = -1;
++    if (MPI_Allgather (&dummval, 1, GNUM_MPI,
++                       bandvnumgsttax + grafptr->baseval, 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS)
++      errorPrint ("dgraphBand: communication error (1)");
++    goto fail2;
+   }
+-  else if (memAllocGroup ((void **) (void *)      /* Allocate distributed graph public data */
+-                          &bandgrafptr->vertloctax, (size_t) ((bandvertlocnbr + 1) * sizeof (Gnum)), /* Compact vertex array */
+-                          &bandgrafptr->vnumloctax, (size_t) (bandvertlocnbr       * sizeof (Gnum)),
+-                          &bandgrafptr->veloloctax, (size_t) (bandvertlocnbr       * sizeof (Gnum)), NULL) == NULL) {
++  if (memAllocGroup ((void **) (void *)           /* Allocate distributed graph public data */
++                     &bandgrafptr->vertloctax, (size_t) ((bandvertlocnbr + 1) * sizeof (Gnum)), /* Compact vertex array */
++                     &bandgrafptr->vnumloctax, (size_t) (bandvertlocnbr       * sizeof (Gnum)),
++                     &bandgrafptr->veloloctax, (size_t) (bandvertlocnbr       * sizeof (Gnum)), NULL) == NULL) {
+     errorPrint ("dgraphBand: out of memory (3)");
+-    cheklocval = 1;
++    goto fail1;
+   }
+-  else if (bandgrafptr->vertloctax -= bandgrafptr->baseval,
+-           bandgrafptr->veloloctax -= bandgrafptr->baseval,
+-           bandgrafptr->vnumloctax -= bandgrafptr->baseval,
+-           (memAllocGroup ((void **) (void *)
+-                           &bandedgeloctax, (size_t) (bandedgelocnbr * sizeof (Gnum)),
+-                           &bandedloloctax, (size_t) (bandedlolocnbr * sizeof (Gnum)), NULL) == NULL)) {
++  bandgrafptr->vertloctax -= bandgrafptr->baseval;
++  bandgrafptr->veloloctax -= bandgrafptr->baseval;
++  bandgrafptr->vnumloctax -= bandgrafptr->baseval;
++
++  if (memAllocGroup ((void **) (void *)           /* Attach edge arrays to band graph so that they are freed on error */
++                     &bandgrafptr->edgeloctax, (size_t) (bandedgelocnbr * sizeof (Gnum)),
++                     &bandgrafptr->edloloctax, (size_t) (bandedlolocnbr * sizeof (Gnum)), NULL) == NULL) {
+     errorPrint ("dgraphBand: out of memory (4)");
+-    cheklocval = 1;
++    goto fail1;
+   }
+-  else {
+-    bandedgeloctax -= bandgrafptr->baseval;
+-    bandedloloctax  = (grafptr->edloloctax != NULL) ? (bandedloloctax - bandgrafptr->baseval) : NULL;
+-
+-    if ((bandfronloctab = memAlloc (bandvertlocnbr * sizeof (Gnum))) == NULL) {
+-      errorPrint ("dgraphBand: out of memory (5)");
+-      cheklocval = 1;
+-    }
+-    else if ((bandpartgsttax = memAlloc ((bandvertlocnbr + bandedgelocnbr) * sizeof (GraphPart))) == NULL) { /* Upper bound on number of ghost vertices */
+-      errorPrint ("dgraphBand: out of memory (6)");
+-      cheklocval = 1;
+-    }
+-    else
+-      bandpartgsttax -= bandgrafptr->baseval;
++  bandgrafptr->edgeloctax -= bandgrafptr->baseval;
++  bandgrafptr->edloloctax  = (grafptr->edloloctax != NULL) ? (bandgrafptr->edloloctax - bandgrafptr->baseval) : NULL;
++  bandedgeloctax = bandgrafptr->edgeloctax;
++  bandedloloctax = bandgrafptr->edloloctax;
++
++  if ((bandfronloctab = memAlloc (bandvertlocnbr * sizeof (Gnum))) == NULL) {
++    errorPrint ("dgraphBand: out of memory (5)");
++    goto fail1;
+   }
+-
+-  if (cheklocval != 0) {                          /* In case of memory error */
+-    bandgrafptr->procdsptab[0] = -1;
+-    if (MPI_Allgather (&bandgrafptr->procdsptab[0], 1, GNUM_MPI, /* Send received data to dummy array */
+-                       bandvnumgsttax + bandgrafptr->baseval, 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
+-      errorPrint ("dgraphBand: communication error (1)");
+-      return (1);
+-    }
++  if ((bandpartgsttax = memAlloc ((bandvertlocnbr + bandedgelocnbr) * sizeof (GraphPart))) == NULL) { /* Upper bound on number of ghost vertices */
++    errorPrint ("dgraphBand: out of memory (6)");
++    goto fail1;
++  }
++  bandpartgsttax -= bandgrafptr->baseval;
++
++  bandgrafptr->procdsptab[0] = bandvertlocnbr;
++  if (MPI_Allgather (&bandgrafptr->procdsptab[0], 1, GNUM_MPI,
++                     &bandgrafptr->procdsptab[1], 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
++    errorPrint ("dgraphBand: communication error (2)");
++fail2:
++    memFree (bandvnumgsttax + grafptr->baseval);  /* Index array is based with respect to original graph */
++fail3:
++    if (bandpartgsttax != NULL)
++      memFree (bandpartgsttax + bandgrafptr->baseval);
+     if (bandfronloctab != NULL)
+       memFree (bandfronloctab);
+     dgraphFree (bandgrafptr);
+-    memFree    (bandvnumgsttax + bandgrafptr->baseval);
+     return (1);
+   }
+-  else {
+-    bandgrafptr->procdsptab[0] = bandvertlocnbr;
+-    if (MPI_Allgather (&bandgrafptr->procdsptab[0], 1, GNUM_MPI,
+-                       &bandgrafptr->procdsptab[1], 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
+-      errorPrint ("dgraphBand: communication error (2)");
+-      return (1);
+-    }
+-  }
+   bandgrafptr->procdsptab[0] = bandgrafptr->baseval; /* Build vertex-to-process array */
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+   memSet (bandgrafptr->vnumloctax + bandgrafptr->baseval, ~0, (bandvertlocnbr * sizeof (Gnum)));
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
+   for (procngbnum = 1; procngbnum <= grafptr->procglbnbr; procngbnum ++) { /* Process potential error flags from other processes */
+-    if (bandgrafptr->procdsptab[procngbnum] < 0) { /* If error notified by another process                                       */
+-      if (bandpartgsttax != NULL)
+-        memFree (bandpartgsttax + bandgrafptr->baseval);
+-      if (bandfronloctab != NULL)
+-        memFree (bandfronloctab);
+-      dgraphFree (bandgrafptr);
+-      memFree    (bandvnumgsttax + bandgrafptr->baseval);
+-      return (1);
+-    }
++    if (bandgrafptr->procdsptab[procngbnum] < 0)  /* If error notified by another process                                        */
++      goto fail2;
+     bandgrafptr->procdsptab[procngbnum]    += bandgrafptr->procdsptab[procngbnum - 1];
+     bandgrafptr->proccnttab[procngbnum - 1] = bandgrafptr->procdsptab[procngbnum] - bandgrafptr->procdsptab[procngbnum - 1];
+   }
+@@ -282,7 +275,7 @@ Context *                           contptr)      /*+ Execution context
+ 
+   if (dgraphHaloSync (grafptr, (byte *) (bandvnumgsttax + bandgrafptr->baseval), GNUM_MPI) != 0) { /* Share global indexing of halo vertices */
+     errorPrint ("dgraphBand: cannot perform halo exchange");
+-    return (1);
++    goto fail2;
+   }
+ 
+   edgegsttax = grafptr->edgegsttax;
+@@ -306,7 +299,7 @@ Context *                           contptr)      /*+ Execution context
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+     if (partval > 2) {
+       errorPrint ("dgraphBand: internal error (1)");
+-      return (1);
++      goto fail2;
+     }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+     partval1 = partval & 1;
+@@ -329,7 +322,7 @@ Context *                           contptr)      /*+ Execution context
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+       if (bandvnumgsttax[edgegsttax[edgelocnum]] == ~0) { /* All ends should belong to the band graph too */
+         errorPrint ("dgraphBand: internal error (2)");
+-        return (1);
++        goto fail2;
+       }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+       bandedgeloctax[bandedgelocnum ++] = bandvnumgsttax[edgegsttax[edgelocnum]];
+@@ -347,7 +340,7 @@ Context *                           contptr)      /*+ Execution context
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+     if (partval > 2) {
+       errorPrint ("dgraphBand: internal error (3)");
+-      return (1);
++      goto fail2;
+     }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+     partval1 = partval & 1;
+@@ -454,19 +447,17 @@ Context *                           contptr)      /*+ Execution context
+   bandgrafptr->vertlocnnd = bandvertlocnbr + bandgrafptr->baseval;
+   bandgrafptr->vendloctax = bandvertloctax + 1;   /* Band graph is compact */
+   bandgrafptr->velolocsum = grafptr->velolocsum + 2 * bandvertlocancadj;
+-  bandgrafptr->edgeloctax = bandedgeloctax;
+-  bandgrafptr->edloloctax = bandedloloctax;
+   bandgrafptr->edgelocnbr = bandedgelocnbr;
+   bandgrafptr->edgelocsiz = bandedgelocnbr;
+   bandgrafptr->degrglbmax = banddegrlocmax;       /* Local maximum degree will be turned into global maximum degree */
+   if (dgraphBuild4 (bandgrafptr) != 0) {
+     errorPrint ("dgraphBand: cannot build band graph");
+-    return (1);
++    goto fail3;
+   }
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+   if (dgraphCheck (bandgrafptr) != 0) {
+     errorPrint ("dgraphBand: internal error (4)");
+-    return (1);
++    goto fail3;
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
+diff --git a/src/libscotch/library_dgraph_band.c b/src/libscotch/library_dgraph_band.c
+index aa7c997..64488f6 100644
+--- a/src/libscotch/library_dgraph_band.c
++++ b/src/libscotch/library_dgraph_band.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2011,2012,2018,2019,2021,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2011,2012,2018,2019,2021,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 6.0  : from : 28 oct 2011     **/
+ /**                                 to   : 21 may 2018     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -110,7 +110,6 @@ SCOTCH_Dgraph * const       bndgrafptr)
+   Gnum                  vertlocadj;
+   const Gnum * restrict edgegsttax;
+   SCOTCH_Num *          fronloctax;
+-  int                   cheklocval;
+   int                   procngbnum;
+   CONTEXTDECL          (orggrafptr);
+   int                   o;
+@@ -121,7 +120,7 @@ SCOTCH_Dgraph * const       bndgrafptr)
+ 
+   if (CONTEXTINIT (orggrafptr)) {
+     errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": cannot initialize context");
+-    goto fail;
++    goto fail3;
+   }
+   grafptr = (Dgraph *) CONTEXTGETOBJECT (orggrafptr);
+ 
+@@ -129,17 +128,16 @@ SCOTCH_Dgraph * const       bndgrafptr)
+   MPI_Comm_compare (grafptr->proccomm, bandgrafptr->proccomm, &o);
+   if ((o != MPI_IDENT) && (o != MPI_CONGRUENT)) {
+     errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": communicators are not congruent");
+-    goto fail;
++    goto fail3;
+   }
+ #endif /* SCOTCH_DEBUG_LIBRARY1 */
+ 
+   if (dgraphGhst (grafptr) != 0) {                /* Compute ghost edge array if not already present */
+     errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": cannot compute ghost edge array");
+-    goto fail;
++    goto fail3;
+   }
+ 
+-  cheklocval = 0;
+-  bandvnumgstsiz = MAX ((grafptr->vertgstnbr * sizeof (Gnum)), (grafptr->procglbnbr * sizeof (int))); /* TRICK: re-use array for further error collective communications */
++  bandvnumgstsiz = MAX (grafptr->vertgstnbr, grafptr->procglbnbr) * sizeof (Gnum); /* TRICK: re-use array for further error collective communications */
+   if ((bandvnumgsttax = memAlloc (bandvnumgstsiz)) == NULL)
+     errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": out of memory (1)"); /* Error will be propagated by dgraphBand2*() */
+   else {
+@@ -151,7 +149,7 @@ SCOTCH_Dgraph * const       bndgrafptr)
+       (grafptr, fronlocnbr, fronloctab, distval, bandvnumgsttax, &bandvertlvlnum, &bandvertlocnbr, &bandedgelocsiz, CONTEXTGETDATA (orggrafptr)) != 0) {
+     if (bandvnumgsttax != NULL)
+       memFree (bandvnumgsttax + grafptr->baseval);
+-    goto fail;
++    goto fail3;
+   }
+ 
+   vertloctax = grafptr->vertloctax;
+@@ -166,55 +164,52 @@ SCOTCH_Dgraph * const       bndgrafptr)
+   bandgrafptr->flagval |= (DGRAPHFREEALL ^ DGRAPHFREECOMM) | DGRAPHVERTGROUP | DGRAPHEDGEGROUP; /* Arrays created by the routine itself */
+   bandgrafptr->baseval  = grafptr->baseval;
+ 
+-  cheklocval = 0;
+   if (memAllocGroup ((void **) (void *)           /* Allocate distributed graph private data */
+                      &bandgrafptr->procdsptab, (size_t) ((grafptr->procglbnbr + 1) * sizeof (Gnum)),
+                      &bandgrafptr->proccnttab, (size_t) (grafptr->procglbnbr       * sizeof (Gnum)),
+                      &bandgrafptr->procngbtab, (size_t) (grafptr->procglbnbr       * sizeof (int)),
+                      &bandgrafptr->procrcvtab, (size_t) (grafptr->procglbnbr       * sizeof (int)),
+                      &bandgrafptr->procsndtab, (size_t) (grafptr->procglbnbr       * sizeof (int)), NULL) == NULL) {
++    Gnum                dummval;
++
+     errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": out of memory (2)");
+-    cheklocval = 1;
++fail1:                                            /* TRICK: use index array for synchronization, as band graph private data may not exist */
++    dummval = -1;
++    if (MPI_Allgather (&dummval, 1, GNUM_MPI,
++                       bandvnumgsttax + grafptr->baseval, 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS)
++      errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": communication error (2)");
++    goto fail2;
+   }
+-  else if (memAllocGroup ((void **) (void *)      /* Allocate distributed graph public data */
+-                          &bandgrafptr->vertloctax, (size_t) ((bandvertlocnbr + 1) * sizeof (Gnum)), /* Compact vertex array */
+-                          &bandvlblloctax,          (size_t) (bandvertlocnbr       * sizeof (Gnum)),
+-                          &bandveloloctax,          (size_t) (bandvelolocnbr       * sizeof (Gnum)), NULL) == NULL) {
++  if (memAllocGroup ((void **) (void *)           /* Allocate distributed graph public data */
++                     &bandgrafptr->vertloctax, (size_t) ((bandvertlocnbr + 1) * sizeof (Gnum)), /* Compact vertex array */
++                     &bandvlblloctax,          (size_t) (bandvertlocnbr       * sizeof (Gnum)),
++                     &bandveloloctax,          (size_t) (bandvelolocnbr       * sizeof (Gnum)), NULL) == NULL) {
+     errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": out of memory (3)");
+-    cheklocval = 1;
++    goto fail1;
+   }
+-  else if (bandgrafptr->vertloctax -= bandgrafptr->baseval,
+-           bandvlblloctax          -= bandgrafptr->baseval,
+-           bandveloloctax = (veloloctax != NULL) ? (bandveloloctax - bandgrafptr->baseval) : NULL,
+-           (memAllocGroup ((void **) (void *)
+-                           &bandedgeloctax, (size_t) (bandedgelocsiz * sizeof (Gnum)),
+-                           &bandedloloctax, (size_t) (bandedlolocsiz * sizeof (Gnum)), NULL) == NULL)) {
++  bandgrafptr->vertloctax -= bandgrafptr->baseval;
++  bandvlblloctax          -= bandgrafptr->baseval;
++  bandveloloctax = (veloloctax != NULL) ? (bandveloloctax - bandgrafptr->baseval) : NULL;
++
++  if (memAllocGroup ((void **) (void *)           /* Attach edge arrays to band graph so that they are freed on error */
++                     &bandgrafptr->edgeloctax, (size_t) (bandedgelocsiz * sizeof (Gnum)),
++                     &bandgrafptr->edloloctax, (size_t) (bandedlolocsiz * sizeof (Gnum)), NULL) == NULL) {
+     errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": out of memory (4)");
+-    cheklocval = 1;
++    goto fail1;
+   }
+-  else {
+-    bandedgeloctax -= bandgrafptr->baseval;
+-    bandedloloctax  = (edloloctax != NULL) ? (bandedloloctax - bandgrafptr->baseval) : NULL;
+-  }
+-
+-  if (cheklocval != 0) {                          /* In case of memory error */
+-    bandgrafptr->procdsptab[0] = -1;
+-    if (MPI_Allgather (&bandgrafptr->procdsptab[0], 1, GNUM_MPI, /* Send received data to dummy array */
+-                       bandvnumgsttax + bandgrafptr->baseval, 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
+-      errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": communication error (2)");
+-      goto fail;
+-    }
++  bandgrafptr->edgeloctax -= bandgrafptr->baseval;
++  bandgrafptr->edloloctax  = (edloloctax != NULL) ? (bandgrafptr->edloloctax - bandgrafptr->baseval) : NULL;
++  bandedgeloctax = bandgrafptr->edgeloctax;
++  bandedloloctax = bandgrafptr->edloloctax;
++
++  bandgrafptr->procdsptab[0] = bandvertlocnbr;
++  if (MPI_Allgather (&bandgrafptr->procdsptab[0], 1, GNUM_MPI,
++                     &bandgrafptr->procdsptab[1], 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
++    errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": communication error (3)");
++fail2:
++    memFree    (bandvnumgsttax + grafptr->baseval); /* Index array is based with respect to original graph */
+     dgraphExit (bandgrafptr);
+-    memFree    (bandvnumgsttax + bandgrafptr->baseval);
+-    goto fail;
+-  }
+-  else {
+-    bandgrafptr->procdsptab[0] = bandvertlocnbr;
+-    if (MPI_Allgather (&bandgrafptr->procdsptab[0], 1, GNUM_MPI,
+-                       &bandgrafptr->procdsptab[1], 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
+-      errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": communication error (3)");
+-      goto fail;
+-    }
++    goto fail3;
+   }
+   bandgrafptr->procdsptab[0] = bandgrafptr->baseval; /* Build vertex-to-process array */
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+@@ -222,11 +217,8 @@ SCOTCH_Dgraph * const       bndgrafptr)
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
+   for (procngbnum = 1; procngbnum <= grafptr->procglbnbr; procngbnum ++) { /* Process potential error flags from other processes */
+-    if (bandgrafptr->procdsptab[procngbnum] < 0) { /* If error notified by another process                                       */
+-      dgraphExit (bandgrafptr);
+-      memFree    (bandvnumgsttax + bandgrafptr->baseval);
+-      goto fail;
+-    }
++    if (bandgrafptr->procdsptab[procngbnum] < 0)  /* If error notified by another process                                        */
++      goto fail2;
+     bandgrafptr->procdsptab[procngbnum]    += bandgrafptr->procdsptab[procngbnum - 1];
+     bandgrafptr->proccnttab[procngbnum - 1] = bandgrafptr->procdsptab[procngbnum] - bandgrafptr->procdsptab[procngbnum - 1];
+   }
+@@ -246,7 +238,7 @@ SCOTCH_Dgraph * const       bndgrafptr)
+ 
+   if (dgraphHaloSync (grafptr, (byte *) (bandvnumgsttax + bandgrafptr->baseval), GNUM_MPI) != 0) { /* Share global indexing of halo vertices */
+     errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": cannot perform halo exchange");
+-    goto fail;
++    goto fail2;
+   }
+ 
+   edgegsttax = grafptr->edgegsttax;
+@@ -279,7 +271,7 @@ SCOTCH_Dgraph * const       bndgrafptr)
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+       if (bandvnumgsttax[edgegsttax[edgelocnum]] == ~0) { /* All ends should belong to the band graph too */
+         errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": internal error (1)");
+-        goto fail;
++        goto fail2;
+       }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+       bandedgeloctax[bandedgelocnum ++] = bandvnumgsttax[edgegsttax[edgelocnum]];
+@@ -341,24 +333,24 @@ SCOTCH_Dgraph * const       bndgrafptr)
+   bandgrafptr->veloloctax = bandveloloctax;
+   bandgrafptr->velolocsum = bandvelolocsum;
+   bandgrafptr->vlblloctax = bandvlblloctax;
+-  bandgrafptr->edgeloctax = bandedgeloctax;
+-  bandgrafptr->edloloctax = bandedloloctax;
+   bandgrafptr->edgelocnbr = bandedgelocnum - bandgrafptr->baseval;
+   bandgrafptr->edgelocsiz = bandedgelocsiz;
+   bandgrafptr->degrglbmax = banddegrlocmax;       /* Local maximum degree will be turned into global maximum degree */
+   if (dgraphBuild4 (bandgrafptr) != 0) {
+     errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": cannot build band graph");
+-    goto fail;
++    dgraphExit (bandgrafptr);
++    goto fail3;
+   }
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+   if (dgraphCheck (bandgrafptr) != 0) {
+     errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": internal error (2)");
+-    goto fail;
++    dgraphExit (bandgrafptr);
++    goto fail3;
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
+   o = 0;                                          /* Everything went well */
+-fail:
++fail3:
+   CONTEXTEXIT (orggrafptr);
+   return (o);
+ }
+-- 
+2.47.3
+

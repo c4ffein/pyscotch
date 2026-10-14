@@ -1,0 +1,6 @@
+PS2-G06-2: SCOTCH_contextOptionParse() had no Fortran interface and no user-manual entry
+--------------------------------------------------------------------------------------
+opt_f.f90: calls scotchfcontextoptionparse (contdat, "d", ierr) then reads both options; then parses "x".
+  gfortran -O0 -g -fsanitize=address,undefined -I$B/include -o opt_f opt_f.f90 -L$B/lib -lscotch -lscotcherr -lz -lm -lpthread
+Pristine: link error (undefined reference to scotchfcontextoptionparse_).
+Patched (patches/0005), 32- and 64-bit: "parse d: ierr = 0", "deterministic = 1 fixedseed = 1", "parse x: ierr = 1".

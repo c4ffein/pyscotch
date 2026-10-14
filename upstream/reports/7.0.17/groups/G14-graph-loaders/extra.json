@@ -1,0 +1,75 @@
+[
+ {
+  "local_id": "PS2-G14-1",
+  "our_title": "Graph loaders trust unbounded header counts, label values and HB field widths (overflow / huge alloc / hang)",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Mutation fuzzer (fuzz/tools/mutfuzz.py, seed 42, 2264 iters) on patched 32-bit ASan+UBSan build. Examples: chac '2147483647 2 000' -> memAllocGroup requested 0xfffffffe00000008 (ASan); mtx '4 4 -1' -> malloc 0xfffffffffffffff8; grf label 2147483647 -> UBSan 'vlblmax + 1' overflow at graph_io.c:306 then ~8GB indxtab alloc; rsa format '(1X,10I999999)' -> UBSan at habo:270 and near-hang on '(10I9999999999)'.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/graph_io.c:297/302 (vlblmax+1); src/libscotch/graph_io_chac.c:131-133 (chavertnbr,chaedgenbr); src/libscotch/graph_io_mmkt.c:138-153 (mrownbr,linenbr); src/libscotch/graph_io_habo.c:416-430 (format datanbr/datalen), 240-246 (habcoltab)",
+  "evidence": "Chaco: 'grafptr->vertnbr = chavertnbr; grafptr->edgenbr = chaedgenbr * 2;' with no sign/range check. Mmkt: 'memAlloc (2 * linenbr * sizeof ...)' with linenbr unchecked. graph_io.c:297 'memAlloc ((vlblmax + 1) * sizeof (Gnum))' where vlblmax can reach GNUMMAX. HB format: 'number = number * 10 + *charptr - '0';' with no width bound, used as a getc loop count.",
+  "related_ids": [
+   "GRA-04",
+   "GRA-07",
+   "GRA-08",
+   "GRA-11",
+   "GRA-24",
+   "API-21"
+  ],
+  "fix_options": [
+   {
+    "label": "Reject non-positive header object counts",
+    "summary": "Add chavertnbr/chaedgenbr and mrownbr/linenbr >= 0 checks, mirroring graphLoad's header checks.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/alt/PS2-G14-1-reject-nonpositive-header-counts.diff",
+    "tested": "untested: not built. Closes the negative-count wrapped-alloc cases; does not bound large positive counts.",
+    "tradeoffs": "Cheap and matches precedent; a negative count already fails allocation gracefully in production, so this is clarity/DoS hardening, not a corruption fix.",
+    "preferred": true,
+    "maintainer_fit": "Matches graph_io.c:131-139; but whether to add it (and any upper bound / HB width bound) is the maintainer's call."
+   },
+   {
+    "label": "Overflow-safe integer parsing and field-width bounds",
+    "summary": "Detect overflow in intLoad()/graphGeomLoadHaboFormat() accumulation and cap HB field widths to the 80-column line.",
+    "diff_file": "",
+    "tested": "untested: design decision. intLoad() is common_integer.c, shared by every loader and outside this group's files.",
+    "tradeoffs": "Removes the UBSan overflows and the format-width hang class, but touches common code and needs an agreed bound.",
+    "preferred": false,
+    "maintainer_fit": "Belongs with the common I/O layer; flagged for the maintainer / common-code owners."
+   }
+  ],
+  "patch_files": [],
+  "area": "GRA"
+ },
+ {
+  "local_id": "PS2-G14-2",
+  "our_title": "graphLoad accepted negative vertex degrees and could overflow the arc-count accumulator",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Fuzzer on pristine ASan+UBSan: grf with degree 2147483647 -> UBSan 'signed integer overflow: 6 + 2147483647' at graph_io.c:224 ('degrval += edgenum'). A negative degree was silently treated as an isolated vertex. Fixed by patch 0001 (reject degrval<0; test 'degrval > edgennd - edgenum' before adding).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/graph_io.c:216-226",
+  "evidence": "7.0.17: 'if (intLoad (stream, &degrval) != 1)' with no degrval<0 check, then 'degrval += edgenum; if (degrval > edgennd)' - the addition overflows before the test.",
+  "related_ids": [
+   "GRA-04",
+   "GRA-10"
+  ],
+  "fix_options": [
+   {
+    "label": "Reject negative degree and test overflow before adding (recommended, committed)",
+    "summary": "Add (degrval < 0); replace 'degrval += edgenum; if (degrval > edgennd)' with 'if (degrval > edgennd - edgenum)' then add.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0001-Bugfix-validate-vertex-labels-and-edge-ends-read-by-.patch",
+    "tested": "Built 32/64-bit (0 warnings); the UBSan hit is gone; valid graphs load; all listed check targets pass.",
+    "tradeoffs": "None; folded into the GRA-04/GRA-10 commit as part of one coherent read-loop validation.",
+    "preferred": true,
+    "maintainer_fit": "Same spirit as febaef7's edloval<1 check; the twin dgraphLoadDist/Cent accumulators (dgraph_io_load.c, G20) have the same pattern and should get the same fix."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G14-graph-loaders/patches/0001-Bugfix-validate-vertex-labels-and-edge-ends-read-by-.patch"
+  ],
+  "area": "GRA"
+ }
+]

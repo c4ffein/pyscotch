@@ -1,0 +1,7 @@
+gord threads=1 runs=30 differing_from_1thread_ref=0
+gord threads=2 runs=30 differing_from_1thread_ref=30
+gord threads=4 runs=30 differing_from_1thread_ref=30
+mord threads=1 runs=30 differing_from_1thread_ref=0
+mord threads=2 runs=30 differing_from_1thread_ref=0
+mord threads=4 runs=30 differing_from_1thread_ref=0
+done

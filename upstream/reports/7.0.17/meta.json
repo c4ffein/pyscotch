@@ -1,0 +1,16 @@
+{
+ "review": {
+  "author": "Robert Perry",
+  "date": "2026-10-07"
+ },
+ "previous": {
+  "version": "7.0.16",
+  "commit": "b748bc4"
+ },
+ "sender": "[your name]",
+ "verifier": "PyScotch, with automated assistance",
+ "highlights": [
+  "Threaded bgraphBipartGg(): 7.0.17 fixed the best-pass selection (as we proposed) but not the worker-PRNG seeding race or the ignored SCOTCH_DETERMINISTIC. On the unpatched 7.0.17, deterministic runs still give 2 distinct partitions over 12 fresh processes; the 7.0.16 patch minus the merged half restores one partition (3 x 30 runs, 2 and 4 threads). ThreadSanitizer shows the seeding race on 7.0.17 and none with the patch. This is SEP-13 in the review's numbering.",
+  "A separate data race remains with or without that patch: gainTablAddLog() writes the file-static gainLinkDummy sentinel from several threads (gain.c). It looks benign in practice but is a formal race now that gain tables run from several threads."
+ ]
+}

@@ -1,0 +1,155 @@
+From d38dcb78a4a4d416da92f59aa96802a92e718cbc Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:41:39 +0000
+Subject: [PATCH 183/240] Bugfix: clean up properly on error in
+ `METIS_MeshToDual()` and `ParMETIS_V3_Mesh2Dual()` [report R. Perry]
+
+When the second user array could not be allocated, `METIS_MeshToDual()`
+freed the first one but left its address in the caller's `*xadj`,
+while callers, and in particular the Fortran interface which has no
+return value, detect failure by testing `*xadj` against NULL: the
+freed array was then used and freed again. Both output pointers are
+now set to NULL on entry, and mesh and graph structures are freed on
+all error paths.
+
+`ParMETIS_V3_Mesh2Dual()` allocated its user-managed arrays with plain
+`malloc()` but freed them with `memFree()`, which is not its
+counterpart when memory tracing is enabled, and its communication
+error path under `SCOTCH_DEBUG_ALL` returned without freeing anything.
+The arrays are now freed with `free()`, all error paths go through
+the common exit, and output pointers are set to NULL on entry, as in
+the sequential routine.
+
+Refs: CLI-15
+---
+ src/libscotchmetis/metis_graph_dual.c     | 25 ++++++++++++++---------
+ src/libscotchmetis/parmetis_dgraph_dual.c | 21 +++++++++++--------
+ 2 files changed, 27 insertions(+), 19 deletions(-)
+
+diff --git a/src/libscotchmetis/metis_graph_dual.c b/src/libscotchmetis/metis_graph_dual.c
+index 7d2bd5b..3205edd 100644
+--- a/src/libscotchmetis/metis_graph_dual.c
++++ b/src/libscotchmetis/metis_graph_dual.c
+@@ -44,7 +44,7 @@
+ /**   DATES      : # Version 6.1  : from : 01 sep 2020     **/
+ /**                                 to   : 28 may 2021     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 01 apr 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -89,33 +89,38 @@ SCOTCH_Num ** const         adjncy)
+   SCOTCH_Num *        edgetab;
+   int                 o;
+ 
+-  *xadj = NULL;                                   /* Assume something will go wrong */
+-
+-  SCOTCH_meshInit  (&meshdat);
+-  SCOTCH_graphInit (&grafdat);
++  *xadj   =                                       /* Assume something will go wrong: callers test for null pointers */
++  *adjncy = NULL;
+ 
++  SCOTCH_meshInit (&meshdat);
+   edgenbr = eptr[*ne] - *nuimflag;                /* Number of arcs in element array */
+   if (SCOTCH_meshBuildElem (&meshdat, *nuimflag, *nuimflag, *ne, *nn,
+                             eptr, eptr + 1, NULL, NULL, NULL, edgenbr, eind) != 0) {
+     SCOTCH_errorPrint ("SCOTCH_METIS_MeshToDual: cannot create mesh");
+-    return            (METIS_ERROR);
++    SCOTCH_meshExit   (&meshdat);
++    return (METIS_ERROR);
+   }
++
++  SCOTCH_graphInit (&grafdat);
+   o = SCOTCH_meshGraphDual (&meshdat, &grafdat, *ncommon);
+   SCOTCH_meshExit (&meshdat);                     /* Mesh structure is no longer needed */
+   if (o != 0) {
+     SCOTCH_errorPrint ("SCOTCH_METIS_MeshToDual: cannot create graph from mesh");
+-    return            (METIS_ERROR);
++    SCOTCH_graphExit  (&grafdat);
++    return (METIS_ERROR);
+   }
+ 
+   SCOTCH_graphData (&grafdat, &baseval, &vertnbr, &verttab, &vendtab, NULL, NULL, &edgenbr, &edgetab, NULL);
+ 
+   if (((*xadj   = malloc ((vertnbr + 1) * sizeof (SCOTCH_Num))) == NULL) || /* Do not use libScotch memory allocation as freed by user */
+-      ((*adjncy = malloc (edgenbr       * sizeof(SCOTCH_Num)))  == NULL)) {
++      ((*adjncy = malloc (edgenbr       * sizeof (SCOTCH_Num))) == NULL)) {
+     SCOTCH_errorPrint ("SCOTCH_METIS_MeshToDual: out of memory");
+-    if (*xadj != NULL)
++    if (*xadj != NULL) {
+       free (*xadj);
++      *xadj = NULL;
++    }
+     SCOTCH_graphExit (&grafdat);
+-    return           (METIS_ERROR_MEMORY);
++    return (METIS_ERROR_MEMORY);
+   }
+ 
+   memCpy (*xadj,   verttab, (vertnbr + 1) * sizeof (SCOTCH_Num));
+diff --git a/src/libscotchmetis/parmetis_dgraph_dual.c b/src/libscotchmetis/parmetis_dgraph_dual.c
+index 4df1e8d..c953d2f 100644
+--- a/src/libscotchmetis/parmetis_dgraph_dual.c
++++ b/src/libscotchmetis/parmetis_dgraph_dual.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2023-2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2023-2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**                to dual graphs                          **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 01 sep 2023     **/
+-/**                                 to   : 08 aug 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -106,6 +106,9 @@ MPI_Comm *                  commptr)
+   const SCOTCH_Num                  eelmlocnnd = velmloctax[velmlocnnd]; /* Because element vertex array is compact     */
+   const SCOTCH_Num                  eelmlocnbr = eelmlocnnd - *baseptr;
+ 
++  *vertlocptr =                                   /* Assume something will go wrong: callers test for null pointers */
++  *edgelocptr = NULL;
++
+   vnodlocmax = 0;
+   for (eelmlocnum = *baseptr; eelmlocnum < eelmlocnnd; eelmlocnum ++) { /* Search for highest node vertex index */
+     SCOTCH_Num          vnodlocend;
+@@ -146,7 +149,7 @@ MPI_Comm *                  commptr)
+   SCOTCH_dgraphData (&grafdat, NULL, NULL, &vertlocnbr, NULL, NULL, &vertloctmp, NULL, NULL, NULL,
+                      NULL, &edgelocnbr, NULL, &edgeloctmp, NULL, NULL, NULL);
+ 
+-  cheklocval = 0;                               /* Assume everything will go well                                                   */
++  cheklocval = 0;                                 /* Assume everything will go well */
+   if ((vertloctab = malloc ((vertlocnbr + 1) * sizeof (SCOTCH_Num))) == NULL) { /* Use plain malloc() because of user-managed array */
+     SCOTCH_errorPrint ("SCOTCH_ParMETIS_V3_Mesh2Dual: out of memory (1)");
+     cheklocval = 1;
+@@ -157,18 +160,18 @@ MPI_Comm *                  commptr)
+   }
+ #ifdef SCOTCH_DEBUG_ALL
+   if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, *commptr) != MPI_SUCCESS) {
+-    SCOTCH_errorPrint ("SCOTCH_ParMETIS_V3_Mesh2Dual: communication error");
+-    return            (METIS_ERROR);
++    SCOTCH_errorPrint ("SCOTCH_ParMETIS_V3_Mesh2Dual: communication error (2)");
++    chekglbval = 1;
+   }
+ #else /* SCOTCH_DEBUG_ALL */
+   chekglbval = cheklocval;
+ #endif /* SCOTCH_DEBUG_ALL */
+   if (chekglbval != 0) {
+-    if (edgeloctab != NULL)
+-      memFree (edgeloctab);
++    if (edgeloctab != NULL)                       /* Free user-managed arrays with plain free() */
++      free (edgeloctab);
+     if (vertloctab != NULL)
+-      memFree (vertloctab);
+-    o = METIS_ERROR_MEMORY;
++      free (vertloctab);
++    o = (cheklocval != 0) ? METIS_ERROR_MEMORY : METIS_ERROR;
+     goto abort1;
+   }
+ 
+-- 
+2.47.3
+

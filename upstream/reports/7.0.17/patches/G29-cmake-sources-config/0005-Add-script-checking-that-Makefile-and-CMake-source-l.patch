@@ -1,0 +1,76 @@
+From 41c3c7c401c4f7f2169ed45053037cb1a9b5a1bb Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:07:13 +0000
+Subject: [PATCH 05/11] Add script checking that Makefile and CMake source
+ lists agree
+
+"ci/check_sources.sh" extracts the C source files compiled by the
+Makefile and by the CMake file of each library (libScotch,
+libPTScotch, libEsMUMPS, libScotchMeTiS and libPTScotchParMeTiS) and
+reports any file that is built by only one of them. It is meant to be
+run in continuous integration, before the CMake build.
+
+Refs: BLD-01
+---
+ ci/check_sources.sh | 49 +++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 49 insertions(+)
+ create mode 100755 ci/check_sources.sh
+
+diff --git a/ci/check_sources.sh b/ci/check_sources.sh
+new file mode 100755
+index 0000000..e72e26e
+--- /dev/null
++++ b/ci/check_sources.sh
+@@ -0,0 +1,49 @@
++#!/bin/sh
++## Check that the Makefiles and the CMake files of the Scotch libraries
++## compile the same C source files. The status is non-zero when some
++## source file is listed in only one of the two build systems.
++##
++## Usage: ci/check_sources.sh [path to "src" directory]
++
++srcdir="${1:-src}"
++tmpdir="${TMPDIR:-/tmp}/check_sources_$$"
++status=0
++
++## makesrcs <Makefile> <first line pattern>
++## Print the C source files of a Makefile object list, be it a variable
++## definition or the dependency list of a library rule, one per line.
++makesrcs () {
++  sed -n "/^$2/,/[^\\\\]\$/p" "$1" | \
++  sed -n 's/^.*[ 	=]\([a-z0-9_]*\)\(_\$(V)\)*\$(OBJ).*$/\1.c/p' | sort -u
++}
++
++## cmakesrcs <CMakeLists.txt> <first line pattern>
++## Print the C source files of a CMake list, be it a set() or an
++## add_library() command, one per line, without their directory part.
++cmakesrcs () {
++  sed -n "/^[ 	]*$2\$/,/)/p" "$1" | \
++  sed -n 's/^[ 	]*\([^ 	#]*\/\)*\([a-z0-9_]*\.c\)[ 	)]*$/\2/p' | sort -u
++}
++
++## compare <library> <Makefile> <pattern> <CMakeLists.txt> <pattern>
++compare () {
++  makesrcs  "$2" "$3" > "$tmpdir/make"
++  cmakesrcs "$4" "$5" > "$tmpdir/cmake"
++  if ! diff "$tmpdir/make" "$tmpdir/cmake" > "$tmpdir/diff" ; then
++    echo "$1: source lists differ ('<': Makefile only, '>': CMake only)"
++    grep '^[<>]' "$tmpdir/diff"
++    status=1
++  fi
++}
++
++mkdir -p "$tmpdir"
++
++compare libscotch           "$srcdir/libscotch/Makefile"      'LIBSCOTCHDEPS[ 	]*='             "$srcdir/libscotch/CMakeLists.txt"      'set(SCOTCH_C_SOURCES'
++compare libptscotch         "$srcdir/libscotch/Makefile"      'LIBPTSCOTCHDEPS[ 	]*='           "$srcdir/libscotch/CMakeLists.txt"      'set(PTSCOTCH_C_SOURCES'
++compare libesmumps          "$srcdir/esmumps/Makefile"        'LIBESMUMPSDEPS[ 	]*='            "$srcdir/esmumps/CMakeLists.txt"        'set(esmumps_src'
++compare libscotchmetis      "$srcdir/libscotchmetis/Makefile" 'libscotchmetis\$(V)\$(LIB)'       "$srcdir/libscotchmetis/CMakeLists.txt" 'add_library(scotchmetisv\${version}'
++compare libptscotchparmetis "$srcdir/libscotchmetis/Makefile" 'libptscotchparmetis\$(V)\$(LIB)'  "$srcdir/libscotchmetis/CMakeLists.txt" 'add_library(ptscotchparmetisv\${version}'
++
++rm -r "$tmpdir"
++
++exit $status
+-- 
+2.47.3
+

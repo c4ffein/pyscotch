@@ -1,0 +1,15 @@
+--- a/src/libscotch/library_graph_map.c
++++ b/src/libscotch/library_graph_map.c
+@@ -271,6 +271,12 @@
+ 
+   if (kgraphInit (&mapgrafdat, grafptr, lmapptr->archptr, &domnorg, vfixnbr, pfixtax, crloval, cmloval, vmlotax) != 0)
+     goto fail;
++  if (mapAlloc (&mapgrafdat.m) != 0) {            /* Set initial mapping, in case strategy does not start with a method that computes one */
++    errorPrint ("graphMapCompute2: cannot allocate mapping arrays");
++    kgraphExit (&mapgrafdat);
++    goto fail;
++  }
++  kgraphFrst (&mapgrafdat);                       /* All vertices in initial domain */
+ 
+   if (lmaoptr != NULL) {                          /* If we are doing a repartitioning, fill old mapping structure */
+     if (mapAlloc (&mapgrafdat.r.m) != 0) {        /* Allocate part and domain arrays                              */

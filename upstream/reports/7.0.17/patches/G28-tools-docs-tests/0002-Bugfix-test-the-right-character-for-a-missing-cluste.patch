@@ -1,0 +1,47 @@
+From 63d60e785b81a0a2e53b8509b78bdd38599338ad Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:13:41 +0000
+Subject: [PATCH 2/8] Bugfix: test the right character for a missing cluster
+ load after '-q' in `gmap' and `dgmap' [report PyScotch]
+
+The test for a missing parameter after option '-q' examined
+`argv[i][1]', which is the option letter itself and is never the
+null character, so that the "missing parameter" error could never
+be reported and a bare '-q' was reported as an invalid cluster load
+''. Test the character that follows the option letter.
+
+Refs: PS2-G28-1
+---
+ src/scotch/dgmap.c | 2 +-
+ src/scotch/gmap.c  | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/scotch/dgmap.c b/src/scotch/dgmap.c
+index af05266..cb70508 100644
+--- a/src/scotch/dgmap.c
++++ b/src/scotch/dgmap.c
+@@ -269,7 +269,7 @@ char *                      argv[])
+               errorPrint ("main: invalid parameter '%s' after '-q' for dgpart", argv[i] + 2);
+           }
+           else {
+-            if (argv[i][1] == '\0')
++            if (argv[i][2] == '\0')
+               errorPrint ("main: missing parameter after '-q' for dgmap");
+             if ((C_partNbr = atoi (argv[i] + 2)) < 1) /* Get maximum cluster load */
+               errorPrint ("main: invalid cluster load '%s'", argv[i] + 2);
+diff --git a/src/scotch/gmap.c b/src/scotch/gmap.c
+index 72cc15a..242498f 100644
+--- a/src/scotch/gmap.c
++++ b/src/scotch/gmap.c
+@@ -276,7 +276,7 @@ char *                      argv[])
+               errorPrint ("main: invalid parameter '%s' after '-q' for gpart", argv[i] + 2);
+           }
+           else {
+-            if (argv[i][1] == '\0')
++            if (argv[i][2] == '\0')
+               errorPrint ("main: missing parameter after '-q' for gmap");
+             if ((C_partNbr = atoi (argv[i] + 2)) < 1) /* Get maximum cluster load */
+               errorPrint ("main: invalid cluster load '%s'", argv[i] + 2);
+-- 
+2.47.3
+

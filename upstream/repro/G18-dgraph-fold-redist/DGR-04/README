@@ -1,0 +1,32 @@
+DGR-04: SCOTCH_dgraphRedist() with a user permutation corrupts the graph (in-place unpacking)
+=============================================================================================
+redistperm.c (public API; reused from the first attempt and re-read): ring of N vertices, each run
+done twice, with the identity order inside parts (control) and with the order reversed inside parts
+(user permgsttab, ghost part filled with SCOTCH_dgraphHalo as the manual requires, p_l.tex
+sec-lib-func-dgraphredist). mode 0: all vertices to the last process; mode 1: packs of 3 to successive
+processes (as in test_scotch_dgraph_redist.c); mode 2: all vertices held by process 0 and sent to the
+(empty) last process (the review's example). The redistributed graph is checked with
+SCOTCH_dgraphCheck() and its adjacency compared with the ring through the vertex labels.
+  mpicc <CFLAGS> -DSCOTCH_PTSCOTCH -I$B/include redistperm.c -o redistperm_<build> -L$B/lib -lptscotch -lscotch -lptscotcherr <LDFLAGS>
+
+Pristine 7.0.17 (INFRA/asan, 32-bit ASan):
+  mpirun --oversubscribe -np 2 ./redistperm_pristine32 4 0 2     (the review's reversed 4-cycle)
+    ERROR: AddressSanitizer: memcpy-param-overlap ... #1 dgraphRedist2 dgraph_redist.c:469 #3 SCOTCH_dgraphRedist
+  mpirun --oversubscribe -np 2 ./redistperm_pristine32 8 0 2
+    rank 1: rev=1 rc=0 check=1 bad-adjacency=2  (+ "dgraphCheck: arc data do not match")  <- rc=0, silently wrong graph
+  -np 3 ./redistperm_pristine32 40 0 0 ; -np 4 ./redistperm_pristine32 41 1 0 : check=1, bad-adjacency 1..3
+  -np 3 ./redistperm_pristine32 30 1 1 (packs of 3): passes even reversed: the receiver's own send
+  buffer pads the gap between the destination edge area and the receive buffer, which is why the
+  existing test did not catch it and why the new test sends everything to one process.
+
+Patched (commit 0001): all 6 (np x mode x N x base) combinations pass on the 32-bit ASan build
+(redistperm_build) and on the 64-bit build (redistperm_build64).
+
+Regression test added to src/check/test_scotch_dgraph_redist.c (second case: all vertices to the
+last process with a reversed permutation, same executable and data, no Makefile/CMake change):
+  test_redist_new32 (test compiled against patched headers) vs pristine INFRA/asan lib, np=3:
+    bump.grf, bump_b100000.grf: ERROR: AddressSanitizer: memcpy-param-overlap, rc=1
+  test_redist_new_plain vs $WORK/pristinefi/lib (plain build): "dgraphCheck: arc data do not match",
+    "main: invalid redistributed graph (2)", rc=1
+  vs patched libs ($WORK/build/lib, $WORK/buildfi/lib): rc=0.
+  make check_scotch_dgraph_redist passes on 32-bit ASan, 64-bit and SCOTCH_DEBUG_ALL trees.

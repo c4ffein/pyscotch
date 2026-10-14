@@ -1,0 +1,36 @@
+--- a/src/libscotch/mesh_graph.c
++++ b/src/libscotch/mesh_graph.c
+@@ -104,7 +104,7 @@
+   Gnum                      vertnum;              /* Number of current graph vertex         */
+   Gnum                      degrmax;
+ 
+-  grafptr->flagval = GRAPHFREETABS | GRAPHVERTGROUP | GRAPHEDGEGROUP;
++  grafptr->flagval = GRAPHNONE;                   /* Nothing to free until arrays are allocated */
+   grafptr->baseval = meshptr->baseval;
+   grafptr->vertnbr = meshptr->vnodnbr;
+   grafptr->vertnnd = meshptr->vnodnbr + meshptr->baseval;
+@@ -120,6 +120,7 @@
+       memFree (grafptr->verttax);
+     return (1);
+   }
++  grafptr->flagval  = GRAPHFREETABS | GRAPHVERTGROUP | GRAPHEDGEGROUP; /* Graph now owns its arrays */
+   grafptr->verttax -= grafptr->baseval;
+   grafptr->vendtax  = grafptr->verttax + 1;
+ 
+@@ -249,7 +250,7 @@
+   Gnum                          vertnum;          /* Number of current graph vertex         */
+   Gnum                          degrmax;
+ 
+-  grafptr->flagval = GRAPHFREETABS | GRAPHVERTGROUP | GRAPHEDGEGROUP;
++  grafptr->flagval = GRAPHNONE;                   /* Nothing to free until arrays are allocated */
+   grafptr->baseval = meshptr->baseval;
+   grafptr->vertnbr = meshptr->velmnbr;
+   grafptr->vertnnd = meshptr->velmnbr + meshptr->baseval;
+@@ -265,6 +266,7 @@
+       memFree (grafptr->verttax);
+     return (1);
+   }
++  grafptr->flagval  = GRAPHFREETABS | GRAPHVERTGROUP | GRAPHEDGEGROUP; /* Graph now owns its arrays */
+   grafptr->verttax -= grafptr->baseval;
+   grafptr->vendtax  = grafptr->verttax + 1;
+   grafptr->velotax  = NULL;                       /* TODO: not implemented */

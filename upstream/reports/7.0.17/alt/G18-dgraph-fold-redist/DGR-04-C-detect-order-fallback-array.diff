@@ -1,0 +1,97 @@
+--- a/src/libscotch/dgraph_redist.c
++++ b/src/libscotch/dgraph_redist.c
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 6.0  : from : 10 may 2010     **/
+ /**                                 to   : 13 sep 2012     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -231,6 +231,8 @@
+   Gnum                      dstvelolocsum;
+   Gnum * restrict           dstvlblloctax;
+   Gnum *                    dstedgeloctax;        /* Pointer to destination edge array [norestrict]      */
++  Gnum *                    dstedgetmptax;        /* Destination edge array for unpacking [norestrict]   */
++  Gnum                      dstvertlocprv;        /* Index of previously unpacked vertex                 */
+   Gnum                      dstedgelocnbr;
+   Gnum                      dstedgelocsiz;
+   Gnum                      dstedgelocnum;
+@@ -422,12 +424,16 @@
+   }
+ 
+   dstvertlocadj = dstprocvrttab[srcgrafptr->proclocnum] - baseval;
+-  for (drcvdatidx = 0; drcvdatidx < drcvdatnbr; ) {
++  dstedgetmptax = dstedgeloctax;                  /* Assume vertices are received in destination order: unpack in place */
++  for (drcvdatidx = 0, dstvertlocprv = baseval - 1; drcvdatidx < drcvdatnbr; ) {
+     Gnum                dstvertlocnum;
+     Gnum                dstdegrval;
+ 
+     dstvertlocnum = drcvdattab[drcvdatidx ++] - dstvertlocadj; /* Get vertex index */
+     dstdegrval    = drcvdattab[drcvdatidx ++];    /* Get number of edges           */
++    if (dstvertlocnum < dstvertlocprv)            /* If receive order is not destination order, in-place unpacking is not possible */
++      dstedgetmptax = NULL;
++    dstvertlocprv = dstvertlocnum;
+ 
+     dstvertloctax[dstvertlocnum] = dstdegrval;    /* Record vertex degree to compute index array */
+     dstvlblloctax[dstvertlocnum] = drcvdatidx;    /* TRICK: record data position in label array  */
+@@ -435,6 +441,18 @@
+     drcvdatidx += dstdegrval * fledval + (flveval - 2); /* Increase index by proper value */
+   }
+ 
++  if (dstedgetmptax == NULL) {                    /* If in-place unpacking is not possible, allocate separate edge arrays */
++    if ((dstedgetmptax = memAlloc (dstedgelocsiz * fledval * sizeof (Gnum))) == NULL) {
++      errorPrint ("dgraphRedist2: out of memory (4)");
++      memFree    (dstedgeloctax + baseval);
++      memFree    (dstvertloctax + baseval);
++      dgraphFree (dstgrafptr);
++      return (1);
++    }
++    dstedgetmptax -= baseval;
++    dstedloloctax  = (srcgrafptr->edloloctax != NULL) ? (dstedgetmptax + dstedgelocsiz) : NULL;
++  }
++
+   dstvelolocsum = (dstveloloctax != NULL) ? 0 : dstvertlocnbr; /* Set local vertex load sum if no vertex loads present         */
+   for (dstvertlocnum = dstedgelocnum = baseval, dstvertlocnnd = dstvertlocnbr + baseval; /* Copy edge information in due place */
+        dstvertlocnum < dstvertlocnnd; dstvertlocnum ++) {
+@@ -461,25 +479,31 @@
+       drcvdatidx += dstdegrval;
+     }
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+-    if (ABS ((dstedgeloctax + dstedgelocnum) - (drcvdattab + drcvdatidx)) < dstdegrval) { /* TRICK: memory areas should never overlap because of degrmax */
++    if (ABS ((dstedgetmptax + dstedgelocnum) - (drcvdattab + drcvdatidx)) < dstdegrval) { /* TRICK: memory areas should never overlap because of degrmax */
+       errorPrint ("dgraphRedist2: internal error (2)");
+       return (1);
+     }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+-    memCpy (dstedgeloctax + dstedgelocnum, drcvdattab + drcvdatidx, dstdegrval * sizeof (Gnum)); /* TRICK: will never overlap */
++    memCpy (dstedgetmptax + dstedgelocnum, drcvdattab + drcvdatidx, dstdegrval * sizeof (Gnum)); /* TRICK: will never overlap */
+ 
+     dstedgelocnum += dstdegrval;
+   }
+   dstvertloctax[dstvertlocnum] = dstedgelocnum;   /* Set end of compact vertex array */
+ 
+-  dstedgeloctax = memRealloc (dstedgeloctax + baseval, dstedgelocsiz * fledval * sizeof (Gnum));
+-#ifdef SCOTCH_DEBUG_DGRAPH2
+-  if (dstedgeloctax == NULL) {                    /* Shrinking should never fail */
+-    errorPrint ("dgraphRedist2: out of memory (4)");
+-    return (1);
++  if (dstedgetmptax != dstedgeloctax) {           /* If separate edge arrays were used */
++    memFree (dstedgeloctax + baseval);            /* Free group block                  */
++    dstedgeloctax = dstedgetmptax;
+   }
++  else {
++    dstedgeloctax = memRealloc (dstedgeloctax + baseval, dstedgelocsiz * fledval * sizeof (Gnum));
++#ifdef SCOTCH_DEBUG_DGRAPH2
++    if (dstedgeloctax == NULL) {                  /* Shrinking should never fail */
++      errorPrint ("dgraphRedist2: out of memory (5)");
++      return (1);
++    }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+-  dstedgeloctax -= baseval;
++    dstedgeloctax -= baseval;
++  }
+   if (dstedloloctax != NULL)
+     dstedloloctax = dstedgeloctax + dstedgelocsiz;
+ 

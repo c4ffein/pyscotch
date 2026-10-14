@@ -1,0 +1,32 @@
+GRA-02 -- k-way FM keeps a stale part count after its fallback strategy adds parts
+==================================================================================
+kgraphMapFm caches grafptr->m.domnnbr in a const local. When the mapping has no
+frontier but is imbalanced, it runs the fallback strategy kgraphMapSt(r{sep=...}),
+which (recursive bipartitioning) can create more parts than the cached count (e.g.
+2 -> 4, or up to the architecture size). The imbalance arrays comploadmax/comploaddlt
+are then reallocated and indexed with the STALE (smaller) count, so the subsequent FM
+pass reads/writes past them -> ASan heap-buffer-overflow READ in kgraphMapFmTablGet
+(kgraph_map_fm.c:129, reached from kgraphMapFm:1320). The same stale count also
+undersizes the savetab-growth threshold (line ~1460) and truncates the comploaddlt
+write-back (line ~1831).
+
+Also fixed in the same block: the fallback strategy was never stratExit()'d (leak)
+and kgraphMapSt()'s return value was ignored.
+
+Fix: make domnnbr a mutable local, re-read grafptr->m.domnnbr after the fallback,
+and (re)allocate/refill the imbalance arrays with the new count; check and free on
+the strategy-init / mapping / realloc error paths.
+
+Reproducers (pristine 7.0.17 ASan/UBSan, 32-bit Gnum):
+  gra02pub.c -- public API: SCOTCH_graphMap of a 32x32 grid onto cmplt(4), strategy
+    'rf{bal=0.00001}' (the 'r' leaves one domain with no frontier; 'f' then enters FM
+    and its fallback builds 4 domains):
+      cc.sh <build> GRA-02/gra02pub GRA-02/gra02pub.c ; LD_LIBRARY_PATH=<build>/lib ./GRA-02/gra02pub 4 'rf{bal=0.00001}'
+      pristine : AddressSanitizer: heap-buffer-overflow READ ... kgraphMapFmTablGet kgraph_map_fm.c:129
+      patched  : ret=0 maxpart=3
+  gra02int.c -- internal: kgraphMapFm on a frontier-less, imbalanced d-domain mapping
+    of a WxW grid onto cmplt(K):
+      ./GRA-02/gra02int 16 4 1   ./GRA-02/gra02int 16 16 2   ./GRA-02/gra02int 24 64 2
+      pristine : heap-buffer-overflow (12 bytes after 24-byte region, etc.)
+      patched  : ret=0 domnnbr refreshed 1->4 / 2->16 / 2->64 ; passes under SCOTCH_DEBUG_ALL
+                 (kgraphMapFmCheck + kgraphCheck active, no internal error)

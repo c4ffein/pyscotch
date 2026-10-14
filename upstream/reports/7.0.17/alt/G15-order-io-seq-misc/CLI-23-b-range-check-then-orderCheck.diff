@@ -1,0 +1,39 @@
+Alternative (not committed): only range-check the permutation values while building the inverse
+permutation, then run the existing esMUMPS orderCheck() on the loaded ordering (detects duplicates
+and invalid range arrays). Costs one extra pass and keeps two validation sites.
+--- a/src/esmumps/order_io.c
++++ b/src/esmumps/order_io.c
+@@ -88,6 +88,7 @@
+        intLoad (stream, &cblknbr) +
+        intLoad (stream, &vertnbr) != 3) ||
+       (versval != 0)                    ||
++      (cblknbr < 0)                     ||
+       (cblknbr > vertnbr)) {
+     errorPrint ("orderLoad: bad input (1)");
+     return (1);
+@@ -119,8 +120,24 @@
+   permtax = ordeptr->permtab - ordeptr->rangtab[0];
+   peritax = ordeptr->peritab - ordeptr->rangtab[0];
+   for (vertnum = ordeptr->rangtab[0], vertnnd = vertnum + vertnbr; /* Build inverse permutation */
+-       vertnum < vertnnd; vertnum ++)
+-    peritax[permtax[vertnum]] = vertnum;
++       vertnum < vertnnd; vertnum ++) {
++    if ((permtax[vertnum] < ordeptr->rangtab[0]) || /* Rank must be within range before being used as index */
++        (permtax[vertnum] >= vertnnd)) {
++      errorPrint ("orderLoad: bad input (3)");
++      orderExit  (ordeptr);
++      orderInit  (ordeptr);
++      return (1);
++    }
++    peritax[permtax[vertnum]] = vertnum;
++  }
++
++  if (orderCheck (ordeptr) != 0) {                /* Check range array and permutation consistency */
++    errorPrint ("orderLoad: invalid ordering");
++    orderExit  (ordeptr);
++    orderInit  (ordeptr);
++    return (1);
++  }
+ 
+   return (0);
+ }

@@ -1,0 +1,42 @@
+From ead8406c50a71c2d42037ae4ff66483626e6a8c2 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:06:22 +0000
+Subject: [PATCH 04/11] Fix misspelt dependency rules in the Makefile of
+ libScotch [report PyScotch]
+
+The dependency rule of "arch_vcmplt.o" was named "arch_vcpmlt.o", so
+that the object file was only rebuilt by the generic pattern rule
+when "arch_vcmplt.c" changed, not when one of its header files did.
+The dependency rule of "library_arch_dom.o" named "library_arch.c"
+instead of "library_arch_dom.c" as its source file.
+
+Refs: BLD-01
+---
+ src/libscotch/Makefile | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/Makefile b/src/libscotch/Makefile
+index 1ea320e..2340570 100644
+--- a/src/libscotch/Makefile
++++ b/src/libscotch/Makefile
+@@ -797,7 +797,7 @@ arch_torus$(OBJ)		:	arch_torus.c				\
+ 					arch_mesh.h				\
+ 					arch_torus.h
+ 
+-arch_vcpmlt$(OBJ)		:	arch_vcmplt.c				\
++arch_vcmplt$(OBJ)		:	arch_vcmplt.c				\
+ 					module.h				\
+ 					common.h				\
+ 					arch.h					\
+@@ -2168,7 +2168,7 @@ library_arch_build_f$(OBJ)	:	library_arch_build_f.c			\
+ 					common.h				\
+ 					scotch.h
+ 
+-library_arch_dom$(OBJ)		:	library_arch.c				\
++library_arch_dom$(OBJ)		:	library_arch_dom.c			\
+ 					module.h				\
+ 					common.h				\
+ 					arch.h					\
+-- 
+2.47.3
+

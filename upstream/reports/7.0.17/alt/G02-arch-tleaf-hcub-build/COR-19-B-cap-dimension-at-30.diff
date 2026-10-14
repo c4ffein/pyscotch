@@ -1,0 +1,13 @@
+diff --git a/src/libscotch/arch_hcub.c b/src/libscotch/arch_hcub.c
+index 9bd888d..8cd021b 100644
+--- a/src/libscotch/arch_hcub.c
++++ b/src/libscotch/arch_hcub.c
+@@ -103,7 +103,7 @@ FILE * restrict const       stream)
+ 
+   if ((intLoad (stream, &archptr->dimnnbr) != 1) ||
+       (archptr->dimnnbr < 1)                     ||
+-      (archptr->dimnnbr > (Anum) ((sizeof (Anum) << 3) - 2))) { /* Should have enough bits in ArchHcubDom bitsset field */
++      (archptr->dimnnbr > 30)) {                  /* Shifts are performed on int values */
+     errorPrint ("archHcubArchLoad: bad input");
+     return (1);
+   }

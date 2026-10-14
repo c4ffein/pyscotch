@@ -1,0 +1,74 @@
+inputs: 2000 distinct sanitizer signatures: 36 inputs with hits: 366
+ 102  arch.c:173:15: runtime error: member access within null pointer of type 'struct Arch'
+      e.g. 'sub 2 0 1 tleaf 2 2 1 4'
+  60  arch.c:174:24: runtime error: member access within misaligned address 0xbebebebebebebebe for type 'const struc
+      e.g. 'sub 2 0 1 2 31 4 3 3 1'
+  42  common_integer.c:121:15: runtime error: signed integer overflow: 999999999999999999 * 10 cannot be represented
+      e.g. 'ltleaf 99999999999999999999 1 1 0'
+  31  arch_hcub.c:261:13: runtime error: shift exponent 32 is too large for 32-bit type 'int'
+      e.g. 'hcub 32 2 31 -2147483648'
+  24  arch_hcub.c:261:13: runtime error: left shift of 1 by 31 places cannot be represented in type 'int'
+      e.g. 'hcub 31'
+  19  arch_hcub.c:261:13: runtime error: shift exponent 33 is too large for 32-bit type 'int'
+      e.g. 'hcub 33'
+  17  arch_hcub.c:261:13: runtime error: shift exponent 62 is too large for 32-bit type 'int'
+      e.g. 'hcub 62'
+  10  ERROR: AddressSanitizer: requested allocation size 0xfffffffffffffff8 (0x7f8 after adjustments for alignment, 
+      e.g. 'tleaf -1 2 3 2 1'
+   9  ERROR: AddressSanitizer: requested allocation size 0xfffffff800000008 (0xfffffff800001008 after adjustments fo
+      e.g. 'ltleaf -2147483648 2 2 63 1 4'
+   7  arch_hcub.c:261:13: runtime error: shift exponent 61 is too large for 32-bit type 'int'
+      e.g. 'hcub 61'
+   5  AddressSanitizer:DEADLYSIGNAL
+      e.g. 'sub 1 0 tleaf'
+   5  arch_tleaf.c:120:27: runtime error: signed integer overflow: 9223372036854775807 * 2 cannot be represented in 
+      e.g. 'tleaf 9223372036854775807 1 2'
+   5  arch_hcub.c:261:13: runtime error: shift exponent 60 is too large for 32-bit type 'int'
+      e.g. 'hcub 60'
+   4  ERROR: AddressSanitizer: out of memory: allocator is trying to allocate 0x1000000008 bytes
+      e.g. 'tleaf 4294967296 2 1'
+   4  arch_hcub.c:261:13: runtime error: shift exponent 34 is too large for 32-bit type 'int'
+      e.g. 'hcub 34 4'
+   2  ERROR: AddressSanitizer: requested allocation size 0xffffffffffffffc8 (0x7c8 after adjustments for alignment, 
+      e.g. 'sub 0 tleaf 1 2 1'
+   1  arch_tleaf.c:136:13: runtime error: signed integer overflow: 2 * 9223372036854775807 cannot be represented in 
+      e.g. 'ltleaf 2 2 1 9223372036854775807 4 2 1 1 0'
+   1  arch_tleaf.c:136:13: runtime error: signed integer overflow: 9223372036854775805 * 5 cannot be represented in 
+      e.g. 'tleaf 3 9223372036854775805 20 5 3 4 1'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x502000000008 at pc 0x7efd5b6dbae8 bp 0x7fff3ee318b0
+      e.g. 'sub 2 2 1 tleaf 0 2 3 4 1'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x50e000000670 at pc 0x7f0ddeb7325a bp 0x7ffe52145a40
+      e.g. 'sub 1 32 tleaf 1 2 1'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x514000000010 at pc 0x7f9fd106825a bp 0x7fff2dccffb0
+      e.g. 'sub 2 -2 1 tleaf 2 4 65536 2 1'
+   1  arch_sub.c:408:18: runtime error: signed integer overflow: 9223372036854775807 + 1 cannot be represented in ty
+      e.g. 'sub 1 0 tleaf 1 9223372036854775807 1'
+   1  arch_tleaf.c:136:13: runtime error: signed integer overflow: 9223372036854775807 * 4 cannot be represented in 
+      e.g. 'ltleaf 2 9223372036854775807 1 4 1'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x5140000006a0 at pc 0x7f17c542125a bp 0x7ffe4831d6f0
+      e.g. 'sub 2 33 1 tleaf 2 4 3 2 1'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x502000000028 at pc 0x7fb0d5d36ae8 bp 0x7fffd5afad30
+      e.g. 'sub 1 65 tleaf 0 2 3'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x5140000006a0 at pc 0x7ff843d8425a bp 0x7ffee7b26160
+      e.g. 'sub 2 33 1 tleaf 2 4 3 2 1'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x507000000080 at pc 0x7f0a7a735ce0 bp 0x7ffdbc8c3200
+      e.g. 'sub 1 -1 tleaf 1 31 1'
+   1  arch_tleaf.c:136:13: runtime error: signed integer overflow: 9223372036854775807 * 2 cannot be represented in 
+      e.g. 'tleaf 3 9223372036854775807 10 2 5 4 1'
+   1  ERROR: AddressSanitizer: requested allocation size 0xffffffffffffffd8 (0x7d8 after adjustments for alignment, 
+      e.g. 'tleaf -3 1'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x502000000008 at pc 0x7f272c7b9ae8 bp 0x7ffda8d5f4b0
+      e.g. 'sub 2 0 1 tleaf 0 2 4 3 2 1'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x502000000028 at pc 0x7fb34b7c9ae8 bp 0x7ffe319bc9e0
+      e.g. 'sub 1 0 tleaf 0 2'
+   1  ERROR: AddressSanitizer: out of memory: allocator is trying to allocate 0x3000000038 bytes
+      e.g. 'sub 1 0 tleaf 1 4294967296 1'
+   1  arch_tleaf.c:136:13: runtime error: signed integer overflow: 9223372036854775807 * 3 cannot be represented in 
+      e.g. 'tleaf 2 9223372036854775807 4 3 2'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x502000000028 at pc 0x7f7ef910eae8 bp 0x7ffc661a4930
+      e.g. 'sub 1 1 tleaf 0 2 1'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x507000000080 at pc 0x7fae7507ece0 bp 0x7ffe2af21730
+      e.g. 'sub 1 1 tleaf 1 2 1'
+   1  ERROR: AddressSanitizer: heap-buffer-overflow on address 0x502000000008 at pc 0x7f6fc9ad1ae8 bp 0x7ffc313aa490
+      e.g. 'sub 2 0 1 tleaf 0 4 3 2 1'
+FUZZDONE

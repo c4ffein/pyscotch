@@ -1,0 +1,26 @@
+DGR-13 + PS-DGR-1: coarsening/matching allocation failures hang or crash the job (status: still-present, fixed by patches 0006, 0007, 0008)
+All reproducers use the shared driver repro/common/g21fi.c and the LD_PRELOAD fault shim repro/common/fishim.c (from G18).
+Trees: $WORK/pristinefi = v7.0.17, $WORK/basefi = combined series (base), $WORK/buildfi = base + this series; all built
+with CFLAGS "-O0 -g -fsanitize=undefined -ftrivial-auto-var-init=pattern" (ASan cannot be preloaded), see repro/common/build.sh.
+  cd $WORK/repro/common && ./build.sh $WORK/pristinefi && ./build.sh $WORK/basefi && ./build.sh $WORK/buildfi
+  ./scan.sh LIBDIR BIN NP FAILRANK NTH_FROM NTH_TO -- MODE TOPO BASE NL [ARGS]   (one line per failed allocation index; HANG = 15 s timeout)
+Full scan outputs: repro/common/scans/pri_* (v7.0.17), base_* (combined base), fix1_*/fix2_* (patched).
+SCOTCH_dgraphCoarsen() on a ring, np=2, 8 vertices per rank, failure on rank 1, plain coarsening with a user multinode array:
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 3 30 -- coarsen ring 0 8 0            (scans/pri_coarsen_ring_b0.txt)
+    nth=3,4,5  exit=139 :: dgraphCoarsenInit: out of memory (1|3|4); dgraph_match.c:93:31: runtime error: member access within misaligned
+                           address 0xfefefefefefefefe for type 'struct Dgraph' -> SEGV   (PS-DGR-1: dgraphMatchInit() after a failed dgraphCoarsenInit())
+    nth=6      exit=1   :: dgraphMatchInit: out of memory -> rc=2 on both ranks (the only agreed-upon failure)
+    nth=7..11  HANG     :: dgraphMatchSyncColl: out of memory (one per pass)
+    nth=12     HANG     :: dgraphCoarsenBuild: out of memory (1)   (thread array, "TODO: cleaner exit")
+    nth=13     HANG     :: dgraphHaloSync2: out of memory          (G20's PS-DGR-2, not in this series)
+    nth=14..17 HANG     :: dgraphCoarsenBuild: out of memory (2)   (agreement compiled out in release builds)
+    nth=18..25 HANG     :: dgraphCoarsenBuildThr: out of memory    (per-thread hash tables)
+    nth=26,27  crash / rc=0 with "dgraphCheck: inconsistent global graph data (2)"  (PS2-G21-2, shrinking reallocs, patch 0009)
+  Point-to-point variant: ./scan.sh ... 4 1 3 24 -- coarsen sparse 0 8 0 (scans/pri_coarsen_sparse_b0.txt): same pattern, nth=7..20 HANG.
+  Folding: ./scan.sh ... 2 1 3 34 -- coarsen ring 1 8 1 (scans/pri_coarsen_ring_b1_fold.txt): same, plus nth=13 SEGV at dgraph_coarsen.c:908
+    (multinode array lost by a failed shrink) and nth=30..33 HANG in dgraphFold2/dgraphFoldComm (G18's files; fixed in the combined base).
+Patched (buildfi), scans/fix2_coarsen_*.txt: every injected failure returns rc=2 on ALL ranks (rc=1 for the fold ones, G18), no sanitizer
+output, except the halo-sync one (nth=7 / 9) which still HANGs inside dgraphHaloSync2() (G20's dgraph_halo.c, left untouched on purpose).
+  ./scan.sh $WORK/buildfi/lib ./bin_buildfi/g21fi 2 1 3 30 -- coarsen ring 0 8 0
+    nth=3..6 rc=2 all ranks; nth=7 HANG (halo); nth=8..11 "out of memory (1)" rc=2 all ranks; nth=12..19 "could not compute adjacency (1)" rc=2 all ranks;
+    nth=20,21 (failed shrinks) rc=0 with check=0 on both ranks; nth>=22 rc=0.

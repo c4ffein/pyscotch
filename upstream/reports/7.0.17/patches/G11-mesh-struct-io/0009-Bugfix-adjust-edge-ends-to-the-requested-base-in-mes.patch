@@ -1,0 +1,175 @@
+From 9200590cd8e28c3073246d3447a5ee8df3dbba3c Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:08:23 +0000
+Subject: [PATCH 09/11] Bugfix: adjust edge ends to the requested base in
+ `meshLoad()` [report PyScotch]
+
+When `meshLoad()` was asked for a base value different from the one of
+the file, vertex ranges were rebased but edge ends were only shifted to
+the range of the other vertex kind, computed from the new bases, and
+not by the base adjustment itself. The resulting mesh was invalid
+(`meshCheck()`: "element vertices must not be connected together" or
+"arc data do not match"). Only `SCOTCH_meshLoad()` callers passing an
+explicit base were affected; the Scotch tools keep the file base.
+
+Add the base adjustment to the edge end shifts, and make
+`test_scotch_mesh_graph` load its mesh with the file base, base 0 and
+base 1, and check the mesh.
+
+Refs: PS2-G11-mesh-struct-io-3
+---
+ src/check/test_scotch_mesh_graph.c | 76 +++++++++++++++++-------------
+ src/libscotch/mesh_io.c            | 16 +++----
+ 2 files changed, 51 insertions(+), 41 deletions(-)
+
+diff --git a/src/check/test_scotch_mesh_graph.c b/src/check/test_scotch_mesh_graph.c
+index c60910d..0822481 100644
+--- a/src/check/test_scotch_mesh_graph.c
++++ b/src/check/test_scotch_mesh_graph.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2018,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2018,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 6.0  : from : 11 feb 2018     **/
+ /**                                 to   : 22 may 2018     **/
+ /**                # Version 7.0  : from : 04 jul 2025     **/
+-/**                                 to   : 11 apr 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -75,6 +75,7 @@ char *              argv[])
+   FILE *              fileptr;
+   SCOTCH_Mesh         meshdat;
+   SCOTCH_Graph        grafdat;
++  SCOTCH_Num          baseval;
+ 
+   SCOTCH_errorProg (argv[0]);
+ 
+@@ -83,38 +84,47 @@ char *              argv[])
+     exit (EXIT_FAILURE);
+   }
+ 
+-  if (SCOTCH_meshInit (&meshdat) != 0) {          /* Initialize source graph */
+-    SCOTCH_errorPrint ("main: cannot initialize mesh");
+-    exit (EXIT_FAILURE);
+-  }
+-
+-  if (SCOTCH_graphInit (&grafdat) != 0) {         /* Initialize source graph */
+-    SCOTCH_errorPrint ("main: cannot initialize graph");
+-    exit (EXIT_FAILURE);
+-  }
+-
+-  if ((fileptr = fopen (argv[1], "r")) == NULL) {
+-    SCOTCH_errorPrint ("main: cannot open file");
+-    exit (EXIT_FAILURE);
+-  }
+-
+-  if (SCOTCH_meshLoad (&meshdat, fileptr, -1) != 0) { /* Read source mesh */
+-    SCOTCH_errorPrint ("main: cannot load mesh");
+-    exit (EXIT_FAILURE);
+-  }
+-
+-  fclose (fileptr);
+-
+-  if (SCOTCH_meshGraph (&meshdat, &grafdat) != 0) {
+-    SCOTCH_errorPrint ("main: cannot create graph from mesh");
+-    exit (EXIT_FAILURE);
++  for (baseval = -1; baseval <= 1; baseval ++) {  /* Keep file base, then set base to 0 and to 1 */
++    if (SCOTCH_meshInit (&meshdat) != 0) {        /* Initialize source mesh                      */
++      SCOTCH_errorPrint ("main: cannot initialize mesh");
++      exit (EXIT_FAILURE);
++    }
++
++    if (SCOTCH_graphInit (&grafdat) != 0) {       /* Initialize source graph */
++      SCOTCH_errorPrint ("main: cannot initialize graph");
++      exit (EXIT_FAILURE);
++    }
++
++    if ((fileptr = fopen (argv[1], "r")) == NULL) {
++      SCOTCH_errorPrint ("main: cannot open file");
++      exit (EXIT_FAILURE);
++    }
++
++    if (SCOTCH_meshLoad (&meshdat, fileptr, baseval) != 0) { /* Read source mesh */
++      SCOTCH_errorPrint ("main: cannot load mesh");
++      exit (EXIT_FAILURE);
++    }
++
++    fclose (fileptr);
++
++    if (SCOTCH_meshCheck (&meshdat) != 0) {
++      SCOTCH_errorPrint ("main: invalid mesh");
++      exit (EXIT_FAILURE);
++    }
++
++    if (SCOTCH_meshGraph (&meshdat, &grafdat) != 0) {
++      SCOTCH_errorPrint ("main: cannot create graph from mesh");
++      exit (EXIT_FAILURE);
++    }
++
++    if (SCOTCH_graphCheck (&grafdat) != 0) {
++      SCOTCH_errorPrint ("main: invalid graph converted from mesh");
++      exit (EXIT_FAILURE);
++    }
++
++    SCOTCH_graphExit (&grafdat);
++    SCOTCH_meshExit  (&meshdat);
+   }
+ 
+-  if (SCOTCH_graphCheck (&grafdat) != 0)
+-    SCOTCH_errorPrint ("main: invalid graph converted from mesh");
+-
+-  SCOTCH_graphExit (&grafdat);
+-  SCOTCH_meshExit  (&meshdat);
+-
+   exit (EXIT_SUCCESS);
+ }
+diff --git a/src/libscotch/mesh_io.c b/src/libscotch/mesh_io.c
+index c9ceb36..0133745 100644
+--- a/src/libscotch/mesh_io.c
++++ b/src/libscotch/mesh_io.c
+@@ -45,7 +45,7 @@
+ /**                # Version 5.1  : from : 11 aug 2010     **/
+ /**                                 to   : 11 aug 2010     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 07 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -179,21 +179,21 @@ const Gnum                  baseval)              /* Base value (-1 means keep f
+   edgenum = meshptr->baseval;                     /* No edges allocated yet */
+   vlblmax = vertnbr + meshptr->baseval - 1;       /* No vertex labels known */
+ 
+-  if (meshptr->velmbas <= meshptr->vnodbas) {     /* If elements first */
+-    vertbastab[0] = meshptr->velmbas;
+-    vertnndtab[0] = meshptr->velmnnd;
+-    edgeadjtab[0] = meshptr->vnodbas - meshptr->baseval;
++  if (meshptr->velmbas <= meshptr->vnodbas) {     /* If elements first                                       */
++    vertbastab[0] = meshptr->velmbas;             /* Edge ends in file are numbered from file base, that is, */
++    vertnndtab[0] = meshptr->velmnnd;             /* (baseval - baseadj), and must be shifted to other kind  */
++    edgeadjtab[0] = meshptr->vnodbas - meshptr->baseval + baseadj;
+     vertbastab[1] = meshptr->vnodbas;
+     vertnndtab[1] = meshptr->vnodnnd;
+-    edgeadjtab[1] = meshptr->velmbas - meshptr->baseval;
++    edgeadjtab[1] = meshptr->velmbas - meshptr->baseval + baseadj;
+   }
+   else {
+     vertbastab[0] = meshptr->vnodbas;
+     vertnndtab[0] = meshptr->vnodnnd;
+-    edgeadjtab[0] = meshptr->velmbas - meshptr->baseval;
++    edgeadjtab[0] = meshptr->velmbas - meshptr->baseval + baseadj;
+     vertbastab[1] = meshptr->velmbas;
+     vertnndtab[1] = meshptr->velmnnd;
+-    edgeadjtab[1] = meshptr->vnodbas - meshptr->baseval;
++    edgeadjtab[1] = meshptr->vnodbas - meshptr->baseval + baseadj;
+   }
+   for (i = 0; i < 2; i ++) {                      /* For both kinds of vertices */
+     Gnum                vertbas;
+-- 
+2.47.3
+

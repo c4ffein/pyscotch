@@ -1,0 +1,30 @@
+--- a/src/libscotch/kgraph_map_rb.c
++++ b/src/libscotch/kgraph_map_rb.c
+@@ -160,7 +160,7 @@
+     memFree (vflotab);                            /* Not used any longer */
+ 
+     graphExit (&indgrafdat);
+-    if (kgraphMapRbVfloMerge (&grafptr->m, grafptr->vfixnbr, grafptr->pfixtax, vflonbr) != 0) {
++    if (kgraphMapRbVfloMerge (&grafptr->m, grafptr->vfixnbr, grafptr->pfixtax) != 0) {
+       errorPrint ("kgraphMapRb: cannot merge fixed vertex domains");
+       return (1);
+     }
+@@ -391,8 +391,7 @@
+ kgraphMapRbVfloMerge (
+ Mapping * restrict const    mappptr,              /*+ Mapping to prolong                     +*/
+ const Gnum                  vfixnbr,              /*+ Number of fixed vertices in graph      +*/
+-const Anum * restrict const pfixtax,              /*+ Array of fixed vertex terminal domains +*/
+-const Anum                  vflonbr)              /*+ Number of fixed vertex load slots      +*/
++const Anum * restrict const pfixtax)              /*+ Array of fixed vertex terminal domains +*/
+ {
+   Anum                            domnnum;
+   Gnum                            vertnum;
+@@ -406,7 +405,7 @@
+   const Arch * restrict const archptr = mappptr->archptr;
+   Anum * restrict const       parttax = mappptr->parttax;
+ 
+-  hashnbr = mappptr->domnnbr + vflonbr;
++  hashnbr = mappptr->domnnbr + vfixnbr;           /* Fixed vertices may all belong to distinct terminal domains */
+   for (hashsiz = 0, hashmsk = hashnbr; hashmsk != 0; hashsiz ++, hashmsk >>= 1) ; /* Get upper power of two */
+   hashsiz = 1 << (hashsiz + 2);                   /* Fill hash table at 25% maximum                         */
+   hashmsk = hashsiz - 1;

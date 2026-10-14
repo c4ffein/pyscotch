@@ -1,0 +1,4 @@
+ship001     pristine : resize-reallocs=0  NNZ=1.525893e+07 OPC=1.029086e+10 
+ship001     patched  : resize-reallocs=0  NNZ=1.526669e+07 OPC=1.025770e+10 
+m2_300_300  pristine : resize-reallocs=0  NNZ=3.875010e+06 OPC=5.320606e+08 
+m2_300_300  patched  : resize-reallocs=4  NNZ=3.875010e+06 OPC=5.320606e+08 

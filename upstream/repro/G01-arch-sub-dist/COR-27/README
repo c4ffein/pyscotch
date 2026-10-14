@@ -1,0 +1,8 @@
+COR-27: archCmpltMatchMate() stored the pass number back unchanged ("matcptr->passnum = passnum"), so the pass-1 branch was dead
+        and the last vertex of an odd set was always the single one; the pass-1 branch, once reachable, dropped vertices.
+Harness: mate.c calls the internal archCmpltMatchInit/Mate (SCOTCH_RENAME build, -I <tree>/src/libscotch) and prints, per level,
+         the coarse count, the stored pass number, the single vertices and the number of fine vertices covered.
+Pristine: n=5 -> level0 single 4 (nextpass=0), level1 single 2 (nextpass=0): never alternates.
+Patched (0004): n=5 -> level0 single 4 (nextpass=1), level1 single 0 (nextpass=0); n=9 -> 8, 0, 2; coverage == fine count for n=2..64,100,1023.
+Regression test: src/check/test_scotch_arch.c now builds "cmplt 9" and sub-architectures of it; a toggle-only half-fix
+         (passnum ^ 1 without the coarvertmax change) makes it fail with "archSubArchBuild: cannot create sub-architecture (2)".

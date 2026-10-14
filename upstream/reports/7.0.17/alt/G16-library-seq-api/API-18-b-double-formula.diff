@@ -1,0 +1,12 @@
+--- a/src/libscotch/library_dgraph_map_view.c
++++ b/src/libscotch/library_dgraph_map_view.c
+@@ -145,7 +145,8 @@
+   fprintf (stream, "M\tCommDelta=%f\n",
+            (((double) cmlosum  * (double) cmdisum) == 0.0L)
+            ? (double) 0.0L
+-           : ((double) grafptr->edgeglbnbr) / (double) (cmlosum * 2));
++           : ((double) cmexsum * (double) grafptr->edgeglbnbr) / /* Sums count each edge once; edgeglbnbr counts arcs */
++             ((double) cmlosum * (double) cmdisum * 2.0));
+ 
+   for (cdstnum = 0; cdstnum <= cdstmax; cdstnum ++) /* Print distance histogram */
+     fprintf (stream, "M\tCmlosum[" ANUMSTRING "]=%f\n",

@@ -1,0 +1,12 @@
+diff -ru a/src/libscotch/common_integer.c b/src/libscotch/common_integer.c
+--- a/src/libscotch/common_integer.c	2026-10-13 09:20:18.834253540 +0000
++++ b/src/libscotch/common_integer.c	2026-10-13 09:20:18.834253540 +0000
+@@ -293,7 +293,7 @@
+ 
+   rnewptr->procval = procnum;
+ 
+-  seedval = roldptr->statdat.randtab[0];          /* Get value from state of old generator */
++  seedval = roldptr->seedval;                     /* Get seed of old generator, which is never modified by intRandVal() */
+ 
+   intRandSeed (rnewptr, (INT) seedval);           /* Set seed and initialize state */
+ }

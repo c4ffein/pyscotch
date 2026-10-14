@@ -1,0 +1,13 @@
+DGR-11: SCOTCH_dgraphCheck() does not validate edge ends (out of range accepted, ends in numbering holes read out of bounds) and
+checks edge loads only when a ghost edge array exists.
+chk.c VARIANT base: 2 vertices per process with vertlocmax 4 (two hole slots per process), ring; variants ok / far / hole / zero / neg / negasym.
+  export LD_LIBRARY_PATH=<lib> ASAN_OPTIONS=detect_leaks=0; mpirun --oversubscribe -np N /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/repro/DGR-11/bin_<build>/chk VARIANT BASE
+  pristine (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/asan), np=1,2,3, base 0 and 1:
+     far  : build rc=0 check rc=0            (edge to vertex baseval + 4P + 7 silently accepted)
+     hole : ERROR: AddressSanitizer: stack-buffer-overflow ... #0 _SCOTCHdgraphCheck dgraph_check.c:467 (vendngbptr[vertglbend - vertngbmin])
+     zero, neg : check rc=0                  (symmetric non-positive loads accepted)
+     negasym   : "arc load data do not match" (only the asymmetry is caught)
+  patched (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/build), np=1,2,3,4, base 0 and 1:
+     ok: check rc=0;  far: "dgraphCheck: invalid edge array", rc=1;  hole: "dgraphCheck: arc end in numbering hole", rc=1 (no ASan);
+     zero/neg/negasym: "dgraphCheck: invalid edge load", rc=1.
+The same cases are now in src/check/test_scotch_dgraph_check.c (check_scotch_dgraph_build / check_scotch_dgraph_check targets).

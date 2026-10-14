@@ -1,0 +1,11 @@
+--- a/src/libscotchmetis/metis_graph_part.c
++++ b/src/libscotchmetis/metis_graph_part.c
+@@ -287,7 +287,7 @@
+   if (SCOTCH_graphBuild (&grafdat, baseval, vertnbr, xadj, xadj + 1, vwgt, NULL,
+                          xadj[vertnbr] - baseval, adjncy, adjwgt) == 0) {
+     SCOTCH_stratInit          (&stradat);
+-    SCOTCH_stratGraphMapBuild (&stradat, flagval, *nparts, *kbalval);
++    SCOTCH_stratGraphMapBuild (&stradat, flagval, *nparts, (kbalval != NULL) ? *kbalval : 0.01); /* Default imbalance tolerance if none provided */
+ #ifdef SCOTCH_DEBUG_ALL
+     if (SCOTCH_graphCheck (&grafdat) == 0)        /* TRICK: next instruction called only if graph is consistent */
+ #endif /* SCOTCH_DEBUG_ALL */

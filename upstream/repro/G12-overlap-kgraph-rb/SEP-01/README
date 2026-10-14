@@ -1,0 +1,14 @@
+SEP-01: empty part after vertex bipartition in wgraphPartRb2() (SCOTCH_graphPartOvl).
+Build:   ../common/build.sh <tree> 32       (-> partovl.32)
+Pristine (INFRA/asan/lib):
+  ./partovl.32 6 3 'r{sep=z}'
+    wgraph_part_rb.c:108:5: runtime error: null pointer passed as argument 2 ... (wgraphPartRb3Fron <- wgraphPartRb2:299 <- :363)
+    wgraph_part_rb.c:207:18: runtime error: load of null pointer of type 'const GraphPart' ; AddressSanitizer: SEGV (wgraphPartRb3One)
+  Any odd number of parts with 'z' crashes (7 3, 8 3, 9 3 ...); 4 and 5 parts "work" by luck (spltnum 0 with domnsiz >= 2).
+Patched (../build/lib):
+  ./partovl.32 6 3 'r{sep=z}'     -> ret=0 part: 0 0 0 0 0 0
+One-token alternative (alt/SEP-01-a, built by symbol interposition in ../../alt/src/partovl_sep01a):
+  ./partovl_sep01a 6 3 'r{sep=(z|f)}'  -> ret=0 part: 1 1 1 1 1 1   (all vertices in part 1 while the fake part only owns domain 0)
+  patched                             -> ret=0 part: 0 0 0 0 0 0
+Regression test added: src/check: test_scotch_graph_part_ovl 3 data/m16x16.grf /dev/null 'r{sep=z}'
+  pristine lib: runtime error + SEGV (rc 141); patched: passes.

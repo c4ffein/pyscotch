@@ -1,0 +1,51 @@
+From 90ea2d546c0aa2a78bd1564aab1298570be13f97 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 14:02:10 +0000
+Subject: [PATCH 5/7] Bugfix: check edge hash table resize result in
+ `dmeshDgraphDual()` [report R. Perry]
+
+The return value of `dmeshDgraphDualHashEdgeResize()` was ignored. When
+the resize failed (out of memory), `helmnbr >= helmmax` stayed true and
+the `goto redo` loop re-attempted the resize forever.
+
+Test the result; on failure, report it, free the edge and node hash
+tables, the receive array and the graph arrays built so far, and return.
+
+Refs: DGR-20
+---
+ src/libscotch/dmesh_dgraph.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/dmesh_dgraph.c b/src/libscotch/dmesh_dgraph.c
+index dcc0e51..9819ff1 100644
+--- a/src/libscotch/dmesh_dgraph.c
++++ b/src/libscotch/dmesh_dgraph.c
+@@ -41,7 +41,7 @@
+ /**                conversion function.                    **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 26 aug 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -591,7 +591,15 @@ redo:
+ 
+           if (helmtab[helmend].vertnum != velmlocnum) { /* If edge not yet created      */
+             if (helmnbr >= helmmax) {             /* If edge hash table full, resize it */
+-              dmeshDgraphDualHashEdgeResize (&helmtab, &helmsiz, &helmmax, &helmmsk, velmlocnum);
++              if (dmeshDgraphDualHashEdgeResize (&helmtab, &helmsiz, &helmmax, &helmmsk, velmlocnum) != 0) {
++                errorPrint ("dmeshDgraphDual: out of memory (7)");
++                memFree    (helmtab);
++                memFree    (hnodtab);
++                memFree    (nrcvdattab);
++                memFree    (edgeloctax + baseval);
++                memFree    (vertloctax + velmlocbas);
++                return     (1);
++              }
+               goto redo;                          /* Recompute helmend with new mask */
+             }
+ 
+-- 
+2.47.3
+

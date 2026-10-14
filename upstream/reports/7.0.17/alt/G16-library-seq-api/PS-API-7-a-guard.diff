@@ -1,0 +1,11 @@
+--- a/src/libscotch/library_dgraph_map_view.c
++++ b/src/libscotch/library_dgraph_map_view.c
+@@ -150,7 +150,7 @@
+   for (cdstnum = 0; cdstnum <= cdstmax; cdstnum ++) /* Print distance histogram */
+     fprintf (stream, "M\tCmlosum[" ANUMSTRING "]=%f\n",
+              (Anum) cdstnum,
+-             (double) cdsttab[cdstnum] / (double) cmlosum);
++             (cmlosum == 0) ? (double) 0.0L : (double) cdsttab[cdstnum] / (double) cmlosum);
+ 
+   return (0);
+ }

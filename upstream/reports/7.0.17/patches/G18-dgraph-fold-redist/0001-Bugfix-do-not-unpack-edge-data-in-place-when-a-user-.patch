@@ -1,0 +1,215 @@
+From baec6c67dbabfa1de65f91c2d6540143494c5a30 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:23:54 +0000
+Subject: [PATCH] Bugfix: do not unpack edge data in place when a user
+ permutation is given to `dgraphRedist()` [report R. Perry]
+
+In `dgraphRedist2()`, the destination edge array, the send buffer and
+the receive buffer share a single memory block, and edge data are
+unpacked in place, in destination vertex order. This can never overlap
+only when vertices are received in destination order, which holds for
+the permutation computed internally but not for a permutation provided
+by the user through `SCOTCH_dgraphRedist()`: in this case, unpacking
+could overwrite received data not yet read, and silently produce a wrong
+graph.
+
+Allocate a full-size destination edge data area when the permutation
+is user-provided. Add a test case with a reversed user permutation to
+`test_scotch_dgraph_redist.c`.
+
+Refs: DGR-04
+---
+ src/check/test_scotch_dgraph_redist.c | 54 ++++++++++++++++++++++++---
+ src/libscotch/dgraph_redist.c         | 16 +++++---
+ src/libscotch/dgraph_redist.h         |  6 +--
+ 3 files changed, 62 insertions(+), 14 deletions(-)
+
+diff --git a/src/check/test_scotch_dgraph_redist.c b/src/check/test_scotch_dgraph_redist.c
+index ade4b9a..0c618b3 100644
+--- a/src/check/test_scotch_dgraph_redist.c
++++ b/src/check/test_scotch_dgraph_redist.c
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 6.0  : from : 21 feb 2012     **/
+ /**                                 to   : 22 may 2018     **/
+ /**                # Version 7.0  : from : 03 jul 2023     **/
+-/**                                 to   : 11 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -72,10 +72,14 @@ char *              argv[])
+   MPI_Comm            proccomm;
+   int                 procglbnbr;                 /* Number of processes sharing graph data */
+   int                 proclocnum;                 /* Number of this process                 */
++  SCOTCH_Num          baseval;
+   SCOTCH_Num          vertglbnbr;
+   SCOTCH_Num          vertlocnbr;
+   SCOTCH_Num          vertlocnum;
++  SCOTCH_Num          vertglbnum;                 /* Global index of first local vertex */
++  SCOTCH_Num          vertgstnbr;
+   SCOTCH_Num *        partloctab;
++  SCOTCH_Num *        permgsttab;
+   SCOTCH_Dgraph       srcgrafdat;
+   SCOTCH_Dgraph       dstgrafdat;
+   FILE *              file;
+@@ -160,10 +164,16 @@ char *              argv[])
+     exit (EXIT_FAILURE);
+   }
+ 
+-  SCOTCH_dgraphData (&srcgrafdat, NULL, &vertglbnbr, &vertlocnbr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
++  if (SCOTCH_dgraphGhst (&srcgrafdat) != 0) {     /* Permutation array must cover ghost vertices */
++    SCOTCH_errorPrint ("main: cannot compute ghost edge array");
++    exit (EXIT_FAILURE);
++  }
++
++  SCOTCH_dgraphData (&srcgrafdat, &baseval, &vertglbnbr, &vertlocnbr, NULL, &vertgstnbr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+ 
+-  if ((partloctab = malloc (vertlocnbr * sizeof (SCOTCH_Num))) == NULL) {
+-    SCOTCH_errorPrint ("main: cannot allocate part array");
++  if (((partloctab = malloc (vertlocnbr * sizeof (SCOTCH_Num))) == NULL) ||
++      ((permgsttab = malloc (vertgstnbr * sizeof (SCOTCH_Num))) == NULL)) {
++    SCOTCH_errorPrint ("main: cannot allocate part arrays");
+     exit (EXIT_FAILURE);
+   }
+ 
+@@ -176,12 +186,46 @@ char *              argv[])
+   }
+ 
+   if (SCOTCH_dgraphCheck (&dstgrafdat) != 0) {
+-    SCOTCH_errorPrint ("main: invalid redistributed graph");
++    SCOTCH_errorPrint ("main: invalid redistributed graph (1)");
++    exit (EXIT_FAILURE);
++  }
++
++  SCOTCH_dgraphExit (&dstgrafdat);
++
++  if (SCOTCH_dgraphInit (&dstgrafdat, proccomm) != 0) { /* Re-initialize destination graph */
++    SCOTCH_errorPrint ("main: cannot initialize destination graph (2)");
++    exit (EXIT_FAILURE);
++  }
++
++  if (MPI_Scan (&vertlocnbr, &vertglbnum, 1, SCOTCH_NUM_MPI, MPI_SUM, proccomm) != MPI_SUCCESS) {
++    SCOTCH_errorPrint ("main: cannot communicate (3)");
++    exit (EXIT_FAILURE);
++  }
++  vertglbnum -= vertlocnbr;                       /* Global index of first local vertex */
++
++  for (vertlocnum = 0; vertlocnum < vertlocnbr; vertlocnum ++) { /* Send all vertices to last process, with a permutation that reverses their order */
++    partloctab[vertlocnum] = procglbnbr - 1;
++    permgsttab[vertlocnum] = baseval + vertglbnbr - 1 - (vertglbnum + vertlocnum);
++  }
++
++  if (SCOTCH_dgraphHalo (&srcgrafdat, permgsttab, SCOTCH_NUM_MPI) != 0) { /* Propagate permutation to ghost vertices */
++    SCOTCH_errorPrint ("main: cannot propagate permutation");
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_dgraphRedist (&srcgrafdat, partloctab, permgsttab, 0, 0, &dstgrafdat) != 0) {
++    SCOTCH_errorPrint ("main: cannot compute permuted redistributed graph");
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_dgraphCheck (&dstgrafdat) != 0) {
++    SCOTCH_errorPrint ("main: invalid redistributed graph (2)");
+     exit (EXIT_FAILURE);
+   }
+ 
+   SCOTCH_dgraphExit (&dstgrafdat);
+   SCOTCH_dgraphExit (&srcgrafdat);
++  free (permgsttab);
+   free (partloctab);
+ 
+   MPI_Finalize ();
+diff --git a/src/libscotch/dgraph_redist.c b/src/libscotch/dgraph_redist.c
+index d8d74cd..1411ec0 100644
+--- a/src/libscotch/dgraph_redist.c
++++ b/src/libscotch/dgraph_redist.c
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 6.0  : from : 10 may 2010     **/
+ /**                                 to   : 13 sep 2012     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -186,7 +186,7 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+   else
+     permgsttmp = srcpermgsttax;
+ 
+-  o = dgraphRedist2 (srcgrafptr, srcpartloctax, permgsttmp, procdsptab, procvrttab, 0, dstedgelocdlt, dstgrafptr);
++  o = dgraphRedist2 (srcgrafptr, srcpartloctax, permgsttmp, procdsptab, procvrttab, 0, dstedgelocdlt, (srcpermgsttax != NULL) ? 1 : 0, dstgrafptr);
+ 
+   memFree (procvrttab);                           /* Free group leader */
+ 
+@@ -203,6 +203,7 @@ const Gnum * const          dstprocdsptab,        /* New distribution of graph v
+ const Gnum * const          dstprocvrttab,        /* New distribution of graph vertices */
+ const Gnum                  dstvertlocdlt,        /* Extra size of local vertex array   */
+ const Gnum                  dstedgelocdlt,        /* Extra size of local edge array     */
++const int                   permflagval,          /* Flag set if user permutation       */
+ Dgraph * restrict const     dstgrafptr)           /* Destination distributed graph      */
+ {
+   Gnum                      baseval;
+@@ -234,6 +235,7 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+   Gnum                      dstedgelocnbr;
+   Gnum                      dstedgelocsiz;
+   Gnum                      dstedgelocnum;
++  Gnum                      dstedgedatsiz;        /* Size of destination edge data area                  */
+   Gnum *                    dstedloloctax;        /* Pointer to destination edge load array [norestrict] */
+   Gnum                      dstedlolocsiz;
+   int                       dstvertloctmp;        /* Vertex and edge numbers, as (int)s                  */
+@@ -340,6 +342,9 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+   dstedgelocsiz = dstedgelocnbr + dstedgelocdlt;
+   dstvelolocsiz = (srcgrafptr->veloloctax != NULL) ? dstvertlocnbr + dstvertlocdlt : 0;
+   dstedlolocsiz = (srcgrafptr->edloloctax != NULL) ? dstedgelocsiz : 0;
++  dstedgedatsiz = (permflagval == 0)              /* If vertices are received in destination order, edge data can be unpacked in place */
++                  ? (dstedlolocsiz + MAX (dstedgelocdlt, srcgrafptr->degrglbmax)) /* TRICK: extra space only for edge loads and degrmax, to avoid overlap */
++                  : (dstedgelocsiz * fledval);    /* Else destination edge arrays must not overlap receive area */
+   if (memAllocGroup ((void **) (void *)
+                      &dstvertloctax, (size_t) ((dstvertlocnbr + dstvertlocdlt + 1) * sizeof (Gnum)), /* Create compact array */
+                      &dstveloloctax, (size_t) ( dstvelolocsiz                      * sizeof (Gnum)),
+@@ -351,10 +356,9 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+            dstveloloctax  = ((srcgrafptr->veloloctax != NULL) ? dstveloloctax - baseval : NULL),
+            dstvlblloctax -= baseval,
+            memAllocGroup ((void **) (void *)
+-                          &dstedgeloctax, (size_t) ((dstedlolocsiz +  /* TRICK: extra space required only if edge loads                                */
+-                                                     MAX (dstedgelocdlt, srcgrafptr->degrglbmax)) * sizeof (Gnum)), /* TRICK: degrmax to avoid overlap */
+-                          &dsnddattab,    (size_t) (dsnddatnbr * sizeof (Gnum)), /* TRICK: send space will be edgeloctab or edloloctab                 */
+-                          &drcvdattab,    (size_t) (drcvdatnbr * sizeof (Gnum)), NULL) == NULL) { /* TRICK: Remaining space will be freed              */
++                          &dstedgeloctax, (size_t) (dstedgedatsiz * sizeof (Gnum)),
++                          &dsnddattab,    (size_t) (dsnddatnbr    * sizeof (Gnum)), /* TRICK: send space will be edgeloctab or edloloctab    */
++                          &drcvdattab,    (size_t) (drcvdatnbr    * sizeof (Gnum)), NULL) == NULL) { /* TRICK: Remaining space will be freed */
+     errorPrint ("dgraphRedist2: out of memory (3)");
+     cheklocval = 1;
+   }
+diff --git a/src/libscotch/dgraph_redist.h b/src/libscotch/dgraph_redist.h
+index fe201f2..373ed70 100644
+--- a/src/libscotch/dgraph_redist.h
++++ b/src/libscotch/dgraph_redist.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2012,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2012,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 6.0  : from : 10 may 2010     **/
+ /**                                 to   : 07 jun 2018     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 17 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -51,7 +51,7 @@
+ */
+ 
+ #ifdef SCOTCH_DGRAPH_REDIST
+-static int                  dgraphRedist2       (Dgraph * restrict const, const Gnum * restrict const, const Gnum * restrict const, const Gnum * const, const Gnum * const, const Gnum, const Gnum, Dgraph * restrict const);
++static int                  dgraphRedist2       (Dgraph * restrict const, const Gnum * restrict const, const Gnum * restrict const, const Gnum * const, const Gnum * const, const Gnum, const Gnum, const int, Dgraph * restrict const);
+ #endif /* SCOTCH_DGRAPH_REDIST */
+ 
+ int                         dgraphRedist        (Dgraph * restrict const, const Gnum * restrict const, const Gnum * restrict const, const Gnum, const Gnum, Dgraph * restrict const);
+-- 
+2.47.3
+

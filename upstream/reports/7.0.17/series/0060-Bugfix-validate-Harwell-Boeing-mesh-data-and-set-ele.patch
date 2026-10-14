@@ -1,0 +1,179 @@
+From df260befb5ecbe6f491006092af621b9fa505bcc Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:04:30 +0000
+Subject: [PATCH 060/240] Bugfix: validate Harwell-Boeing mesh data and set
+ element load sum [report R. Perry]
+
+`meshGeomLoadHabo()` checked the ELTPTR and VARIND values read from the
+file only under `SCOTCH_DEBUG_MESH2`, so a malformed file indexed
+`verttax` and `edgetax` out of bounds (and the debug checks returned
+without freeing the mesh). It never set `velosum`, so `meshCheck()`
+rejected every loaded mesh. Negative header counts were used as array
+sizes and vertex bases, and a huge field width in the format line made
+the fixed-width reader loop on EOF for as many characters.
+
+Check the header counts and field widths, check every ELTPTR value
+(bounds and monotonicity) and every VARIND value unconditionally, stop
+reading a field at end of file, set `velosum` and remove the debug
+check made redundant. Add a three-element matrix to the test data,
+which `mcv` converts and `mtst` checks.
+
+Refs: SEP-08, PS2-G11-mesh-struct-io-6
+---
+ src/check/CMakeLists.txt     |  5 +++++
+ src/check/Makefile           |  3 +++
+ src/check/data/hb3.msh       | 10 ++++++++++
+ src/check/data/hb3.pue       |  6 ++++++
+ src/libscotch/mesh_io_habo.c | 27 ++++++++++++++-------------
+ 5 files changed, 38 insertions(+), 13 deletions(-)
+ create mode 100644 src/check/data/hb3.msh
+ create mode 100644 src/check/data/hb3.pue
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index f62f413..92e8bc5 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -581,6 +581,11 @@ endforeach()
+ 
+ add_test(NAME mtst_small2_lbl COMMAND mtst ${dat}/small2_lbl.msh)
+ 
++add_test(NAME mcv_pue_hb3 COMMAND ${BASH} -c
++  "'$<TARGET_FILE:mcv>' '${dat}/hb3.pue' output_hb3.msh -ib -os && \
++   '${CMAKE_COMMAND}' -E compare_files '${dat}/hb3.msh' output_hb3.msh && \
++   '$<TARGET_FILE:mtst>' output_hb3.msh")
++
+ # check_prog_mord
+ 
+ foreach(mmk_msh m2_5_1 m2_5_4 m3_5_4_3)
+diff --git a/src/check/Makefile b/src/check/Makefile
+index f7ec6ec..4c34cbc 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -735,6 +735,9 @@ check_prog_mcv		        :	check_prog_mmk
+ 					$(PROGDIFF) $(TMPDIR)/m2_5_4.msh $(TMPDIR)/output_m2_5_4.msh
+ 					$(PROGDIFF) $(TMPDIR)/m2_5_4_3.msh $(TMPDIR)/output_m2_5_4_3.msh
+ 					$(EXECS) $(SCOTCHBINDIR)/mtst data/small2_lbl.msh
++					$(EXECS) $(SCOTCHBINDIR)/mcv data/hb3.pue $(TMPDIR)/output_hb3.msh -ib -os
++					$(PROGDIFF) data/hb3.msh $(TMPDIR)/output_hb3.msh
++					$(EXECS) $(SCOTCHBINDIR)/mtst $(TMPDIR)/output_hb3.msh
+ 
+ 
+ check_prog_mord                 :	check_prog_gmk_msh
+diff --git a/src/check/data/hb3.msh b/src/check/data/hb3.msh
+new file mode 100644
+index 0000000..e901c7a
+--- /dev/null
++++ b/src/check/data/hb3.msh
+@@ -0,0 +1,10 @@
++1
++3	4	18
++5	1	000
++2	1	3
++2	1	2
++3	1	2	3
++2	2	3
++3	1	2	3
++3	2	3	4
++3	1	3	4
+diff --git a/src/check/data/hb3.pue b/src/check/data/hb3.pue
+new file mode 100644
+index 0000000..96271e2
+--- /dev/null
++++ b/src/check/data/hb3.pue
+@@ -0,0 +1,6 @@
++Three triangle elements on four nodes                                   HB3ELT
++             2             1             1             0             0
++PUE                        4             3             9             0
++(4I3)           (9I3)
++  1  4  7 10
++  1  2  3  2  3  4  1  3  4
+diff --git a/src/libscotch/mesh_io_habo.c b/src/libscotch/mesh_io_habo.c
+index 0846d4e..2a5b940 100644
+--- a/src/libscotch/mesh_io_habo.c
++++ b/src/libscotch/mesh_io_habo.c
+@@ -164,6 +164,11 @@ const char * const          dataptr)              /* Tag value        */
+     errorPrint ("meshGeomLoadHabo: rectangular matrices not supported");
+     return (1);
+   }
++  if ((habvarnbr < 0) || (habeltnbr < 0) || (habvixnbr < 0) || /* Header values are used as array sizes and bases */
++      (habcolsiz < 1) || (habnzrsiz < 1)) {
++    errorPrint ("meshGeomLoadHabo: bad input (11)");
++    return (1);
++  }
+ 
+   if (((meshptr->verttax = (Gnum *) memAlloc ((habeltnbr + habvarnbr + 1) * sizeof (Gnum))) == NULL) ||
+       ((meshptr->edgetax = (Gnum *) memAlloc (habvixnbr * 2               * sizeof (Gnum))) == NULL)) {
+@@ -188,6 +193,7 @@ const char * const          dataptr)              /* Tag value        */
+   meshptr->vnodbas = 1;
+   meshptr->vnodnnd = meshptr->velmbas;
+   meshptr->vnlosum = habvarnbr;
++  meshptr->velosum = habeltnbr;                   /* Elements and nodes are not weighted */
+ 
+   for (velmnum = meshptr->velmbas; velmnum <= meshptr->velmnnd; velmnum ++) { /* Read ELTPTR as second part of vertex array */
+     Gnum              habcolval;                  /* Current column value                                                   */
+@@ -195,7 +201,7 @@ const char * const          dataptr)              /* Tag value        */
+ 
+     while (((c = getc (filesrcptr)) == '\n') || (c == '\r')) ;
+     habcolval = (c == ' ') ? 0 : (c - '0');
+-    for (habcolidx = 1; habcolidx < habcolsiz; habcolidx ++) {
++    for (habcolidx = 1; (habcolidx < habcolsiz) && (c != EOF); habcolidx ++) { /* Stop at end of file, whatever the field width */
+       if ((c = getc (filesrcptr)) != ' ')
+         habcolval = habcolval * 10 + c - '0';
+     }
+@@ -204,12 +210,12 @@ const char * const          dataptr)              /* Tag value        */
+       meshFree   (meshptr);
+       return (1);
+     }
+-#ifdef SCOTCH_DEBUG_MESH2
+-    if ((habcolval < 1) || (habcolval > (habvixnbr + 1))) {
++    if ((habcolval < 1) || (habcolval > (habvixnbr + 1)) || /* ELTPTR values must be within bounds and non-decreasing */
++        ((velmnum > meshptr->velmbas) && ((habcolval + habvixnbr) < meshptr->verttax[velmnum - 1]))) {
+       errorPrint ("meshGeomLoadHabo: bad input (7)");
++      meshFree   (meshptr);
+       return (1);
+     }
+-#endif /* SCOTCH_DEBUG_MESH2 */
+ 
+     meshptr->verttax[velmnum] = habcolval + habvixnbr;
+   }
+@@ -227,7 +233,7 @@ const char * const          dataptr)              /* Tag value        */
+ 
+     while (((c = getc (filesrcptr)) == '\n') || (c == '\r')) ;
+     habnodval = (c == ' ') ? 0 : (c - '0');
+-    for (habnzridx = 1; habnzridx < habnzrsiz; habnzridx ++) {
++    for (habnzridx = 1; (habnzridx < habnzrsiz) && (c != EOF); habnzridx ++) { /* Stop at end of file, whatever the field width */
+       if ((c = getc (filesrcptr)) != ' ')
+         habnodval = habnodval * 10 + c - '0';
+     }
+@@ -236,12 +242,11 @@ const char * const          dataptr)              /* Tag value        */
+       meshFree   (meshptr);
+       return (1);
+     }
+-#ifdef SCOTCH_DEBUG_MESH2
+-    if ((habnodval < 1) || (habnodval > habvarnbr)) {
++    if ((habnodval < 1) || (habnodval > habvarnbr)) { /* VARIND values must be valid node numbers (also rejects blank fields) */
+       errorPrint ("meshGeomLoadHabo: bad input (10)");
++      meshFree   (meshptr);
+       return (1);
+     }
+-#endif /* SCOTCH_DEBUG_MESH2 */
+     meshptr->edgetax[edgenum] = habnodval;
+     meshptr->verttax[habnodval] ++;
+   }
+@@ -274,12 +279,8 @@ const char * const          dataptr)              /* Tag value        */
+ 
+       vnodnum = meshptr->edgetax[edgenum];
+ #ifdef SCOTCH_DEBUG_MESH2
+-      if ((vnodnum < 1) || (vnodnum > habvarnbr)) {
+-        errorPrint ("meshGeomLoadHabo: internal error (2)");
+-        return (1);
+-      }
+       if (meshptr->verttax[vnodnum] > habvixnbr) {
+-        errorPrint ("meshGeomLoadHabo: internal error (3)");
++        errorPrint ("meshGeomLoadHabo: internal error (2)");
+         return (1);
+       }
+ #endif /* SCOTCH_DEBUG_MESH2 */
+-- 
+2.47.3
+

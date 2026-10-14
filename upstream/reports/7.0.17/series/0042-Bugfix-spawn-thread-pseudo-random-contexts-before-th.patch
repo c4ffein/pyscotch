@@ -1,0 +1,74 @@
+From ef3614fa8b2aa72c7993d64b41a39dbc81b2abf8 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:02:03 +0000
+Subject: [PATCH 042/240] Bugfix: spawn thread pseudo-random contexts before
+ threads are launched in `bgraphBipartGg()` [report R. Perry]
+
+Worker threads spawned their local pseudo-random contexts from the
+shared context while thread 0 was already drawing from it, so that the
+seeds depended on thread scheduling and runs were not reproducible.
+Spawn all local contexts sequentially, before threads are launched.
+
+Refs: SEP-13
+---
+ src/libscotch/bgraph_bipart_gg.c | 8 ++++----
+ src/libscotch/bgraph_bipart_gg.h | 3 ++-
+ 2 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/src/libscotch/bgraph_bipart_gg.c b/src/libscotch/bgraph_bipart_gg.c
+index b918750..6518ecf 100644
+--- a/src/libscotch/bgraph_bipart_gg.c
++++ b/src/libscotch/bgraph_bipart_gg.c
+@@ -124,7 +124,6 @@ BgraphBipartGgData * restrict const passptr)
+ {
+   Context                 contdat;                /* Local context, only used for its random section */
+   Context *               contptr;                /* Pointer to active local context                 */
+-  IntRandContext          randdat;                /* Local random context                            */
+   BgraphBipartGgTabl      tabldat;                /* Gain table                                      */
+   BgraphBipartGgVertex *  vexxtax;                /* Extended vertex array [norestrict]              */
+   BgraphBipartGgVertex *  vexxptr;                /* Pointer to current vertex to swap [norestrict]  */
+@@ -173,9 +172,8 @@ fail:
+     contptr = grafptr->contptr;                   /* Use provided context */
+   }
+   else {
+-    parttax = thrdptr->parttab - grafptr->s.baseval; /* Use local array                       */
+-    intRandSpawn (grafptr->contptr->randptr, thrdnum, &randdat); /* Create fake local context */
+-    contdat.randptr = &randdat;
++    parttax = thrdptr->parttab - grafptr->s.baseval; /* Use local array        */
++    contdat.randptr = &thrdptr->randdat;          /* Use spawned local context */
+     contptr = &contdat;
+   }
+ 
+@@ -326,6 +324,8 @@ const BgraphBipartGgParam * const paraptr)        /*+ Method parameters +*/
+   passdat.cmg0tax -= grafptr->s.baseval;
+   passdat.grafptr  = grafptr;
+   passdat.passnbr  = (paraptr->passnbr + (thrdnbr - 1)) / thrdnbr; /* Share passes across threads */
++  for (thrdnum = 1; thrdnum < thrdnbr; thrdnum ++) /* Spawn local random contexts before threads are launched */
++    intRandSpawn (grafptr->contptr->randptr, thrdnum, &passdat.thrdtab[thrdnum].randdat);
+ 
+   if (edlotax == NULL) {                          /* If graph has no edge weights */
+     Gnum                vertnum;
+diff --git a/src/libscotch/bgraph_bipart_gg.h b/src/libscotch/bgraph_bipart_gg.h
+index 8b1738b..0bc82db 100644
+--- a/src/libscotch/bgraph_bipart_gg.h
++++ b/src/libscotch/bgraph_bipart_gg.h
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 23 feb 2011     **/
+ /**                                 to   : 05 apr 2018     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 16 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -97,6 +97,7 @@ typedef struct BgraphBipartGgThread_ {
+   Gnum                      cmloval;              /*+ Communication load value +*/
+   Gnum                      cpl0dlt;              /*+ Computation imbalance    +*/
+   GraphPart *               parttab;              /*+ Local part array         +*/
++  IntRandContext            randdat;              /*+ Local random context     +*/
+ } BgraphBipartGgThread;
+ 
+ /*+ The loop routine parameter
+-- 
+2.47.3
+

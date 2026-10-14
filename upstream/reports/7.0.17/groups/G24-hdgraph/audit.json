@@ -1,0 +1,552 @@
+[
+ {
+  "id": "DMO-01",
+  "our_title": "Folded halo graph vertex loads sent from a stale slice; fixed upstream",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "Positive, 7.0.17 (+combined series), ASan 32-bit and 64-bit, vertex-weighted 4elt_w.grf, np 1..5: LD_LIBRARY_PATH=$WORK/build/lib mpirun --oversubscribe -np 3 $C/bin_build/orderfi $C/4elt_w.grf \"\" check -> \"rank 0: ordering check rc=0\" (SCOTCH_dgraphOrderGather + SCOTCH_graphOrderCheck on the gathered graph), no sanitizer output; same np 1,2,4,5, m16x16.grf, build64. Negative control $WORK/buildrev (pristine INFRA/asan with 4ebcc6f reverted, i.e. the 7.0.16 send): np 3 -> \"ERROR: AddressSanitizer: heap-buffer-overflow ... vgraph_separate_fm.c:129 in vgraphSeparateFmTablGet\"; np 5 -> \"MPI_ERR_TRUNCATE: message truncated\". repro/DMO-01/README.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "silent wrong vertex loads or MPI abort in the default parallel ordering of any weighted graph on >= 3 processes; same as the review",
+  "location_7_0_17": "src/libscotch/hdgraph_fold.c:360-365 (7.0.17; base-combined :436-438)",
+  "evidence": "7.0.17: \"if (MPI_Isend (orggrafptr->s.veloloctax + fldvertidxtab[commnum],\\n fldcommdattab[commnum].vertnbr, GNUM_MPI, fldcommdattab[commnum].procnum,\\n TAGFOLD + TAGVELOLOCTAB, ...\"; 7.0.16 had \"veloloctax + vertsndbas, vertsndnbr\" with the outer-scope variables left by the first loop.",
+  "upstream_change": "4ebcc6f \"Bugfix: use proper message displacement and count [completes scotch@2747e2ba; report R. Perry]\" (hdgraph_fold.c, the vertex-load Isend only)",
+  "review_accuracy": "accurate (mechanism, origin 2747e2b, fix); on 3 ranks the visible symptom is a downstream heap overflow, truncation shows from 5 ranks",
+  "first_pass_critique": "Right on status and evidence. It did not check completeness: done here, every other send of hdgraphFold2() (edge :423, vnum :446, vertex index sends :333/:339 through inner-scope vertsndbas/vertsndnbr) uses per-communication offsets; the dgraph_fold.c twin was correct.",
+  "extra_instances": [],
+  "fix_options": [],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The restructuring of hdgraphFold2() by G18 (7018b17) keeps the fixed send. src/check has no vertex-weighted distributed ordering case; adding one would be a reasonable follow-up (not done: the test would need a weighted graph file in src/check/data)."
+ },
+ {
+  "id": "DMO-16",
+  "our_title": "Folded and centralized graphs leaked on nested dissection and bipartitioning failures",
+  "status": "partially-fixed",
+  "method": "ran",
+  "ran": "Leak detector: $C/fishim2.so counts blocks allocated by the Scotch libraries still allocated at exit (baseline 0 on every rank). Nested dissection, np 3, m16x16.grf, mode rc (base-combined -> this series): $C/one.sh $WORK/basefi/lib $C/bin_basefi/orderfi 3 0 125 rc -> \"rank 0: live scotch blocks 2\" (hdgraphInduceList of part 1 fails after part 0 was folded), patched 0; #130 rank 0 (dorderNewSequ after the fold) 2 -> 0; #94 rank 2 (dorderNewSequ) 2 -> 0; #127 rank 1 (hdgraphGather of part {1} after part {0} gathered on rank 0): rank 0 2 -> 0 ($C/targeted_leaks_np3.txt). hdgraphFold2 part: every fold allocation failure (#83-#88, ranks 0/1) already returns 1 on every rank with 0 live blocks on the base (G18 7018b17), pristine 7.0.17 hangs there ($C/targeted_g18.txt). Recursive bipartitioning (mapfi cmplt:5, np 3): the allocation order of the sequential leaves is thread-dependent, so the index scans (scans/map_*) are not comparable run to run; deterministic per-routine injection instead (FI_FUNC, $C/onef.sh, $C/targeted_map.txt): the 1st-3rd dgraphInduce2 allocation of the second part (rank 0 #4-#6, rank 2 #4-#6) -> base: 3 live blocks on each of ranks 0 and 1 (their folded distributed graph: private group, vertex group, edge array), rc=1 everywhere; patched: 0 live blocks on every rank. kgraphInit#0/#1 and kdgraphMapRbAdd2#0/#1 failures (leaf of the recursion) hang the other processes on the base (not agreed: PS2-G24-5, patches/0008); kgraphInit leak measured after 0008, see repro/DMO-16/README",
+  "read_only": "kdgraphMapRbPart2 early returns at archDomBipart error / dgraphGhst failure / bdgraphInit failure and kgraphInit failure in kdgraphMapRbPartSequ: not reachable by allocation injection (no allocation fails there), read only",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "leaks only on error paths that now (after G18/G19 and this series) return cleanly instead of hanging; same as the review",
+  "location_7_0_17": "src/libscotch/hdgraph_fold.c (fixed by G18 7018b17); src/libscotch/hdgraph_order_nd.c:223-233 (hdgraphOrderNdFold: no cleanup when one part fails), :410-411 and :427-428 (dorderNewSequ/dorderNew failure after a successful fold); src/libscotch/kdgraph_map_rb_part.c:109-112 (kgraphInit failure), :330-336 (kdgraphMapRbPartFold), :374-375, :379-380, :395-397 (early returns of kdgraphMapRbPart2)",
+  "evidence": "hdgraph_order_nd.c:231-232 (7.0.17): \"o = hdgraphOrderNdFold2 (&fldthrdtab[0]) ||   /* Perform inductions in sequence */\\n        hdgraphOrderNdFold2 (&fldthrdtab[1]);\" (the folded graph of part 0 is never freed when part 1 fails); :410 \"if ((cblkptr01 = dorderNewSequ (cblkptr)) == NULL)\\n        goto fail;\" (fail: frees vspgrafdat arrays and grafptr only); kdgraph_map_rb_part.c:374-375 \"errorPrint (\\\"kdgraphMapRbPart2: cannot bipartition domain\\\");\\n      return (1);\" (grafptr->data.dgrfdat owned at levels > 0 is not freed).",
+  "upstream_change": "none for these files; in the combined base, G18 7018b17 reworked the hdgraphFold2 error paths (fail2 frees fldvertidxtab, fldcommdattab, fldvhalloctax and the receivers graph after completing pending communications)",
+  "review_accuracy": "accurate on every listed path; it does not mention the hdgraphOrderNdFold / kdgraphMapRbPartFold case (one part folded, the other failed) nor the kgraphInit failure, which leak as well",
+  "first_pass_critique": "Status right, but \"source-read\" with a hang excuse: the leaks are measurable (live-block counting in the injector works without ASan). Its option A would add MPI_Waitall on error in hdgraphFold2 without the collective gate that makes it safe; G18 did it properly. It missed the Fold-level leak (first part folded, second part fails), the largest one (the whole folded graph on every receiver), and the kgraphInit failure.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/hdgraph_order_nd.c:223-233 (hdgraphOrderNdFold)",
+    "quote": "o = hdgraphOrderNdFold2 (&fldthrdtab[0]) ||   /* Perform inductions in sequence */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/kdgraph_map_rb_part.c:330-336 (kdgraphMapRbPartFold)",
+    "quote": "o = kdgraphMapRbPartFold2 (&fldthrdtab[0]) || /* Perform inductions in sequence */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/kdgraph_map_rb_part.c:109-112 (kdgraphMapRbPartSequ)",
+    "quote": "errorPrint (\"kdgraphMapRbPartSequ: cannot initialize centralized graph\");\\n    return (1);",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: record each part status and free; common fail label in kdgraphMapRbPart2 (recommended, committed)",
+    "summary": "hdgraphOrderNdFold/kdgraphMapRbPartFold mark the failing part in fldthrdtab[].orggrafptr (as the threaded variant already does) and free our folded graph when the other part failed; hdgraphOrderNd2 frees the folded graph when its column block cannot be created; kdgraphMapRbPart2 routes its three early returns through \"fail:\" (dgraphExit); kdgraphMapRbPartSequ frees the centralized graph on kgraphInit failure. The now-unused local \"o\" of both Fold routines is removed.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0003-Bugfix-free-folded-graphs-on-error-in-distributed-ne.patch and /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0004-Bugfix-free-graphs-on-error-in-parallel-recursive-bi.patch",
+    "tested": "fault injection np 3 base vs patched: every leaking index above goes to 0 live blocks; check_scotch_dgraph_order/check, check_prog_dgord/dgpart np 1-4 and the full ptcheck on 32-bit and 64-bit ASan trees; debug tree checks",
+    "tradeoffs": "slightly larger diff in the Fold routines; the threaded (SCOTCH_PTHREAD_MPI) variant shares the same cleanup",
+    "preferred": true,
+    "maintainer_fit": "his own failN label idiom (hdgraphGather 0635547, hdgraphInduceList 3436099) and the \"Indicate an error\" convention of hdgraphOrderNdFold3 already in the file"
+   },
+   {
+    "label": "B: minimal frees only (no Fold-level cleanup)",
+    "summary": "free the folded graph on dorderNew*/dorderNewSequ failure and dgraphExit on the three early returns of kdgraphMapRbPart2, keep the || chain in the Fold routines.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/alt/DMO-16-B-minimal-frees-only.diff",
+    "tested": "untested beyond -fsyntax-only with the build flags (0 problems)",
+    "tradeoffs": "leaves the biggest leak (the whole folded graph of the successful part when the other part fails: #125 rank 0, #127 rank 0 above) and the kgraphInit case",
+    "preferred": false,
+    "maintainer_fit": "too partial: he would ask why the fold case is left out"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0003-Bugfix-free-folded-graphs-on-error-in-distributed-ne.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0004-Bugfix-free-graphs-on-error-in-parallel-recursive-bi.patch"
+  ],
+  "cleanup_done": "removed the now-unused local \"o\" of hdgraphOrderNdFold() and kdgraphMapRbPartFold()",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "patches/0004 is rebased on G23's series (its 0010 adds mapAlloc/kgraphFrst in the same routine kdgraphMapRbPartSequ; no overlap with the kgraphInit-failure hunk). The threaded fold variant (MPI_THREAD_MULTIPLE, SCOTCH_PTHREAD_MPI) shares the new cleanup: exercised by the MPI_Init_thread re-verification runs ($C/reverify_thread.txt). The hdgraph_fold.c part of the review is covered by G18's 7018b17 (verified at runtime, no duplicate commit). test_added is empty: leaks are not observable by src/check programs without a leak detector and injected failures."
+ },
+ {
+  "id": "PS-DMO-4",
+  "our_title": "Fold allocation failures were not agreed upon in release builds; covered by G18",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "Pristine 7.0.17 (G18 pristinefi tree, same fault-injection flags): $C/one.sh $G18/pristinefi/lib $C/bin_basefi/orderfi 3 0 85 rc -> \"(0): ERROR: hdgraphFold2: out of memory (2)\", rank 0 rc=1, HANG (ranks 1,2 blocked); same for #83,#84 (dgraphFoldComm) and #86-#88 (hdgraphFold2 (3)-(5)). Base-combined (G18 7018b17 applied): same commands with $WORK/basefi/lib -> rc=1 on every rank, 0 live blocks, for all six indices ($C/targeted_g18.txt); whole-routine evidence in scans/basefi_np3_r{0,1}.txt (every hdgraphFold2/dgraphFoldComm index \"all-rc1\").",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "hang of the whole job on out-of-memory inside the default parallel ordering; same as the first pass",
+  "location_7_0_17": "src/libscotch/hdgraph_fold.c:278-283 (7.0.17 \"#else chekglbval = cheklocval\"); base-combined :277-294 (unconditional MPI_Allreduce at fail1)",
+  "evidence": "base-combined hdgraph_fold.c:278: \"if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, orggrafptr->s.proccomm) != MPI_SUCCESS) { /* No process must post communications if some process cannot */\"",
+  "upstream_change": "none upstream; fixed in the combined base by G18 commit 7018b17 \"Bugfix: make error handling of `dgraphFold2()` and `hdgraphFold2()` collective [report R. Perry and PyScotch]\"",
+  "review_accuracy": "not in the review (first-pass finding); the finding is accurate",
+  "first_pass_critique": "Accurate finding. Its option A (make only the fail1 agreement unconditional) would leave the receivers edge-array failure (hdgraphFold2 \"out of memory (6)\", after senders posted their edge sends) hanging; G18 added the second gate (fail3) that this needs.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A: G18 7018b17 (in the base): unconditional first agreement plus a collective gate before edge data is sent",
+    "summary": "see G18's patch 0003",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0003-Bugfix-make-error-handling-of-dgraphFold2-and-hdgraphF.patch",
+    "tested": "runs above",
+    "tradeoffs": "two small collectives per fold in release builds",
+    "preferred": true,
+    "maintainer_fit": "same policy as his unconditional agreements in hdgraphGather (0635547) and hdgraphInduceList (3436099)"
+   },
+   {
+    "label": "B: fail1 agreement only (first pass A)",
+    "summary": "remove the #ifdef around the fail1 Allreduce only",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "edge-array failure of normal receivers still hangs the senders",
+    "preferred": false,
+    "maintainer_fit": "incomplete"
+   }
+  ],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Covered by G18's patch; no duplicate commit. The fail5/fail6 agreements of hdgraphFold2 remain debug-only (only MPI calls can fail there), as G18 chose."
+ },
+ {
+  "id": "DMO-06",
+  "our_title": "Leaf ordering status dropped; success reported with a missing permutation fragment",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "np 3, m16x16.grf, default strategy; rank 0 allocation #76 = periloctab of hdgraphOrderSi2() for a leaf. Base-combined: $C/one.sh $WORK/basefi/lib $C/bin_basefi/orderfi 3 0 76 rc -> \"(0): ERROR: hdgraphOrderSi2: out of memory\", rank 0 rc=1, HANG: ranks 1 and 2 never return from SCOTCH_dgraphOrderCompute() (modes rc, user, all). Patched: $C/one.sh $WORK/buildfi/lib $C/bin_buildfi/orderfi 3 0 76 rc -> rc=1 on every rank, 0 live blocks; #114 likewise. Patched mode all (Perm and Save called despite rc=1): perm rc=0 everywhere (identity), then SCOTCH_dgraphOrderSave() hangs waiting for the missing fragment (PS2-G24-3, dorder_io.c). repro/DMO-06/README; scans/*_np3_r*.txt + compare.py for the whole path.",
+  "read_only": "hdgraph_order_st.c STRATNODEEMPTY site (an empty leaf strategy string): same dropped status, read only",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "on the base the symptom is a hang of the other processes rather than the review's \"success then dorderPerm fails\", because the leaf failure happens before the next fold collectives; same rating as the review",
+  "location_7_0_17": "src/libscotch/hdgraph_order_nd.c:325-328; src/libscotch/hdgraph_order_st.c:206-207 (base-combined :208-209)",
+  "evidence": "hdgraph_order_nd.c:325-328: \"hdgraphOrderSt (grafptr, cblkptr, paraptr->ordstratlea); /* Order this leaf */\\n    hdgraphExit    (grafptr);\\n    dorderDispose  (cblkptr);\\n    return (0);\"; hdgraph_order_st.c:206: \"hdgraphOrderSi (grafptr, cblkptr);          /* Always maintain a consistent ordering */\"",
+  "upstream_change": "none",
+  "review_accuracy": "accurate on the two dropped statuses; the downstream description (dorderPerm \"invalid parameters (2)\", dorderSave waits forever) assumes every process returns, which they do not on 7.0.17 (hang inside OrderCompute); dorderSave does wait forever once the statuses agree (PS2-G24-3)",
+  "first_pass_critique": "Status, sites and the np 3 injection are right. It left the ranks disagreeing (\"pre-existing design\") instead of fixing it, which is the user-visible hang; and its claim \"ranks 0 and 2 still return 0\" hides that on the base they do not return at all. Its option B (API-level completeness check) is now alt/DMO-06-B; it detects a missing fragment but not the hang.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/hgraph_order_nd.c:180 (sequential twin)",
+    "quote": "return (hgraphOrderSt (grafptr, ordeptr, ordenum, cblkptr, paraptr->ordstratlea)); /* Order this leaf */",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: return the leaf statuses and make every distributed ordering routine agree (recommended, committed)",
+    "summary": "hdgraphOrderNd2 returns hdgraphOrderSt's status for leaves; hdgraphOrderSt keeps hdgraphOrderSi's status for empty strategies; hdgraphOrderSi2 always agrees (the debug-only Allreduce becomes unconditional); hdgraphOrderSq broadcasts the root's status; hdgraphOrderNd2 always agrees on its allocations; hdgraphOrderNd agrees on the result of both halves.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0002-Bugfix-propagate-and-agree-on-the-status-of-distribu.patch",
+    "tested": "injection scans np 3 (every rank, every allocation): 33 HANG -> all-rc1 on rank 0 (and rank 1), 10 on rank 2, no new hang/crash; check targets np 1-4 and ptcheck 32/64-bit; ordering check mode np 1-5",
+    "tradeoffs": "one Allreduce per hdgraphOrderSi2 leaf, one Bcast per sequential leaf, one Allreduce per nested dissection call (all small); reverses the \"communication cannot be merged with a useful one\" release-mode choice, as G18/G19 did",
+    "preferred": true,
+    "maintainer_fit": "the sequential twin hgraph_order_nd.c:180 returns the leaf status; unconditional agreements are his own idiom in hdgraphGather (0635547) and hdgraphInduceList (3436099)"
+   },
+   {
+    "label": "B: completeness check in SCOTCH_dgraphOrderComputeList (first pass B)",
+    "summary": "after hdgraphOrderSt, sum the local leaf fragment sizes, Allreduce, compare with vertglbnbr, return 1 on every process when a fragment is missing.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/alt/DMO-06-B-api-completeness-check.diff",
+    "tested": "-fsyntax-only with the build flags (0 problems); not run",
+    "tradeoffs": "one Allreduce plus a list walk per call; detects the symptom only, and only when every process returns (not the base hang); library_dgraph_order.c is outside this group",
+    "preferred": false,
+    "maintainer_fit": "he prefers fixing the producer (hdgraphOrderNd2) to adding a consumer check"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0002-Bugfix-propagate-and-agree-on-the-status-of-distribu.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "test_added empty: the defect needs an injected allocation failure; src/check has no injection facility. The sequential twin hgraph_order_nd.c already returns the leaf status (no change needed)."
+ },
+ {
+  "id": "DMO-07",
+  "our_title": "Separator column block of nested dissection dereferenced without NULL check",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "np 3, m16x16.grf, rank 0 allocation #70 = dorderNew() of the separator node. Base-combined: $C/one.sh $WORK/basefi/lib $C/bin_basefi/orderfi 3 0 70 rc -> \"(0): ERROR: dorderNew: out of memory\", \"(0,1,2): ERROR: dorderNew: cannot create new node\", \"hdgraph_order_nd.c:363:26: runtime error: member access within null pointer of type 'struct DorderCblk'\" on the three ranks, signal 11. Patched: $C/one.sh $WORK/buildfi/lib $C/bin_buildfi/orderfi 3 0 70 rc -> rc=1 on every rank, 0 live blocks; #108 (second level) likewise. repro/DMO-07/README.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "crash of every process on out-of-memory in the default parallel ordering; same as the review",
+  "location_7_0_17": "src/libscotch/hdgraph_order_nd.c:362-363",
+  "evidence": "\"cblkptr2 = dorderNew (cblkptr, grafptr->s.proccomm); /* Create separator node */\\n    cblkptr2->ordeglbval = cblkptr->ordeglbval + grafptr->s.vertglbnbr - vspgrafdat.compglbsize[2];\"",
+  "upstream_change": "none",
+  "review_accuracy": "accurate",
+  "first_pass_critique": "Fully right (status, injection, fix). Its note that fail: does not free the induced graphs is DMO-16, handled in patches/0003.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A: test the result and goto fail (recommended, committed)",
+    "summary": "\"if ((cblkptr2 = dorderNew (...)) == NULL) goto fail;\" like the two other calls of the routine",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0001-Bugfix-test-the-result-of-separator-column-block-cre.patch",
+    "tested": "injection above; check targets np 1-4 and ptcheck",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "identical to the dorderNew/dorderNewSequ tests at :410 and :427 of the same routine"
+   },
+   {
+    "label": "B: create the separator node before marking the parent as a nested dissection node",
+    "summary": "hoist dorderNew above \"cblkptr->typeval = DORDERCBLKNEDI\" so that a failure leaves the parent untouched; the empty-separator branch sets the type itself.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/alt/DMO-07-B-create-separator-node-first.diff",
+    "tested": "-fsyntax-only (0 problems); not run",
+    "tradeoffs": "slightly cleaner state on failure, but restructures the branch for no observable benefit (the ordering is discarded on failure anyway)",
+    "preferred": false,
+    "maintainer_fit": "more churn than he applies for a NULL test"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0001-Bugfix-test-the-result-of-separator-column-block-cre.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "DMO-08",
+  "our_title": "hdgraphGather error block freed uninitialised pointers; fixed by G18 in the base",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "Pristine 7.0.17 with -ftrivial-auto-var-init=pattern (G18 pristinefi tree): $C/one.sh $G18/pristinefi/lib $C/bin_basefi/orderfi 3 0 120 rc -> \"(0): ERROR: hdgraphGather: out of memory (1)\" then exit 139 (SIGSEGV in the error block); same for #121 (2) and #122 (3); #123 (4) clean. Base-combined (G18 81b8fbc): same commands with $WORK/basefi/lib -> rc=1 on ranks 0,1 (rank 2 rc=0: PS2-G18-3), 0 live blocks; with this series rc=1 on every rank. $C/targeted_g18.txt, repro/DMO-08/README.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "crash on out-of-memory of the root in the default parallel ordering; same as the review",
+  "location_7_0_17": "src/libscotch/hdgraph_gather.c:93 (verthaltax uninitialised), :143-171 (root allocations goto fail), :201-214 (error block); base-combined :127, :144-145 set them",
+  "evidence": "base-combined hdgraph_gather.c:127 \"verthaltax = NULL;                              /* In case of error   */\", :144-145 \"cgrfptr->s.baseval = dgrfptr->s.baseval;      /* Base value is needed for premature freeing of based arrays */\\n    cgrfptr->s.edgetax = NULL;\"",
+  "upstream_change": "0635547 \"Rework error handling and structure of `hdgraphGather()`\" restructured the allocations but left verthaltax, edgetax and baseval unset on the early root failures; G18 81b8fbc (combined base) sets them",
+  "review_accuracy": "accurate; \"assigned only inside if (cheklocval == 0)\" describes 7.0.16, in 7.0.17 the assignment is unconditional but still skipped by the root's earlier goto fail",
+  "first_pass_critique": "Right on status and the pattern-init reproduction. Its option A sets eight fields; only three matter: hgraphFree() reads vnhdtax only under HGRAPHFREEVNHD (not set) and graphFree() only frees edgetax (GRAPHFREEEDGE), verttax (set NULL by memAllocGroup on failure) and compares vendtax under GRAPHVERTGROUP (never freed); vnumtax/velotax/vlbltax/edlotax are not read (GRAPHFREEVNUM/GRAPHFREEOTHR not set). G18's minimal fix is complete.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A: G18 81b8fbc (in the base): verthaltax = NULL, baseval and edgetax set before the first allocation",
+    "summary": "see G18 patch 0004",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0004-Bugfix-rework-error-handling-of-dgraphGatherAll2-repo.patch",
+    "tested": "runs above",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "his hdgraphFold2 idiom \"Base value is needed for premature freeing of based arrays\" (G18 8d84d13 wording, same as dgraph_fold.c)"
+   },
+   {
+    "label": "B: also NULL every Hgraph array field (first pass A)",
+    "summary": "explicit NULL for verttax, vendtax, velotax, vnumtax, vlbltax, edlotax, vnhdtax on top of A",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/alt/DMO-08-B-init-all-hgraph-fields.diff",
+    "tested": "-fsyntax-only (0 problems); not run",
+    "tradeoffs": "harmless but dead: none of these fields is freed by hgraphExit() with the flags set; an hgraphInit()-style memSet would be the maintainer alternative if he wanted belt and braces",
+    "preferred": false,
+    "maintainer_fit": "he sets what is read, not everything"
+   }
+  ],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Covered by G18; no duplicate commit."
+ },
+ {
+  "id": "PS-DMO-5",
+  "our_title": "Sequential halo ordering returned only the root process status",
+  "status": "still-present",
+  "method": "partly-run",
+  "ran": "Strategy \"q\" (hdgraphOrderSq on the whole 3-process communicator; rank 0 is the root), np 3, m16x16.grf, rank 0 allocations #7-#10 = hdgraphGather (1)-(4), #11 = orderInit of hdgraphOrderSq2: $C/one.sh $WORK/basefi/lib $C/bin_basefi/orderfi 3 0 11 rc $WORK/scotch/src/check/data/m16x16.grf q -> \"(0): ERROR: orderInit: out of memory\", \"hdgraphOrderSq2: cannot initialize centralized ordering\", rank 0 rc=1, ranks 1 and 2 rc=0 (DISAGREE); patched ($WORK/buildfi): rc=1 on every rank, 0 live blocks. hdgraphGather failures (#7-#10) agree on both trees (hdgraphGather's own agreement). $C/targeted_q.txt. The failure of hdgraphOrderSqTree (hdgraph_order_sq.c:184) was only read: same root-only path, now broadcast.",
+  "read_only": "hdgraph_order_sq.c:96-102: \"o = 0;\\n  if (cgrfptr != NULL) {\\n    o = hdgraphOrderSq2 (&cgrfdat, cblkptr, paraptr->ordstratseq);\\n    hgraphFree (&cgrfdat);\\n  }\\n  return (o);\" (non-root processes always return 0)",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "disagreement only when the root fails inside the sequential ordering of a multi-process leaf (strategy q or ole=q on >= 2 processes); the agreements of patches/0002 at the nested dissection level hide it for the default strategy; raised from the first pass \"info\" because the user-visible effect is a hang on the next collective",
+  "location_7_0_17": "src/libscotch/hdgraph_order_sq.c:96-102",
+  "evidence": "as in read_only",
+  "upstream_change": "none",
+  "review_accuracy": "not in the review (first-pass finding); accurate",
+  "first_pass_critique": "Accurate but sketch-level (\"MPI_Allreduce ... MPI_MAX\"); either Bcast or Allreduce works, Bcast expresses the root-only source.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A: MPI_Bcast of the root status (recommended, committed in patches/0002)",
+    "summary": "after the root's hdgraphOrderSq2, \"MPI_Bcast (&o, 1, MPI_INT, 0, grafptr->s.proccomm)\"; the root is process 0 by construction (:90).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0002-Bugfix-propagate-and-agree-on-the-status-of-distribu.patch",
+    "tested": "q-strategy injections (above) and the whole scan matrix",
+    "tradeoffs": "one Bcast per sequential leaf",
+    "preferred": true,
+    "maintainer_fit": "dorderSave uses MPI_Bcast for the root status (dorder_io.c, debug block); hdgraphGather sets the root with the same \"proclocnum == 0\" convention"
+   },
+   {
+    "label": "B: MPI_Allreduce MAX of a local status",
+    "summary": "cheklocval/chekglbval idiom",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/alt/PS-DMO-5-B-allreduce-status.diff",
+    "tested": "-fsyntax-only (0 problems); not run",
+    "tradeoffs": "same cost; slightly more code",
+    "preferred": false,
+    "maintainer_fit": "fine too; Bcast is more explicit"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0002-Bugfix-propagate-and-agree-on-the-status-of-distribu.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "DMO-17",
+  "our_title": "Parallel mapping onto non-complete targets fails as documented; documentation stale",
+  "status": "not-a-bug",
+  "method": "ran",
+  "ran": "LD_LIBRARY_PATH=$WORK/build/lib mpirun --oversubscribe -np 2 $C/bin_build/mapfi $WORK/scotch/src/check/data/m16x16.grf $INFRA/asan/tgt/h3.tgt -> \"(0): ERROR: kdgraphMapRbMap: not implemented yet\", \"rank 0: arch hcub map rc=1\" on both ranks, no hang; same for T3D_64.tgt (torus3D) and a sub.tgt (sub of a cmplt: ARCHNONE class flag, rejected too); cmplt:5 -> rc=0; dgmap np 1 with h3.tgt prints the same message. repro/DMO-17/README.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "info",
+  "severity_note": "documented limitation; the stale wording of the manuals is the only defect",
+  "location_7_0_17": "src/libscotch/kdgraph_map_rb.c:260-262; src/libscotch/kdgraph_map_rb_map.c:77-78; doc/src/ptscotch/p_l.tex:2933-2935 and :2977-2979; man/man1/dgmap.1.txt:93-97",
+  "evidence": "p_l.tex:2933: \"{\\\\bf Attention}: version {\\\\sc 6.0} of \\\\scotch\\\\ does not allow yet to\\nmap distributed graphs onto target architectures which are not\\ncomplete graphs. This restriction will be removed in the next release.\"; dgmap.1.txt:96: \"other than the 'cmplt' and 'wcmplt' ones will lead to an error\" (no 'wcmplt' architecture exists: the names are cmplt, cmpltw, cmpltws, varcmplt, arch.c:102-118)",
+  "upstream_change": "none",
+  "review_accuracy": "accurate as a description; \"Reject unsupported targets early with a clear message\" is a design choice (alt C)",
+  "first_pass_critique": "Right on not-a-bug and on the dgmap man page; it did not read p_l.tex (said it could not read the PDF; the LaTeX source is in the tree) which promises removal \"in the next release\" after 6.0, and did not notice that 'wcmplt' is not an architecture name.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A: documentation only (recommended, committed)",
+    "summary": "p_l.tex (both SCOTCH_dgraphMap and SCOTCH_dgraphMapCompute): version 7.0, name the four supported types (cmplt, cmpltw, cmpltws, varcmplt), state that other targets result in an error; dgmap.1.txt and dgmap.1: version 7.0, correct names.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0007-Document-the-target-architectures-supported-by-paral.patch",
+    "tested": "text only (txt2man not installed: dgmap.1 edited by hand, same lines)",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "he fixed user manual text in this release (3e389d1 Fortran synopses)"
+   },
+   {
+    "label": "B: clearer message at the stub",
+    "summary": "\"kdgraphMapRbMap: parallel mapping onto non-complete target architectures not implemented yet\"",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/alt/DMO-17-B-clearer-stub-message.diff",
+    "tested": "-fsyntax-only (0 problems)",
+    "tradeoffs": "message text only",
+    "preferred": false,
+    "maintainer_fit": "possible, but internal routine names in messages are his convention"
+   },
+   {
+    "label": "C: reject non-archPart targets in SCOTCH_dgraphMapCompute",
+    "summary": "\"if (! archPart (&srcmappptr->m.archdat)) { errorPrint (... \": target architecture not supported for parallel mapping\"); goto fail; }\" before building the strategy",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/alt/DMO-17-C-reject-in-api.diff",
+    "tested": "-fsyntax-only (0 problems); not run",
+    "tradeoffs": "fails before kdgraphInit (cheaper) with an API-level message; would make kdgraphMapRbMap unreachable from the API (the stub would then be dead code to remove)",
+    "preferred": false,
+    "maintainer_fit": "he keeps the stub as the placeholder of the future implementation"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0007-Document-the-target-architectures-supported-by-paral.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "doc/src/ptscotch/p_l.tex, man/man1/dgmap.1.txt, man/man1/dgmap.1",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Side finding while testing: `dgmap graph tgt map` cannot run with np >= 2 (\"target architecture file not provided\", fileBlockOpenDist removes the centralized target stream on non-root processes) and src/check has no check_prog_dgmap target: PS2-G24-2 (tools, not this group)."
+ },
+ {
+  "id": "PS2-G18-1",
+  "our_title": "Unchecked shrinking memRealloc in hdgraphInduceList: NULL edge array crashes the fold",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "np 3, m16x16.grf: allocations #81 and #93 of rank 0 and #89 of rank 2 are the memRealloc of hdgraph_induce.c:302. Base-combined: $C/one.sh $WORK/basefi/lib $C/bin_basefi/orderfi 3 0 81 rc -> signal 11 (Segmentation fault), no message (NULL - baseval edge array read by hdgraphFold2). Patched: rc=0 on every rank, 0 live blocks, ordering check rc=0 in mode check; same for #93 and rank 2 #89. repro/PS2-G18-1/README.",
+  "read_only": "twins hgraph_induce.c:197 (memReallocGroup) and :207 (memRealloc), kdgraph_map_rb_part.c:139 (domain array): read only, shrinking cannot fail with glibc",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "crash on a failed shrink; only with allocators that can fail shrinking (G18 rating kept)",
+  "location_7_0_17": "src/libscotch/hdgraph_induce.c:302-304; src/libscotch/hgraph_induce.c:197-202 and :207-208; src/libscotch/kdgraph_map_rb_part.c:138-139",
+  "evidence": "\"indgrafptr->s.edgeloctax = memRealloc (indgrafptr->s.edgeloctax + orggrafptr->s.baseval,\\n                                         (size_t) (indedgelocsiz * sizeof (Gnum)));\\n  indgrafptr->s.edgeloctax -= orggrafptr->s.baseval;\"",
+  "upstream_change": "none; G19 d5d9a84 (combined base) fixed the dgraphInduce2 twin with the \"keep as is if shrinking fails\" idiom",
+  "review_accuracy": "not in the review (G18 finding); accurate",
+  "first_pass_critique": "(G18) accurate; its option A (error + goto fail2) is a valid alternative (alt B here); G19's idiom, now in the base, is the consistent choice.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/hgraph_induce.c:197-202",
+    "quote": "memReallocGroup ((void *) indedgetab,         /* Implicitly free orgindxtab */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/hgraph_induce.c:207-208",
+    "quote": "indgrafptr->s.edgetax  = memRealloc ((void *) indedgetab, indgrafptr->s.edgenbr * sizeof (Gnum));",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/kdgraph_map_rb_part.c:139",
+    "quote": "fragptr->domntab = memRealloc (fragptr->domntab, kgrfdat.m.domnnbr * sizeof (ArchDom)); /* Reallocate mapping array */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "other groups files (G19 PS2-G19-6 / G15 PS2-G15-4 lists): graph_induce.c:362/367, hmesh_induce.c:362, hgraph_order_cp.c:433, bgraph_bipart_bd.c:430, vgraph_separate_bd.c:371, graph_io_mmkt.c:240, graph_io_habo.c:354, dmesh_dgraph.c:653, dgraph_coarsen.c:1269/1271/1436, dgraph_io_load.c:489/494, dgraph_redist.c:481, graph_coarsen.c:474, mesh_coarsen.c:334, kgraph_map_rb.c:311, esmumps/symbol_fax.c:499, esmumps/order_scotch_graph.c:199",
+    "quote": "memRealloc results rebased or stored unchecked",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: keep the original array when shrinking fails (recommended, committed)",
+    "summary": "test the result into a temporary and rebase only on success, as dgraphInduce2 (G19) and dgraphGhst2 do; same in the sequential twin hgraphInduce2 (group and plain cases) and kdgraphMapRbPartSequ.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0005-Bugfix-check-the-results-of-array-shrinking-in-hdgra.patch",
+    "tested": "injections above; sequential check targets inside ptcheck/check (check_scotch_graph_induce via make check was not run separately: ptcheck covers the distributed path, the 32-bit ASan tree ran check_prog_gord? no: see notes)",
+    "tradeoffs": "keeps a larger block on failure (harmless)",
+    "preferred": true,
+    "maintainer_fit": "matches G19's d5d9a84 already in the series; the maintainer's own debug guard in dgraphRedist2 (\"Shrinking should never fail\") shows he considers it unexpected but worth a test"
+   },
+   {
+    "label": "B: treat a failed shrink as an error (G18 alt)",
+    "summary": "errorPrint \"out of memory (4)\" and goto fail2",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/alt/PS2-G18-1-B-error-on-shrink-failure.diff",
+    "tested": "G18: compiles 32/64-bit; not run",
+    "tradeoffs": "fails an operation that could succeed; needs an agreement (the other processes enter dgraphBuild4)",
+    "preferred": false,
+    "maintainer_fit": "inconsistent with the twin now in the base"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0005-Bugfix-check-the-results-of-array-shrinking-in-hdgra.patch"
+  ],
+  "cleanup_done": "none needed (new temporaries are used)",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Covers G23's PS2-G23-4 (same kdgraph_map_rb_part.c:138-139 memRealloc, no patch there). Sequential twin hgraph_induce.c included because no finished group patched it (G15 and G19 listed it as a note). The sequential check_scotch_graph_induce target was run on the 32-bit tree after the series (see SUMMARY)."
+ },
+ {
+  "id": "PS2-G18-3",
+  "our_title": "Nested dissection halves and processes disagreed on failure in release builds",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "np 3 (halves {0,1} and {2}), m16x16.grf. Base-combined: rank 0 allocations #61/#62 (fronloctab/partgsttax of hdgraphOrderNd2, release-only agreement) -> HANG; failures after the fold (#115 hdgraphInduceList, #121 hdgraphGather, #125, #130 dorderNewSequ of rank 0, #127 hdgraphGather of rank 1) -> ranks 0,1 rc=1, rank 2 rc=0 (DISAGREE). Patched: rc=1 on every rank for all of them, 0 live blocks ($C/targeted_leaks_np3.txt, $C/compare_order_np3.txt). Whole matrix: scans/basefi_np3_r* vs scans/buildfi_np3_r*: rank 0: 33 HANG->all-rc1, 6 CRASH->ok, 66 HANG->HANG all outside this group's files (strategy parser/context init #1-#56, vdgraphGatherAll #66/#67/#104/#105, dgraphHaloSync2 #74/#80/#92/#112/#118/#127).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "a user that tests the return value before the next collective call hangs (mode user of the driver): raised from G18's low",
+  "location_7_0_17": "src/libscotch/hdgraph_order_nd.c:301-310 (release-only agreement), :482 (hdgraphOrderNd returns hdgraphOrderNd2 without agreement), src/libscotch/hdgraph_order_si.c:85-108 (release-only agreement)",
+  "evidence": "hdgraph_order_nd.c:301-308: \"#ifdef SCOTCH_DEBUG_HDGRAPH1                      /* Communication cannot be merged with a useful one */ ... #else /* SCOTCH_DEBUG_HDGRAPH1 */\\n  chekglbval = cheklocval;\\n#endif\"; :482 \"return (hdgraphOrderNd2 (&grafdat, cblkptr, paraptr));\"",
+  "upstream_change": "none",
+  "review_accuracy": "not in the review (G18 finding); accurate",
+  "first_pass_critique": "(G18) accurate; its option A (agree at the end of hdgraphOrderNd) is what is committed, plus the per-routine agreements that prevent the hangs before the end is reached.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "A: per-routine agreements plus a final agreement in hdgraphOrderNd (recommended, committed in patches/0002)",
+    "summary": "see DMO-06 option A",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0002-Bugfix-propagate-and-agree-on-the-status-of-distribu.patch",
+    "tested": "as above",
+    "tradeoffs": "as above",
+    "preferred": true,
+    "maintainer_fit": "as above"
+   },
+   {
+    "label": "B: agree once in SCOTCH_dgraphOrderComputeList",
+    "summary": "Allreduce MAX of o before returning from the API routine",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/alt/PS2-G18-3-B-agree-in-api-only.diff",
+    "tested": "-fsyntax-only (0 problems); not run",
+    "tradeoffs": "makes the API value consistent but does not stop the hangs inside (#61/#62, #76); library_dgraph_order.c is outside this group",
+    "preferred": false,
+    "maintainer_fit": "a consumer-side patch for a producer-side problem"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0002-Bugfix-propagate-and-agree-on-the-status-of-distribu.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "DMO-18",
+  "our_title": "Debug checks of strategy condition results used && instead of ||; fold macro fixed by G18",
+  "status": "partially-fixed",
+  "method": "partly-run",
+  "ran": "Compiled the patched tree with -DSCOTCH_DEBUG_ALL ($WORK/builddbg, 0 warnings) and ran check_scotch_dgraph_order, check_scotch_dgraph_check, check_prog_dgord, check_prog_dgpart, check_scotch_dgraph_induce, check_scotch_dgraph_redist on it: all rc=0, 0 UBSan lines ($WORK/chk_dbg/summary.txt).",
+  "read_only": "the && -> || change itself (an invalid condition result cannot be produced by the parser; the check is a debug-mode internal consistency test)",
+  "why_not_run": "",
+  "severity": "info",
+  "severity_note": "debug-only diagnostics",
+  "location_7_0_17": "src/libscotch/hdgraph_fold.c:892-899 (SCOTCH_DEBUG_DGRAPH1 / \"dgraphFold2: communication error (18)\"); src/libscotch/hdgraph_order_st.c:190-191; twins hgraph_order_st.c:284-285, hmesh_order_st.c:264-265, vmesh_separate_st.c:240-241",
+  "evidence": "hdgraph_order_st.c:190-191: \"if ((testdat.testval != STRATTESTVAL) &&\\n            (testdat.nodeval != STRATPARAMLOG)) {\" whereas bgraph/bdgraph/vgraph/vdgraph/kgraph/kdgraph/wgraph dispatchers use \"||\"",
+  "upstream_change": "none upstream; the hdgraph_fold.c instance disappeared in G18's 7018b17 (base-combined hdgraph_fold.c:914-917: SCOTCH_DEBUG_HDGRAPH1 / \"hdgraphFold2: communication error (20)\")",
+  "review_accuracy": "accurate for the hdgraph instances; it lists only hdgraph_order_st.c for the && error, three sequential/mesh dispatchers have it too",
+  "first_pass_critique": "(no first-pass entry was forwarded; G22 has not finished)",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/hgraph_order_st.c:284-285",
+    "quote": "if ((testdat.testval != STRATTESTVAL) &&",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/hmesh_order_st.c:264-265",
+    "quote": "if ((testdat.testval != STRATTESTVAL) &&",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/vmesh_separate_st.c:240-241",
+    "quote": "if ((testdat.testval != STRATTESTVAL) &&",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: || in the four dispatchers (recommended, committed)",
+    "summary": "one-token change in each",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0006-Bugfix-reject-strategy-condition-results-that-are-no.patch",
+    "tested": "debug build and checks above",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "makes the four files identical to the seven others"
+   },
+   {
+    "label": "B: hdgraph_order_st.c only",
+    "summary": "as the review lists it",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/alt/DMO-18-B-hdgraph-only.diff",
+    "tested": "-fsyntax-only",
+    "tradeoffs": "leaves three identical defects",
+    "preferred": false,
+    "maintainer_fit": "incomplete"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph/patches/0006-Bugfix-reject-strategy-condition-results-that-are-no.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Only the hdgraph instances of DMO-18 are this group's; the bdgraph/vdgraph ones (bdgraph_bipart_ml.c, vdgraph_separate_ml.c, vdgraph_separate_sq.c) belong to G22/G23."
+ }
+]

@@ -1,0 +1,16 @@
+Usage is:
+  mord [<input source mesh file> [<output ordering file> [<output log file>]]] <options>
+    -c<opt>    : Choose default ordering strategy according to one or several of <opt>:
+                   b  : enforce load balance as much as possible
+                   q  : privilege quality over speed (default)
+                   s  : privilege speed over quality
+                   t  : enforce safety
+    -h         : Display this help
+    -m<file>   : Save column block mapping data to <file>
+    -o<strat>  : Use mesh ordering strategy <strat> (see user's manual)
+                 (see default strategy with option '-vs')
+    -t<file>   : Save partitioning tree data to <file>
+    -V         : Print program version and copyright
+    -v<verb>   : Set verbose mode to <verb> :
+                   s  : strategy information
+                   t  : timing information

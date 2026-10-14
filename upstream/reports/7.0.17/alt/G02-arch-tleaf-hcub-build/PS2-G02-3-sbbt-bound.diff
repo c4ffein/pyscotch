@@ -1,0 +1,17 @@
+diff --git a/src/libscotch/bdgraph_bipart_ex.c b/src/libscotch/bdgraph_bipart_ex.c
+index f816de5..267ce00 100644
+--- a/src/libscotch/bdgraph_bipart_ex.c
++++ b/src/libscotch/bdgraph_bipart_ex.c
+@@ -137,7 +137,11 @@ const BdgraphBipartExParam * restrict const paraptr) /*+ Method parameters +*/
+   }
+ 
+   sbbtnbr = (int) paraptr->sbbtnbr;
+-  sbbtmsk = (1 << sbbtnbr) - 1;
++  if ((sbbtnbr < 0) || (sbbtnbr > (int) ((sizeof (Gnum) << 3) - 2))) { /* Gain values must fit in a Gnum */
++    errorPrint ("bdgraphBipartEx: invalid number of sub-bits");
++    return (1);
++  }
++  sbbtmsk = ((Gnum) 1 << sbbtnbr) - 1;
+   gainsiz = ((sizeof (Gnum) << 3) - sbbtnbr) << (sbbtnbr + 1); /* Compute gain array size  */
+   sortsiz = MAX ((grafptr->s.procglbnbr * sizeof (BdgraphBipartExSort)), /* TRICK: recycle */
+                  (grafptr->fronlocnbr   * sizeof (BdgraphBipartExMove)));

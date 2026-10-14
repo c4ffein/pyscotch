@@ -1,0 +1,346 @@
+[
+ {
+  "id": "GRA-02",
+  "our_title": "k-way FM reuses a stale domain count after its fallback adds parts, overflowing load arrays",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Pristine 7.0.17 ASan/UBSan (32-bit Gnum). Public API: `./GRA-02/gra02pub 4 'rf{bal=0.00001}'` -> 'AddressSanitizer: heap-buffer-overflow READ of size 4 ... #0 kgraphMapFmTablGet kgraph_map_fm.c:129 #1 kgraphMapFm kgraph_map_fm.c:1320'. Internal: `./GRA-02/gra02int 24 64 2` -> 'heap-buffer-overflow ... 12 bytes after 24-byte region'. Patched: gra02pub -> 'ret=0 maxpart=3'; gra02int 16/4/1, 16/16/2, 24/64/2 -> ret=0 with domnnbr refreshed 1->4, 2->16, 2->64; passes under SCOTCH_DEBUG_ALL (kgraphMapFmCheck + kgraphCheck, no internal error).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Agrees with the review: memory corruption reachable from a user strategy string through the public SCOTCH_graphMap (e.g. 'rf{bal=...}'); growth beyond the 32-bit |8 malloc slack corrupts the heap.",
+  "location_7_0_17": "src/libscotch/kgraph_map_fm.c:997 (const domnnbr), 1039-1057 (fallback+realloc), 1320 (overflowing use), 1460/1831 (other stale uses)",
+  "evidence": "7.0.17: `const Gnum domnnbr = grafptr->m.domnnbr;` (:997) is never refreshed; after `kgraphMapSt (grafptr, strat)` (:1040) the comment at :1047 even says 'domnnbr has changed after mapping' yet memReallocGroup still uses the old domnnbr; kgraphMapFmTablGet then reads comploaddlt/comploadmax past their end.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate. The review's two suggested fixes are both viable; 'Re-read domnnbr/domntab after the fallback' is the one implemented. The review did not mention the leaked fallback strategy or the ignored kgraphMapSt return value, both fixed here.",
+  "first_pass_critique": "Correct status/method/evidence and the preferred option matches. Its stale-use list (savetab sizing ~1460, write-back ~1831) is right and both are covered by refreshing domnnbr early. Its sketch left the memReallocGroup-failure path leaking comploadmax; the committed fix frees it there too.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Refresh domnnbr after the fallback (recommended)",
+    "summary": "Make domnnbr a mutable local, re-read grafptr->m.domnnbr after the fallback kgraphMapSt, reallocate+refill the imbalance arrays with it; check and stratExit the fallback strategy; free on error paths.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0006-Bugfix-refresh-the-domain-count-after-the-fallback-i.patch",
+    "tested": "Built 32- and 64-bit, 0 warnings; both reproducers clean under ASan/UBSan; clean under SCOTCH_DEBUG_ALL; check_scotch_graph_map/order/mesh_graph, check_prog_gmap/gpart pass.",
+    "tradeoffs": "Runs FM refinement on the new k-way mapping (intended). If the kgraph is a band graph the changed count is then caught by kgraphMapBd (GRA-20 fix). No ABI change.",
+    "preferred": true,
+    "maintainer_fit": "Completes the intent stated by the existing :1047 comment; matches the surrounding 'read field, realloc, refill' idiom (cf. kgraphMapRb comploadavg realloc, kgraph_map_rb.c:169)."
+   },
+   {
+    "label": "Skip refinement when the fallback changed the part count",
+    "summary": "After the fallback, if grafptr->m.domnnbr != saved count (or fronnbr==0), free and return 0 (the fallback mapping is already valid).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/alt/GRA-02-B-skip-refine-on-changed-count.diff",
+    "tested": "Compiles; avoids the overflow by not entering the FM pass when the count changed.",
+    "tradeoffs": "Loses FM refinement exactly when the fallback created parts (quality, not correctness). Minimal and obviously safe.",
+    "preferred": false,
+    "maintainer_fit": "He may prefer the refresh since the fallback was clearly meant to feed FM; this is the conservative fallback if refresh is judged risky."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0006-Bugfix-refresh-the-domain-count-after-the-fallback-i.patch"
+  ],
+  "cleanup_done": "Removed the leak of the fallback Strat (now stratExit'd) and the ignored kgraphMapSt return; the const domnnbr becomes a mutable local that replaces all stale uses.",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Reachable from the default strategy only under imbalance with a frontier-less stage; the explicit 'rf{bal=...}' repro is the minimal public-API trigger."
+ },
+ {
+  "id": "GRA-17",
+  "our_title": "FM edge-array growth publishes the new size before reallocating and callers ignore failure",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Injected an identical resize-failure hook (getenv GRA17_FAIL at the memRealloc call) into pristine and patched SCOTCH_DEBUG_ALL libs (the only difference being the GRA-17 fix). Strategy 'm{vert=30,low=r{sep=h{pass=10}},asc=b{...f{...},org=f{...}}}' on 40x40/cmplt(64). Pristine: 'ERROR: kgraphMapFmEdgeResize: out of memory' then 'AddressSanitizer: heap-buffer-overflow WRITE of size 4 ... kgraphMapFmPartAdd kgraph_map_fm.c:717 ... kgraphMapFm:1114'. Patched: FM returns the error cleanly with no overflow (a separate downstream mapTerm NULL-deref then appears, recorded as PS2-G13-1).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Agrees with the review: the resize path is only reached under memory pressure (edxxsiz starts at 16x the frontier, capped at edgenbr); forced here with SCOTCH_DEBUG_KGRAPH2 + allocation injection.",
+  "location_7_0_17": "src/libscotch/kgraph_map_fm.c:524-529 (resize), 572 & 712 (resize callers), 1114/1485/1622 (PartAdd callers)",
+  "evidence": "7.0.17 :524-525 `edxxsiz *= 2; *edxxsizptr = edxxsiz;` publishes the size before `memRealloc`; on failure it returns 1 but kgraphMapFmPartAdd/PartAdd2 ignore the result and `edxxidx = (*edxxnbrptr)++` writes into the un-grown array.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate. PartAdd/PartAdd2 are already int-returning (0), so only the two resize calls and the three top-level call sites needed changing.",
+  "first_pass_critique": "Correct, and its diff matches what was committed (size published after success; both add routines return 1; three call sites checked). First pass also correctly noted the follow-on mapTerm NULL-load is a separate graphMapCompute2 weakness (here filed as PS2-G13-1).",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Publish size after success and propagate errors (recommended)",
+    "summary": "Move *edxxsizptr=edxxsiz after a successful memRealloc; make the two resize call sites return 1 on failure; check the three PartAdd/PartAdd2 call sites in kgraphMapFm and clean up.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0007-Bugfix-propagate-extended-edge-array-growth-failures.patch",
+    "tested": "Built 32/64-bit 0 warnings; injection repro shows pristine overflow vs patched clean error chain; check targets pass.",
+    "tradeoffs": "Pure error-path change; the new returns follow the local memFree(group-leader)+kgraphMapFmTablExit idiom already used by the out-of-memory (5)/(7) paths.",
+    "preferred": true,
+    "maintainer_fit": "Matches his existing OOM handling in the same routine and the 'return 1 for cannot-allocate' convention."
+   },
+   {
+    "label": "Pre-size the edge array to its worst case",
+    "summary": "Allocate edxxtab for edgenbr up front and delete kgraphMapFmEdgeResize, so no growth can fail.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/alt/GRA-17-B-presize-edge-array.diff",
+    "tested": "Not built (sketch).",
+    "tradeoffs": "Removes the failure mode but allocates the full edge count up front; the lazy doubling exists to avoid that memory cost.",
+    "preferred": false,
+    "maintainer_fit": "Unlikely: he deliberately uses lazy doubling; he would rather handle the failure than regress memory."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0007-Bugfix-propagate-extended-edge-array-growth-failures.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Shares kgraph_map_fm.c with GRA-02 but is an independent defect, so it is a separate commit."
+ },
+ {
+  "id": "GRA-12",
+  "our_title": "Diffusion band-mapping thread with an isolated anchor skips the setup barriers, hanging the others",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Pristine 7.0.17 ASan (32-bit), gra12.c (two disjoint grids on cmplt(4), parts 2/3 empty -> isolated anchors), kgraphMapBd(bnd=d{pass=10}). 16 runs each: thr=2 4/16 hang, thr=3 6/16 hang, thr=4 5/16 hang (rc=124); also observed 'heap-use-after-free thread T6'. Patched: thr=2/3/4 all 0 hangs / 0 sanitizer reports over 16 runs; thr=8 clean.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Agrees with the review: hang (DoS) on the default mapping strategy (asc=b{bnd=d{pass=40}...}) with threads enabled (SCOTCH_PTHREAD on), but only when an empty part yields an isolated anchor.",
+  "location_7_0_17": "src/libscotch/kgraph_map_df.c:224 & 230 (goto fail before the setup barriers at 257/288); also debug gotos at 180/208",
+  "evidence": "7.0.17: `if (velsmsk == 0) { loopptr->abrtval = 1; goto fail; }` (:222-225) and the sorttab OOM `goto fail` (:230) jump to the `fail:` label at :528, which is inside the pass loop AFTER both setup barriers; the aborting thread skips them while others wait forever. bgraph_bipart_df.c routes the same case through its barrier via `skip:`.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate, including the bgraph_bipart_df.c comparison. Only the empty-part isolated-anchor case is reachable (kgraphMapBd bails to the org strategy when an isolated anchor belongs to a non-empty part).",
+  "first_pass_critique": "Status/method/evidence correct and the preferred option (fall through to the barriers) matches. But its sketch left the abort-path free as the pristine unconditional `memFree(sorttab)`, which crashes when a thread aborts before allocating (sorttab==NULL; memFreeRecord is not NULL-safe). The committed fix guards that free, as bgraph_bipart_df.c does for ielstax. First pass also missed the two SCOTCH_DEBUG_KGRAPH2 internal-error gotos (:180/:208) that have the same pre-barrier skip; they are fixed too.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/kgraph_map_df.c:176-182 and 204-210 (SCOTCH_DEBUG_KGRAPH2 internal-error `goto fail`)",
+    "quote": "errorPrint (\"kgraphMapDfLoop: internal error (1)\"); loopptr->abrtval = 1; goto fail;",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Set abort flag and fall through to the existing barriers (recommended)",
+    "summary": "Replace the two pre-barrier `goto fail` with setting abrtval (no goto); guard the abort-path free; convert the two debug gotos to break+abort-after-barriers.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0005-Bugfix-do-not-skip-the-setup-barriers-in-kgraphMapDf.patch",
+    "tested": "Built 32/64-bit 0 warnings; 16 runs x {2,3,4} threads all clean; check targets pass.",
+    "tradeoffs": "Reuses the two barriers already present and the existing `abrtval==1` exit; identical shape to bgraph_bipart_df.c's skip: handling. memFree(NULL) avoided by the guard.",
+    "preferred": true,
+    "maintainer_fit": "Directly mirrors the twin routine bgraph_bipart_df.c (skip: label + guarded free), the strongest precedent."
+   },
+   {
+    "label": "Reduce velsmsk across threads before the first barrier",
+    "summary": "Share-AND velsmsk into KgraphMapDfData and add a barrier so every thread decides identically, avoiding the private allocation entirely.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/alt/GRA-12-B-global-velsmsk-reduce.diff",
+    "tested": "Not built (sketch; needs a new struct field).",
+    "tradeoffs": "Correct and avoids the sort-array allocation, but adds a shared field and a third barrier to a hot loop.",
+    "preferred": false,
+    "maintainer_fit": "Heavier than the fall-through; he would prefer the minimal change that matches the existing twin."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0005-Bugfix-do-not-skip-the-setup-barriers-in-kgraphMapDf.patch"
+  ],
+  "cleanup_done": "none needed (the `fail:` label stays, still used by the overflow gotos at 430/518)",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The harness's thread argument selects contextThreadSpawn(N) for N>1 else contextCommit (default thread count); both run multithreaded diffusion and both hit the bug."
+ },
+ {
+  "id": "GRA-18",
+  "our_title": "Diffusion band mapping copies the part array from the stale buffer, lagging one pass",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Pristine 7.0.17 (32-bit), gra18.c kgraphMapBd(bnd=d{pass=N}) on a 2-part jagged 24x24 grid, counting changed vertices: pristine pass=21->1,22->1,23->2,24->7,25->8. Patched: pass=21->1,22->2,23->7,24->8,25->8 (patched[N]==pristine[N+1]: exactly one pass recovered).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Agrees with the review: silent wrong (sub-optimal) result; a single-pass diffusion never changes the mapping. No crash.",
+  "location_7_0_17": "src/libscotch/kgraph_map_df.c:539 (copy), 525-527 (swap)",
+  "evidence": "7.0.17 :525-527 swaps difntax/difotax at the end of each pass, so the freshest values are in difotax; :539 copies `difntax[vertnum].partval` (the pass-before-last). bgraph_bipart_df.c:398 reads difotax.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate.",
+  "first_pass_critique": "Fully correct; the one-line fix and the differential (original is one pass behind) match.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Copy from difotax (recommended)",
+    "summary": "Read the last-written array (difotax) after the final swap.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0004-Bugfix-read-the-up-to-date-diffusion-array-in-kgraph.patch",
+    "tested": "Built 32/64-bit 0 warnings; differential shows patched[N]==pristine[N+1]; robust for pass=0 too (difotax holds the initial parts); check targets pass.",
+    "tradeoffs": "Changes diffusion results by one effective pass (typically slightly better); same array role as bgraph_bipart_df.c.",
+    "preferred": true,
+    "maintainer_fit": "Matches the twin bgraph_bipart_df.c exactly (reads difotax after the swap)."
+   },
+   {
+    "label": "Swap only if another pass follows",
+    "summary": "Skip the final swap so difntax stays freshest and the copy stays as is.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/alt/GRA-18-B-swap-only-if-more-passes.diff",
+    "tested": "Compiles; equivalent result.",
+    "tradeoffs": "Leaves the array roles different from bgraph_bipart_df.c; no advantage.",
+    "preferred": false,
+    "maintainer_fit": "He would prefer consistency with the twin, i.e. reading difotax."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0004-Bugfix-read-the-up-to-date-diffusion-array-in-kgraph.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "GRA-19",
+  "our_title": "kgraphCost isolated-anchor block is dead code; the review's fix to enable it is incorrect",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Pristine (32-bit) gra19.c (band graph around a 2-part cmplt(4) map, parts 2/3 empty): the block never runs, empty-part anchors get an average share (band avg 65 65 65 65). Making it live (review's fix) under SCOTCH_DEBUG_ALL with a default-style band map ('m{...asc=b{...}}') fires 'kgraphCost: invalid load difference' and then SEGVs; reverting only kgraph_cost.c removes the failure -> the live-fix is the cause. Recommended deletion build (32/64-bit) reproduces pristine exactly (band avg 65 65 65 65, sum(dlt)=0).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Review rates low. The dead code is real but behaviour-neutral; the danger is in the review's suggested activation, not the current state.",
+  "location_7_0_17": "src/libscotch/kgraph_cost.c:150-172 (dead search loop + block), 177-180 (final load-target loop)",
+  "evidence": "7.0.17 :150-152 `for (...) if ((verttax[...+1]-verttax[...]) != 0) continue;` -- both outcomes continue, so domnnum always ends at domnnbr and the `if (domnnum != domnnbr)` block is unreachable; fdomwgt/fvelsum stay 0.",
+  "upstream_change": "",
+  "review_accuracy": "Partly wrong. The dead code is real, but the review's fix ('== 0) break;') is incorrect: an anchor with no band edge is NOT a valid 'empty part' predicate -- after the band strategy repartitions, regular vertices can be assigned to a part whose anchor has no band edge, so freezing that part's load to the anchor weight subtracts a wrong value and trips the kgraphCost debug assertion (demonstrated).",
+  "first_pass_critique": "The first pass correctly saw the review's one-word fix is insufficient and proposed break + skip-isolated-anchors-in-the-final-loop as preferred. But that 'make-live' variant is itself unsafe for the same reason (I reproduced 'invalid load difference' + SEGV under SCOTCH_DEBUG_ALL with it). The safe, honest resolution is to delete the dead block (behaviour-preserving), which the first pass only listed as the non-preferred option.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Make the block live (break) and skip isolated anchors in the final loop",
+    "summary": "Turn the search into `==0) break;` and guard the final loop to skip isolated anchors.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/alt/GRA-19-A-make-block-live-UNSAFE.diff",
+    "tested": "Built; UNSAFE: under SCOTCH_DEBUG_ALL with a default-style band mapping it fires 'kgraphCost: invalid load difference' and SEGVs, because 'anchor has no band edge' is not equivalent to 'empty part' after repartitioning.",
+    "tradeoffs": "Would change balance targets for band graphs with such anchors, on a false premise; demonstrably breaks a debug invariant.",
+    "preferred": false,
+    "maintainer_fit": "He would NOT take this: it activates logic whose predicate is wrong and trips his own consistency check."
+   },
+   {
+    "label": "Delete the dead block (recommended)",
+    "summary": "Remove the unreachable search loop and freeze block and the now-constant fdomwgt/fvelsum; behaviour is unchanged (the block never ran).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0002-Remove-dead-isolated-anchor-handling-in-kgraphCost-r.patch",
+    "tested": "Built 32/64-bit 0 warnings; gra19 output identical to pristine; passes SCOTCH_DEBUG_ALL and all check targets.",
+    "tradeoffs": "Zero behaviour change; removes misleading code. A correct freeze of truly-empty parts would need a proper empty-part test (a maintainer design decision).",
+    "preferred": true,
+    "maintainer_fit": "He deletes code a change makes unused/misleading (STYLE); removing provably-dead code with a clear rationale is the honest action when the 'obvious' fix is wrong."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0002-Remove-dead-isolated-anchor-handling-in-kgraphCost-r.patch"
+  ],
+  "cleanup_done": "Removed the unused `fdomwgt` (double) and `fvelsum` (Gnum) locals and simplified domnrat/velosum (no longer subtract the always-zero sums).",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "A correct freeze of empty parts would need information kgraphMapBd has (vertnbrtab) but kgraphCost does not; flagged for the maintainer as a possible future improvement rather than attempted blindly."
+ },
+ {
+  "id": "GRA-20",
+  "our_title": "Band mapping compares the part count with its own copy, never detecting a change; OOM path leaks",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Pristine (32-bit) gra20.c: 2-part map on cmplt(8), band strategy 'r{sep=h{pass=10}}' re-maps from scratch -> 'ret=0 changed=228 domnnbr=8' (silently accepted, part count corrupted 2->8). Patched: 'ERROR: kgraphMapBd: change in band graph number of parts not supported', ret=1, domnnbr=2.",
+  "read_only": "the orgflagtab OOM leak path (line 268) is argued from the sibling failure paths; not exercised at runtime",
+  "why_not_run": "The orgflagtab allocation-failure branch needs allocation-failure injection on that specific deep call; verified by inspection against the routine's two other failure paths which already free bndvnumtax + kgraphExit.",
+  "severity": "low",
+  "severity_note": "Agrees with the review: logic error producing an inconsistent original graph; not a crash by itself.",
+  "location_7_0_17": "src/libscotch/kgraph_map_bd.c:181 (overwrite) vs 191 (compare); 268-271 (leak)",
+  "evidence": "7.0.17 :181 `orggrafptr->m.domnnbr = bndgrafdat.m.domnnbr;` then :191 `if (bndgrafdat.m.domnnbr != orggrafptr->m.domnnbr)` compares a value with its own copy; the orgflagtab OOM at :268 returns without freeing bndvnumtax or exiting bndgrafdat.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate. Caveat (also noted): after the fix the previously-silent part-count change becomes an error, which is the documented 'not supported' contract and is consistent with the GRA-02 fallback inside a band graph.",
+  "first_pass_critique": "Fully correct; the diff (compare against the entry-captured domnnbr, drop the premature overwrite, free on the OOM path) matches what was committed.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Compare against the saved count; free on the OOM path (recommended)",
+    "summary": "Use the `domnnbr` local captured at entry, do not overwrite orggrafptr->m.domnnbr before the test, and add memFree(bndvnumtax)+kgraphExit on the orgflagtab failure.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0003-Bugfix-detect-a-band-graph-part-count-change-in-kgra.patch",
+    "tested": "Built 32/64-bit 0 warnings; gra20 pristine ret=0/domnnbr=8 vs patched ret=1/domnnbr=2; check targets pass.",
+    "tradeoffs": "A band strategy that changes the part count now errors instead of continuing with inconsistent loads -- the documented 'not supported' behaviour.",
+    "preferred": true,
+    "maintainer_fit": "The error message already says 'not supported'; the fix makes the guard actually enforce it, and the OOM free matches the routine's other two failure paths."
+   },
+   {
+    "label": "Support a changed part count",
+    "summary": "Propagate the new count and resize/recompute the original graph's load arrays instead of erroring.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/alt/GRA-20-B-support-changed-partcount.diff",
+    "tested": "Not built (sketch).",
+    "tradeoffs": "Real feature work: anchors and the comploaddlt memCpy assume equal counts; needs redesign and validation.",
+    "preferred": false,
+    "maintainer_fit": "Against the routine's stated contract; he would reject a change of part count, not support it on the fly."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0003-Bugfix-detect-a-band-graph-part-count-change-in-kgra.patch"
+  ],
+  "cleanup_done": "Dropped the premature `orggrafptr->m.domnnbr = bndgrafdat.m.domnnbr;` assignment (no longer needed once the count is validated).",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "alloc-injection",
+  "needs_note": "Only the leak sub-case is un-run; the part-count defect is reproduced at runtime.",
+  "notes": ""
+ },
+ {
+  "id": "GRA-16",
+  "our_title": "Upstream unsigned-shift fix missed the common.h bit-set macros used by the PT-Scotch bipartitioners",
+  "status": "partially-fixed",
+  "method": "ran",
+  "ran": "UBSan on the exact macro expansion (standalone): pristine `(1 << 31)` -> 'runtime error: left shift of 1 by 31 places cannot be represented in type int'; fixed `(1U << 31)` -> clean. check_scotch_dgraph_check (PT-Scotch, 32-bit, mpirun -n 3) passes with the fix, 0 sanitizer reports.",
+  "read_only": "the live PT-Scotch call site (bdgraphBipartEx/Bd flagging a ghost vertex whose based index is 31 mod 32) was not driven to that exact index",
+  "why_not_run": "Hitting index == 31 mod 32 in the flag array needs an MPI run on a graph with >=32 such ghost/local vertices; the macro-level UBSan proof plus the source match to 6a00c51 establish it.",
+  "severity": "low",
+  "severity_note": "Agrees with the review (undefined behaviour; compilers may miscompile). Reachable only in PT-Scotch band/exactifier bipartitioning with >=32 flagged vertices.",
+  "location_7_0_17": "src/libscotch/common.h:319-321 (flagSize/flagVal/flagSet); src/libscotch/bdgraph_bipart_ex.c:102-103,152-163; src/libscotch/bdgraph_bipart_bd.c:112,237,333",
+  "evidence": "7.0.17 common.h:321 `#define flagSet(a,n) (a)[(n)/(sizeof (int)<<3)] |= (1 << ((n)&((sizeof (int)<<3)-1)))` -- signed `int` array and `1 <<`; its users bdgraph_bipart_ex.c (movegsttab/flagloctab `int * restrict`) and bdgraph_bipart_bd.c (orgflagloctab `int *`) inherit the UB at bit 31.",
+  "upstream_change": "6a00c51 'Bugfix: apply left shifts to unsigned integers in bit sets [report R. Perry]' -- fixed hgraph_order_cp.c, hmesh_order_cp.c, kgraph_map_bd.{c,h}, library_dgraph_map_stat.c, mesh_induce_sepa.c but not common.h's flagSet/flagVal/flagSize.",
+  "review_accuracy": "Accurate for 7.0.16 and the six listed files; the upstream fix for them is complete. The review's own list did not include common.h's generic flag macros, which remain the one residual instance.",
+  "first_pass_critique": "First pass marked GRA-16 'fixed' but did (correctly) note the common.h flagSet/flagVal residual and the PT-Scotch users. Calling it simply 'fixed' understates it: the identical UB is still live in-tree via these macros. Correct status is partially-fixed, and the residual is fixed here.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/common.h:319-321",
+    "quote": "#define flagSet(a,n) (a)[(n) / (sizeof (int) << 3)] |= (1 << ((n) & ((sizeof (int) << 3) - 1)))",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/bdgraph_bipart_ex.c:102-103,152-163",
+    "quote": "int * restrict movegsttab; int * restrict flagloctab; ... flagSize (...) * sizeof (int)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/bdgraph_bipart_bd.c:112,237,333",
+    "quote": "int * restrict orgflagloctab; ... flagSize (...) * sizeof (int)",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Make the flag macros and their arrays unsigned (recommended)",
+    "summary": "Change flagSize/flagVal/flagSet to sizeof(unsigned int) and 1U<<, and the three flag arrays (movegsttab, flagloctab, orgflagloctab) to unsigned int, mirroring 6a00c51.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0001-Bugfix-apply-left-shifts-to-unsigned-integers-in-rem.patch",
+    "tested": "Built 32/64-bit 0 warnings; macro UBSan clean; check_scotch_dgraph_check passes.",
+    "tradeoffs": "Matches exactly what 6a00c51 did for the kgraph_map_bd.h macros; no behaviour change (same bit patterns, defined now).",
+    "preferred": true,
+    "maintainer_fit": "Literally the same transformation he applied in 6a00c51 to the twin macros in kgraph_map_bd.h -- the direct precedent."
+   },
+   {
+    "label": "Minimal: only make the shift unsigned, keep int arrays",
+    "summary": "Change just `(1 << ...)` to `(int) (1U << ...)` in flagSet.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/alt/GRA-16-B-minimal-unsigned-shift-only.diff",
+    "tested": "Compiles.",
+    "tradeoffs": "Removes the UB with a smaller diff but leaves signed arrays, diverging from the unsigned-array idiom 6a00c51 established.",
+    "preferred": false,
+    "maintainer_fit": "He standardised on unsigned arrays in 6a00c51; a lone cast would be inconsistent with that commit."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/patches/0001-Bugfix-apply-left-shifts-to-unsigned-integers-in-rem.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "These common.h macros are the only remaining signed bit-set shift in the tree; a full grep of `1 << ` / `<<=` on signed operands reaching 31/63 found no other bit-set case (other hits are hypercube/arch dimensions and hash-table sizing with small, controlled shift counts)."
+ }
+]

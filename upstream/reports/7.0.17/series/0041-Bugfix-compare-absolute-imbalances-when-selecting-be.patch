@@ -1,0 +1,57 @@
+From a0b387a78093e301c23b2d2bcd2615fc6446c789 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:00:56 +0000
+Subject: [PATCH 041/240] Bugfix: compare absolute imbalances when selecting
+ best thread partition in `bgraphBipartGg()` [report R. Perry]
+
+When several threads produce partitions of equal communication load,
+the selection of the best one compared signed imbalance values, so
+that a partition with a heavily underloaded part 0 was preferred to a
+balanced one. Compare absolute values, as in the per-thread pass
+selection.
+
+Refs: SEP-11
+---
+ src/libscotch/bgraph_bipart_gg.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/libscotch/bgraph_bipart_gg.c b/src/libscotch/bgraph_bipart_gg.c
+index 2eb0150..b918750 100644
+--- a/src/libscotch/bgraph_bipart_gg.c
++++ b/src/libscotch/bgraph_bipart_gg.c
+@@ -58,7 +58,7 @@
+ /**                # Version 6.0  : from : 23 feb 2011     **/
+ /**                                 to   : 01 may 2016     **/
+ /**                # Version 7.0  : from : 12 sep 2019     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -374,7 +374,7 @@ found:
+     }
+     if ( (passdat.thrdtab[thrdnum].cmloval <  cmloval) || /* If better partition */
+         ((passdat.thrdtab[thrdnum].cmloval == cmloval) &&
+-         (passdat.thrdtab[thrdnum].cpl0dlt <  cpl0dlt))) {
++         (ABS (passdat.thrdtab[thrdnum].cpl0dlt) < ABS (cpl0dlt)))) {
+       memFree (passdat.thrdtab[thrdbst].parttab); /* Free preserved former best partition */
+       goto found;                                 /* Record new best partition            */
+     }
+@@ -387,11 +387,11 @@ found:
+     goto fail;
+   }
+ 
+-  grafptr->compload0dlt = cpl0dlt;               /* Set graph parameters */
++  grafptr->compload0dlt = cpl0dlt;                /* Set graph parameters */
+   grafptr->commload     = cmloval;
+-  if (thrdbst != 0)                              /* Put partition data in place if not first thread */
++  if (thrdbst != 0)                               /* Put partition data in place if not first thread */
+     memCpy (grafptr->parttax + grafptr->s.baseval, passdat.thrdtab[thrdbst].parttab, grafptr->s.vertnbr * sizeof (GraphPart));
+-  memFree (passdat.thrdtab[thrdbst].parttab);    /* Free group leader of best thread */
++  memFree (passdat.thrdtab[thrdbst].parttab);     /* Free group leader of best thread */
+ 
+   parttax = grafptr->parttax;
+   frontab = grafptr->frontab;
+-- 
+2.47.3
+

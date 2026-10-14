@@ -1,0 +1,6 @@
+PS2-G27-1: archDecoArchBuild() ignores the status of archDecoArchBuild2() (src/libscotch/arch_deco_build.c:356).
+Run: see ../CLI-11/README, api_list d (duplicate vertex list {1,1,2} on a 4-vertex path, SCOTCH_archBuild0):
+Pristine: "ERROR: archDecoArchBuild2: bad terminal count" is printed, SCOTCH_archBuild0 returns 0, SCOTCH_archSave writes
+  "deco\n1\n0\t0\n" (empty architecture). (With patch 0001, duplicates are caught earlier by graphInduceList; the status
+  propagation is still needed for any other failure of archDecoArchBuild2(), e.g. "invalid null distance".)
+Patched: SCOTCH_archBuild0 returns 1.

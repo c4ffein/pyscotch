@@ -1,0 +1,12 @@
+COR-13: stratTestSave() parenthesises the wrong operands; saved strategies change meaning when re-parsed.
+  cd ../common
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine '/(vert>(10+2)*3)?r;'  -> '(/((vert)>((10)+(2)*(3)))?(r{...});)'  (re-parses as 10+(2*3)=16, not 36)
+  LD_LIBRARY_PATH=$WORK/build/lib ./st_pristine '/(vert>(10+2)*3)?r;'   -> '(/((vert)>(((10)+(2))*(3)))?(r{...});)'
+Differential check (rt.c, this directory): random test ASTs -> fully parenthesised string -> parse (T1) -> SCOTCH_stratSave -> re-parse (T2);
+compares T1 and T2 structurally (walks the internal StratTest trees), checks save(T2)==save(T1), and checks T1 against the generator's AST.
+  CF='-O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_PTHREAD -DSCOTCH_RENAME'
+  gcc $CF -I$WORK/build/include -I$WORK/scotch/src/libscotch rt.c -o rt_pristine -L$WORK/build/lib -lscotch -lscotcherr -lz -lm -lpthread
+  LD_LIBRARY_PATH=$INFRA/asan/lib ASAN_OPTIONS=detect_leaks=0 ./rt_pristine 2000 7  -> '2000 expressions: 942 round-trip tree mismatches, 942 non-idempotent saves, 0 generator mismatches'
+  LD_LIBRARY_PATH=$WORK/build/lib  ASAN_OPTIONS=detect_leaks=0 ./rt_pristine 2000 7  -> '... 0 round-trip tree mismatches, 0 non-idempotent saves, 0 generator mismatches'
+  (also 3000/seed 42: 1437 -> 0; 64-bit build rt64: 0; alternative COR-13-b (priority table): 0 mismatches as well)
+  Regression test: src/check/test_strat_seq.c, 'save and re-parse' section.

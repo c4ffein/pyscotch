@@ -1,0 +1,15 @@
+API-20 + PS-DGR-5: SCOTCH_dgraphGrow() returns without CONTEXTEXIT on ghost failure; wrong routine name in message (status: still-present, fixed by patch 0004)
+All reproducers use the shared driver repro/common/g21fi.c and the LD_PRELOAD fault shim repro/common/fishim.c (from G18).
+Trees: $WORK/pristinefi = v7.0.17, $WORK/basefi = combined series (base), $WORK/buildfi = base + this series; all built
+with CFLAGS "-O0 -g -fsanitize=undefined -ftrivial-auto-var-init=pattern" (ASan cannot be preloaded), see repro/common/build.sh.
+  cd $WORK/repro/common && ./build.sh $WORK/pristinefi && ./build.sh $WORK/basefi && ./build.sh $WORK/buildfi
+  ./scan.sh LIBDIR BIN NP FAILRANK NTH_FROM NTH_TO -- MODE TOPO BASE NL [ARGS]   (one line per failed allocation index; HANG = 15 s timeout)
+Full scan outputs: repro/common/scans/pri_* (v7.0.17), base_* (combined base), fix1_*/fix2_* (patched).
+Read-only on the leak itself: dgraphGhst() fails on one process only when its own allocations fail (nth=0..2 of the grow scans are the
+context allocations, which happen BEFORE the ghost computation; the driver computes the ghost array before the call so that the band/grow
+routines themselves are exercised). The defect is visible in the source: library_dgraph_grow.c:124-127 'return (1)' bypasses 'fail:'.
+The message defect is visible in every scan: scans/pri_grow_*.txt nth=1,2: "(1): ERROR: SCOTCH_dgraphBand: cannot initialize context"
+printed by SCOTCH_dgraphGrow (mode grow). Patched tree prints SCOTCH_dgraphGrow.
+To exercise the ghost path, run the driver without its own SCOTCH_dgraphGhst() call (edit g21fi.c, comment the SCOTCH_dgraphGhst block)
+and inject into the first allocations of dgraphGhst2(); the leak is then reported by LeakSanitizer on the ASan tree ($WORK/build) with
+ASAN_OPTIONS=detect_leaks=1 — not done here (MPI itself leaks and drowns the report).

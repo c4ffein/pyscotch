@@ -1,0 +1,8 @@
+CLI-08  _SCOTCH_METIS_doubleToInt() renormalization factor blow-up
+  ./cli08 6 1      (6 normalised pseudo-random weights, seed 1; then the same weights as tpwgts through METIS_PartGraphKway)
+  ./cli08 3 2      (3 weights: a case that already worked)
+pristine 32-bit:  0.185404 -> -2147483648 (x6, INT_MIN) then
+  ERROR: archCmpltwArchBuild2: invalid parameters (2)
+  AddressSanitizer: attempting double-free ... #1 _SCOTCH_METIS_PartGraph2 metis_graph_part.c:313   (see PS2-G25-1)
+pristine 64-bit:  0.185404 -> -55411773953759104 ... same double free
+patched (0001+0002): 0.185404 -> 185404 ... METIS_PartGraphKway: ret=1 objval=123, part loads within 0.1% of targets; ./cli08 3 2 unchanged (19049/20266/12193)

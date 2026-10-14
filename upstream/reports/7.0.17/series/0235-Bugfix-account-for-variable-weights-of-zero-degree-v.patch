@@ -1,0 +1,270 @@
+From 16120bd704c36299f8f1a3284a12b0880a4900e0 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 15:03:44 +0000
+Subject: [PATCH 235/240] Bugfix: account for variable weights of zero-degree
+ variables in `hallOrderHdR2Halmd()` [report PyScotch]
+
+Variables without off-diagonal non-zeros are eliminated at once before
+the main loop, but the number of eliminated variables was incremented
+by one instead of by their weight, while the total is weighted. When
+such a variable has a weight greater than one, as happens for isolated
+vertices of weighted graphs or for compressed mesh nodes, the main
+loop runs out of pivots and the routine aborts with "internal error
+(2)". The default mesh ordering strategy fails this way on any mesh
+made of elements with private nodes. `hallOrderHfR3Hamdf4()` already
+does the right thing.
+
+Add a weighted graph with isolated vertices to the `gord` and `gotst`
+program checks, and a mesh of disjoint triangles to
+`test_scotch_mesh_order`.
+
+Refs: PS-SEP-4
+---
+ src/check/CMakeLists.txt           |   6 +-
+ src/check/Makefile                 |   2 +
+ src/check/data/isolated_v.grf      |  11 +++
+ src/check/test_scotch_mesh_order.c | 111 ++++++++++++++++++++++++++---
+ src/libscotch/hall_order_hd.c      |   8 +--
+ 5 files changed, 122 insertions(+), 16 deletions(-)
+ create mode 100644 src/check/data/isolated_v.grf
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index efa706b..9ef2f12 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -660,18 +660,20 @@ add_test(NAME gord_compress-coarsen COMMAND $<TARGET_FILE:gord> ${dat}/compress-
+ 
+ add_test(NAME gord_disconnected COMMAND $<TARGET_FILE:gord> ${dat}/disconnected.grf ${CMAKE_CURRENT_BINARY_DIR}/disconnected.ord -cd -vt)
+ 
++add_test(NAME gord_isolated_v COMMAND $<TARGET_FILE:gord> ${dat}/isolated_v.grf ${CMAKE_CURRENT_BINARY_DIR}/isolated_v.ord -od -vt)
++
+ add_test(NAME gord_m16x16_b100000_v COMMAND ${BASH} -c "'$<TARGET_FILE:gord>' '${dat}/m16x16_b100000_v.grf' '-On{sep=(/((vert)>(20))?h;),ole=b{cmin=100},ose=b{cmin=3}}' ${CMAKE_CURRENT_BINARY_DIR}/m16x16_b100000_v.ord -vt")
+ 
+ add_test(NAME gord_nocoarsen COMMAND $<TARGET_FILE:gord> ${dat}/nocoarsen.grf ${CMAKE_CURRENT_BINARY_DIR}/nocoarsen.ord -vt)
+ 
+ add_test(NAME gord_ship001 COMMAND $<TARGET_FILE:gord> ${CMAKE_CURRENT_BINARY_DIR}/ship001.grf ${CMAKE_CURRENT_BINARY_DIR}/ship001.ord -vt)
+ 
+-set_tests_properties(gord_bump gord_bump_b1 gord_bump_b100000 gord_bump_imbal gord_disconnected gord_m16x16_b100000_v gord_nocoarsen gord_compress-coarsen gord_ship001 PROPERTIES FIXTURES_SETUP GORD_DEPS)
++set_tests_properties(gord_bump gord_bump_b1 gord_bump_b100000 gord_bump_imbal gord_disconnected gord_isolated_v gord_m16x16_b100000_v gord_nocoarsen gord_compress-coarsen gord_ship001 PROPERTIES FIXTURES_SETUP GORD_DEPS)
+ set_tests_properties(gord_ship001 PROPERTIES FIXTURES_REQUIRED GMK_GRAPHS)
+ 
+ # check_prog_gotst
+ 
+-foreach(grf bump bump_b1 bump_imbal_32 nocoarsen compress-coarsen)
++foreach(grf bump bump_b1 bump_imbal_32 nocoarsen compress-coarsen isolated_v)
+   add_test(NAME gotst_${grf} COMMAND $<TARGET_FILE:gotst> ${dat}/${grf}.grf ${CMAKE_CURRENT_BINARY_DIR}/${grf}.ord)
+   set_tests_properties(gotst_${grf} PROPERTIES FIXTURES_REQUIRED GORD_DEPS)
+ endforeach()
+diff --git a/src/check/Makefile b/src/check/Makefile
+index 9022158..faf2742 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -815,6 +815,7 @@ check_prog_gord			:	check_prog_gmk_msh
+ 					$(EXECS) $(SCOTCHBINDIR)/gord data/bump_imbal_32.grf $(TMPDIR)/bump_imbal_32.ord -Cf -vt
+ 					$(EXECS) $(SCOTCHBINDIR)/gord data/compress-coarsen.grf $(TMPDIR)/compress-coarsen.ord -vt
+ 					$(EXECS) $(SCOTCHBINDIR)/gord data/disconnected.grf $(TMPDIR)/disconnected.ord -cd -vt
++					$(EXECS) $(SCOTCHBINDIR)/gord data/isolated_v.grf $(TMPDIR)/isolated_v.ord -od -vt
+ 					$(EXECS) $(SCOTCHBINDIR)/gord data/m16x16_b100000_v.grf '-On{sep=(/((vert)>(20))?h;),ole=b{cmin=100},ose=b{cmin=3}}' $(TMPDIR)/m16x16_b100000_v.ord -vt
+ 					$(EXECS) $(SCOTCHBINDIR)/gord data/nocoarsen.grf $(TMPDIR)/nocoarsen.ord -vt
+ 					$(EXECS) $(SCOTCHBINDIR)/gord $(TMPDIR)/ship001.grf $(TMPDIR)/ship001.ord -vt
+@@ -825,6 +826,7 @@ check_prog_gotst		:	check_prog_gord
+ 					$(EXECS) $(SCOTCHBINDIR)/gotst data/bump_imbal_32.grf $(TMPDIR)/bump_imbal_32.ord
+ 					$(EXECS) $(SCOTCHBINDIR)/gotst data/nocoarsen.grf $(TMPDIR)/nocoarsen.ord
+ 					$(EXECS) $(SCOTCHBINDIR)/gotst data/compress-coarsen.grf $(TMPDIR)/compress-coarsen.ord
++					$(EXECS) $(SCOTCHBINDIR)/gotst data/isolated_v.grf $(TMPDIR)/isolated_v.ord
+ 					$(EXECS) $(SCOTCHBINDIR)/gotst $(TMPDIR)/ship001.grf $(TMPDIR)/ship001.ord
+ 
+ check_prog_gord_block		:	check_prog_gord
+diff --git a/src/check/data/isolated_v.grf b/src/check/data/isolated_v.grf
+new file mode 100644
+index 0000000..f7a34a5
+--- /dev/null
++++ b/src/check/data/isolated_v.grf
+@@ -0,0 +1,11 @@
++0
++8	6
++0	001
++2	0
++3	0
++1	0
++5	0
++1	1	5
++2	2	4	6
++3	2	5	7
++4	1	6
+diff --git a/src/check/test_scotch_mesh_order.c b/src/check/test_scotch_mesh_order.c
+index ee21763..08f3b54 100644
+--- a/src/check/test_scotch_mesh_order.c
++++ b/src/check/test_scotch_mesh_order.c
+@@ -60,11 +60,11 @@
+ 
+ #include "scotch.h"
+ 
+-/******************************/
+-/*                            */
+-/* The mesh building routine. */
+-/*                            */
+-/******************************/
++/*******************************/
++/*                             */
++/* The mesh building routines. */
++/*                             */
++/*******************************/
+ 
+ /* This routine builds a mesh made of a square grid
+ ** of quadrangle elements. Elements are numbered
+@@ -162,11 +162,64 @@ const int                   flagval)              /*+ 1: element loads; 2: node
+   return (datatab);
+ }
+ 
+-/****************************/
+-/*                          */
+-/* The mesh ordering routine. */
+-/*                          */
+-/****************************/
++/* This routine builds a mesh made of disjoint
++** triangle elements, each of them having its
++** own three nodes. Elements are numbered first,
++** then nodes.
++** It returns:
++** - !NULL  : pointer to mesh data, to be freed after the mesh.
++** - NULL   : on error.
++*/
++
++static
++SCOTCH_Num *
++meshBuildDisj (
++SCOTCH_Mesh * const         meshptr,
++const SCOTCH_Num            velmnbr,              /*+ Number of elements +*/
++const SCOTCH_Num            baseval)
++{
++  SCOTCH_Num          vnodnbr;
++  SCOTCH_Num          velmnum;
++  SCOTCH_Num          vnodnum;
++  SCOTCH_Num          edgenbr;
++  SCOTCH_Num *        datatab;
++  SCOTCH_Num *        verttab;
++  SCOTCH_Num *        edgetab;
++
++  vnodnbr = 3 * velmnbr;
++  edgenbr = 6 * velmnbr;                          /* Three element-node edges per element, both ways */
++
++  if ((datatab = malloc ((velmnbr + vnodnbr + 1 + edgenbr) * sizeof (SCOTCH_Num))) == NULL)
++    return (NULL);
++  verttab = datatab;                              /* Compact vertex array for elements and nodes */
++  edgetab = verttab + (velmnbr + vnodnbr + 1);
++
++  for (velmnum = 0; velmnum < velmnbr; velmnum ++) { /* Elements have three private nodes */
++    verttab[velmnum] = baseval + 3 * velmnum;
++    edgetab[3 * velmnum]     = baseval + velmnbr + 3 * velmnum;
++    edgetab[3 * velmnum + 1] = baseval + velmnbr + 3 * velmnum + 1;
++    edgetab[3 * velmnum + 2] = baseval + velmnbr + 3 * velmnum + 2;
++  }
++  for (vnodnum = 0; vnodnum < vnodnbr; vnodnum ++) { /* Nodes have a single element neighbor */
++    verttab[velmnbr + vnodnum]     = baseval + 3 * velmnbr + vnodnum;
++    edgetab[3 * velmnbr + vnodnum] = baseval + vnodnum / 3;
++  }
++  verttab[velmnbr + vnodnbr] = baseval + edgenbr; /* Set end of compact vertex array */
++
++  if (SCOTCH_meshBuild (meshptr, baseval, baseval + velmnbr, velmnbr, vnodnbr, verttab, verttab + 1,
++                        NULL, NULL, NULL, edgenbr, edgetab) != 0) {
++    free (datatab);
++    return (NULL);
++  }
++
++  return (datatab);
++}
++
++/*******************************/
++/*                             */
++/* The mesh ordering routines. */
++/*                             */
++/*******************************/
+ 
+ /* This routine orders the given mesh with the
+ ** default strategy and checks the resulting
+@@ -269,6 +322,43 @@ const char * const          nameptr)
+   free (datatab);
+ }
+ 
++/* This routine builds a mesh of disjoint elements,
++** orders it and checks the resulting ordering.
++** It exits on error.
++*/
++
++static
++void
++meshDisjTest (
++const SCOTCH_Num            velmnbr,              /*+ Number of elements        +*/
++const SCOTCH_Num            baseval,
++SCOTCH_Num * const          peritab,              /*+ Inverse permutation array +*/
++const char * const          nameptr)
++{
++  SCOTCH_Mesh         meshdat;
++  SCOTCH_Num *        datatab;
++
++  if (SCOTCH_meshInit (&meshdat) != 0) {
++    SCOTCH_errorPrint ("meshDisjTest: cannot initialize mesh");
++    exit (EXIT_FAILURE);
++  }
++
++  if ((datatab = meshBuildDisj (&meshdat, velmnbr, baseval)) == NULL) {
++    SCOTCH_errorPrint ("meshDisjTest: cannot build mesh (%s)", nameptr);
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_meshCheck (&meshdat) != 0) {
++    SCOTCH_errorPrint ("meshDisjTest: invalid mesh (%s)", nameptr);
++    exit (EXIT_FAILURE);
++  }
++
++  meshOrderTest (&meshdat, baseval, 3 * velmnbr, peritab, nameptr);
++
++  SCOTCH_meshExit (&meshdat);
++  free (datatab);
++}
++
+ /*********************/
+ /*                   */
+ /* The main routine. */
+@@ -304,6 +394,7 @@ char *              argv[])
+   }
+   meshGridTest (32, 1, 3, peritab, "grid with element and node loads");
+   meshGridTest (32, 1, 0, peritab, "grid without loads");
++  meshDisjTest (30, 0, peritab, "disjoint triangles"); /* Compressed into isolated loaded nodes */
+ 
+   free (peritmp);
+   free (peritab);
+diff --git a/src/libscotch/hall_order_hd.c b/src/libscotch/hall_order_hd.c
+index b3b07e1..9ed4a54 100644
+--- a/src/libscotch/hall_order_hd.c
++++ b/src/libscotch/hall_order_hd.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2012,2018-2020,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2012,2018-2020,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -53,7 +53,7 @@
+ /**                # Version 6.1  : from : 01 nov 2019     **/
+ /**                                 to   : 11 feb 2020     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 06 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # This module contains pieces of code   **/
+ /**                  that belong to other people; see      **/
+@@ -494,8 +494,8 @@ Gnum * restrict     w)                            /* Flag array
+       next[i]   = inext;
+       head[deg] = i;
+     }
+-    else {
+-      nel ++;
++    else {                                        /* Variable can be eliminated at once because no off-diagonal non-zero in its row */
++      nel    += nv[i];
+       elen[i] = - nel;
+       pe[i]   = 0;
+       w[i]    = 0;
+-- 
+2.47.3
+

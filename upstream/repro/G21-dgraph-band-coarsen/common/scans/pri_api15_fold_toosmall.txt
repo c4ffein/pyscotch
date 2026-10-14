@@ -1,0 +1,1 @@
+nth=-1 exit=1 :: 2 library_dgraph_coarsen.c:163:7: runtime error: null pointer passed as argument 2, which is declared to never be null;1 rank 0: coarsen rc=1 seen=0;1 rank 1: coarsen rc=1 seen=0;

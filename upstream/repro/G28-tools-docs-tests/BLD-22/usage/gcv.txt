@@ -1,0 +1,15 @@
+Usage is:
+  gcv [<input graph file> [<output graph file> [<output geometry file>]]] <options>
+    -h          : Display this help
+    -i<format>  : Select input file format
+                    b  : Boeing-Harwell format (matrices)
+                    c  : Chaco v2.0 format (adjacency)
+                    m  : Matrix Market format (edges, symmetrized)
+                    s  : Scotch v3.0 format (adjacency)
+    -o<format>  : Select output file format
+                    c  : Chaco v2.0 format (adjacency)
+                    m  : Matrix Market symmetric pattern format (edges)
+                    s  : Scotch v3.0 format (adjacency)
+    -V          : Print program version and copyright
+  
+  Default option set is : '-Ib -Os'

@@ -1,0 +1,50 @@
+From 0407eb770a2efc2353d5d8487f49913b61f239af Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:14:28 +0000
+Subject: [PATCH 068/240] Bugfix: free bipartition graph on error in
+ `kgraphMapRbBgraph()` [report R. Perry]
+
+Once `bgraphInit()` had succeeded, the error paths of the routine
+(allocation failure of the external gain array, invalid fixed part
+array, inconsistent graph data in debug mode) returned without freeing
+the bipartition graph, and its callers did not free it either.
+
+Refs: GRA-21
+---
+ src/libscotch/kgraph_map_rb.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/libscotch/kgraph_map_rb.c b/src/libscotch/kgraph_map_rb.c
+index 89fbe1c..2297d5d 100644
+--- a/src/libscotch/kgraph_map_rb.c
++++ b/src/libscotch/kgraph_map_rb.c
+@@ -554,6 +554,7 @@ Context * const                         contptr)  /*+ Execution context
+ 
+   if ((veextax = (Gnum *) memAlloc (actgrafptr->s.vertnbr * sizeof (Gnum))) == NULL) {
+     errorPrint ("kgraphMapRbBgraph: out of memory");
++    bgraphExit (actgrafptr);
+     return (1);
+   }
+   veextax -= actgrafptr->s.baseval;
+@@ -675,7 +676,9 @@ Context * const                         contptr)  /*+ Execution context
+ fail:
+   if ((o != 0) || (veexmsk == 0)) {               /* If external gain array is useless */
+     memFree (veextax + actgrafptr->s.baseval);    /* Forget about it                   */
+-    return  (o);                                  /* Return error code                 */
++    if (o != 0)                                   /* On error, free bipartition graph  */
++      bgraphExit (actgrafptr);
++    return (o);                                   /* Return error code                 */
+   }
+ 
+   actgrafptr->s.flagval |= BGRAPHFREEVEEX;        /* Keep external gain array */
+@@ -689,6 +692,7 @@ fail:
+ #ifdef SCOTCH_DEBUG_KGRAPH2
+   if (bgraphCheck (actgrafptr) != 0) {
+     errorPrint ("kgraphMapRbBgraph: inconsistent graph data");
++    bgraphExit (actgrafptr);
+     return (1);
+   }
+ #endif /* SCOTCH_DEBUG_KGRAPH2 */
+-- 
+2.47.3
+

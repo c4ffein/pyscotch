@@ -1,0 +1,224 @@
+From 3337f6746484abd465e51f179852c45786a914c6 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:14:09 +0000
+Subject: [PATCH 202/240] Bugfix: finalize MPI before the PT-Scotch programs
+ exit on help and version requests [report R. Perry]
+
+`dggath', `dgmap'/`dgpart', `dgord', `dgscat' and `dgtst' returned
+from `main()' without calling `MPI_Finalize()' when invoked with
+'?', '-h' or '-V', so that MPI launchers reported the job as having
+terminated improperly, with a non-zero exit status, although the
+programs had succeeded.
+
+Refs: CLI-21
+---
+ src/scotch/dggath.c | 7 +++++--
+ src/scotch/dgmap.c  | 3 +++
+ src/scotch/dgord.c  | 7 +++++--
+ src/scotch/dgscat.c | 7 +++++--
+ src/scotch/dgtst.c  | 7 +++++--
+ 5 files changed, 23 insertions(+), 8 deletions(-)
+
+diff --git a/src/scotch/dggath.c b/src/scotch/dggath.c
+index 46ad33a..6522378 100644
+--- a/src/scotch/dggath.c
++++ b/src/scotch/dggath.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2008,2010-2012,2014,2018-2020,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2008,2010-2012,2014,2018-2020,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 01 jan 2012     **/
+ /**                                 to   : 17 apr 2019     **/
+ /**                # Version 7.0  : from : 03 sep 2020     **/
+-/**                                 to   : 10 jun 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -120,6 +120,7 @@ char *              argv[])
+ 
+   if ((argc >= 2) && (argv[1][0] == '?')) {       /* If need for help */
+     usagePrint (stdout, C_usageList);
++    MPI_Finalize ();
+     return     (EXIT_SUCCESS);
+   }
+ 
+@@ -149,6 +150,7 @@ char *              argv[])
+         case 'H' :                                /* Give the usage message */
+         case 'h' :
+           usagePrint (stdout, C_usageList);
++          MPI_Finalize ();
+           return     (EXIT_SUCCESS);
+         case 'R' :                                /* Root process (if necessary) */
+         case 'r' :
+@@ -164,6 +166,7 @@ char *              argv[])
+           fprintf (stderr, "dggath, version " SCOTCH_VERSION_STRING "\n");
+           fprintf (stderr, SCOTCH_COPYRIGHT_STRING "\n");
+           fprintf (stderr, SCOTCH_LICENSE_STRING "\n");
++          MPI_Finalize ();
+           return  (EXIT_SUCCESS);
+         default :
+           errorPrint ("main: unprocessed option '%s'", argv[i]);
+diff --git a/src/scotch/dgmap.c b/src/scotch/dgmap.c
+index cb70508..23f165a 100644
+--- a/src/scotch/dgmap.c
++++ b/src/scotch/dgmap.c
+@@ -175,6 +175,7 @@ char *                      argv[])
+ 
+   if ((argc >= 2) && (argv[1][0] == '?')) {       /* If need for help */
+     usagePrint (stdout, C_usageList);
++    MPI_Finalize ();
+     return     (EXIT_SUCCESS);
+   }
+ 
+@@ -253,6 +254,7 @@ char *                      argv[])
+         case 'H' :                                /* Give the usage message */
+         case 'h' :
+           usagePrint (stdout, C_usageList);
++          MPI_Finalize ();
+           return     (EXIT_SUCCESS);
+         case 'M' :
+         case 'm' :
+@@ -304,6 +306,7 @@ char *                      argv[])
+           fprintf (stderr, "dgmap/dgpart, version " SCOTCH_VERSION_STRING "\n");
+           fprintf (stderr, SCOTCH_COPYRIGHT_STRING "\n");
+           fprintf (stderr, SCOTCH_LICENSE_STRING "\n");
++          MPI_Finalize ();
+           return  (EXIT_SUCCESS);
+         case 'v' :                                /* Output control info */
+           for (j = 2; argv[i][j] != '\0'; j ++) {
+diff --git a/src/scotch/dgord.c b/src/scotch/dgord.c
+index 0023e47..532e74d 100644
+--- a/src/scotch/dgord.c
++++ b/src/scotch/dgord.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2012,2014,2018-2021,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2012,2014,2018-2021,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -47,7 +47,7 @@
+ /**                # Version 6.0  : from : 01 jan 2012     **/
+ /**                                 to   : 17 apr 2019     **/
+ /**                # Version 7.0  : from : 03 sep 2020     **/
+-/**                                 to   : 10 jun 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -153,6 +153,7 @@ char *              argv[])
+ 
+   if ((argc >= 2) && (argv[1][0] == '?')) {       /* If need for help */
+     usagePrint (stdout, C_usageList);
++    MPI_Finalize ();
+     return     (EXIT_SUCCESS);
+   }
+ 
+@@ -220,6 +221,7 @@ char *              argv[])
+         case 'H' :                                /* Give the usage message */
+         case 'h' :
+           usagePrint (stdout, C_usageList);
++          MPI_Finalize ();
+           return     (EXIT_SUCCESS);
+         case 'M' :                                /* Output separator mapping */
+         case 'm' :
+@@ -252,6 +254,7 @@ char *              argv[])
+           fprintf (stderr, "dgord, version " SCOTCH_VERSION_STRING "\n");
+           fprintf (stderr, SCOTCH_COPYRIGHT_STRING "\n");
+           fprintf (stderr, SCOTCH_LICENSE_STRING "\n");
++          MPI_Finalize ();
+           return  (EXIT_SUCCESS);
+         case 'v' :                                /* Output control info */
+           for (j = 2; argv[i][j] != '\0'; j ++) {
+diff --git a/src/scotch/dgscat.c b/src/scotch/dgscat.c
+index 704f269..8d0f598 100644
+--- a/src/scotch/dgscat.c
++++ b/src/scotch/dgscat.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2010-2012,2014,2018-2020,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2010-2012,2014,2018-2020,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -47,7 +47,7 @@
+ /**                # Version 6.0  : from : 01 jan 2012     **/
+ /**                                 to   : 17 apr 2019     **/
+ /**                # Version 7.0  : from : 03 sep 2020     **/
+-/**                                 to   : 10 jun 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -118,6 +118,7 @@ char *              argv[])
+ 
+   if ((argc >= 2) && (argv[1][0] == '?')) {       /* If need for help */
+     usagePrint (stdout, C_usageList);
++    MPI_Finalize ();
+     return     (EXIT_SUCCESS);
+   }
+ 
+@@ -147,6 +148,7 @@ char *              argv[])
+         case 'H' :                                /* Give the usage message */
+         case 'h' :
+           usagePrint (stdout, C_usageList);
++          MPI_Finalize ();
+           return     (EXIT_SUCCESS);
+         case 'R' :                                /* Root process (if necessary) */
+         case 'r' :
+@@ -161,6 +163,7 @@ char *              argv[])
+           fprintf (stderr, "dgscat, version " SCOTCH_VERSION_STRING "\n");
+           fprintf (stderr, SCOTCH_COPYRIGHT_STRING "\n");
+           fprintf (stderr, SCOTCH_LICENSE_STRING "\n");
++          MPI_Finalize ();
+           return  (EXIT_SUCCESS);
+         default :
+           errorPrint ("main: unprocessed option '%s'", argv[i]);
+diff --git a/src/scotch/dgtst.c b/src/scotch/dgtst.c
+index b9303f9..e5dd6af 100644
+--- a/src/scotch/dgtst.c
++++ b/src/scotch/dgtst.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2010-2012,2014,2018-2020,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2010-2012,2014,2018-2020,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 01 jan 2012     **/
+ /**                                 to   : 17 apr 2019     **/
+ /**                # Version 7.0  : from : 03 sep 2020     **/
+-/**                                 to   : 10 jun 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -133,6 +133,7 @@ char *              argv[])
+ 
+   if ((argc >= 2) && (argv[1][0] == '?')) {       /* If need for help */
+     usagePrint (stdout, C_usageList);
++    MPI_Finalize ();
+     return     (EXIT_SUCCESS);
+   }
+ 
+@@ -161,6 +162,7 @@ char *              argv[])
+         case 'H' :                                /* Give the usage message */
+         case 'h' :
+           usagePrint (stdout, C_usageList);
++          MPI_Finalize ();
+           return     (EXIT_SUCCESS);
+         case 'R' :                                /* Root process (if necessary) */
+         case 'r' :
+@@ -175,6 +177,7 @@ char *              argv[])
+           fprintf (stderr, "dgtst, version " SCOTCH_VERSION_STRING "\n");
+           fprintf (stderr, SCOTCH_COPYRIGHT_STRING "\n");
+           fprintf (stderr, SCOTCH_LICENSE_STRING "\n");
++          MPI_Finalize ();
+           return  (EXIT_SUCCESS);
+         default :
+           errorPrint ("main: unprocessed option '%s'", argv[i]);
+-- 
+2.47.3
+

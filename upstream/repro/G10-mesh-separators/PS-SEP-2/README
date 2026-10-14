@@ -1,0 +1,13 @@
+PS-SEP-2: vmeshSeparateFmResize prints "hertnum no longer valid !" and exit(1)s; main routine shields it with hashmax *= 4
+Natural trigger: not found. Pristine mord with the default strategy on mmk_m2 300 300 (90k elements), mmk_m3 40 40 40 and a
+3000x80 wedge mesh (mkwedge.py; FM strategies with bal=1.0) never exceeded the 4x shield. The shield is proportional to the
+sweep capacity (fronnbr + movenbr) so only a sweep with many hundreds of consecutive improving moves can exceed it.
+Validation of the completed resize (patch 0008): vmesh_separate_fm.o compiled with -DSCOTCH_DEBUG_VMESH2 -DSCOTCH_DEBUG_VMESH3
+(initial table estimate divided by 8, vmeshSeparateFmCheck after every move and pass):
+  tools/dbgobj.sh $WORK/build $WORK/builddbgv vmesh_separate_fm "-DSCOTCH_DEBUG_VMESH2 -DSCOTCH_DEBUG_VMESH3"
+  mord on m2_32_32 / ship001 / mmk_m2 100 100 / mmk_m3 20 20 20: 14 / 98 / 297 / 64 resizes (realloc trace), rc=0, no error,
+  gotst validates every ordering                                                           -> dbg_forced_results.txt
+Non-debug patched build (shield removed): mord m2_300_300 performs 4 resizes and gives an ordering identical to pristine
+  (NNZ 3.875010e+06, OPC 5.320606e+08); ship001: 0 resizes, OPC 1.029086e+10 -> 1.025770e+10 (1 thread)  -> quality_results.txt
+Found on the way (fixed in the same patch): save array sized hashmax while up to 2*hashmax records (one per element and node in
+the tables) can be saved per sweep (heap-buffer-overflow WRITE at the node record once the tables fill up).

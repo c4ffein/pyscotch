@@ -1,0 +1,18 @@
+--- a/src/libscotch/common.h
++++ b/src/libscotch/common.h
+@@ -88,6 +88,15 @@
+ #define _GNU_SOURCE                               /* Must define this before any include */
+ #endif /* COMMON_PTHREAD_AFFINITY_LINUX */
+ #endif /* COMMON_PTHREAD */
++
++/*+ Handle old names of configuration macros. +*/
++
++#if ((defined COMMON_WINDOWS) && ! (defined COMMON_OS_WINDOWS))
++#define COMMON_OS_WINDOWS
++#endif /* ((defined COMMON_WINDOWS) && ! (defined COMMON_OS_WINDOWS)) */
++#if ((defined COMMON_FILE_COMPRESS_BZ) && ! (defined COMMON_FILE_COMPRESS_BZ2))
++#define COMMON_FILE_COMPRESS_BZ2
++#endif /* ((defined COMMON_FILE_COMPRESS_BZ) && ! (defined COMMON_FILE_COMPRESS_BZ2)) */
+ 
+ #ifdef COMMON_OS_WINDOWS
+ #include            <io.h>                        /* For _pipe ()              */

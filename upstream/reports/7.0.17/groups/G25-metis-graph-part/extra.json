@@ -1,0 +1,68 @@
+[
+ {
+  "local_id": "PS2-G25-1",
+  "our_title": "archCmpltwArchBuild2() frees the caller's weight array on a non-positive weight",
+  "severity": "high",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "gcc -g -fsanitize=address,undefined -I$WORK/build/include repro/PS2-G25-1/ps2_1.c -o ps2_1 -L<pristine asan>/lib -lscotch -lscotcherr ...; ./ps2_1 (SCOTCH_archCmpltw with weights {2, 0, 3} on a malloc'ed array, then free)\npristine 32-bit and 64-bit: 'ERROR: archCmpltwArchBuild2: invalid parameters (2)' then 'AddressSanitizer: attempting double-free on 0x502000000010 ... #1 main ps2_1.c:16', 'freed by thread T0 here: ... archCmpltwArchBuild2 arch_cmpltw.c:184'. Also reached from the METIS wrappers for any tpwgts that rounds to a non-positive weight (CLI-08 repro, metis_graph_part.c:313 and metis_graph_part_dual.c:134 / parmetis_dgraph_part.c:207 free their arrays afterwards).\npatched (0001): 'caller freed its own array: OK'; check_scotch_arch 32/64-bit rc=0.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/arch_cmpltw.c:181-186",
+  "evidence": "arch_cmpltw.c:182-185 'if (veloval <= 0) {                           /* Target weights cannot be negative nor null */\n      errorPrint (\"archCmpltwArchBuild2: invalid parameters (2)\");\n      memFree    (velotab);\n      return (1);' where velotab is the 'const Anum * restrict const velotab' input and vecwtab, allocated at :172, is the array that leaks. Introduced by 530f3f2 (2026-07-11, 'Add new simple weighted complete graph architecture cmpltws'): before it, the line read memFree (vecwtab).",
+  "related_ids": [
+   "CLI-08",
+   "COR (arch_cmpltw.c:259 is the Load twin, owned by G02/G03)"
+  ],
+  "fix_options": [
+   {
+    "label": "a: free the array that was allocated (patch 0001)",
+    "summary": "memFree (vecwtab) instead of memFree (velotab).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0001-Bugfix-free-proper-array-on-invalid-target-weight-in.patch",
+    "tested": "ps2_1 32/64-bit, cli08, check_scotch_arch, check_libmetis_v5 (the new bwgttab case exercises the path on pristine)",
+    "tradeoffs": "One-word fix, no behaviour change besides removing the corruption and the leak.",
+    "preferred": true,
+    "maintainer_fit": "Restores his own pre-530f3f2 line; precedent d555f2c 'Do not call nonexistent freeing routines on architecture loading error'."
+   },
+   {
+    "label": "b: validate the weights before allocating, so that nothing has to be freed",
+    "summary": "A first loop rejects non-positive weights, then the array is allocated and filled.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/alt/PS2-G25-1-b-validate-before-alloc.diff",
+    "tested": "compiled (syntax) on pristine; not run",
+    "tradeoffs": "Two passes over the weights; slightly larger diff.",
+    "preferred": false,
+    "maintainer_fit": "Acceptable but more change than needed."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0001-Bugfix-free-proper-array-on-invalid-target-weight-in.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G25-2",
+  "our_title": "Dead v5 block in test_libparmetis.c uses tpwgtab undeclared and a 0.05 ubvec",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "src/check/test_libparmetis.c: the '#if (SCOTCH_METIS_VERSION == 5)' declarations (awgttab, nconval, kbaltab = {0.05}, options) are never used; tpwgtab is declared only under version 3 but used unconditionally in main (malloc, loop, free), so a v5 build of this test would not compile; no v5 ParMETIS library or check target exists.",
+  "why_not_run": "no libptscotchparmetisv5 target exists in Makefile or CMakeLists, so the block is never compiled",
+  "location_7_0_17": "src/check/test_libparmetis.c:236-244, 274-276, 290-291, 324",
+  "evidence": "test_libparmetis.c:242 'const double        kbaltab[1] = { 0.05 };'; :232 'float *             tpwgtab;' inside '#if (SCOTCH_METIS_VERSION == 3)' while :276 '((tpwgtab = malloc (partnbr              * sizeof (float)))      == NULL)) {' is unconditional",
+  "related_ids": [
+   "CLI-03"
+  ],
+  "fix_options": [
+   {
+    "label": "a: leave as is (no v5 ParMETIS exists)",
+    "summary": "No change.",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "Dead code stays.",
+    "preferred": true,
+    "maintainer_fit": "Test-only, unreachable; not worth a patch unless a v5 ParMETIS API is added."
+   }
+  ],
+  "patch_files": []
+ }
+]

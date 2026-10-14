@@ -1,0 +1,138 @@
+From f7b934b347766df8b642c3beac501e4b263bf3b1 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:41:39 +0000
+Subject: [PATCH 186/240] Bugfix: report failures of the ordering and symbolic
+ factorization in `esmumps2()` [report R. Perry]
+
+`esmumps2()` ignored the return values of `graphBuildGraph2()`,
+`orderGraph()` and `symbolFaxGraph()`. After an out-of-memory failure
+in the ordering, the symbolic factorization ran on an empty ordering
+and the routine returned 0 without having written the `nv` and `pe`
+arrays, which MUMPS then consumed as valid data.
+
+Each step is now checked, the structures built so far are freed, and 1
+is returned, as already done when the vertex end array cannot be
+allocated, and as MUMPS expects: it tests `NCMPA .NE. 0`. The ordering
+dump path no longer leaks on error. The test driver, which only failed
+on negative return values, now fails on any non-zero value and prints
+it with the proper format.
+
+Refs: CLI-10, CLI-22
+---
+ src/esmumps/esmumps.c      | 36 +++++++++++++++++++++++++++---------
+ src/esmumps/test_esmumps.c |  8 ++++----
+ 2 files changed, 31 insertions(+), 13 deletions(-)
+
+diff --git a/src/esmumps/esmumps.c b/src/esmumps/esmumps.c
+index c47f57b..874ed2d 100644
+--- a/src/esmumps/esmumps.c
++++ b/src/esmumps/esmumps.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2009,2020,2022,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2009,2020,2022,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -52,7 +52,7 @@
+ /**                # Version 6.1  : from : 28 aug 2020     **/
+ /**                                 to   : 05 sep 2020     **/
+ /**                # Version 7.0  : from : 01 dec 2022     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -101,6 +101,9 @@
+ **   k=elen(i) <==> column i is the k-th pivot.
+ ** - last : on output, inverse permutation (for MUMPS) :
+ **   i=last(k) <==> column i est le k-th pivot
++** It returns:
++** - 0   : on success.
++** - !0  : on error.
+ */
+ 
+ int
+@@ -136,11 +139,22 @@ INT * restrict const        lasttab)              /*+ Permutations computed for
+   for (vertnum = 0; vertnum < n; vertnum ++)
+     vendtab[vertnum] = petab[vertnum] + lentab[vertnum];
+ 
+-  graphInit        (&grafdat);
+-  graphBuildGraph2 (&grafdat, 1, n, pfree - 1, petab, vendtab, velotab, NULL, iwtab, NULL); /* Assume Fortran-based indexing */
++  graphInit (&grafdat);
++  if (graphBuildGraph2 (&grafdat, 1, n, pfree - 1, petab, vendtab, velotab, NULL, iwtab, NULL) != 0) { /* Assume Fortran-based indexing */
++    errorPrint ("esmumps2: cannot build graph");
++fail1:
++    graphExit (&grafdat);
++    memFree   (vendtab);
++    return (1);
++  }
+ 
+-  orderInit  (&ordedat);
+-  orderGraph (&ordedat, &grafdat);                /* Compute ordering with Scotch */
++  orderInit (&ordedat);
++  if (orderGraph (&ordedat, &grafdat) != 0) {     /* Compute ordering with Scotch */
++    errorPrint ("esmumps2: cannot compute ordering");
++fail2:
++    orderExit (&ordedat);
++    goto fail1;
++  }
+ 
+ #ifdef ESMUMPS_ORDER_DUMP
+   {
+@@ -152,7 +166,7 @@ INT * restrict const        lasttab)              /*+ Permutations computed for
+     if (filestr[0] != '\0') {                     /* If environment variable is not empty, perform dump of block ordering */
+       if ((fileptr = fopen (filestr, "w+")) == NULL) {
+         errorPrint ("esmumps2: cannot open ordering dump file");
+-        return (1);
++        goto fail2;
+       }
+ 
+       orderSave (&ordedat, fileptr);
+@@ -167,8 +181,12 @@ INT * restrict const        lasttab)              /*+ Permutations computed for
+   memCpy (lasttab, ordedat.peritab, n * sizeof (INT));
+ #endif /* ESMUMPS_DEBUG */
+ 
+-  symbolInit     (&symbdat);
+-  symbolFaxGraph (&symbdat, &grafdat, &ordedat);  /* Compute block symbolic factorizaion */
++  symbolInit (&symbdat);
++  if (symbolFaxGraph (&symbdat, &grafdat, &ordedat) != 0) { /* Compute block symbolic factorization */
++    errorPrint ("esmumps2: cannot compute symbolic factorization");
++    symbolExit (&symbdat);
++    goto fail2;
++  }
+ 
+ #ifdef ESMUMPS_DEBUG_OUTPUT
+   {
+diff --git a/src/esmumps/test_esmumps.c b/src/esmumps/test_esmumps.c
+index da0d85b..060f835 100644
+--- a/src/esmumps/test_esmumps.c
++++ b/src/esmumps/test_esmumps.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2009,2012,2015,2018,2020,2022,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2009,2012,2015,2018,2020,2022,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -47,7 +47,7 @@
+ /**                # Version 6.0  : from : 01 dec 2012     **/
+ /**                                 to   : 22 jan 2020     **/
+ /**                # Version 7.0  : from : 10 dec 2022     **/
+-/**                                 to   : 10 sep 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -143,8 +143,8 @@ char *                      argv[])
+   free      (lasttab);
+   graphExit (&grafdat);
+ 
+-  if (ncmpa < 0) {
+-    errorPrint ("test_esmumps: error in ESMUMPSF (%d)", ncmpa);
++  if (ncmpa != 0) {                               /* ESMUMPSF returns 0 on success, as expected by MUMPS */
++    errorPrint ("test_esmumps: error in ESMUMPSF (" INTSTRING ")", ncmpa);
+     exit       (EXIT_FAILURE);
+   }
+ 
+-- 
+2.47.3
+

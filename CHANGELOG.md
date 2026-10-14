@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **The Scotch tracker on the docs site.** `docs/site/gen_analysis.py` renders `upstream/reports/<version>/` as a
+  sub-site (dashboard of every finding with status per Scotch version, one page per finding with evidence, fix
+  options and the patch, the combined series with its apply check and build-and-test matrix, the audit summaries
+  and reproducers), reached from the docs footer. `merge-audit` gained duplicate detection, a 3-way combined series
+  exported under `series/` and verified with a plain `git am`, an explicit `--order` of the groups, one entry
+  per finding id (other groups' views kept under `also`), and `--repro-root` exporting the reproducer kits once
+  to `upstream/repro/`, outside the per-version data.
+- **Per-version upstream reports and a local docs server.** `scripts/gen_upstream_report.py` renders our
+  verification of a third-party review against a new Scotch version as HTML, a PDF (headless Chromium via
+  Playwright, fonts loaded from pinned, hash-checked files) and an unsent email draft; `make upstream-report` and
+  `make docs-serve` (loopback by default, private reports mounted outside `docs/out`). Third-party text is
+  cited by identifier and never copied. New optional extra `report`.
+- **Pre-release-aware Scotch version ordering.** `_version_key` accepts
+  `X.Y.Z[-]rcN` (also `alpha`/`beta`): a release candidate sorts before its
+  release and `rc2` after `rc1`, so the catalog, `ci_matrix.py` and the bump
+  tooling can hold `7.0.18rc1`; anything unparseable raises `ValueError`
+  instead of an opaque `int()` failure.
+- **Scotch 7.0.17 catalogued but SKIPPED, with a rebased behavioral patch.**
+  7.0.17 compiles pristine (sha256 pinned) but still fails the reproducibility
+  gate: upstream fixed the best-pass selection in the threaded
+  `bgraphBipartGg()` yet left the worker-PRNG seeding race and the missing
+  `SCOTCH_DETERMINISTIC` guard (2 distinct partitions over 12 fresh processes
+  with `SCOTCH_DETERMINISTIC=1`). Like 7.0.16 it is recorded in
+  `_SKIPPED_VERSIONS`, the shipped pin stays on 7.0.15, and
+  `scotch-7.0.17-bgraph-bipart-gg-determinism.patch` (the 7.0.16 patch minus
+  the half upstream merged) is offered as a confirmed-only behavioral patch
+  when building 7.0.17 explicitly; with it the gate passes (3 x 30 runs). The
+  `upstream/QUESTIONS_FOR_SCOTCH_TEAM.md` entry carries the 7.0.17 status.
 - **`upstream/` — PyScotch's output for Scotch, in one place.**
   `QUESTIONS_FOR_SCOTCH_TEAM.md` (every verified upstream finding) moves
   there from `docs/`, next to `proposals/` (patches proposed upstream that

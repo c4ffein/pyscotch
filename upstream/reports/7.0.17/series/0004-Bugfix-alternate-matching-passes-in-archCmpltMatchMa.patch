@@ -1,0 +1,97 @@
+From 87da269767f4559b95b6465fa9d295235afd6aab Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:17:52 +0000
+Subject: [PATCH 004/240] Bugfix: alternate matching passes in
+ `archCmpltMatchMate()` [report R. Perry]
+
+The pass number was stored back unchanged, so that, for odd numbers of
+vertices, the last vertex was always the one left single, which
+unbalances the coarsening trees of sub-architectures of complete graph
+architectures. Toggle it as intended, and compute the number of paired
+slots according to the pass, as the branch that places the single vertex
+first, which was never reached, did not account for it.
+
+Add a complete graph architecture with an odd number of vertices to
+`test_scotch_arch` so that both passes are exercised.
+
+Refs: COR-27
+---
+ src/check/test_scotch_arch.c | 11 ++++++++---
+ src/libscotch/arch_cmplt.c   |  8 ++++----
+ 2 files changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/src/check/test_scotch_arch.c b/src/check/test_scotch_arch.c
+index 3f0dd78..d375c3f 100644
+--- a/src/check/test_scotch_arch.c
++++ b/src/check/test_scotch_arch.c
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 6.0  : from : 25 jun 2014     **/
+ /**                                 to   : 22 may 2018     **/
+ /**                # Version 7.0  : from : 04 jul 2025     **/
+-/**                                 to   : 11 jul 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -61,7 +61,7 @@
+ 
+ #include "scotch.h"
+ 
+-#define ARCHNBR                     24
++#define ARCHNBR                     26
+ 
+ /*********************/
+ /*                   */
+@@ -97,7 +97,12 @@ char *              argv[])
+   }
+ 
+   if (SCOTCH_archCmplt (&archtab[archnbr ++], 8) != 0) {
+-    SCOTCH_errorPrint ("main: cannot create cmplt architecture");
++    SCOTCH_errorPrint ("main: cannot create cmplt architecture (1)");
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_archCmplt (&archtab[archnbr ++], 9) != 0) { /* Odd number of vertices to exercise alternate matching passes */
++    SCOTCH_errorPrint ("main: cannot create cmplt architecture (2)");
+     exit (EXIT_FAILURE);
+   }
+ 
+diff --git a/src/libscotch/arch_cmplt.c b/src/libscotch/arch_cmplt.c
+index 02908e3..a6dbb70 100644
+--- a/src/libscotch/arch_cmplt.c
++++ b/src/libscotch/arch_cmplt.c
+@@ -64,7 +64,7 @@
+ /**                # Version 6.0  : from : 14 feb 2011     **/
+ /**                                 to   : 02 may 2015     **/
+ /**                # Version 7.0  : from : 18 feb 2018     **/
+-/**                                 to   : 11 jul 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -205,11 +205,11 @@ ArchCoarsenMulti ** restrict const  multptr)
+   if (finevertnbr <= 1)
+     return (-1);
+ 
+-  coarvertmax = finevertnbr >> 1;                 /* One less slot when finevertnbr is odd */
++  passnum     = matcptr->passnum;
++  coarvertmax = (finevertnbr + passnum) >> 1;     /* Account for leading single multinode when finevertnbr is odd */
+   coarmulttab = matcptr->multtab;
+   coarvertnum =
+   finevertnum = 0;
+-  passnum     = matcptr->passnum;
+ 
+   if ((finevertnbr & passnum) != 0) {             /* If finevertnbr is odd and old passnum == 1 */
+     coarmulttab[coarvertnum].vertnum[0] =         /* First coarse vertex is single multinode    */
+@@ -234,7 +234,7 @@ ArchCoarsenMulti ** restrict const  multptr)
+ 
+   matcptr->vertnbr = coarvertnum;                 /* Prepare for next mating               */
+   if (finevertnbr & 1)                            /* Invert pass value if dimension is odd */
+-    matcptr->passnum = passnum;
++    matcptr->passnum = passnum ^ 1;
+ 
+   *multptr = coarmulttab;                         /* Always provide same mating array */
+ 
+-- 
+2.47.3
+

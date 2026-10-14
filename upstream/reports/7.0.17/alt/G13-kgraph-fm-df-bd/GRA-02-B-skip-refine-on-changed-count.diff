@@ -1,0 +1,15 @@
+--- a/src/libscotch/kgraph_map_fm.c	2026-10-13 08:40:02.899404051 +0000
++++ b/src/libscotch/kgraph_map_fm.c	2026-10-13 09:44:53.276450520 +0000
+@@ -1039,9 +1039,10 @@
+       strat = stratInit (&kgraphmapststratab, "r{sep=h{pass=10}}"); /* Use a standard algorithm */
+       kgraphMapSt (grafptr, strat);               /* Perform mapping */
+ 
+-      if (grafptr->fronnbr == 0) {                /* If new partition has no frontier */
++      if ((grafptr->fronnbr == 0) ||              /* If new partition has no frontier       */
++          (grafptr->m.domnnbr != domnnbr)) {      /* Or the fallback changed the part count */
+         memFree (comploadmax);
+-        return  (0);                              /* This algorithm is still useless  */
++        return  (0);                              /* Fallback already produced a valid mapping */
+       }
+ 
+       if (memReallocGroup ((void *) comploadmax,  /* domnnbr has changed after mapping */

@@ -1,0 +1,11 @@
+--- a/src/libscotch/wgraph_part_rb.c
++++ b/src/libscotch/wgraph_part_rb.c
+@@ -294,7 +294,7 @@
+   const Anum                        inddomnnum = spltptr->splttab[spltnum].domnnum; /* Initial domain number to map        */
+   const Anum                        inddomnsiz = spltptr->splttab[spltnum].domnsiz; /* Number of domains to map            */
+ 
+-  if (indpartval == 0) {                          /* If in small branch of the recursion; TRICK: never at first call      */
++  if ((indpartval == 0) && (orgparttax != NULL)) { /* If in small branch of the recursion, on a real part; TRICK: never at first call */
+     if (inddomnsiz <= 1) {                        /* If target domain is terminal                                         */
+       wgraphPartRb3Fron (dataptr, orggrafptr, orgfrontab, orgfronnbr); /* Copy previous frontier to global frontier array */
+       wgraphPartRb3One  (dataptr, orggrafptr, orgparttax, indpartval, inddomnnum); /* Update mapping and return           */

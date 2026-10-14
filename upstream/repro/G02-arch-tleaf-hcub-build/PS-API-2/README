@@ -1,0 +1,6 @@
+PS-API-2: SCOTCH_archLtleaf exported but undeclared
+
+Pristine: compiling archbuild.c without the manual prototype against build/include/scotch.h gives
+  'implicit declaration of function SCOTCH_archLtleaf'; nm -D lib/libscotch.so | grep archLtleaf shows the symbol.
+Patched (patches/0001): compiles with -DHAVE_LTLEAF_PROTO (manual prototype removed). The documented Fortran twin scotchfarchltleaf
+  is still missing (alt/PS-API-2-B-fortran-twin.diff; reported as PS2-G02-arch-tleaf-hcub-build-2 for the Fortran group).

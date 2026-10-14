@@ -1,0 +1,14 @@
+API-21: SCOTCH_graphTabLoad reads mappsorttab[mappfilenbr] after the last mapping pair matched.
+  sh ../build.sh $WORK/build _pristine ; ./tabload_pristine
+Graph labels {0,0,1,2} (duplicate label 0; neither graphBuild nor graphCheck rejects this),
+mapping file "1\n0 5\n".
+  pristine: parttab = 5 0 -1 -1   expected: 5 -1 -1 -1   FAIL   (vertex 1 gets a garbage part)
+  patched (commit 0006): parttab = 5 -1 -1 -1   ok
+ASan is silent on the stock library because mappsorttab and vertsorttab share one memAllocGroup
+block (the stray cell is vertsorttab[0]). split/ proves the out-of-bounds index with the pristine
+routine compiled with the two arrays in separate allocations (library_graph_map_io_split.c,
+generated from the 7.0.17 source by the commands in the shell history, see split/):
+  ==ERROR: AddressSanitizer: heap-buffer-overflow ... READ of size 4
+    #0 SCOTCH_graphTabLoadSplit library_graph_map_io_split.c:163
+  0x... is located 0 bytes after 8-byte region   (the one-entry mapping array)
+With unique labels the stray read also happens but is harmless (vertsorttab[0].labl <= current label).

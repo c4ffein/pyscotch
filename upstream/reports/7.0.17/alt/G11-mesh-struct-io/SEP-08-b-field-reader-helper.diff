@@ -1,0 +1,102 @@
+--- a/src/libscotch/mesh_io_habo.c	2026-10-13 08:40:02.911404262 +0000
++++ b/src/libscotch/mesh_io_habo.c	2026-10-13 13:24:28.401916314 +0000
+@@ -58,6 +58,40 @@
+ #include "graph.h"
+ #include "mesh.h"
+ 
++/* This routine reads a fixed-width integer
++** field and checks that its value lies in
++** the given range.
++** It returns:
++** - 0   : on success.
++** - !0  : on end of file or out-of-range value.
++*/
++
++static
++int
++meshGeomLoadHaboInt (
++FILE * const                stream,               /* Stream to read from */
++const int                   fldsiz,               /* Width of field      */
++const Gnum                  valmin,               /* Minimum valid value */
++const Gnum                  valmax,               /* Maximum valid value */
++Gnum * const                valptr)               /* Value to return     */
++{
++  Gnum                valval;
++  int                 fldidx;
++  int                 c;
++
++  while (((c = getc (stream)) == '\n') || (c == '\r')) ;
++  valval = (c == ' ') ? 0 : (c - '0');
++  for (fldidx = 1; (fldidx < fldsiz) && (c != EOF); fldidx ++) {
++    if ((c = getc (stream)) != ' ')
++      valval = valval * 10 + c - '0';
++  }
++  if ((c == EOF) || (valval < valmin) || (valval > valmax))
++    return (1);
++
++  *valptr = valval;
++  return (0);
++}
++
+ /* This routine loads the geometrical mesh
+ ** in the Harwell-Boeing matrix format, and
+ ** allocates the proper structures.
+@@ -184,28 +218,17 @@
+   meshptr->vnodbas = 1;
+   meshptr->vnodnnd = meshptr->velmbas;
+   meshptr->vnlosum = habvarnbr;
++  meshptr->velosum = habeltnbr;                   /* Elements and nodes are not weighted */
+ 
+   for (velmnum = meshptr->velmbas; velmnum <= meshptr->velmnnd; velmnum ++) { /* Read ELTPTR as second part of vertex array */
+     Gnum              habcolval;                  /* Current column value                                                   */
+-    int               habcolidx;                  /* Current index in column value                                          */
+ 
+-    while (((c = getc (filesrcptr)) == '\n') || (c == '\r')) ;
+-    habcolval = (c == ' ') ? 0 : (c - '0');
+-    for (habcolidx = 1; habcolidx < habcolsiz; habcolidx ++) {
+-      if ((c = getc (filesrcptr)) != ' ')
+-        habcolval = habcolval * 10 + c - '0';
+-    }
+-    if (c == EOF) {
++    if ((meshGeomLoadHaboInt (filesrcptr, habcolsiz, 1, habvixnbr + 1, &habcolval) != 0) || /* ELTPTR values must be within bounds and non-decreasing */
++        ((velmnum > meshptr->velmbas) && ((habcolval + habvixnbr) < meshptr->verttax[velmnum - 1]))) {
+       errorPrint ("meshGeomLoadHabo: bad input (6)");
+       meshFree   (meshptr);
+       return (1);
+     }
+-#ifdef SCOTCH_DEBUG_MESH2
+-    if ((habcolval < 1) || (habcolval > (habvixnbr + 1))) {
+-      errorPrint ("meshGeomLoadHabo: bad input (7)");
+-      return (1);
+-    }
+-#endif /* SCOTCH_DEBUG_MESH2 */
+ 
+     meshptr->verttax[velmnum] = habcolval + habvixnbr;
+   }
+@@ -219,25 +242,12 @@
+ 
+   for (edgenum = habvixnbr + 1; edgenum <= meshptr->edgenbr; edgenum ++) { /* Read VARIND as second part of edge array */
+     Gnum              habnodval;                  /* Current non-zero value                                              */
+-    int               habnzridx;                  /* Current index in non-zero value                                     */
+ 
+-    while (((c = getc (filesrcptr)) == '\n') || (c == '\r')) ;
+-    habnodval = (c == ' ') ? 0 : (c - '0');
+-    for (habnzridx = 1; habnzridx < habnzrsiz; habnzridx ++) {
+-      if ((c = getc (filesrcptr)) != ' ')
+-        habnodval = habnodval * 10 + c - '0';
+-    }
+-    if (c == EOF) {
++    if (meshGeomLoadHaboInt (filesrcptr, habnzrsiz, 1, habvarnbr, &habnodval) != 0) { /* VARIND values must be valid node numbers */
+       errorPrint ("meshGeomLoadHabo: bad input (9)");
+       meshFree   (meshptr);
+       return (1);
+     }
+-#ifdef SCOTCH_DEBUG_MESH2
+-    if ((habnodval < 1) || (habnodval > habvarnbr)) {
+-      errorPrint ("meshGeomLoadHabo: bad input (10)");
+-      return (1);
+-    }
+-#endif /* SCOTCH_DEBUG_MESH2 */
+     meshptr->edgetax[edgenum] = habnodval;
+     meshptr->verttax[habnodval] ++;
+   }

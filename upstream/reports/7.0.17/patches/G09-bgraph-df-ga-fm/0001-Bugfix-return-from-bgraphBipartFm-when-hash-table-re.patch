@@ -1,0 +1,40 @@
+From 6beb9cb25e6b7b57bd50c9dfe06a900d97e3abc4 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:55:11 +0000
+Subject: [PATCH 1/9] Bugfix: return from `bgraphBipartFm()` when hash table
+ resizing fails [report R. Perry]
+
+When `bgraphBipartFmResize()` failed, the hash table and the gain table
+were freed, but the routine went on probing the freed hash table and
+freed it again on exit. Return an error right after the clean-up, as
+`kgraphMapFm()` does.
+
+Refs: SEP-09
+---
+ src/libscotch/bgraph_bipart_fm.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/libscotch/bgraph_bipart_fm.c b/src/libscotch/bgraph_bipart_fm.c
+index 605037b..4dae832 100644
+--- a/src/libscotch/bgraph_bipart_fm.c
++++ b/src/libscotch/bgraph_bipart_fm.c
+@@ -67,7 +67,7 @@
+ /**                # Version 6.0  : from : 23 feb 2011     **/
+ /**                                 to   : 20 aug 2019     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -600,6 +600,7 @@ const BgraphBipartFmParam * const paraptr)        /*+ Method parameters +*/
+                 errorPrint ("bgraphBipartFm: out of memory (2)");
+                 memFree    (hashtab);             /* Free group leader */
+                 bgraphBipartFmTablExit (tablptr);
++                return     (1);
+               }
+               for (hashnum = (vertend * BGRAPHBIPARTFMHASHPRIME) & hashmsk; hashtab[hashnum].vertnum != ~0; hashnum = (hashnum + 1) & hashmsk) ; /* Search for new first free slot */
+             }
+-- 
+2.47.3
+

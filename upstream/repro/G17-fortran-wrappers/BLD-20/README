@@ -1,0 +1,5 @@
+patched.f90 is the generated test (make check_libmetis_dual_f_v3 on the patched 64-bit tree: exit 0, v5 too).
+corrupted.f90 = patched.f90 + "epart(1) = baseval + nparts" after the METIS_PartMeshDual call:
+gfortran -fsanitize=address,undefined -I$W/build64/include -L$W/build64/lib -Wl,-rpath,$W/build64/lib corrupted.f90 -o corrupted_v3 -lscotchmetisv3 -lscotch -lscotcherr -lz -lm -lpthread
+ASAN_OPTIONS=detect_leaks=0 ./corrupted_v3   ->  "ERROR: main: invalid partition (1)", exit 1  (same with v5).
+On pristine the same corruption goes unnoticed (the test ends without looking at epart).

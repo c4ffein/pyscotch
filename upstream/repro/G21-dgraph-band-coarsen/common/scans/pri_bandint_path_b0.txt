@@ -1,0 +1,11 @@
+nth=0 exit=124 :: HANG; 1 (1): ERROR: dgraphBand2Coll: out of memory (1);1 (1): ERROR: dgraphBand: out of memory (1);1 fishim: rank 1: failing allocation #0;1 rank 1: bandint rc=1 seen=1;
+nth=1 exit=124 :: HANG; 1 (1): ERROR: dgraphBand2Coll: out of memory (1);1 fishim: rank 1: failing allocation #1;1 rank 1: bandint rc=1 seen=2;
+nth=2 exit=139 :: 1 (1): ERROR: dgraphBand: out of memory (2);1 dgraph_band.c:224:32: runtime error: store to null pointer of type 'Gnum';1 fishim: rank 1: failing allocation #2;1 fishim: rank 1: signal 11, backtrace:;
+nth=3 exit=139 :: 1 (1): ERROR: dgraphBand: out of memory (3);1 fishim: rank 1: failing allocation #3;1 fishim: rank 1: signal 11, backtrace:;1 rank 0: bandint rc=1 seen=0;
+nth=4 exit=1 :: 1 (1): ERROR: dgraphBand: out of memory (4);1 fishim: rank 1: failing allocation #4;1 fishim: rank 1: signal 11, backtrace:;1 rank 0: bandint rc=1 seen=0;
+nth=5 exit=1 :: 1 (1): ERROR: dgraphBand: out of memory (5);1 fishim: rank 1: failing allocation #5;1 rank 0: bandint rc=1 seen=0;1 rank 1: bandint rc=1 seen=6;
+nth=6 exit=1 :: 1 (1): ERROR: dgraphBand: out of memory (6);1 fishim: rank 1: failing allocation #6;1 rank 0: bandint rc=1 seen=0;1 rank 1: bandint rc=1 seen=7;
+nth=7 exit=124 :: HANG; 1 (1): ERROR: dgraphBand: cannot perform halo exchange;1 (1): ERROR: dgraphHaloSync2: out of memory;1 fishim: rank 1: failing allocation #7;1 rank 1: bandint rc=1 seen=8;
+nth=8 exit=0 :: 1 rank 0: bandint rc=0 seen=0;1 rank 1: bandint rc=0 seen=8;
+nth=9 exit=0 :: 1 rank 0: bandint rc=0 seen=0;1 rank 1: bandint rc=0 seen=8;
+nth=10 exit=0 :: 1 rank 0: bandint rc=0 seen=0;1 rank 1: bandint rc=0 seen=8;

@@ -1,0 +1,197 @@
+From b47ad2c2433da0f8316b124691022645215f312f Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:52:00 +0000
+Subject: [PATCH 119/240] Bugfix: check that message sizes fit in MPI count
+ arguments in folding and redistribution [report R. Perry]
+
+Vertex and edge message sizes of `dgraphFold2()` and `hdgraphFold2()`,
+and data counts of `dgraphRedist2()`, are `Gnum`s that are passed to
+MPI as `int` counts and displacements. With 64-bit `Gnum`s, sizes above
+`INT_MAX` were silently truncated, and `dgraphRedist2()` accumulated
+its data totals in `int`s.
+
+Check in `dgraphFoldComm()` that the maximum number of local vertices,
+which bounds all vertex message sizes, fits in an `int`, and check
+received edge counts on receivers before edge arrays are allocated,
+so that the folding fails collectively in both cases. In
+`dgraphRedist2()`, accumulate data totals as `Gnum`s and check, before
+the existing agreements, that the amounts of data to send and to
+receive fit in `int`s.
+
+Refs: DGR-22
+---
+ src/libscotch/dgraph_fold.c      |  4 ++
+ src/libscotch/dgraph_fold_comm.c |  5 +++
+ src/libscotch/dgraph_redist.c    | 63 +++++++++++++++++---------------
+ src/libscotch/hdgraph_fold.c     |  4 ++
+ 4 files changed, 47 insertions(+), 29 deletions(-)
+
+diff --git a/src/libscotch/dgraph_fold.c b/src/libscotch/dgraph_fold.c
+index f55aae5..e5e1b20 100644
+--- a/src/libscotch/dgraph_fold.c
++++ b/src/libscotch/dgraph_fold.c
+@@ -388,6 +388,10 @@ fail2:                                            /* No communication may still
+     }
+ 
+     for (commnum = 0, fldedgelocbas = orgvertloctax[orggrafptr->vertlocnnd]; commnum < commnbr; commnum ++) {
++      if ((Gnum) (int) fldedgecnttab[commnum] != fldedgecnttab[commnum]) { /* Message sizes are passed to MPI as int's */
++        errorPrint ("dgraphFold2: communication size out of range");
++        goto fail3;
++      }
+       fldedgeidxtab[commnum] = fldedgelocbas;
+       fldedgelocbas += fldedgecnttab[commnum];    /* Accumulate received edges in addition to local edges */
+     }
+diff --git a/src/libscotch/dgraph_fold_comm.c b/src/libscotch/dgraph_fold_comm.c
+index 3dc4d67..921f13d 100644
+--- a/src/libscotch/dgraph_fold_comm.c
++++ b/src/libscotch/dgraph_fold_comm.c
+@@ -163,6 +163,11 @@ Gnum * restrict * restrict const                vertdlttabptr) /* Pointer to glo
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
++  if ((Gnum) (int) grafptr->vertglbmax != grafptr->vertglbmax) { /* Vertex message sizes are passed to MPI as int's */
++    errorPrint ("dgraphFoldComm: communication size out of range");
++    return (1);
++  }
++
+   if ((procsrttab = memAlloc (orgprocglbnbr * sizeof (DgraphFoldCommData))) == NULL) {
+     errorPrint ("dgraphFoldComm: out of memory (1)");
+     return (1);
+diff --git a/src/libscotch/dgraph_redist.c b/src/libscotch/dgraph_redist.c
+index cd5c730..c2098ba 100644
+--- a/src/libscotch/dgraph_redist.c
++++ b/src/libscotch/dgraph_redist.c
+@@ -211,8 +211,8 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+   int * restrict            dsndcnttab;           /* Count array for sent data                           */
+   int * restrict            drcvdsptab;           /* Displacement array for received data                */
+   int * restrict            dsnddsptab;           /* Displacement array for sent data                    */
+-  int                       drcvdatnbr;           /* Amount of data to allocate                          */
+-  int                       dsnddatnbr;
++  Gnum                      drcvdatnbr;           /* Amount of data to allocate                          */
++  Gnum                      dsnddatnbr;
+   int                       drcvdatidx;
+   int                       dsnddatidx;
+   Gnum                      srcvertlocnum;
+@@ -234,8 +234,6 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+   Gnum                      dstedgedatsiz;        /* Size of destination edge data area                  */
+   Gnum *                    dstedloloctax;        /* Pointer to destination edge load array [norestrict] */
+   Gnum                      dstedlolocsiz;
+-  int                       dstvertloctmp;        /* Vertex and edge numbers, as (int)s                  */
+-  int                       dstedgeloctmp;
+   Gnum                      procdspval;
+   int                       procglbnbr;
+   int                       cheklocval;
+@@ -251,15 +249,23 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+ 
+   dstgrafptr->flagval |= (DGRAPHFREEALL ^ DGRAPHFREECOMM) | DGRAPHVERTGROUP | DGRAPHEDGEGROUP;
+ 
++  fledval = ((srcgrafptr->edloloctax != NULL) ? 1 : 0) + 1; /* Amount of data to exchange per edge  */
++  flveval = ((srcgrafptr->veloloctax != NULL) ? 1 : 0) + 3; /* Number, degree and label count for 3 */
++
+   cheklocval = 0;
+   procglbnbr = srcgrafptr->procglbnbr;
+-  if (memAllocGroup ((void **) (void *)           /* Allocate distributed graph private data */
+-                     &dstgrafptr->procdsptab, (size_t) ((procglbnbr + 1) * sizeof (Gnum)),
+-                     &dstgrafptr->procvrttab, (size_t) ((procglbnbr + 1) * sizeof (Gnum)),
+-                     &dstgrafptr->proccnttab, (size_t) (procglbnbr       * sizeof (Gnum)),
+-                     &dstgrafptr->procngbtab, (size_t) (procglbnbr       * sizeof (int)),
+-                     &dstgrafptr->procrcvtab, (size_t) (procglbnbr       * sizeof (int)),
+-                     &dstgrafptr->procsndtab, (size_t) (procglbnbr       * sizeof (int)), NULL) == NULL) {
++  dsnddatnbr = srcgrafptr->vertlocnbr * flveval + srcgrafptr->edgelocnbr * fledval; /* Upper bound on amount of data to send */
++  if ((Gnum) (int) dsnddatnbr != dsnddatnbr) {    /* Data counts are passed to MPI as int's */
++    errorPrint ("dgraphRedist2: communication size out of range (1)");
++    cheklocval = 1;
++  }
++  else if (memAllocGroup ((void **) (void *)      /* Allocate distributed graph private data */
++                          &dstgrafptr->procdsptab, (size_t) ((procglbnbr + 1) * sizeof (Gnum)),
++                          &dstgrafptr->procvrttab, (size_t) ((procglbnbr + 1) * sizeof (Gnum)),
++                          &dstgrafptr->proccnttab, (size_t) (procglbnbr       * sizeof (Gnum)),
++                          &dstgrafptr->procngbtab, (size_t) (procglbnbr       * sizeof (int)),
++                          &dstgrafptr->procrcvtab, (size_t) (procglbnbr       * sizeof (int)),
++                          &dstgrafptr->procsndtab, (size_t) (procglbnbr       * sizeof (int)), NULL) == NULL) {
+     errorPrint ("dgraphRedist2: out of memory (1)");
+     cheklocval = 1;
+   }
+@@ -295,29 +301,32 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+     return (1);
+   }
+ 
+-  fledval = ((srcgrafptr->edloloctax != NULL) ? 1 : 0) + 1; /* Amount of data to exchange per edge  */
+-  flveval = ((srcgrafptr->veloloctax != NULL) ? 1 : 0) + 3; /* Number, degree and label count for 3 */
+-
+-  for (procnum = 0, drcvdatidx = dsnddatidx = 0, dstvertloctmp = dstedgeloctmp = 0;
++  for (procnum = 0, drcvdatnbr = dsnddatnbr = 0, dstvertlocnbr = dstedgelocnbr = 0;
+        procnum < procglbnbr; procnum ++) {        /* Compute start indices for data send and receive arrays */
+     int                 dsndcntval;
+     int                 drcvcntval;
+ 
+-    dsndcntval = dsndcnttab[2 * procnum] * flveval + dsndcnttab[2 * procnum + 1] * fledval;
++    dsndcntval = dsndcnttab[2 * procnum] * flveval + dsndcnttab[2 * procnum + 1] * fledval; /* Fit in int's as sender data do */
+     drcvcntval = drcvcnttab[2 * procnum] * flveval + drcvcnttab[2 * procnum + 1] * fledval;
+-    dstvertloctmp += drcvcnttab[2 * procnum];     /* Accumulate number of vertices and edges */
+-    dstedgeloctmp += drcvcnttab[2 * procnum + 1];
++    dstvertlocnbr += drcvcnttab[2 * procnum];     /* Accumulate number of vertices and edges */
++    dstedgelocnbr += drcvcnttab[2 * procnum + 1];
+ 
+-    dsnddsptab[procnum] = dsnddatidx;
+-    dsnddatidx += dsndcntval;
+-    drcvdsptab[procnum] = drcvdatidx;
+-    drcvdatidx += drcvcntval;
++    dsnddsptab[procnum] = (int) dsnddatnbr;       /* Accumulate amounts of data to allocate for sending and receiving */
++    dsnddatnbr += dsndcntval;
++    drcvdsptab[procnum] = (int) drcvdatnbr;
++    drcvdatnbr += drcvcntval;
+   }
+ 
+-  dsnddatnbr = dsnddatidx;                        /* Preserve amount of data to allocate for sending and receiving */
+-  drcvdatnbr = drcvdatidx;
++  cheklocval = 1;                                 /* Assume an error  */
++  dstvertloctax =                                 /* In case of error */
++  dstedgeloctax = NULL;
++  if ((Gnum) (int) drcvdatnbr != drcvdatnbr) {    /* Data counts are passed to MPI as int's */
++    errorPrint ("dgraphRedist2: communication size out of range (2)");
++    goto fail;
++  }
+ 
+-  for (procnum = procglbnbr - 1; procnum >= 0; procnum --) { /* Compute count arrays for data send and receive arrays */
++  for (procnum = procglbnbr - 1, dsnddatidx = (int) dsnddatnbr, drcvdatidx = (int) drcvdatnbr; /* Compute count arrays for data send and receive arrays */
++       procnum >= 0; procnum --) {
+     int                 dsnddspval;
+     int                 drcvdspval;
+ 
+@@ -329,8 +338,6 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+     drcvdatidx = drcvdspval;
+   }
+ 
+-  dstvertlocnbr = (Gnum) dstvertloctmp;
+-  dstedgelocnbr = (Gnum) dstedgeloctmp;
+   dstedgelocsiz = dstedgelocnbr + dstedgelocdlt;
+   dstvelolocsiz = (srcgrafptr->veloloctax != NULL) ? dstvertlocnbr + dstvertlocdlt : 0;
+   dstedlolocsiz = (srcgrafptr->edloloctax != NULL) ? dstedgelocsiz : 0;
+@@ -338,8 +345,6 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+                   ? (dstedlolocsiz + MAX (dstedgelocdlt, srcgrafptr->degrglbmax)) /* TRICK: extra space only for edge loads and degrmax, to avoid overlap */
+                   : (dstedgelocsiz * fledval);    /* Else destination edge arrays must not overlap receive area */
+ 
+-  cheklocval = 1;                                 /* Assume an error  */
+-  dstedgeloctax = NULL;                           /* In case of error */
+   if (memAllocGroup ((void **) (void *)
+                      &dstvertloctax, (size_t) ((dstvertlocnbr + dstvertlocdlt + 1) * sizeof (Gnum)), /* Create compact array */
+                      &dstveloloctax, (size_t) ( dstvelolocsiz                      * sizeof (Gnum)),
+diff --git a/src/libscotch/hdgraph_fold.c b/src/libscotch/hdgraph_fold.c
+index 77698d4..3882e34 100644
+--- a/src/libscotch/hdgraph_fold.c
++++ b/src/libscotch/hdgraph_fold.c
+@@ -385,6 +385,10 @@ fail2:                                            /* No communication may still
+     }
+ 
+     for (commnum = 0, fldedgelocbas = orggrafptr->s.vertloctax[orggrafptr->s.vertlocnnd]; commnum < commnbr; commnum ++) {
++      if ((Gnum) (int) fldedgecnttab[commnum] != fldedgecnttab[commnum]) { /* Message sizes are passed to MPI as int's */
++        errorPrint ("hdgraphFold2: communication size out of range");
++        goto fail3;
++      }
+       fldedgeidxtab[commnum] = fldedgelocbas;
+       fldedgelocbas += fldedgecnttab[commnum];
+     }
+-- 
+2.47.3
+

@@ -1,0 +1,62 @@
+From 3170389a707b47750a2f19b64c1d4d4f47e3e9c5 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:59:26 +0000
+Subject: [PATCH 057/240] Bugfix: count fake isolated elements in `hmeshMesh()`
+ [report PyScotch]
+
+When nodes are numbered before elements, `hmeshMesh()` turns halo nodes
+into empty "fake" element vertices, but neither `veisnbr` nor, for
+unweighted elements, `velosum` were increased accordingly, so the
+resulting mesh failed `meshCheck()` ("invalid number of isolated
+element vertices", then "invalid element vertex load sum"). Also name
+the routine properly in its error messages.
+
+Refs: PS2-G11-mesh-struct-io-2, SEP-21
+---
+ src/libscotch/hmesh_mesh.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/src/libscotch/hmesh_mesh.c b/src/libscotch/hmesh_mesh.c
+index ba4333a..0c2bcf0 100644
+--- a/src/libscotch/hmesh_mesh.c
++++ b/src/libscotch/hmesh_mesh.c
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 4.0  : from : 28 apr 2004     **/
+ /**                                 to   : 11 may 2004     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # From a given halo mesh is created a   **/
+ /**                  non-halo mesh. When nodes are         **/
+@@ -111,7 +111,7 @@ Mesh * restrict const         meshptr)            /*+ Mesh to build      +*/
+   meshptr->flagval = MESHFREEVEND;
+   if (hmshptr->m.velmbas <= hmshptr->m.vnodbas) { /* If elements numbered before nodes */
+     if ((meshptr->vendtax = memAlloc ((hmshptr->m.velmnbr + hmshptr->vnohnbr) * sizeof (Gnum))) == NULL) { /* Do not keep halo nodes at end of array */
+-      errorPrint ("hmeshHgraph: out of memory (1)");
++      errorPrint ("hmeshMesh: out of memory (1)");
+       return     (1);
+     }
+     memCpy (meshptr->vendtax, hmshptr->vehdtax + hmshptr->m.velmbas, hmshptr->m.velmnbr * sizeof (Gnum));
+@@ -123,7 +123,7 @@ Mesh * restrict const         meshptr)            /*+ Mesh to build      +*/
+   }
+   else {                                          /* If nodes numbered before elements */
+     if ((meshptr->vendtax = memAlloc ((hmshptr->m.velmnbr + hmshptr->m.vnodnbr) * sizeof (Gnum))) == NULL) { /* Turn halo nodes into empty elements */
+-      errorPrint ("hmeshHgraph: out of memory (2)");
++      errorPrint ("hmeshMesh: out of memory (2)");
+       return     (1);
+     }
+     memCpy (meshptr->vendtax, hmshptr->m.vendtax + hmshptr->m.baseval, hmshptr->vnohnbr * sizeof (Gnum)); /* Copy non-halo node part */
+@@ -131,6 +131,9 @@ Mesh * restrict const         meshptr)            /*+ Mesh to build      +*/
+     memCpy (meshptr->vendtax + hmshptr->m.vnodnbr, hmshptr->vehdtax + hmshptr->m.velmbas, hmshptr->m.velmnbr * sizeof (Gnum));
+ 
+     meshptr->velmnbr = hmshptr->m.velmnbr + hmshptr->m.vnodnbr - hmshptr->vnohnbr; /* Turn halo node vertices into element vertices */
++    meshptr->veisnbr = meshptr->veisnbr + hmshptr->m.vnodnbr - hmshptr->vnohnbr; /* Fake element vertices are isolated            */
++    if (meshptr->velotax == NULL)                 /* If elements are not weighted, fake element vertices have unit loads */
++      meshptr->velosum = meshptr->velosum + hmshptr->m.vnodnbr - hmshptr->vnohnbr;
+     meshptr->velmbas = hmshptr->vnohnnd;
+     meshptr->velmnnd = hmshptr->m.velmnnd;
+   }
+-- 
+2.47.3
+

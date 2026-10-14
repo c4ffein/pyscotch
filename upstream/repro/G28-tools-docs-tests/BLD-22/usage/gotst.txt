@@ -1,0 +1,5 @@
+Usage is:
+  gotst [<input graph file> [<input ordering file> [<output data file>]]] <options>
+    -h  : Display this help
+    -v  : Do not account for vertex weights
+    -V  : Print program version and copyright

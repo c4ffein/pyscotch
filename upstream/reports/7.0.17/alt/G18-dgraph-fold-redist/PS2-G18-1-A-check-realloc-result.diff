@@ -1,0 +1,27 @@
+--- a/src/libscotch/hdgraph_induce.c
++++ b/src/libscotch/hdgraph_induce.c
+@@ -43,7 +43,7 @@
+ /**                # Version 5.1  : from : 27 jun 2008     **/
+ /**                                 to   : 22 oct 2010     **/
+ /**                # Version 7.0  : from : 28 aug 2019     **/
+-/**                                 to   : 04 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -299,9 +299,12 @@
+   indvertloctax[indvertlocnum] = indedgelocnum;   /* Mark end of edge array for vhndloctax                 */
+   indedgelocsiz = indedgelocnum - orggrafptr->s.baseval; /* Global number of edges, both non-halo and halo */
+ 
+-  indgrafptr->s.edgeloctax = memRealloc (indgrafptr->s.edgeloctax + orggrafptr->s.baseval,
+-                                         (size_t) (indedgelocsiz * sizeof (Gnum)));
+-  indgrafptr->s.edgeloctax -= orggrafptr->s.baseval;
++  if ((indedgeloctax = memRealloc (indgrafptr->s.edgeloctax + orggrafptr->s.baseval, /* Shrink edge array to its final size */
++                                   (size_t) (indedgelocsiz * sizeof (Gnum)))) == NULL) {
++    errorPrint ("hdgraphInduceList: out of memory (4)"); /* Original array is still valid and will be freed by hdgraphExit() */
++    goto fail2;
++  }
++  indgrafptr->s.edgeloctax = indedgeloctax - orggrafptr->s.baseval;
+ 
+   if (orggrafptr->s.vnumloctax != NULL) {         /* Adjust vnumloctax */
+     for (indvertlocnum = orggrafptr->s.baseval; indvertlocnum < indvertlocnnd; indvertlocnum ++)

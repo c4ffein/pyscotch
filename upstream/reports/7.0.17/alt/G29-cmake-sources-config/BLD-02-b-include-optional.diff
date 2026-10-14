@@ -1,0 +1,17 @@
+diff --git a/cmake/SCOTCHConfig.cmake.in b/cmake/SCOTCHConfig.cmake.in
+index 8d8b536..ba7630d 100644
+--- a/cmake/SCOTCHConfig.cmake.in
++++ b/cmake/SCOTCHConfig.cmake.in
+@@ -84,10 +84,10 @@ if(@BUILD_PTSCOTCH@)
+ endif()
+ if(@BUILD_LIBESMUMPS@)
+   set(@PROJECT_NAME@_LIBESMUMPS_FOUND ON)
+-  include("${CMAKE_CURRENT_LIST_DIR}/esmumpsTargets.cmake")
++  include("${CMAKE_CURRENT_LIST_DIR}/esmumpsTargets.cmake" OPTIONAL)
+   if(@BUILD_PTSCOTCH@)
+     set(@PROJECT_NAME@_LIBPTESMUMPS_FOUND ON)
+-    include("${CMAKE_CURRENT_LIST_DIR}/ptesmumpsTargets.cmake")
++    include("${CMAKE_CURRENT_LIST_DIR}/ptesmumpsTargets.cmake" OPTIONAL)
+   endif()
+ endif()
+ if(@BUILD_LIBSCOTCHMETIS@)

@@ -1,0 +1,24 @@
+# COR-08 option C: the child closes every descriptor except its two pipe/stream ends
+# (classic daemon idiom), so no bookkeeping and nothing else changes; _exit() in children.
+# Drawbacks: sysconf(_SC_OPEN_MAX) can be 2^20 in containers (one close() syscall each,
+# ~0.1-0.3 s per child), and it is not applicable where fork() is stubbed anyway.
+# Not run.
+--- a/src/libscotch/common_file_compress.c
++++ b/src/libscotch/common_file_compress.c
+@@ (fileCompress, fork branch)
+     case 0 :                                      /* We are the son process    */
+-      fclose (writptr);                           /* Close writer pipe stream  */
++      fclose (writptr);                           /* Close writer pipe stream  */
++      {
++        int                 fdnum;
++        int                 fdmax = (int) sysconf (_SC_OPEN_MAX);
++
++        for (fdnum = 3; fdnum < fdmax; fdnum ++) { /* Close all inherited descriptors we do not need */
++          if ((fdnum != compptr->infdnum) && (fdnum != fileno (compptr->oustptr)))
++            close (fdnum);
++        }
++      }
+       fileCompress2 (compptr);                    /* Perform compression       */
+-      exit (EXIT_SUCCESS);                        /* Exit gracefully           */
++      _exit (EXIT_SUCCESS);                       /* Do not flush father's stdio buffers */
+--- a/src/libscotch/common_file_decompress.c   (same hunk)

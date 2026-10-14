@@ -1,0 +1,49 @@
+From 6780125abb3b6a400b288ac62e0f843cf6837da1 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:07:10 +0000
+Subject: [PATCH 05/11] Bugfix: detect unterminated option arguments in `gout`
+ [report R. Perry]
+
+`strpbrk()` returns NULL when none of the delimiters is found, and
+the "\0" at the end of the delimiter string only terminates it. An
+option string such as "-Oi{c" therefore dereferenced a NULL pointer
+instead of being reported as a syntax error.
+
+Refs: CLI-17
+---
+ src/scotch/gout_c.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/scotch/gout_c.c b/src/scotch/gout_c.c
+index 0636d9a..b555ce7 100644
+--- a/src/scotch/gout_c.c
++++ b/src/scotch/gout_c.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2010-2012,2014,2018,2019,2021,2023-2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2010-2012,2014,2018,2019,2021,2023-2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -61,7 +61,7 @@
+ /**                # Version 6.1  : from : 04 apr 2021     **/
+ /**                                 to   : 28 aug 2021     **/
+ /**                # Version 7.0  : from : 31 aug 2021     **/
+-/**                                 to   : 13 jul 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -705,8 +705,8 @@ char * const                strgptr)              /* Pointer to the string to pa
+       int                 argunum;
+       int                 flagval;
+ 
+-      argeptr = strpbrk (argbptr, ",}\0");        /* Search for the argument end  */
+-      if (*argeptr == '\0')                       /* If there is no end delimiter */
++      argeptr = strpbrk (argbptr, ",}");          /* Search for the argument end  */
++      if (argeptr == NULL)                        /* If there is no end delimiter */
+         return (3);                               /* Return syntax error value    */
+ 
+       argusiz = ((argeptr - argbptr) < 127)       /* Get argument bounded length */
+-- 
+2.47.3
+

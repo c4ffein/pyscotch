@@ -1,0 +1,4 @@
+Usage is:
+  gmk_ub2 <dim> [<output source file>] <options>
+    -h  : Display this help
+    -V  : Print program version and copyright

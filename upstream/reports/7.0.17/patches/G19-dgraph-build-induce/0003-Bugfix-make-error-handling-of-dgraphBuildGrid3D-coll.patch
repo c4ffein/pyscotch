@@ -1,0 +1,95 @@
+From 90454ceabe2d4afc634c77fc8e5d3dbe35244a0d Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:41:01 +0000
+Subject: [PATCH 03/11] Bugfix: make error handling of `dgraphBuildGrid3D()`
+ collective [report PyScotch]
+
+A process that could not allocate its arrays returned alone, while the
+other processes entered the collective communications of
+`dgraphBuild2()` and waited forever.
+
+Agree on allocation errors, and on the consistency of the parameters,
+before building the graph, as `dgraphBuildHcub()` does.
+---
+ src/libscotch/dgraph_build_grid3d.c | 51 +++++++++++++++++++++++++----
+ 1 file changed, 45 insertions(+), 6 deletions(-)
+
+diff --git a/src/libscotch/dgraph_build_grid3d.c b/src/libscotch/dgraph_build_grid3d.c
+index aa2a53e..a6bf09a 100644
+--- a/src/libscotch/dgraph_build_grid3d.c
++++ b/src/libscotch/dgraph_build_grid3d.c
+@@ -302,6 +302,9 @@ const Gnum                  flagval)              /* Grid type        */
+   Gnum                  edlolocsiz;
+   Gnum *                edloloctab;
+   Gnum                  degrglbmax;
++  int                   cheklocval;
++  Gnum                  reduloctab[13];
++  Gnum                  reduglbtab[13];
+ 
+ #ifdef SCOTCH_DEBUG_DGRAPH1
+   if ((dimxval < 1) || (dimyval < 1) || (dimzval < 1)) { /* At least one vertex */
+@@ -341,19 +344,55 @@ const Gnum                  flagval)              /* Grid type        */
+   velolocsiz  = ((flagval & 4) != 0) ? vertlocnbr : 0;
+   edlolocsiz  = ((flagval & 8) != 0) ? edgelocsiz : 0;
+ 
++  cheklocval = 0;
++  vertloctax =
++  edgeloctab = NULL;
+   if (memAllocGroup ((void **) (void *)
+                      &vertloctax, (size_t) ((vertlocnbr + 1) * sizeof (Gnum)), /* +1 to indicate end of array */
+                      &veloloctax, (size_t) (velolocsiz       * sizeof (Gnum)),
+                      &vlblloctax, (size_t) (vlbllocsiz       * sizeof (Gnum)), NULL) == NULL) {
+     errorPrint ("dgraphBuildGrid3D: out of memory (1)");
+-    return     (1);
++    cheklocval = 1;
+   }
+-  if (memAllocGroup ((void **) (void *)
+-                     &edgeloctab, (size_t) (edgelocsiz * sizeof (Gnum)),
+-                     &edloloctab, (size_t) (edlolocsiz * sizeof (Gnum)), NULL) == NULL) {
+-    memFree    (vertloctax);
++  else if (memAllocGroup ((void **) (void *)
++                          &edgeloctab, (size_t) (edgelocsiz * sizeof (Gnum)),
++                          &edloloctab, (size_t) (edlolocsiz * sizeof (Gnum)), NULL) == NULL) {
+     errorPrint ("dgraphBuildGrid3D: out of memory (2)");
+-    return     (1);
++    cheklocval = 1;
++  }
++  reduloctab[0]  =   baseval;                     /* Check argument consistency and agree on memory errors */
++  reduloctab[1]  = - baseval;
++  reduloctab[2]  =   dimxval;
++  reduloctab[3]  = - dimxval;
++  reduloctab[4]  =   dimyval;
++  reduloctab[5]  = - dimyval;
++  reduloctab[6]  =   dimzval;
++  reduloctab[7]  = - dimzval;
++  reduloctab[8]  =   incrval;
++  reduloctab[9]  = - incrval;
++  reduloctab[10] =   flagval;
++  reduloctab[11] = - flagval;
++  reduloctab[12] =   cheklocval;
++
++  if (MPI_Allreduce (reduloctab, reduglbtab, 13, GNUM_MPI, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) {
++    errorPrint ("dgraphBuildGrid3D: communication error");
++    reduglbtab[12] = 1;
++  }
++  else if ((reduglbtab[1]  != - reduglbtab[0])  ||
++           (reduglbtab[3]  != - reduglbtab[2])  ||
++           (reduglbtab[5]  != - reduglbtab[4])  ||
++           (reduglbtab[7]  != - reduglbtab[6])  ||
++           (reduglbtab[9]  != - reduglbtab[8])  ||
++           (reduglbtab[11] != - reduglbtab[10])) {
++    errorPrint ("dgraphBuildGrid3D: inconsistent parameters");
++    reduglbtab[12] = 1;
++  }
++  if (reduglbtab[12] != 0) {                      /* If some process cannot proceed */
++    if (edgeloctab != NULL)
++      memFree (edgeloctab);
++    if (vertloctax != NULL)
++      memFree (vertloctax);
++    return (1);
+   }
+ 
+   datadat.baseval = baseval;
+-- 
+2.47.3
+

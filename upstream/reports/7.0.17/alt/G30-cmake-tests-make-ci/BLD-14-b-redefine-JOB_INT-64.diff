@@ -1,0 +1,11 @@
+--- a/ci/env_makefile.sh
++++ b/ci/env_makefile.sh
+@@ -10,7 +10,7 @@
+      32-64 )
+        export JOBBUILDFLAGS="${JOBBUILDFLAGS} -DINTSIZE64 -DIDXSIZE64" ;;
+      64 )
+-       export JOBBUILDFLAGS="${JOBBUILDFLAGS}" ;;
++       export JOBBUILDFLAGS="${JOBBUILDFLAGS} -DINTSIZE64 -DIDXSIZE64" ;;
+ esac
+ 
+ case "${JOB_THREAD}" in

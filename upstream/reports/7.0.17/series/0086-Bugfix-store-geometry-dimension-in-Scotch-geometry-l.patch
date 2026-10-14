@@ -1,0 +1,61 @@
+From 85daef4dd708fc825befb78cceb913f8ffceda01 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:18:38 +0000
+Subject: [PATCH 086/240] Bugfix: store geometry dimension in Scotch geometry
+ loader [report R. Perry]
+
+graphGeomLoadScot() read the geometry dimension into a local and used it
+to fill geomtab, but never assigned geomptr->dimnnbr. After
+SCOTCH_graphGeomLoadScot(), SCOTCH_geomData() reported dimension 0 and
+SCOTCH_graphGeomSaveScot() wrote no coordinates. A pre-existing geomtab
+was also reused without checking it was large enough for the new
+dimension. (Re)allocate geomtab to the required size and record the
+dimension.
+
+Refs: GRA-09
+---
+ src/libscotch/graph_io_scot.c | 17 +++++++++++------
+ 1 file changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/src/libscotch/graph_io_scot.c b/src/libscotch/graph_io_scot.c
+index a0f385d..aaa46cf 100644
+--- a/src/libscotch/graph_io_scot.c
++++ b/src/libscotch/graph_io_scot.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2010,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2010,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -49,7 +49,7 @@
+ /**                # Version 5.1  : from : 11 aug 2010     **/
+ /**                                 to   : 11 aug 2010     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 19 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -113,10 +113,15 @@ const char * const          dataptr)              /* No use           */
+   if (grafptr->vertnbr == 0)
+     return (0);
+ 
+-  if ((geomptr->geomtab == NULL) &&               /* Allocate geometry if necessary */
+-      ((geomptr->geomtab = (double *) memAlloc (grafptr->vertnbr * dimnnbr * sizeof (double))) == NULL)) {
+-    errorPrint ("graphGeomLoadScot: out of memory (1)");
+-    return     (1);
++  {                                               /* (Re)allocate geometry array to the proper size and record its dimension */
++    double *            geomtab;
++
++    if ((geomtab = (double *) memRealloc (geomptr->geomtab, grafptr->vertnbr * dimnnbr * sizeof (double))) == NULL) {
++      errorPrint ("graphGeomLoadScot: out of memory (1)");
++      return     (1);
++    }
++    geomptr->geomtab = geomtab;
++    geomptr->dimnnbr = (int) dimnnbr;
+   }
+ 
+   if (memAllocGroup ((void **)
+-- 
+2.47.3
+

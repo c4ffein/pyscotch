@@ -1,0 +1,22 @@
+CLI-01 (dgmap/dgpart discard the user -m strategy) reproducer.
+
+dgmap.c is shared by dgmap and dgpart.  Pristine = INFRA/asan/bin, patched = build/bin.
+  export LD_LIBRARY_PATH=<lib> ASAN_OPTIONS=detect_leaks=0
+
+Deterministic demonstration (an incomplete-but-parseable -m strategy is honoured
+only after the fix, so it reaches the mapper and the known dmapping_io.c null
+load fires; pristine silently replaces it with the default and does not):
+
+  mpirun --oversubscribe -np 3 <bin>/dgpart 9 <data>/bump.grf /dev/null -Cd -m'r{sep=q{strat=f}}'
+   pristine : runs to completion (user -m discarded, default used)      -> 0 crashes
+   patched  : user -m reaches the mapper                                -> SIGSEGV (6 lines across ranks)
+  The exclusivity check still fires:
+  ... -Cd -m'r{sep=q{strat=f}}' -b0.1 -> "ERROR: ... '-b' / '-c' and '-m' are exclusive"
+
+defstrat.c prints a complete default distributed strategy for use as a valid -m
+string (that case produces identical output here because -Cd makes the run
+deterministic and the ratio change is immaterial for this graph).
+
+NOTE: the dmapping_io.c:256 null load on an INCOMPLETE user -m strategy is a
+separate pre-existing robustness bug (reported as PS2-G05-strategy-tables-api-1),
+exposed, not caused, by this fix.

@@ -1,0 +1,174 @@
+From 8c88e21f281499fb47dc904823e7301b09e02d6c Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:14:36 +0000
+Subject: [PATCH 161/240] Bugfix: base the vertex label arrays gathered by
+ distributed ordering writers [report R. Perry]
+
+`dorderSave()` and `dorderSaveTree2()` gathered the vertex labels of
+all processes into an un-based array, using the based process
+displacement array, so that the root process wrote `baseval` cells
+past the end of the array. `dorderSave()`, which based the array only
+afterwards, then printed the label of the previous vertex on every
+line, the first one being uninitialized; the tree and mapping writers,
+which index the array with based vertex numbers, read past its end.
+
+Base the label array before gathering, as `dmapSave()` does since
+commit 4290e22, and add a based, labeled graph to the `dgord` checks.
+
+Refs: DMO-02
+---
+ src/check/CMakeLists.txt       |  4 +++-
+ src/check/Makefile             |  1 +
+ src/libscotch/dorder_io.c      | 12 +++++++-----
+ src/libscotch/dorder_io_tree.c | 20 +++++++++++---------
+ 4 files changed, 22 insertions(+), 15 deletions(-)
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index a759629..3f8ed36 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -780,7 +780,9 @@ if(BUILD_PTSCOTCH)
+ 
+   add_test(NAME dgord_2 COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 $<TARGET_FILE:dgord> ${dat}/bump_b100000.grf ${dev_null} -vt)
+ 
+-  add_test(NAME dgord_3 COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:dgord> ${dat}/small1-%r.grf small1.ord -vt)
++  add_test(NAME dgord_3 COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 $<TARGET_FILE:dgord> ${dat}/m4x4_b1_elv.grf m4x4_b1_elv.ord -Tm4x4_b1_elv.tre -vt)
++
++  add_test(NAME dgord_4 COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:dgord> ${dat}/small1-%r.grf small1.ord -vt)
+ 
+   # check_prog_dgpart
+ 
+diff --git a/src/check/Makefile b/src/check/Makefile
+index 088492d..a492ca7 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -874,6 +874,7 @@ check_prog_full		:
+ check_prog_dgord		:
+ 					$(EXECP3) $(SCOTCHBINDIR)/dgord data/bump.grf /dev/null -Cu -vt
+ 					$(EXECP3) $(SCOTCHBINDIR)/dgord data/bump_b100000.grf /dev/null -Cd -vt
++					$(EXECP3) $(SCOTCHBINDIR)/dgord data/m4x4_b1_elv.grf $(TMPDIR)/m4x4_b1_elv.ord -T$(TMPDIR)/m4x4_b1_elv.tre -vt
+ 					$(EXECP4) $(SCOTCHBINDIR)/dgord data/small1-%r.grf $(TMPDIR)/small1.ord -vt
+ 
+ check_prog_dgpart		:
+diff --git a/src/libscotch/dorder_io.c b/src/libscotch/dorder_io.c
+index 64a0637..8d18715 100644
+--- a/src/libscotch/dorder_io.c
++++ b/src/libscotch/dorder_io.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2010,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2010,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -43,7 +43,7 @@
+ /**                # Version 5.1  : from : 30 jul 2010     **/
+ /**                                 to   : 11 aug 2010     **/
+ /**                # Version 7.0  : from : 18 jan 2023     **/
+-/**                                 to   : 01 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -112,7 +112,8 @@ FILE * restrict const         stream)
+   protnum = (int) reduglbtab[1];                  /* Get rank of root process */
+ 
+   reduloctab[0] = 0;
+-  permtab       = NULL;
++  permtab       =
++  vlbltax       = NULL;
+   if (protnum == ordeptr->proclocnum) {
+     Gnum                  vlblnbr;
+ 
+@@ -141,6 +142,9 @@ FILE * restrict const         stream)
+ #endif /* SCOTCH_DEBUG_DORDER1 */
+ 
+   if (grafptr->vlblloctax != NULL) {
++    if (vlbltax != NULL)                          /* Base label array of root process since displacement array is based */
++      vlbltax -= ordeptr->baseval;
++
+     if (commGatherv (grafptr->vlblloctax + grafptr->baseval, grafptr->vertlocnbr, GNUM_MPI,
+                      vlbltax, grafptr->proccnttab, grafptr->procdsptab, GNUM_MPI, protnum, grafptr->proccomm) != MPI_SUCCESS) {
+       errorPrint ("dorderSave: communication error (3)");
+@@ -200,8 +204,6 @@ FILE * restrict const         stream)
+     orderPeri (peritab, ordeptr->baseval, ordeptr->vnodglbnbr, permtab, ordeptr->baseval); /* Compute direct permutation */
+ 
+     if (grafptr->vlblloctax != NULL) {            /* If ordering has label array */
+-      vlbltax -= ordeptr->baseval;                /* Base label array            */
+-
+       for (vertnum = 0; vertnum < ordeptr->vnodglbnbr; vertnum ++) {
+         if (fprintf (stream, GNUMSTRING "\t" GNUMSTRING "\n",
+                      (Gnum) vlbltax[vertnum + ordeptr->baseval],
+diff --git a/src/libscotch/dorder_io_tree.c b/src/libscotch/dorder_io_tree.c
+index f40fd19..813612a 100644
+--- a/src/libscotch/dorder_io_tree.c
++++ b/src/libscotch/dorder_io_tree.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2010,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2010,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 5.1  : from : 30 jul 2010     **/
+ /**                                 to   : 30 jul 2010     **/
+ /**                # Version 7.0  : from : 18 jan 2023     **/
+-/**                                 to   : 11 jul 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -79,7 +79,7 @@ FILE * restrict const         stream,
+ int                        (* funcptr) (const Order * restrict const, const Gnum * restrict const, FILE * restrict const))
+ {
+   Order                 corddat;                  /* Centralized ordering for tree structure */
+-  Gnum * restrict       vlbltab;
++  Gnum * restrict       vlbltax;
+   int                   procglbnbr;
+   int                   protnum;
+   int                   reduloctab[3];
+@@ -112,10 +112,10 @@ int                        (* funcptr) (const Order * restrict const, const Gnum
+   protnum = (int) reduglbtab[1];                  /* Get rank of root process */
+ 
+   cheklocval = 0;
+-  vlbltab = NULL;
++  vlbltax = NULL;
+   if (reduglbtab[2] != 0) {
+     if (protnum == ordeptr->proclocnum)
+-      if ((vlbltab = memAlloc (ordeptr->vnodglbnbr * sizeof (Gnum))) == NULL) {
++      if ((vlbltax = memAlloc (ordeptr->vnodglbnbr * sizeof (Gnum))) == NULL) {
+         errorPrint ("dorderSaveTree2: out of memory");
+         cheklocval = 1;
+       }
+@@ -127,8 +127,10 @@ int                        (* funcptr) (const Order * restrict const, const Gnum
+ #endif /* SCOTCH_DEBUG_DORDER1 */
+     if (cheklocval != 0)
+       return (1);
++    if (vlbltax != NULL)                          /* Base label array of root process since displacement array is based */
++      vlbltax -= ordeptr->baseval;
+     if (commGatherv (grafptr->vlblloctax + grafptr->baseval, grafptr->vertlocnbr, GNUM_MPI,
+-                     vlbltab, grafptr->proccnttab, grafptr->procdsptab, GNUM_MPI, protnum, grafptr->proccomm) != MPI_SUCCESS) {
++                     vlbltax, grafptr->proccnttab, grafptr->procdsptab, GNUM_MPI, protnum, grafptr->proccomm) != MPI_SUCCESS) {
+       errorPrint ("dorderSaveTree2: communication error (3)");
+       return     (1);
+     }
+@@ -148,14 +150,14 @@ int                        (* funcptr) (const Order * restrict const, const Gnum
+   if (protnum == ordeptr->proclocnum) {
+     cheklocval = dorderGather (ordeptr, &corddat); /* Need inverse permutation too */
+     if (cheklocval == 0)
+-      cheklocval = funcptr (&corddat, vlbltab, stream);
++      cheklocval = funcptr (&corddat, vlbltax, stream);
+     orderExit (&corddat);
+   }
+   else
+     cheklocval = dorderGather (ordeptr, NULL);
+ 
+-  if (vlbltab != NULL)
+-    memFree (vlbltab);
++  if (vlbltax != NULL)
++    memFree (vlbltax + ordeptr->baseval);
+ 
+ #ifdef SCOTCH_DEBUG_DORDER1                       /* Communication cannot be merged with a useful one */
+   if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, ordeptr->proccomm) != MPI_SUCCESS) {
+-- 
+2.47.3
+

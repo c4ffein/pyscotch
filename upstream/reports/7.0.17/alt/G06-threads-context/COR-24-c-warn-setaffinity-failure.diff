@@ -1,0 +1,12 @@
+--- a/src/libscotch/common_thread.c
++++ b/src/libscotch/common_thread.c
+@@ -790,7 +790,8 @@
+   if ((corenum >= 0) && (corenum < CPU_SETSIZE)) {
+     CPU_ZERO (&cpusdat);
+     CPU_SET  (corenum, &cpusdat);
+-    pthread_setaffinity_np (thidval, sizeof (cpu_set_t), &cpusdat);
++    if (pthread_setaffinity_np (thidval, sizeof (cpu_set_t), &cpusdat) != 0)
++      errorPrintW ("threadCreate: cannot bind thread (%d) to core (%d)", thrdnum, corenum);
+   }
+ #endif /* COMMON_PTHREAD_AFFINITY_LINUX */
+ 

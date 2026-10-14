@@ -1,0 +1,30 @@
+--- a/src/esmumps/Makefile
++++ b/src/esmumps/Makefile
+@@ -181,6 +181,7 @@
+ symbol_cost$(OBJ)		:	symbol_cost.c				\
+ 					module.h				\
+ 					$(SCOTCHSRCLIBSCOTCHDIR)/common.h	\
++					dof.h					\
+ 					symbol.h				\
+ 					symbol_cost.h
+ 
+@@ -190,7 +191,8 @@
+ 					graph.h					\
+ 					symbol.h				\
+ 					order.h					\
+-					fax.h
++					fax.h					\
++					symbol_fax.h
+ 
+ symbol_fax_graph$(OBJ)		:	symbol_fax_graph.c			\
+ 					symbol_fax.c				\
+@@ -200,7 +202,8 @@
+ 					graph.h					\
+ 					symbol.h				\
+ 					order.h					\
+-					fax.h
++					fax.h					\
++					symbol_fax.h
+ 
+ libesmumps$(LIB)		:	$(LIBESMUMPSDEPS)
+ 					$(AR) $(ARFLAGS) $(@) $(?)

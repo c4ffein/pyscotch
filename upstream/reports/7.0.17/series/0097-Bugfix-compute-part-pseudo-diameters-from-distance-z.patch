@@ -1,0 +1,76 @@
+From ee5180e7513063c9cf5d1e0d40967791531d81a1 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:35:49 +0000
+Subject: [PATCH 097/240] Bugfix: compute part pseudo-diameters from distance
+ zero in `SCOTCH_graphMapView()` [report R. Perry]
+
+Distances in `graphMapView3()` started from one, so that every
+part pseudo-diameter was one too big; root vertices were searched
+up to `vertnbr` instead of `vertnnd`, so that, for based graphs,
+the last vertices could never start a component; the `-1` error
+return value was added to the diameter sum without being tested.
+
+Refs: API-14
+---
+ src/libscotch/library_graph_map_view.c | 22 +++++++++++++---------
+ 1 file changed, 13 insertions(+), 9 deletions(-)
+
+diff --git a/src/libscotch/library_graph_map_view.c b/src/libscotch/library_graph_map_view.c
+index ad1757e..e57c87e 100644
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -84,10 +84,11 @@
+ /************************************/
+ 
+ /* This routine computes the pseudo-diameter of
+-** the given part.
++** the given part. Connected components of the
++** part are considered as linked by an edge.
+ ** It returns:
+-** - 0   : on success.
+-** - !0  : on error.
++** - >=0 : pseudo-diameter of the part.
++** - -1  : on error.
+ */
+ 
+ static
+@@ -122,19 +123,19 @@ const Anum                  partval)              /*+ Part (index) value +*/
+   vendtax  = grafptr->vendtax;
+   vexxtax -= grafptr->baseval;
+ 
+-  distmax = 0;                                    /* Start distances from zero                  */
++  distmax = -1;                                   /* First component starts from distance zero  */
+   for (passnum = 1, rootnum = grafptr->baseval; ; passnum ++) { /* For all connected components */
+     Gnum                diamnum;                  /* Vertex which achieves diameter             */
+ 
+-    while ((rootnum < grafptr->vertnbr) &&
++    while ((rootnum < grafptr->vertnnd) &&
+            ((vexxtax[rootnum].passnum != 0) ||    /* Find first unallocated vertex */
+             (parttax[rootnum] != partval)))
+       rootnum ++;
+-    if (rootnum >= grafptr->vertnbr)              /* Exit if all of graph processed */
++    if (rootnum >= grafptr->vertnnd)              /* Exit if all of graph processed */
+       break;
+ 
+-    connval = ++ distmax;                         /* Start from previous distance */
+-    diamnum = rootnum;                            /* Start from found root        */
++    connval = ++ distmax;                         /* Start one past previous distance */
++    diamnum = rootnum;                            /* Start from found root            */
+ 
+     for (flagval = 1; flagval -- != 0; passnum ++) { /* Loop if modifications   */
+       graphMapViewQueueFlush (&queudat);          /* Flush vertex queue         */
+@@ -538,7 +539,10 @@ FILE * const                  stream)             /*+ Output stream
+     do {
+       Gnum                diamval;
+ 
+-      diamval  = graphMapView3 (grafptr, pidxtax, mapnum);
++      if ((diamval = graphMapView3 (grafptr, pidxtax, mapnum)) < 0) { /* If could not compute part diameter */
++        memFree (domntab);                        /* Free group leader */
++        return (1);
++      }
+       diamsum += diamval;
+       if (diamval < diammin)
+         diammin = diamval;
+-- 
+2.47.3
+

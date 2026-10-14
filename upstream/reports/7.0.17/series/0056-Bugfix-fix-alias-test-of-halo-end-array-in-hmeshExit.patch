@@ -1,0 +1,35 @@
+From 0a9da5f380a4d4835620298f47cb5880b2014282 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:59:26 +0000
+Subject: [PATCH 056/240] Bugfix: fix alias test of halo end array in
+ `hmeshExit()` [report PyScotch]
+
+`hmeshExit()` compared `vehdtax` with `m.vendtax + (baseval - velmbas)`
+to decide whether the halo end array is the mesh end array. The two
+based accesses are equal when they alias, as `hmeshCheck()` tests, so
+the offset form only matched for element-first meshes. For a node-first
+halo mesh whose `vehdtax` aliases a distinct `vendtab`, `hmeshExit()`
+freed `vendtab + velmbas`, an interior pointer, before `meshExit()`
+freed `vendtab` itself.
+
+Refs: PS2-G11-mesh-struct-io-4
+---
+ src/libscotch/hmesh.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/libscotch/hmesh.c b/src/libscotch/hmesh.c
+index c0267d1..dd423ad 100644
+--- a/src/libscotch/hmesh.c
++++ b/src/libscotch/hmesh.c
+@@ -71,7 +71,7 @@ hmeshExit (
+ Hmesh * const               meshptr)
+ {
+   if ((meshptr->vehdtax != NULL) &&               /* Exit halo mesh data */
+-      (meshptr->vehdtax != (meshptr->m.vendtax + (meshptr->m.baseval - meshptr->m.velmbas))) &&
++      (meshptr->vehdtax != meshptr->m.vendtax) && /* If halo end array is distinct from mesh end array */
+       ((meshptr->m.flagval & MESHVERTGROUP) == 0))
+     memFree (meshptr->vehdtax + meshptr->m.velmbas);
+   meshExit (&meshptr->m);                         /* Exit mesh data */
+-- 
+2.47.3
+

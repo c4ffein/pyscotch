@@ -1,0 +1,6 @@
+DMO-13: dorderSaveBlock2 leak and hidden write error
+cd repro/common; export UBSAN_OPTIONS=print_stacktrace=1
+leak:  LD_LIBRARY_PATH=$WORK/buildp/lib ASAN_OPTIONS=detect_leaks=1 mpirun --oversubscribe -np 2 -x ASAN_OPTIONS -x LD_LIBRARY_PATH ./dtest_buildp 4elt.grf -1 order "" 0 b blk.out
+       -> 'Direct leak of 62428 byte(s) ... #1 dorderSaveBlock2 dorder_io_block.c:88' ; patched (build): no such record.
+error: LD_LIBRARY_PATH=$WORK/buildp/lib ASAN_OPTIONS=detect_leaks=0 mpirun --oversubscribe -np 2 ./dtest_buildp 4elt.grf -1 order "" 0 b /dev/full
+       -> rank 0: OrderSave(b) rc=0 ; patched: '(0): ERROR: dorderSaveBlock2: bad output (2)', rank 0: OrderSave(b) rc=1.

@@ -1,0 +1,141 @@
+From 695a288c0acd4f6449ada44150f768c300757294 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:16:19 +0000
+Subject: [PATCH 150/240] Bugfix: agree on allocation failures in
+ `bdgraphGatherAll()` before gathering [report PyScotch]
+
+In non-debug builds, a process which could not allocate the arrays of
+the centralized graph returned alone, while the other processes entered
+the gather operations and waited forever or aborted. Structure the
+allocation phase as in `hdgraphGather()`: assume an error, jump to a
+common label, always agree on the error before any collective operation,
+and only free what was allocated.
+
+Refs: PS2-G22-1
+---
+ src/libscotch/bdgraph_gather_all.c | 73 ++++++++++--------------------
+ 1 file changed, 23 insertions(+), 50 deletions(-)
+
+diff --git a/src/libscotch/bdgraph_gather_all.c b/src/libscotch/bdgraph_gather_all.c
+index cb0775d..5a94fd9 100644
+--- a/src/libscotch/bdgraph_gather_all.c
++++ b/src/libscotch/bdgraph_gather_all.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2010,2011,2014,2018-2020 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2010,2011,2014,2018-2020,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**                # Version 6.0  : from : 29 aug 2014     **/
+ /**                                 to   : 07 jun 2018     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 14 jan 2020     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # The definitions of MPI_Gather and     **/
+ /**                  MPI_Gatherv indicate that elements in **/
+@@ -89,10 +89,8 @@ Bgraph * restrict              cgrfptr)            /* Centralized graph */
+   int * restrict     froncnttab;                   /* Count array for gather operations        */
+   int * restrict     fronvrttab;                   /* Displacement array for gather operations */
+   int                fronlocnbr;                   /* Also int to enforce MPI standard         */
+-#ifdef SCOTCH_DEBUG_BDGRAPH1
+   int                cheklocval;
+   int                chekglbval;
+-#endif /* SCOTCH_DEBUG_BDGRAPH1 */
+   int                procnum;
+ 
+ #ifdef SCOTCH_DEBUG_BDGRAPH1
+@@ -118,60 +116,36 @@ Bgraph * restrict              cgrfptr)            /* Centralized graph */
+   cgrfptr->veextax = NULL;                        /* In case of error */
+   cgrfptr->parttax = NULL;
+   cgrfptr->frontab = NULL;
++  froncnttab       = NULL;
++
++  cheklocval = 1;                                 /* Assume an error */
+   if ((cgrfptr->frontab = (Gnum *) memAlloc (cgrfptr->s.vertnbr * sizeof (Gnum))) == NULL) {
+     errorPrint ("bdgraphGatherAll: out of memory (1)");
+-#ifndef SCOTCH_DEBUG_BDGRAPH1
+-    bgraphExit (cgrfptr);
+-    return     (1);
+-#else /* SCOTCH_DEBUG_BDGRAPH1 */
+-    cheklocval = 1;
+-#endif /* SCOTCH_DEBUG_BDGRAPH1 */
++    goto fail;
+   }
+-  else if ((cgrfptr->parttax = (GraphPart *) memAlloc (cgrfptr->s.vertnbr * sizeof (GraphPart))) == NULL) {
++  if ((cgrfptr->parttax = (GraphPart *) memAlloc (cgrfptr->s.vertnbr * sizeof (GraphPart))) == NULL) {
+     errorPrint ("bdgraphGatherAll: out of memory (2)");
+-#ifndef SCOTCH_DEBUG_BDGRAPH1
+-    bgraphExit (cgrfptr);
+-    return     (1);
+-#else /* SCOTCH_DEBUG_BDGRAPH1 */
+-    cheklocval = 1;
+-#endif /* SCOTCH_DEBUG_BDGRAPH1 */
++    goto fail;
+   }
+-  else {
+-    cgrfptr->parttax -= cgrfptr->s.baseval;
+-
+-    if (dgrfptr->veexloctax != NULL) {
+-      if ((cgrfptr->veextax = (Gnum *) memAlloc (cgrfptr->s.vertnbr * sizeof (Gnum))) == NULL) {
+-        errorPrint ("bdgraphGatherAll: out of memory (3)");
+-#ifndef SCOTCH_DEBUG_BDGRAPH1
+-        bgraphExit (cgrfptr);
+-        return     (1);
+-#else /* SCOTCH_DEBUG_BDGRAPH1 */
+-        cheklocval = 1;
+-#endif /* SCOTCH_DEBUG_BDGRAPH1 */
+-      }
+-      else
+-        cgrfptr->veextax -= cgrfptr->s.baseval;
++  cgrfptr->parttax -= cgrfptr->s.baseval;
++  if (dgrfptr->veexloctax != NULL) {
++    if ((cgrfptr->veextax = (Gnum *) memAlloc (cgrfptr->s.vertnbr * sizeof (Gnum))) == NULL) {
++      errorPrint ("bdgraphGatherAll: out of memory (3)");
++      goto fail;
+     }
++    cgrfptr->veextax -= cgrfptr->s.baseval;
+   }
+-
+-#ifdef SCOTCH_DEBUG_BDGRAPH1
+-  if (cheklocval == 0) {
+-#endif /* SCOTCH_DEBUG_BDGRAPH1 */
+-    if (memAllocGroup ((void **) (void *)           /* Allocate tempory arrays to gather frontiers */
+-                       &froncnttab, (size_t) (dgrfptr->s.procglbnbr * sizeof (int)),
+-                       &fronvrttab, (size_t) (dgrfptr->s.procglbnbr * sizeof (int)), NULL) == NULL) {
+-      errorPrint ("bdgraphGatherAll: out of memory (4)");
+-#ifndef SCOTCH_DEBUG_BDGRAPH1
+-      bgraphExit (cgrfptr);
+-      return     (1);
+-    }
+-#else /* SCOTCH_DEBUG_BDGRAPH1 */
+-      cheklocval = 1;
+-    }
++  if (memAllocGroup ((void **) (void *)           /* Allocate temporary arrays to gather frontiers */
++                     &froncnttab, (size_t) (dgrfptr->s.procglbnbr * sizeof (int)),
++                     &fronvrttab, (size_t) (dgrfptr->s.procglbnbr * sizeof (int)), NULL) == NULL) {
++    errorPrint ("bdgraphGatherAll: out of memory (4)");
++    goto fail;
+   }
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, dgrfptr->s.proccomm) != MPI_SUCCESS) {
++  cheklocval = 0;                                 /* Everything went well */
++fail:
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, dgrfptr->s.proccomm) != MPI_SUCCESS) { /* All processes must agree before performing gather operations */
+     errorPrint ("bdgraphGatherAll: communication error (2)");
+-    return     (1);
++    chekglbval = 1;
+   }
+   if (chekglbval != 0) {
+     if (froncnttab != NULL)
+@@ -179,7 +153,6 @@ Bgraph * restrict              cgrfptr)            /* Centralized graph */
+     bgraphExit (cgrfptr);
+     return     (1);
+   }
+-#endif /* SCOTCH_DEBUG_BDGRAPH1 */
+ 
+   cgrfptr->compload0min  = dgrfptr->compglbload0min; /* Set constant fields of the centralized graph as those of the distibuted graph */
+   cgrfptr->compload0max  = dgrfptr->compglbload0max;
+-- 
+2.47.3
+

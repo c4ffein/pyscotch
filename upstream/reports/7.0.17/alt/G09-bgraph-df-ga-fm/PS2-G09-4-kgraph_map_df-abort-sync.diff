@@ -1,0 +1,35 @@
+diff --git a/src/libscotch/kgraph_map_df.c b/src/libscotch/kgraph_map_df.c
+index eae149c..1b6df19 100644
+--- a/src/libscotch/kgraph_map_df.c
++++ b/src/libscotch/kgraph_map_df.c
+@@ -219,15 +219,11 @@ KgraphMapDfData * restrict const  loopptr)
+       velsmsk &= (velssum != 0);
+     }
+   }
+-  if (velsmsk == 0) {                             /* If graph is too small to have any usable anchors */
+-    loopptr->abrtval = 1;                         /* We will leave during the first iteration         */
+-    goto fail;
+-  }
+-
+-  if ((sorttab = memAlloc (domnnbr * sizeof (KgraphMapDfSort))) == NULL) { /* Allocate here for memory affinity as it is a private array */
++  if (velsmsk == 0)                               /* If graph is too small to have any usable anchors */
++    loopptr->abrtval = 1;                         /* We will leave after synchronization              */
++  else if ((sorttab = memAlloc (domnnbr * sizeof (KgraphMapDfSort))) == NULL) { /* Allocate here for memory affinity as it is a private array */
+     errorPrint ("kgraphMapDfLoop: out of memory");
+     loopptr->abrtval = 1;
+-    goto fail;
+   }
+ 
+   if (velotax == NULL) {
+@@ -288,8 +284,9 @@ KgraphMapDfData * restrict const  loopptr)
+   threadBarrier (descptr);
+ #endif /* KGRAPHMAPDFNOTHREAD */
+ 
+-  if (loopptr->abrtval == 1) {                    /* If process alone or some decided to quit */
+-    memFree (sorttab);                            /* Free local array                         */
++  if (loopptr->abrtval == 1) {                    /* If process alone or some decided to quit; flag is stable after barrier */
++    if (sorttab != NULL)
++      memFree (sorttab);                          /* Free local array */
+     return;
+   }
+ 

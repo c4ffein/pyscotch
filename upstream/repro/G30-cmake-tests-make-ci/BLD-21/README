@@ -1,0 +1,22 @@
+BLD-21: Make.inc templates define macro names that no source tests (source-read; no MinGW/Haiku/FreeBSD host).
+
+  grep -ohE -- '-D[A-Za-z_0-9]+' src/Make.inc/Makefile.inc.* ci/Makefile.inc | sort -u, each checked with
+  grep -rqE "\b$m\b" src --include=*.c --include=*.h --include=*.l --include=*.y
+  not in sources: COMMON_WINDOWS (i686_pc_mingw32), COMMON_STUB_WAITPID (i686_pc_mingw32),
+                  COMMON_FILE_COMPRESS_BZ (i686_pc_haiku.shlib, x86-64_pc_haiku.shlib),
+                  SCOTCH_RENAME_PARSER (i686_pc_linux3, i686_pc_linux2.c99, i686_pc_freebsd, x86-64_pc_freebsd),
+                  SCOTCH_GITLAB_SEPARATOR (ci/Makefile.inc: a marker read by ci/analysis.sh, legitimate),
+                  _ALL_SOURCE, __BSD_VISIBLE (system feature macros, legitimate)
+  the code tests: COMMON_OS_WINDOWS (common.h:92,118; common.c:112; common_thread_system.c:112;
+                  common_file_compress.c:396; parser_ll.l:71), COMMON_FILE_COMPRESS_BZ2
+                  (common_file_compress.[ch], common_file_decompress.c), COMMON_STUB_FORK only
+                  (common_stub.c:71-88 provides both fork() and waitpid() stubs).
+  history: 73468b5 (2020) renamed COMMON_WINDOWS -> COMMON_OS_WINDOWS, 1faa6bd (2023) "[completes]"
+           missed the MinGW template; 9f51c92 (2020) removed SCOTCH_RENAME_PARSER from the parser;
+           440c332 (2024) added -DCOMMON_STUB_WAITPID to the template while putting the stub under COMMON_STUB_FORK.
+  other direction (macros tested but defined by no template/CMake/ci): COMMON_OS_LINUX/FREEBSD/AIX
+           appear only in a comment (common_thread_system.c:117); SCOTCH_PTHREAD_AFFINITY_LINUX is a
+           compatibility alias (module.h:120); the rest are debug knobs. CMake's add_definitions names
+           all exist in the sources.
+  bonus: Makefile.inc.x86-64_pc_freebsd:18 "CFLAGS += -std -fPIC": `gcc -std -fPIC -c x.c` ->
+         "gcc: error: unrecognized command-line option '-std'" (PS2-G30-2).

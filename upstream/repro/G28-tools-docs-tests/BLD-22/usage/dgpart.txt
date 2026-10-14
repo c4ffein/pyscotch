@@ -1,0 +1,101 @@
+Usage is:
+  dgmap [<input source file> [<input target file> [<output mapping file> [<output log file>]]]] <options>
+  dgpart [<nparts/pwght>] [<input source file> [<output mapping file> [<output log file>]]] <options>
+    -b<val>    : Load imbalance tolerance (default: 0.05)
+    -C<opt>    : Choose execution context options according to one or several of <opt>:
+                   d  : deterministic behavior (even across multiple threads; implies 'f')
+                   f  : fixed random seed
+                   r  : variable random seed
+                   u  : undeterministic behavior (may be faster with several threads)
+                   Default behavior depends on compilation flags
+    -c<opt>    : Choose default mapping strategy according to one or several of <opt>:
+                   b  : enforce load balance as much as possible
+                   q  : privilege quality over speed (default)
+                   s  : privilege speed over quality
+                   t  : enforce safety
+                   x  : enforce scalability
+    -h         : Display this help
+    -m<strat>  : Set parallel mapping strategy (see user's manual)
+    -q         : Do graph clustering instead of graph partitioning (for dgpart)
+    -q<pwght>  : Do graph clustering instead of static mapping (for dgmap)
+    -r<num>    : Set root process for centralized files (default is 0)
+    -s<obj>    : Force unity weights on <obj>:
+                   e  : edges
+                   v  : vertices
+    -V         : Print program version and copyright
+    -v<verb>   : Set verbose mode to <verb>:
+                   a  : memory allocation information
+                   m  : mapping information
+                   s  : strategy information
+                   t  : timing information
+  
+  See default strategy with option '-vs'
+
+=================================================================
+==1322701==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 8192 byte(s) in 1 object(s) allocated from:
+    #0 0x7ff1bbd49610 in calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:77
+    #1 0x7ff1b9219707 in pmix_pointer_array_init (/lib/x86_64-linux-gnu/libpmix.so.2+0xf6707) (BuildId: 1fcece1bb583fcbe6113e847a3eb03649d04dd1d)
+
+Direct leak of 5040 byte(s) in 7 object(s) allocated from:
+    #0 0x7ff1bbd49c57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7ff1ba3a5208 in ompi_op_base_op_select (/lib/x86_64-linux-gnu/libmpi.so.40+0x205208) (BuildId: 9bb967beb0f42559207f369b0071ddc01520e21a)
+
+Direct leak of 5040 byte(s) in 7 object(s) allocated from:
+    #0 0x7ff1bbd49c57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7ff1ba3a5faa  (/lib/x86_64-linux-gnu/libmpi.so.40+0x205faa) (BuildId: 9bb967beb0f42559207f369b0071ddc01520e21a)
+
+Direct leak of 320 byte(s) in 10 object(s) allocated from:
+    #0 0x7ff1bbd49c57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7ff1b922316a  (/lib/x86_64-linux-gnu/libpmix.so.2+0x10016a) (BuildId: 1fcece1bb583fcbe6113e847a3eb03649d04dd1d)
+
+Direct leak of 128 byte(s) in 1 object(s) allocated from:
+    #0 0x7ff1bbd49610 in calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:77
+    #1 0x7ff1b9219729 in pmix_pointer_array_init (/lib/x86_64-linux-gnu/libpmix.so.2+0xf6729) (BuildId: 1fcece1bb583fcbe6113e847a3eb03649d04dd1d)
+
+Direct leak of 96 byte(s) in 3 object(s) allocated from:
+    #0 0x7ff1bbd49c57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7ff1b9295ede  (/lib/x86_64-linux-gnu/libpmix.so.2+0x172ede) (BuildId: 1fcece1bb583fcbe6113e847a3eb03649d04dd1d)
+
+Direct leak of 72 byte(s) in 1 object(s) allocated from:
+    #0 0x7ff1bbd49c57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7ff1ba205bf0 in ompi_comm_init_mpi3 (/lib/x86_64-linux-gnu/libmpi.so.40+0x65bf0) (BuildId: 9bb967beb0f42559207f369b0071ddc01520e21a)
+
+Direct leak of 64 byte(s) in 2 object(s) allocated from:
+    #0 0x7ff1bbd49c57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7ff1b9297029  (/lib/x86_64-linux-gnu/libpmix.so.2+0x174029) (BuildId: 1fcece1bb583fcbe6113e847a3eb03649d04dd1d)
+
+Direct leak of 64 byte(s) in 2 object(s) allocated from:
+    #0 0x7ff1bbd49c57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7ff1b92964be  (/lib/x86_64-linux-gnu/libpmix.so.2+0x1734be) (BuildId: 1fcece1bb583fcbe6113e847a3eb03649d04dd1d)
+
+Direct leak of 56 byte(s) in 1 object(s) allocated from:
+    #0 0x7ff1bbd49c57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7ff1bac089f3 in _SCOTCHcontextValuesInit /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/build/src/libscotch/common_values.c:81
+    #2 0x7ff1bac0a566 in _SCOTCHcontextOptionsInit /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/build/src/libscotch/context.c:93
+    #3 0x7ff1bad5637e in SCOTCH_contextInit /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/build/src/libscotch/library_context.c:113
+    #4 0x55767b1f892f in main /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/build/src/scotch/dgmap.c:185
+    #5 0x7ff1b99c2ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+
+Direct leak of 52 byte(s) in 4 object(s) allocated from:
+    #0 0x7ff1bbd43d60 in strdup ../../../../src/libsanitizer/asan/asan_interceptors.cpp:578
+    #1 0x7ff1b9185adc  (/lib/x86_64-linux-gnu/libpmix.so.2+0x62adc) (BuildId: 1fcece1bb583fcbe6113e847a3eb03649d04dd1d)
+
+Direct leak of 32 byte(s) in 1 object(s) allocated from:
+    #0 0x7ff1bbd49c57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x7ff1b9250c68 in PMIx_Value_create (/lib/x86_64-linux-gnu/libpmix.so.2+0x12dc68) (BuildId: 1fcece1bb583fcbe6113e847a3eb03649d04dd1d)
+
+Direct leak of 13 byte(s) in 1 object(s) allocated from:
+    #0 0x7ff1bbd43d60 in strdup ../../../../src/libsanitizer/asan/asan_interceptors.cpp:578
+    #1 0x7ff1b9184cdd  (/lib/x86_64-linux-gnu/libpmix.so.2+0x61cdd) (BuildId: 1fcece1bb583fcbe6113e847a3eb03649d04dd1d)
+
+Indirect leak of 317 byte(s) in 8 object(s) allocated from:
+    #0 0x7ff1bbd43d60 in strdup ../../../../src/libsanitizer/asan/asan_interceptors.cpp:578
+    #1 0x7ff1b9252141  (/lib/x86_64-linux-gnu/libpmix.so.2+0x12f141) (BuildId: 1fcece1bb583fcbe6113e847a3eb03649d04dd1d)
+
+Indirect leak of 13 byte(s) in 1 object(s) allocated from:
+    #0 0x7ff1bbd43d60 in strdup ../../../../src/libsanitizer/asan/asan_interceptors.cpp:578
+    #1 0x7ff1b9232c0f in pmix_bfrops_base_value_load (/lib/x86_64-linux-gnu/libpmix.so.2+0x10fc0f) (BuildId: 1fcece1bb583fcbe6113e847a3eb03649d04dd1d)
+
+SUMMARY: AddressSanitizer: 19499 byte(s) leaked in 50 allocation(s).

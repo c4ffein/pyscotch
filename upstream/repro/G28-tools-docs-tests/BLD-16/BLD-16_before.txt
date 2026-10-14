@@ -1,0 +1,10 @@
+### BLD-16 (a) all vertices unmapped
+rc=0
+### BLD-16 (b) fixed vertex (0,0) moved from part 0 to part 1
+rc=0
+### BLD-16 (c) invalid terminal 0 on the variable-sized architecture
+rc=0
+### BLD-16 (d) huge label on the variable-sized architecture
+rc=0
+
+[exited with code 0]

@@ -1,0 +1,58 @@
+From 9b30868662e0c0bc09c5998bb30a012e2b1f7dfe Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:10:36 +0000
+Subject: [PATCH 012/240] Bugfix: use macro parameters in
+ `fiboHeapDecreaseMacro()` [report R. Perry]
+
+The body of `fiboHeapDecreaseMacro()` referred to the variables
+`treeptr` and `nodeptr` of its single caller instead of its own
+parameters `(t)` and `(n)`, so the macro would have misbehaved for any
+other caller. Use the macro parameters throughout.
+
+Refs: COR-28
+---
+ src/libscotch/fibo.h | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/libscotch/fibo.h b/src/libscotch/fibo.h
+index 8685e20..21a49b4 100644
+--- a/src/libscotch/fibo.h
++++ b/src/libscotch/fibo.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2010,2011,2016,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2010,2011,2016,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -43,7 +43,7 @@
+ /**                # Version 6.0  : from : 22 oct 2011     **/
+ /**                                 to   : 07 jun 2018     **/
+ /**                # Version 7.0  : from : 18 jan 2023     **/
+-/**                                 to   : 18 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # Since this module is to be used as    **/
+ /**                  the gain keeping data structure for   **/
+@@ -150,16 +150,16 @@ typedef struct FiboHeap_ {
+                                       FiboNode *          pareptr;                        \
+                                       pareptr = (n)->pareptr;                             \
+                                       if ((pareptr != NULL) &&                            \
+-                                          (treeptr->cmpfptr (nodeptr, pareptr) < 0)) {    \
++                                          ((t)->cmpfptr ((n), pareptr) < 0)) {            \
+                                         FiboNode *          gdpaptr;                      \
+-                                        fiboHeapMoveToRoot (treeptr, nodeptr, pareptr);   \
++                                        fiboHeapMoveToRoot ((t), (n), pareptr);           \
+                                         gdpaptr = pareptr->pareptr;                       \
+                                         while (gdpaptr != NULL) {                         \
+                                           if ((pareptr->deflval & 1) == 0) {              \
+                                             pareptr->deflval |= 1;                        \
+                                             break;                                        \
+                                           }                                               \
+-                                          fiboHeapMoveToRoot (treeptr, pareptr, gdpaptr); \
++                                          fiboHeapMoveToRoot ((t), pareptr, gdpaptr);     \
+                                           pareptr = gdpaptr;                              \
+                                           gdpaptr = gdpaptr->pareptr;                     \
+                                         }                                                 \
+-- 
+2.47.3
+

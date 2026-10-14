@@ -1,0 +1,63 @@
+From e3a871785878b25b916cd8f50cd59b07ea5cd57a Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:08:34 +0000
+Subject: [PATCH 215/240] Bugfix: require the CMake version that the build
+ files need [report R. Perry]
+
+The CMake files declared a minimum version of 3.10, but use the
+NAME_WLE mode of `get_filename_component()` (CMake 3.14), the
+LibLZMA::LibLZMA imported target (3.14) and `cmake -E cat` (3.18), so
+that configuration or testing failed with CMake 3.10 to 3.17 although
+the documentation promised otherwise.
+
+Require CMake 3.18 and update the documentation accordingly.
+
+Refs: BLD-13
+---
+ CMakeLists.txt          | 2 +-
+ README.md               | 2 +-
+ doc/src/handson/h_c.tex | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b4434ec..dfc2a68 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -41,7 +41,7 @@
+ ##                                                        ##
+ ############################################################
+ 
+-cmake_minimum_required(VERSION 3.10)
++cmake_minimum_required(VERSION 3.18)
+ 
+ project(SCOTCH LANGUAGES C)
+ 
+diff --git a/README.md b/README.md
+index 6a292dd..ee6a3bf 100644
+--- a/README.md
++++ b/README.md
+@@ -67,7 +67,7 @@ Installation
+ 
+ Two flavors of installation are available:
+ 
+-* With CMake, using version 3.10 or higher:
++* With CMake, using version 3.18 or higher:
+ 
+ ```bash
+ mkdir build && cd build && cmake .. && make -j5
+diff --git a/doc/src/handson/h_c.tex b/doc/src/handson/h_c.tex
+index 0acdf84..a16b71c 100644
+--- a/doc/src/handson/h_c.tex
++++ b/doc/src/handson/h_c.tex
+@@ -16,7 +16,7 @@ In order to compile \scotch, one needs:
+ \item
+   GNU make;
+ \item
+-  possibly CMake, version at least~3.10;
++  possibly CMake, version at least~3.18;
+ \item
+   a C compiler that can handle the C99 standard (and is parametrized
+   to do so);
+-- 
+2.47.3
+

@@ -1,0 +1,6 @@
+pristine [default]: M CommCutSz=0.072917 (35) M CommDelta=1.000000 
+pristine [r{sep=h{pass=20}}]: M CommCutSz=0.035417 (17) M CommDelta=1.000000 
+pristine [r{sep=h{pass=64}}]: M CommCutSz=0.035417 (17) M CommDelta=1.000000 
+no06 [default]: M CommCutSz=0.097917 (47) M CommDelta=1.000000 
+no06 [r{sep=h{pass=20}}]: M CommCutSz=0.050000 (24) M CommDelta=1.000000 
+no06 [r{sep=h{pass=64}}]: M CommCutSz=0.050000 (24) M CommDelta=1.000000 

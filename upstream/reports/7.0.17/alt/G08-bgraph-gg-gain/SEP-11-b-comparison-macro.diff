@@ -1,0 +1,41 @@
+diff -ru a/src/libscotch/bgraph_bipart_gg.c b/src/libscotch/bgraph_bipart_gg.c
+--- a/src/libscotch/bgraph_bipart_gg.c	2026-10-13 09:20:18.830253469 +0000
++++ b/src/libscotch/bgraph_bipart_gg.c	2026-10-13 09:20:18.834253540 +0000
+@@ -267,9 +267,7 @@
+     } while (vexxptr != NULL);
+ 
+     if ((passnum == 0) ||                         /* If first try                        */
+-        ( (thrdptr->cmloval >  cmloval) ||        /* Or if better local solution reached */
+-         ((thrdptr->cmloval == cmloval) &&
+-          (ABS (thrdptr->cpl0dlt) > ABS (cpl0dlt))))) {
++        BGRAPHBIPARTGGBETTER (cmloval, cpl0dlt, thrdptr->cmloval, thrdptr->cpl0dlt)) { /* Or if better local solution reached */
+       Gnum                vertnum;
+ 
+       thrdptr->cmloval = cmloval;                 /* Record current solution */
+@@ -372,9 +370,7 @@
+       cpl0dlt = passdat.thrdtab[thrdnum].cpl0dlt;
+       continue;
+     }
+-    if ( (passdat.thrdtab[thrdnum].cmloval <  cmloval) || /* If better partition */
+-        ((passdat.thrdtab[thrdnum].cmloval == cmloval) &&
+-         (passdat.thrdtab[thrdnum].cpl0dlt <  cpl0dlt))) {
++    if (BGRAPHBIPARTGGBETTER (passdat.thrdtab[thrdnum].cmloval, passdat.thrdtab[thrdnum].cpl0dlt, cmloval, cpl0dlt)) { /* If better partition */
+       memFree (passdat.thrdtab[thrdbst].parttab); /* Free preserved former best partition */
+       goto found;                                 /* Record new best partition            */
+     }
+diff -ru a/src/libscotch/bgraph_bipart_gg.h b/src/libscotch/bgraph_bipart_gg.h
+--- a/src/libscotch/bgraph_bipart_gg.h	2026-10-13 09:20:18.830253469 +0000
++++ b/src/libscotch/bgraph_bipart_gg.h	2026-10-13 09:20:18.830253469 +0000
+@@ -120,6 +120,12 @@
+ **  The macro definitions.
+ */
+ 
++/*+ Partition comparison: tells whether a partition
++    of communication load cm and imbalance cd is
++    better than one of load bcm and imbalance bcd. +*/
++
++#define BGRAPHBIPARTGGBETTER(cm,cd,bcm,bcd) (((cm) < (bcm)) || (((cm) == (bcm)) && (ABS (cd) < ABS (bcd))))
++
+ #ifdef SCOTCH_TABLE_GAIN
+ 
+ /*+ Gain table subbits. +*/

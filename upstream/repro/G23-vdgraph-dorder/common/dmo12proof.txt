@@ -1,0 +1,20 @@
+== A: full series on DEBUG_ALL tree
+      1 rank 0: OrderCompute rc=0
+      1 rank 1: OrderCompute rc=0
+      1 rank 2: OrderCompute rc=0
+== B: pristine VdgraphStore (base-combined vdgraph.h + vdgraph_store.c) + new vdgraphCheck local-load test
+      1 (0): ERROR: vdgraphCheck: invalid local part loads
+      1 (0): ERROR: vdgraphStoreUpdt: inconsistent graph data
+      1 (1): ERROR: vdgraphCheck: invalid local part loads
+      1 (1): ERROR: vdgraphStoreUpdt: inconsistent graph data
+      1 (2): ERROR: vdgraphCheck: invalid local part loads
+      1 (2): ERROR: vdgraphStoreUpdt: inconsistent graph data
+      1 rank 0: OrderCompute rc=0
+      1 rank 1: OrderCompute rc=0
+      1 rank 2: OrderCompute rc=0
+== C: full series restored
+      1 rank 0: OrderCompute rc=0
+      1 rank 1: OrderCompute rc=0
+      1 rank 2: OrderCompute rc=0
+debug tree restored to HEAD sources
+DONE

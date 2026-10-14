@@ -1,0 +1,26 @@
+BLD-06 (+ PS-BLD-2): Open MPI never detected, so --oversubscribe never added.
+
+Real version string (mpiver/CMakeLists.txt does find_package(MPI) with MPI_DETERMINE_LIBRARY_VERSION
+and runs 7.0.17's lines 181-185 verbatim):
+  cmake -S mpiver -B mpiver/b | grep -E 'MPI_C_LIBRARY|7.0.17|fixed'
+    -- MPI_C_LIBRARY_VERSION_STRING=[Open MPI v5.0.7, package: Debian OpenMPI, ident: 5.0.7, repo rev: v5.0.7, Feb 14, 2025]
+    -- 7.0.17: Open MPI NOT detected (found_suite=[])
+    -- fixed: Found OpenMPI
+  (the regex "\( Open MPI \)+" is "( Open MPI )+": a space is required on both sides)
+Whole-tree configure: $WORK/cm/base32/configure.log has no "Found OpenMPI" line and
+  grep -c -- --oversubscribe $WORK/cm/base32/src/check/CTestTestfile.cmake -> 0
+  patched: configure.log "-- Found Open MPI: using '--oversubscribe' policy for testing";
+  grep -c -- --oversubscribe $WORK/cm/patched32/src/check/CTestTestfile.cmake -> 34
+Consequence on this 8-core host:
+  mpirun -np 16 true -> "There are not enough slots available in the system to satisfy the 16 slots"
+  mpirun --oversubscribe -np 16 true -> ok
+  (the in-tree tests use at most 8 processes, so ctest passed here even unpatched; the review's
+   test host had fewer cores than processes)
+
+PS-BLD-2 (probe.cmake, same lines with a chosen string):
+  cmake -DOMPI_STRING="MPICH 4.1" -P probe.cmake -> found_suite=[]; the unquoted
+    if(NOT ${found_suite} STREQUAL "") still evaluated (CMake tolerates the empty operand) -> not detected
+  cmake -DOMPI_STRING="" -P probe.cmake ->
+    CMake Error at probe.cmake:3 (string): string sub-command REGEX, mode MATCHALL needs at least 5 arguments total to command.
+  i.e. an empty/unset MPI_C_LIBRARY_VERSION_STRING (cross-compilation, try_run disabled) is a fatal
+  configure error with the 7.0.17 code; the patched `if(VAR MATCHES "Open MPI")` form is safe.

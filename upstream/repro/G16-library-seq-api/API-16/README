@@ -1,0 +1,17 @@
+API-16 (migration distance always zero), PS-API-1 (old part array not based) and API-03
+(check that 7.0.17's d604eb1 is complete): 8-vertex path on a 8x1 mesh, new mapping
+{0,0,0,0,7,7,7,7}, old mapping {7,7,7,7,0,0,0,0}.
+  sh ../build.sh $WORK/build _pristine ; ./remap_pristine 0 ; ./remap_pristine 1
+Pristine, base 0:
+  CommDilat=   got: 1.000000 (7)   ok         (API-03 fixed upstream: distances on original parts)
+  MigrNbr=     got: 8(100.000000 %) ok
+  AvgMigrDist= got: 0.000000   expected 7.000000   FAIL      (API-16)
+  PartDiam     got: min=4 max=4   expected 3         FAIL    (API-14)
+  part arrays come back untouched (API-03)
+Pristine, base 1:
+  ==ERROR: AddressSanitizer: stack-buffer-overflow ... READ of size 4
+    #0 graphMapView2 library_graph_map_view.c:486  (parotax[vertnum], un-based array, based index)
+    #1 SCOTCH_graphRemapView library_graph_map_view.c:641                       (PS-API-1)
+Patched (commits 0001+0002): both bases print AvgMigrDist=7.000000, PartDiam 3, no sanitizer report.
+Shipped check data: gpart 32 bump_imbal_32.grf /dev/null -rodata/bump_old.map -vm prints
+AvgMigrDist=0.000000 pristine, AvgMigrDist=1.000000 patched (complete-graph target: all distances 1).

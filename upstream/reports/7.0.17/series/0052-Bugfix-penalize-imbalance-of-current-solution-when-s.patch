@@ -1,0 +1,37 @@
+From 4ed5e182ade74c1633f7e54a5ed2516ca7f9b1c8 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:01:11 +0000
+Subject: [PATCH 052/240] Bugfix: penalize imbalance of current solution when
+ selecting genetic algorithm champion [report PyScotch]
+
+The cost of individuals includes a penalty when their part 0 load is
+outside of the allowed range, while the cost of the current solution
+did not, so that an imbalanced current solution was never replaced by a
+balanced champion: starting from a partition with all vertices in part
+0, the genetic algorithm never changed anything. Apply the same penalty
+to the current solution.
+---
+ src/libscotch/bgraph_bipart_ga.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/bgraph_bipart_ga.c b/src/libscotch/bgraph_bipart_ga.c
+index 05121e8..9dce38d 100644
+--- a/src/libscotch/bgraph_bipart_ga.c
++++ b/src/libscotch/bgraph_bipart_ga.c
+@@ -277,8 +277,11 @@ BgraphBipartGaData * restrict const loopptr)
+   }
+ 
+   if (thrdnum == 0) {
+-    if ((loopptr->sorttab[0].cmloval < grafptr->commload) || /* If most fit offspring has lower cost than current solution */
+-        ((loopptr->sorttab[0].cmloval == grafptr->commload) &&
++    Gnum                cmloval;                  /* Cost of current solution, penalized as for individuals */
++
++    cmloval = ((grafptr->compload0 >= compload0min) && (grafptr->compload0 <= compload0max)) ? grafptr->commload : (grafptr->commload + cmloadj);
++    if ((loopptr->sorttab[0].cmloval < cmloval) || /* If most fit offspring has lower cost than current solution */
++        ((loopptr->sorttab[0].cmloval == cmloval) &&
+          (loopptr->sorttab[0].cplodlt < ABS (grafptr->compload0dlt)))) {
+       memCpy     (grafptr->parttax + baseval, sorttab[0].parttab, vertnbr * sizeof (GraphPart));
+       bgraphCost (grafptr);
+-- 
+2.47.3
+

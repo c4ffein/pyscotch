@@ -1,0 +1,40 @@
+From cee6a659b2192d843b6701d198e84edb193cbc95 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:39:49 +0000
+Subject: [PATCH 8/9] Make `SCOTCH_dgraphMapView()` output format identical to
+ that of `SCOTCH_graphMapView()`
+
+The distance histogram lines were labeled "Cmlosum" instead of
+"CommLoad", and the "Processors" line lacked a space, so that the
+outputs of `gmap -v` and `dgmap -v` could not be compared directly.
+
+Refs: API-18
+---
+ src/libscotch/library_dgraph_map_view.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/library_dgraph_map_view.c b/src/libscotch/library_dgraph_map_view.c
+index be800f1..9fe5f69 100644
+--- a/src/libscotch/library_dgraph_map_view.c
++++ b/src/libscotch/library_dgraph_map_view.c
+@@ -113,7 +113,7 @@ FILE * const                  stream)
+   if (stream == NULL)
+     return (0);
+ 
+-  fprintf (stream, "M\tProcessors " GNUMSTRING "/" GNUMSTRING "(%g)\n",
++  fprintf (stream, "M\tProcessors " GNUMSTRING "/" GNUMSTRING " (%g)\n",
+            (Gnum) mapnbr,
+            (Gnum) tgtnbr,
+            (double) mapnbr / (double) tgtnbr);
+@@ -149,7 +149,7 @@ FILE * const                  stream)
+              ((double) cmlosum * (double) cmdisum));
+ 
+   for (cdstnum = 0; cdstnum <= cdstmax; cdstnum ++) /* Print distance histogram */
+-    fprintf (stream, "M\tCmlosum[" ANUMSTRING "]=%f\n",
++    fprintf (stream, "M\tCommLoad[" ANUMSTRING "]=%f\n",
+              (Anum) cdstnum,
+              (double) cdsttab[cdstnum] / (double) cmlosum);
+ 
+-- 
+2.47.3
+

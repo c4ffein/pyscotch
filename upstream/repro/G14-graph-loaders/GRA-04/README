@@ -1,0 +1,6 @@
+GRA-04  negative vertex label -> OOB heap read in graphLoad2
+Build: pristine 7.0.17 ASan+UBSan, 32-bit Gnum (INFRA/asan). Patched: $WORK/build.
+  export LD_LIBRARY_PATH=<build>/lib ASAN_OPTIONS=detect_leaks=0
+  <build>/bin/gtst neglbl.grf
+PRISTINE: AddressSanitizer: heap-buffer-overflow READ ... in graphLoad2 graph_io.c:304 (label -5 used as index).
+PATCHED : "graphLoad: bad input (3)" (negative label rejected at read).

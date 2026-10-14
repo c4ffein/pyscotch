@@ -1,0 +1,10 @@
+No source change: treat the "tax = tab - baseval" idiom as intentional and build
+sanitizer configurations with the pointer-overflow check disabled, e.g.
+
+--- a/src/Make.inc/Makefile.inc.x86-64_pc_linux2.asan   (hypothetical sanitizer configuration)
++++ b/src/Make.inc/Makefile.inc.x86-64_pc_linux2.asan
+@@
+-CFLAGS = -O0 -g -fsanitize=address,undefined ...
++CFLAGS = -O0 -g -fsanitize=address,undefined -fno-sanitize=pointer-overflow ...
+
+(or an UBSan suppressions file listing bgraph_bipart_ml.c and kgraph_map_ml.c).

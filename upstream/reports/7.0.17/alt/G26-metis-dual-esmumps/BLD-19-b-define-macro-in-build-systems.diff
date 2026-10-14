@@ -1,0 +1,20 @@
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -365,6 +365,7 @@
+ test_libesmumps			:	test_libesmumps.c		\
+ 					$(SCOTCHLIBDIR)/libscotch$(LIB)	\
+ 					$(SCOTCHLIBDIR)/libesmumps$(LIB)
++					$(CC) $(CFLAGS) -DESMUMPS_HAS_ESMUMPSV -I$(SCOTCHINCLUDEDIR) -L$(SCOTCHLIBDIR) $(<) -o $(@) $(SCOTCHLIBS) $(LDFLAGS)
+ 
+ ##
+ 
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -172,6 +172,7 @@
+   add_executable(test_libesmumps test_libesmumps.c)
+   add_dependencies(test_libesmumps esmumps_h)
+   set_target_properties(test_libesmumps PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
++  target_compile_definitions(test_libesmumps PRIVATE ESMUMPS_HAS_ESMUMPSV)
+   target_include_directories(test_libesmumps PRIVATE ${GENERATED_INCLUDE_DIR})
+   target_link_libraries(test_libesmumps scotch esmumps scotcherr)
+   add_test(NAME test_libesmumps_1 COMMAND $<TARGET_FILE:test_libesmumps> ${dat}/bump.grf)

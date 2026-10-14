@@ -1,0 +1,30 @@
+diff --git a/src/libscotch/vdgraph_separate_ml.c b/src/libscotch/vdgraph_separate_ml.c
+index bafed9c..2cad7ba 100644
+--- a/src/libscotch/vdgraph_separate_ml.c
++++ b/src/libscotch/vdgraph_separate_ml.c
+@@ -179,8 +179,8 @@ const MPI_Datatype * const  typedat)              /* MPI datatype; not used
+ 
+   if ((in[3] < inout[3]) ||                       /* Select best partition */
+       ((in[3] == inout[3]) &&
+-       ((in[4] < inout[4]) ||
+-	((in[4] == inout[4]) && (in[1] < inout[1]))))) {
++       ((ABS (in[4]) < ABS (inout[4])) ||
++        ((ABS (in[4]) == ABS (inout[4])) && (in[1] < inout[1]))))) {
+     inout[1] = in[1];
+     inout[2] = in[2];
+     inout[3] = in[3];
+diff --git a/src/libscotch/vdgraph_separate_sq.c b/src/libscotch/vdgraph_separate_sq.c
+index 7281594..5840bb9 100644
+--- a/src/libscotch/vdgraph_separate_sq.c
++++ b/src/libscotch/vdgraph_separate_sq.c
+@@ -103,8 +103,8 @@ const MPI_Datatype * const  typedat)              /* MPI datatype; not used
+ 
+   if ((in[0] < inout[0]) ||                       /* Select best partition */
+       ((in[0] == inout[0]) &&
+-       ((in[1] < inout[1]) ||
+-        ((in[1] == inout[1]) && (in[2] < inout[2]))))) {
++       ((ABS (in[1]) < ABS (inout[1])) ||
++        ((ABS (in[1]) == ABS (inout[1])) && (in[2] < inout[2]))))) {
+     inout[0] = in[0];
+     inout[1] = in[1];
+     inout[2] = in[2];

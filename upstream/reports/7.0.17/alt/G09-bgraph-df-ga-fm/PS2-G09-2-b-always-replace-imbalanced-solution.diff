@@ -1,0 +1,14 @@
+diff --git a/src/libscotch/bgraph_bipart_ga.c b/src/libscotch/bgraph_bipart_ga.c
+index c681f1e..dd9e2de 100644
+--- a/src/libscotch/bgraph_bipart_ga.c
++++ b/src/libscotch/bgraph_bipart_ga.c
+@@ -254,7 +254,8 @@ BgraphBipartGaData * restrict const loopptr)
+   }
+ 
+   if (thrdnum == 0) {
+-    if ((loopptr->sorttab[0].cmloval < grafptr->commload) || /* If most fit offspring has lower cost than current solution */
++    if (((grafptr->compload0 < compload0min) || (grafptr->compload0 > compload0max)) || /* If current solution is imbalanced, take champion whatever its cost */
++        (loopptr->sorttab[0].cmloval < grafptr->commload) || /* If most fit offspring has lower cost than current solution */
+         ((loopptr->sorttab[0].cmloval == grafptr->commload) &&
+          (loopptr->sorttab[0].cplodlt < ABS (grafptr->compload0dlt)))) {
+       memCpy     (grafptr->parttax + baseval, sorttab[0].parttab, vertnbr * sizeof (GraphPart));

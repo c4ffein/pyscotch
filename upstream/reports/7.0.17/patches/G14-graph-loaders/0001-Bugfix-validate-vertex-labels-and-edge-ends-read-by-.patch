@@ -1,0 +1,95 @@
+From e046ddbff2ba80ec65096d454e53087f4c8e02c9 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:18:05 +0000
+Subject: [PATCH 1/7] Bugfix: validate vertex labels and edge ends read by
+ graphLoad() [report R. Perry]
+
+graphLoad() stored file-controlled vertex labels and edge ends without
+range checking. Commit febaef7 rejected negative edge ends, but:
+
+ - negative vertex labels were still accepted and later used directly as
+   indices into indxtab[] in graphLoad2(), an out-of-bounds heap access
+   at a file-controlled offset (GRA-04);
+ - for unlabeled graphs no upper (or base-adjusted lower) bound was
+   enforced on edge ends, so a malformed file indexed vertex arrays out
+   of bounds once mapped or ordered; the only check lived under
+   SCOTCH_DEBUG_GRAPH2 (GRA-10).
+
+Reject negative labels at read time, and, for unlabeled graphs,
+range-check each edge end against [baseval, vertnnd[ after base
+adjustment. Also reject negative vertex degrees and test the arc-array
+overflow before adding edgenum, so a huge degree value cannot overflow
+the accumulator.
+
+Refs: GRA-04, GRA-10
+---
+ src/libscotch/graph_io.c | 21 +++++++++++++++------
+ 1 file changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/src/libscotch/graph_io.c b/src/libscotch/graph_io.c
+index b74a972..872bf0a 100644
+--- a/src/libscotch/graph_io.c
++++ b/src/libscotch/graph_io.c
+@@ -59,7 +59,7 @@
+ /**                # Version 6.0  : from : 03 aug 2016     **/
+ /**                                 to   : 03 aug 2016     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 07 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -191,7 +191,8 @@ const GraphLoadFlag         flagval)              /* Graph loading flags
+     if (grafptr->vlbltax != NULL) {               /* If must read label               */
+       Gnum                vlblval;                /* Value where to read vertex label */
+ 
+-      if (intLoad (stream, &vlblval) != 1) {      /* Read label data */
++      if ((intLoad (stream, &vlblval) != 1) ||    /* Read label data                        */
++          (vlblval < 0)) {                        /* Labels are used as array indices later */
+         errorPrint ("graphLoad: bad input (3)");
+         graphFree  (grafptr);
+         return (1);
+@@ -212,7 +213,8 @@ const GraphLoadFlag         flagval)              /* Graph loading flags
+         velosum                  +=
+         grafptr->velotax[vertnum] = veloval;
+     }
+-    if (intLoad (stream, &degrval) != 1) {        /* Read vertex degree */
++    if ((intLoad (stream, &degrval) != 1) ||      /* Read vertex degree */
++        (degrval < 0)) {
+       errorPrint ("graphLoad: bad input (5)");
+       graphFree  (grafptr);
+       return (1);
+@@ -221,12 +223,12 @@ const GraphLoadFlag         flagval)              /* Graph loading flags
+       degrmax = degrval;
+ 
+     grafptr->verttax[vertnum] = edgenum;          /* Set index in edge array */
+-    degrval += edgenum;
+-    if (degrval > edgennd) {                      /* Check if edge array overflows */
++    if (degrval > (edgennd - edgenum)) {          /* Check if edge array overflows (avoiding edgenum overflow) */
+       errorPrint ("graphLoad: invalid arc count (1)");
+       graphFree  (grafptr);
+       return (1);
+     }
++    degrval += edgenum;
+ 
+     for ( ; edgenum < degrval; edgenum ++) {
+       if (proptab[1] != 0) {                      /* If must read edge load        */
+@@ -248,7 +250,14 @@ const GraphLoadFlag         flagval)              /* Graph loading flags
+         graphFree  (grafptr);
+         return (1);
+       }
+-      grafptr->edgetax[edgenum] = edgeval + baseadj;
++      edgeval += baseadj;                         /* Adjust edge end to graph base (baseadj is zero for labeled graphs) */
++      if ((grafptr->vlbltax == NULL) &&           /* If edge ends are vertex indices, they must be in range           */
++          ((edgeval < grafptr->baseval) || (edgeval >= grafptr->vertnnd))) {
++        errorPrint ("graphLoad: invalid arc end number");
++        graphFree  (grafptr);
++        return (1);
++      }
++      grafptr->edgetax[edgenum] = edgeval;
+     }
+   }
+   grafptr->verttax[vertnum] = edgenum;            /* Set end of edge array             */
+-- 
+2.47.3
+

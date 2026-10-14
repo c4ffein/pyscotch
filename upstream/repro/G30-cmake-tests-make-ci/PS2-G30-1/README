@@ -1,0 +1,21 @@
+PS2-G30-1: library link rules pass $(?) to $(AR); with a *.shlib Makefile.inc an incremental build
+produces a shared library made of the changed objects only.
+
+Tree: $W/build = copy of INFRA/asan (Makefile.inc: LIB=.so, AR=gcc, ARFLAGS="-shared -o"), sources = base-combined.
+
+Pristine (base-combined) Makefile:
+  cd $W/build/src/libscotch
+  nm -D --defined-only libscotch.so | wc -l            -> 1387 symbols, 16403616 bytes
+  touch graph.c; make scotch                           -> "gcc -shared -o libscotch.so graph.o"
+  nm -D --defined-only libscotch.so | wc -l            -> 3 symbols, 39544 bytes
+  cd ..; make scotch                                   -> rc=2, 10 "undefined reference" errors
+                                                          (acpl.c:106 undefined reference to `_SCOTCHusagePrint' ...)
+  (log: toplevel-make-scotch-after-touch.log)
+  lib/libscotch.so symbols after top-level make scotch -> 3
+
+Patched (commit "Bugfix: link all object files into libraries in Makefile's"):
+  touch src/libscotch/graph.c; make -C src scotch ptscotch   (no rm of any .so)
+  -> rc=0, libscotch.so symbols before=1387 after=1387 (see $W/verify.status, both 32- and 64-bit trees)
+
+Why CI never saw it: ci/Makefile.inc uses LIB=.a, AR=ar, ARFLAGS=-ruv, for which $(?) is the archive idiom.
+src/libscotchmetis/Makefile has used $(^) since the 6.0 import (git blame eca6fb5).

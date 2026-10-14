@@ -1,0 +1,22 @@
+Option b (not committed, untested sketch): make orderLoad() accept ordering lines in any order, as the
+manual states, by indexing on the vertex index read from the file (requires the same range and
+duplicate checks on the vertex index as on the rank). Applies on top of patches/0001.
+--- a/src/libscotch/order_io.c
++++ b/src/libscotch/order_io.c
+@@ -112,10 +112,14 @@
+         errorPrint ("orderLoad: bad input (2)");
+         return     (1);
+       }
+-      if (vertval != (vertnum + baseval)) {       /* Vertices must be listed in order */
+-        errorPrint ("orderLoad: bad input (3)");
++      if ((vertval < baseval) ||                  /* Vertex index must be within range (any order accepted) */
++          (vertval >= vertnnd)) {
++        errorPrint ("orderLoad: invalid vertex index");
+         return     (1);
+       }
++      /* A duplicate vertex index now shows up as a duplicate rank or as a never-assigned rank:
++      ** a final pass over peritab must check that no cell is still ~0.
++      */
+       if ((permval < baseval) ||                  /* Rank must be within range */
+           (permval >= vertnnd)) {
+         errorPrint ("orderLoad: invalid permutation value");

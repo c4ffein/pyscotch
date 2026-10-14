@@ -1,0 +1,8 @@
+BLD-05: CMake gpart_overlap_2 runs gmtst without -o.
+Pristine: ctest -V -R '^gpart_overlap_2$' shows gmtst printing plain-mapping statistics for an overlap map:
+  M Processors 32/32 (1) / M Neighbors min=0 max=0 sum=0 / M CommCutSz=0.000000 (0) ...  (Passed)
+  direct runs in cm/src/check on the produced map (bump_imbal_32_part_ovl_32.map, has "-1" entries):
+    gmtst    data/bump_imbal_32.grf tgt/k32.tgt map -> "M Processors 32/32 (1) ... CommCutSz=0.000000" rc=0
+    gmtst -o data/bump_imbal_32.grf tgt/k32.tgt map -> "P sep=1201 / P min=385 max=465 avg=421.188 / P maxavg=1.10402" rc=0
+Patched: ctest -V -R '^gpart_overlap_2$' -> "P sep=..." lines, Passed (see $W/verify-cm.status).
+Makefile twin (src/check/Makefile:844) already uses -o. gpart_cluster_1/2 (no -o) match the Makefile.

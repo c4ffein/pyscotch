@@ -1,0 +1,5 @@
+PS2-G08-2: nested dissection splits the context (second random stream) even under SCOTCH_DETERMINISTIC=1
+Run: ./run.sh <tree> <outdir> 30   (gord bump.grf and mord cube_8.msh, 30 fresh processes at 1, 2 and 4 threads,
+SCOTCH_DETERMINISTIC=1; counts runs whose output differs from the first 1-thread run).
+Pristine (pristine.txt): gord 2 threads 30/30 differ, 4 threads 30/30 differ; mord 0 (mesh separators consume no random
+numbers in the sub-contexts on this mesh). Patched (patched.txt, series up to 0006): gord 0/30 at 1, 2 and 4 threads; mord 0.

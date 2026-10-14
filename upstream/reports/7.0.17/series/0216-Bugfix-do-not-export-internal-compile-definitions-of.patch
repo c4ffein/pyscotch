@@ -1,0 +1,54 @@
+From d2967750c6a9a564dffb43b2e5fb0945111094c2 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:08:34 +0000
+Subject: [PATCH 216/240] Bugfix: do not export internal compile definitions of
+ libScotch to CMake users [report R. Perry]
+
+COMMON_RANDOM_FIXED_SEED, SCOTCH_DETERMINISTIC and, on FreeBSD,
+cpu_set_t=cpuset_t and __BSD_VISIBLE were PUBLIC compile definitions
+of the "scotch" target, hence were recorded in the installed
+"scotchTargets.cmake" and added to the compilation flags of every
+program using `find_package(SCOTCH)`: a type renaming macro and a
+change of header visibility for user code.
+
+These definitions are only needed within the build tree, by the
+programs and tests that include internal header files. Restrict them
+to it with the BUILD_INTERFACE generator expression, as is already
+done for the include directories.
+
+Refs: BLD-24
+---
+ src/libscotch/CMakeLists.txt | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/src/libscotch/CMakeLists.txt b/src/libscotch/CMakeLists.txt
+index 4c6ffdc..f7cd244 100644
+--- a/src/libscotch/CMakeLists.txt
++++ b/src/libscotch/CMakeLists.txt
+@@ -542,16 +542,19 @@ if(APPLE)
+   set_target_properties(scotch PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+ endif()
+ 
++# The following definitions are needed by all the targets of the build
++# tree, which include internal header files, but must not be exported
++# to the users of the installed library.
+ if(OS_IS_FREEBSD)
+-  target_compile_definitions(scotch PUBLIC cpu_set_t=cpuset_t __BSD_VISIBLE)
++  target_compile_definitions(scotch PUBLIC $<BUILD_INTERFACE:cpu_set_t=cpuset_t> $<BUILD_INTERFACE:__BSD_VISIBLE>)
+ endif()
+ 
+ if(SCOTCH_DETERMINISTIC STREQUAL FULL)
+-  target_compile_definitions(scotch PUBLIC COMMON_RANDOM_FIXED_SEED)
+-  target_compile_definitions(scotch PUBLIC SCOTCH_DETERMINISTIC)
++  target_compile_definitions(scotch PUBLIC $<BUILD_INTERFACE:COMMON_RANDOM_FIXED_SEED>)
++  target_compile_definitions(scotch PUBLIC $<BUILD_INTERFACE:SCOTCH_DETERMINISTIC>)
+   message(STATUS "Determinism: full")
+ elseif(SCOTCH_DETERMINISTIC STREQUAL FIXED_SEED)
+-  target_compile_definitions(scotch PUBLIC COMMON_RANDOM_FIXED_SEED)
++  target_compile_definitions(scotch PUBLIC $<BUILD_INTERFACE:COMMON_RANDOM_FIXED_SEED>)
+   message(STATUS "Determinism: fixed random seed")
+ else()
+   message(STATUS "Determinism: none")
+-- 
+2.47.3
+

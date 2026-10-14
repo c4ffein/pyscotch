@@ -1,0 +1,106 @@
+[
+ {
+  "local_id": "PS2-G21-1",
+  "our_title": "dgraphBand2Coll()/Ptop() allocation failure not agreed upon in release builds: the other processes hang",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "$WORK/repro/common/scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 3 4 -- band path 0 8 2\n  nth=3 exit=124 HANG :: (1): ERROR: SCOTCH_dgraphBand: out of memory (1); (1): ERROR: dgraphBand2Coll: out of memory (1); rank 1: band rc=1\n  nth=4 exit=124 HANG :: (1): ERROR: dgraphBand2Coll: out of memory (1); rank 1: band rc=1\n$WORK/repro/common/scan.sh ... 2 1 3 3 -- grow ring 0 8 2 -> nth=3 HANG (dgraphGrow2Coll); $WORK/repro/common/scan.sh ... 2 1 0 1 -- bandint path 0 8 2 -> nth=0,1 HANG\nPatched: rc=1 on all ranks (scans/fix1_band_path_b0.txt, fix1_grow_ring_b0.txt, fix1_bandint_path_b0.txt, fix1_bandint_sparse_b1.txt).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/dgraph_band_grow.c:113-118,145-157 (Coll) and 351-356,381-393 (Ptop)",
+  "evidence": "l.145 `#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication not needed and not absorbable by the algorithm */\\n  reduloctab[0] = reduglbtab[0]; ... MPI_Allreduce (reduloctab, reduglbtab, 3, GNUM_MPI, MPI_MAX, grafptr->proccomm) ... #endif` so that in release builds reduglbtab[0] is the local flag only; dgraph_band.c:157 `/* Error will be propagated by dgraphBand2*() */` shows the intent",
+  "related_ids": [
+   "DGR-07",
+   "DGR-13",
+   "PS-DGR-4"
+  ],
+  "fix_options": [
+   {
+    "label": "A: perform the 3-Gnum agreement (error flag + distance bounds) in all build modes",
+    "summary": "drop the #ifdef, reduce reduloctab unconditionally, treat a communication error as an error, keep the distance consistency check (distmax is a user parameter of SCOTCH_dgraphGrow())",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G21-dgraph-band-coarsen/patches/0002-Bugfix-make-error-handling-of-dgraphBand2Coll-and-dg.patch",
+    "tested": "injection above; 32-bit ASan+UBSan and 64-bit Gnum trees: all 15 CHECKPTSCOTCH targets (np=3) rc=0, the dgraph test programs and dgpart/dgord/dgtst at np 1, 2, 4 rc=0, `make ptcheck` rc=0, zero sanitizer reports (chk_32/chk_64_summary.txt); -DSCOTCH_DEBUG_ALL tree: dgraph targets rc=0 (chk_dbg_summary.txt); 0 build warnings in all trees",
+    "tradeoffs": "one 3-Gnum MPI_Allreduce per band/grow call in release builds (the maintainer's comment explicitly avoided it); invalid distance parameters are now rejected in release builds too",
+    "preferred": true,
+    "maintainer_fit": "same decision as G18's dgraphRedist and G19's dgraphBuild3 commits in the combined base ('make error handling ... collective in all build modes', after hdgraphGather()); STYLE.md: a user-controlled parameter is checked unconditionally"
+   },
+   {
+    "label": "B: agree on the error flag only, keep the distance check debug-only",
+    "summary": "1-Gnum reduction in release, 3 in debug, through a REDUNBR macro",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G21-dgraph-band-coarsen/alt/PS2-G21-1-B-flag-only.diff",
+    "tested": "untested: sketch",
+    "tradeoffs": "two more #ifdef blocks to save 16 bytes per reduction",
+    "preferred": false,
+    "maintainer_fit": "more conditional code than he writes for such checks"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G21-dgraph-band-coarsen/patches/0002-Bugfix-make-error-handling-of-dgraphBand2Coll-and-dg.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G21-2",
+  "our_title": "Unchecked shrinking reallocs of the coarse edge arrays and multinode array: crash or silently inconsistent coarse graph with rc=0",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "$WORK/repro/common/scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 26 27 -- coarsen ring 0 8 0\n  nth=26 exit=1 :: MPI_ERRORS_ARE_FATAL (edge array replaced by NULL - baseval)\n  nth=27 exit=0 :: (0): ERROR: dgraphCheck: inconsistent global graph data (2); (1): ERROR: dgraphCheck: inconsistent global graph data (2); rank 0,1: coarsen rc=0   <- rc=0 with an edge load array missing on one process\n$WORK/repro/common/scan.sh ... 2 1 13 13 -- coarsen ring 1 8 1 -> nth=13 exit=139 :: dgraph_coarsen.c:908:51: runtime error: member access within null pointer of type 'const struct DgraphCoarsenMulti' (multinode array lost by its shrink)\nPatched: the same reallocs (now nth=20,21 / fold nth=8) give rc=0 with check=0 on every rank (scans/fix2_coarsen_ring_b0.txt and a direct run in repro/PS2-G21-2/README).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/dgraph_coarsen.c:1269-1272 (edge arrays), 1434-1437 (multinode array)",
+  "evidence": "l.1269-1272 `coargrafptr->edgeloctax  = memRealloc (coargrafptr->edgeloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum));\\n  coargrafptr->edgeloctax -= coargrafptr->baseval;\\n  coargrafptr->edloloctax  = memRealloc (...);\\n  coargrafptr->edloloctax -= coargrafptr->baseval;` l.1434-1437 `matedat.c.multloctmp =\\n    matedat.c.multloctab = memRealloc (matedat.c.multloctab, matedat.c.multlocnbr * sizeof (DgraphCoarsenMulti)); /* Resize multinode array */`",
+  "related_ids": [
+   "DGR-13",
+   "PS2-G19-6"
+  ],
+  "fix_options": [
+   {
+    "label": "A: keep the arrays as they are when shrinking fails",
+    "summary": "temporary pointer, assign only on success (edge arrays after the final agreement; multinode array in dgraphCoarsen)",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G21-dgraph-band-coarsen/patches/0009-Bugfix-keep-the-coarse-edge-arrays-and-the-multinode.patch",
+    "tested": "injection above; 32-bit ASan+UBSan and 64-bit Gnum trees: all 15 CHECKPTSCOTCH targets (np=3) rc=0, the dgraph test programs and dgpart/dgord/dgtst at np 1, 2, 4 rc=0, `make ptcheck` rc=0, zero sanitizer reports (chk_32/chk_64_summary.txt); -DSCOTCH_DEBUG_ALL tree: dgraph targets rc=0 (chk_dbg_summary.txt); 0 build warnings in all trees",
+    "tradeoffs": "the physical arrays may stay larger than edgelocsiz/multlocnbr (harmless: sizes are logical)",
+    "preferred": true,
+    "maintainer_fit": "G19's dgraphGhst2() in the combined base ('Shrink send index array; keep it as is if shrinking fails'), the pattern G19 recorded tree-wide as PS2-G19-6"
+   },
+   {
+    "label": "B: treat a failed shrink as an error",
+    "summary": "check and fail",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G21-dgraph-band-coarsen/alt/PS2-G21-2-B-shrink-failure-is-error.diff",
+    "tested": "untested: sketch",
+    "tradeoffs": "fails for nothing (a larger array is usable), needs its own agreement between collectives, leaks the array",
+    "preferred": false,
+    "maintainer_fit": "contrary to his dgraphGhst2() choice"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G21-dgraph-band-coarsen/patches/0009-Bugfix-keep-the-coarse-edge-arrays-and-the-multinode.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G21-3",
+  "our_title": "CONTEXTINIT() ignores the result of contextOptionsInit(): a failed options allocation runs the routine with defaults and rc=0",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "$WORK/repro/common/scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 0 0 -- band path 0 8 2\n  nth=0 exit=0 :: (1): ERROR: contextValuesInit: out of memory; rank 0: band rc=0; rank 1: band rc=0   (same for grow and coarsen, every SCOTCH_* routine using CONTEXTINIT)",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/context.h:109-118 (CONTEXTINIT macro; not a file of this group)",
+  "evidence": "context.h:114-118 `: (c##_contptr = (void *) &c##_contdat,      \\\\\\n      c##_cdatptr = (void *) (c),               \\\\\\n      contextInit        (&c##_contdat),        \\\\\\n      contextOptionsInit (&c##_contdat),        \\\\\\n      contextCommit      (&c##_contdat)))` : a comma expression whose value is contextCommit()'s only",
+  "related_ids": [],
+  "fix_options": [
+   {
+    "label": "A (notes only, other group's file): fold the result of contextOptionsInit() into the macro value",
+    "summary": "(contextOptionsInit (...) || contextCommit (...))",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G21-dgraph-band-coarsen/alt/PS2-G21-3-A-contextinit-result.diff",
+    "tested": "untested: sketch, not part of this series",
+    "tradeoffs": "contextExit() must tolerate a context without option values (not checked); behaviour change: routines fail instead of silently running with default options",
+    "preferred": true,
+    "maintainer_fit": "to be decided by the CTX group"
+   }
+  ],
+  "patch_files": []
+ }
+]

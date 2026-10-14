@@ -1,0 +1,7 @@
+CLI-02  METIS_PartGraphRecursive (v5) with ubvec == NULL
+  ./cli02        (Recursive)        ./cli02 k   (Kway, for comparison)
+pristine (32-bit and 64-bit):
+  metis_graph_part.c:290:5: runtime error: load of null pointer of type 'const double'
+  AddressSanitizer: SEGV on unknown address 0x000000000000 ... #0 _SCOTCH_METIS_PartGraph2 metis_graph_part.c:290
+  #2 SCOTCH_METIS_V5_PartGraphRecursive metis_graph_part.c:590    (Kway returns ret=1 objval=80)
+patched (0003): Recursive: ret=1 objval=80

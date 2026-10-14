@@ -1,0 +1,17 @@
+--- a/src/libscotch/kgraph_map_df.c	2026-10-13 08:40:02.899404051 +0000
++++ b/src/libscotch/kgraph_map_df.c	2026-10-13 09:44:53.276450520 +0000
+@@ -522,9 +522,11 @@
+       difntax[vertnum].diffval = diffval;
+     }
+ 
+-    difttax = (KgraphMapDfVertex *) difntax;      /* Swap old and new diffusion arrays          */
+-    difntax = (KgraphMapDfVertex *) difotax;      /* Casts to prevent IBM compiler from yelling */
+-    difotax = (KgraphMapDfVertex *) difttax;
++    if (passnum > 1) {                            /* Swap only if another pass will follow      */
++      difttax = (KgraphMapDfVertex *) difntax;    /* Swap old and new diffusion arrays          */
++      difntax = (KgraphMapDfVertex *) difotax;    /* Casts to prevent IBM compiler from yelling */
++      difotax = (KgraphMapDfVertex *) difttax;
++    }
+ fail: ;                                           /* If overflow occured, resume here */
+ #ifndef KGRAPHMAPDFNOTHREAD
+     threadBarrier (descptr);

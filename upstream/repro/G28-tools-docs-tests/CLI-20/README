@@ -1,0 +1,22 @@
+CLI-20: gmap/gpart help text vs code (default imbalance, '-C' in the '-c' error message)
+
+Pristine 7.0.17 (INFRA/asan build), rc and output:
+  $ gpart -h | grep -- '-b<val>'
+    -b<val>    : Load imbalance tolerance (default: 0.05)
+  $ grep -n 'kbalval = 0.01' src/scotch/gmap.c          -> 170:  kbalval = 0.01;
+  $ echo "cmplt 3" | gmap bump.grf - /dev/null -cZ
+  gmap: ERROR: main: invalid strategy selection option 'Z' after '-C'
+  Both the 0.01 default and the "default: 0.05" text come from the same 6.0 commit (eca6fb5, 2012):
+  the code has always used 0.01; dgmap uses 0.05 for both. Neither the man page nor the user's
+  manual states a default value, so only the usage string is wrong.
+
+Patched (patches/0001):
+  $ gpart -h | grep -- '-b<val>'
+    -b<val>    : Load imbalance tolerance (default: 0.01)
+  $ echo "cmplt 3" | gmap bump.grf - /dev/null -cZ
+  gmap: ERROR: main: invalid strategy selection option 'Z' after '-c'
+
+Extra found here (PS2-G28-1, patches/0002): gmap.c:279 and dgmap.c:272 test argv[i][1] == '\0' for a
+missing '-q' parameter; argv[i][1] is the option letter, so the "missing parameter" message is dead:
+  $ echo "cmplt 3" | gmap bump.grf - /dev/null -q      ->  gmap: ERROR: main: invalid cluster load ''
+  patched:                                            ->  gmap: ERROR: main: missing parameter after '-q' for gmap

@@ -1,0 +1,4 @@
+Usage is:
+  gtst [<input graph file> [<output data file>]] <options>
+    -h  : Display this help
+    -V  : Print program version and copyright

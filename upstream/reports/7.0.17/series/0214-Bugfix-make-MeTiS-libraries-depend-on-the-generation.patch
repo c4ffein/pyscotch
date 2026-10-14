@@ -1,0 +1,56 @@
+From 9e0af8ad259e0f90ab8711647b34d6a260a91474 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:08:34 +0000
+Subject: [PATCH 214/240] Bugfix: make MeTiS libraries depend on the generation
+ targets of their headers in CMake [report R. Perry]
+
+"metis.h" is a source file of both "scotchmetisv3" and
+"scotchmetisv5", but neither of them depended on the "metis_h"
+target that drives its generation. With the Makefile generator, each
+library carries its own copy of the generation rule, so that a
+parallel build ran "dummysizes" twice, concurrently, on the same
+output file.
+
+Add "metis_h" to the dependencies of the MeTiS libraries, like
+"metisf_h" already was, and "parmetis_h" to those of the ParMeTiS
+library for the same reason.
+
+Refs: BLD-12
+---
+ src/libscotchmetis/CMakeLists.txt | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/libscotchmetis/CMakeLists.txt b/src/libscotchmetis/CMakeLists.txt
+index 49407e7..547c3ed 100644
+--- a/src/libscotchmetis/CMakeLists.txt
++++ b/src/libscotchmetis/CMakeLists.txt
+@@ -41,7 +41,7 @@
+ ##   DATES      : # Version 6.0  : from : 01 sep 2014     ##
+ ##                                 to     01 sep 2021     ##
+ ##                # Version 7.0  : from : 01 sep 2021     ##
+-##                                 to     18 dec 2025     ##
++##                                 to     13 oct 2026     ##
+ ##                                                        ##
+ ############################################################
+ 
+@@ -108,7 +108,7 @@ foreach(version 3 5)
+     target_link_libraries(scotchmetisv${version} PRIVATE ${LIBSCOTCHERR})
+   endif()
+ 
+-  add_dependencies(scotchmetisv${version} scotch_h metisf_h)
++  add_dependencies(scotchmetisv${version} scotch_h metis_h metisf_h)
+   if(INSTALL_METIS_HEADERS)
+     set_target_properties(scotchmetisv${version} PROPERTIES PUBLIC_HEADER "${GENERATED_INCLUDE_DIR}/metis.h;${GENERATED_INCLUDE_DIR}/metisf.h")
+   endif()
+@@ -190,7 +190,7 @@ if(BUILD_PTSCOTCH)
+       target_link_libraries(ptscotchparmetisv${version} PRIVATE ${LIBPTSCOTCHERR})
+     endif()
+ 
+-    add_dependencies(ptscotchparmetisv${version} ptscotch_h)
++    add_dependencies(ptscotchparmetisv${version} ptscotch_h parmetis_h)
+     if(INSTALL_METIS_HEADERS)
+       set_target_properties(ptscotchparmetisv${version} PROPERTIES PUBLIC_HEADER "${GENERATED_INCLUDE_DIR}/parmetis.h")
+     endif()
+-- 
+2.47.3
+

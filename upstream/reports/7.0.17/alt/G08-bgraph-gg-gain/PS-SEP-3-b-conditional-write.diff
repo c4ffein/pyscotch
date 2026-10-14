@@ -1,0 +1,81 @@
+diff -ru a/src/libscotch/gain.c b/src/libscotch/gain.c
+--- a/src/libscotch/gain.c	2026-10-13 09:20:18.834253540 +0000
++++ b/src/libscotch/gain.c	2026-10-13 09:20:18.838253611 +0000
+@@ -73,7 +73,7 @@
+ **  The static variables.
+ */
+ 
+-static GainLink             gainLinkDummy;        /*+ Dummy link space for fast linked list operations +*/
++GainLink                    gainLinkDummy;        /*+ Dummy link space for fast linked list operations +*/
+ 
+ /*************************************************/
+ /*                                               */
+@@ -254,7 +254,8 @@
+ 
+   headptr = (GainLink *) entrptr;                 /* TRICK: assume gain entry is a link */
+   linkptr->tabl       = entrptr;                  /* Set table position                 */
+-  headptr->next->prev = linkptr;                  /* Link vertex in gain list: TRICK    */
++  if (headptr->next != &gainLinkDummy)            /* Never write to shared dummy link   */
++    headptr->next->prev = linkptr;                /* Link vertex in gain list: TRICK    */
+   linkptr->prev       = headptr;
+   linkptr->next       = headptr->next;
+   headptr->next       = linkptr;
+@@ -308,7 +309,8 @@
+     errorPrint ("gainTablAddLog: bad chaining");
+ #endif /* SCOTCH_DEBUG_GAIN3 */
+ 
+-  entrptr->next->prev = linkptr;                  /* Link vertex in gain list: TRICK */
++  if (entrptr->next != &gainLinkDummy)            /* Never write to shared dummy link */
++    entrptr->next->prev = linkptr;                /* Link vertex in gain list: TRICK  */
+   linkptr->prev       = (GainLink *) entrptr;
+   linkptr->next       = entrptr->next;
+   linkptr->tabl       = entrptr;                  /* Set table position */
+@@ -340,7 +342,8 @@
+     }
+   }
+ #endif /* SCOTCH_DEBUG_GAIN3 */
+-  linkptr->next->prev = linkptr->prev;            /* TRICK: may write in dummy link area */
++  if (linkptr->next != &gainLinkDummy)            /* Never write to shared dummy link */
++    linkptr->next->prev = linkptr->prev;
+   linkptr->prev->next = linkptr->next;
+ }
+ #endif /* SCOTCH_DEBUG_GAIN1 */
+diff -ru a/src/libscotch/gain.h b/src/libscotch/gain.h
+--- a/src/libscotch/gain.h	2026-10-13 09:20:18.834253540 +0000
++++ b/src/libscotch/gain.h	2026-10-13 09:20:18.838253611 +0000
+@@ -100,6 +100,12 @@
+ } GainTabl;
+ 
+ /*
++**  The global variables.
++*/
++
++extern GainLink             gainLinkDummy;        /*+ Dummy link space for fast linked list operations +*/
++
++/*
+ **  The function prototypes.
+ */
+ 
+@@ -126,6 +132,9 @@
+ #define gainTablEmpty(tabl)         ((tabl)->tmin == (tabl)->tend)
+ #define gainTablAdd(tabl,link,gain) ((tabl)->tablAdd  ((tabl), (link), (gain)))
+ #if ((! defined SCOTCH_GAIN) && (! defined SCOTCH_DEBUG_GAIN1))
+-#define gainTablDel(tabl,link)      (((GainLink *) (link))->next->prev = ((GainLink *) (link))->prev, \
+-                                     ((GainLink *) (link))->prev->next = ((GainLink *) (link))->next)
++#define gainTablDel(tabl,link)      do {                                                                 \
++                                      if (((GainLink *) (link))->next != &gainLinkDummy)                 \
++                                        ((GainLink *) (link))->next->prev = ((GainLink *) (link))->prev; \
++                                      ((GainLink *) (link))->prev->next = ((GainLink *) (link))->next;   \
++                                    } while (0)
+ #endif /* ((! defined SCOTCH_GAIN) && (! defined SCOTCH_DEBUG_GAIN1)) */
+diff -ru a/src/libscotch/module.h b/src/libscotch/module.h
+--- a/src/libscotch/module.h	2026-10-13 09:20:18.838253611 +0000
++++ b/src/libscotch/module.h	2026-10-13 09:20:18.838253611 +0000
+@@ -853,6 +853,7 @@
+ #define fiboHeapInit                SCOTCH_NAME_INTERN (fiboHeapInit)
+ /* #define fiboHeapMin              SCOTCH_NAME_INTERN (fiboHeapMin) Already a macro */
+ 
++#define gainLinkDummy               SCOTCH_NAME_INTERN (gainLinkDummy)
+ #define gainTablAddLin              SCOTCH_NAME_INTERN (gainTablAddLin)
+ #define gainTablAddLog              SCOTCH_NAME_INTERN (gainTablAddLog)
+ #define gainTablCheck               SCOTCH_NAME_INTERN (gainTablCheck)

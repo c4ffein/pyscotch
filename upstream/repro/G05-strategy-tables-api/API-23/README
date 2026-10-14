@@ -1,0 +1,15 @@
+API-23 (public wrappers ignore their *Init result) reproducer, via a malloc
+interposer that fails the N-th allocation.  Needs a NON-sanitized build
+(ASan replaces malloc), so build libscotch with -fsanitize removed.
+
+  gcc -O0 -g -shared -fPIC failmalloc.c -o failmalloc.so -ldl
+  gcc -O0 -g -I<inc> map.c -o map -L<plainlib> -lscotch -lscotcherr -lz -lm -lpthread
+
+  SCOTCH_FAIL_AT=3 LD_PRELOAD=./failmalloc.so LD_LIBRARY_PATH=<plainlib> ./map
+   (call 3, 264 bytes, is SCOTCH_graphMapInit's part-array allocation)
+   pristine : 'ERROR: SCOTCH_graphMapInit: out of memory' then Segmentation fault
+              (rc=139): the ignored Init error let graphMapCompute run on an
+              unallocated part array.
+   patched  : 'ERROR: SCOTCH_graphMapInit: out of memory' then 'SCOTCH_graphMap ret=1'
+              (rc=1): the wrapper returns the error instead of proceeding.
+  (The graphCoarsen 1->2 return-code change is verified by source/doc reading.)

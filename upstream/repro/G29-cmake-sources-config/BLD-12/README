@@ -1,0 +1,18 @@
+BLD-12: metis.h generated concurrently by scotchmetisv3 and scotchmetisv5 (Unix Makefiles generator).
+
+Generated rule placement (pristine):
+  grep -l 'Generating metis.h' $WORK/cm/base32/src/libscotchmetis/CMakeFiles/*/build.make
+    .../scotchmetisv3.dir/build.make
+    .../metis_h.dir/build.make
+    .../scotchmetisv5.dir/build.make
+  grep 'scotchmetisv5.dir/all:' $WORK/cm/base32/CMakeFiles/Makefile2   -> depends on dummysizes, scotch_h, scotch, metisf_h; NOT metis_h.
+
+Race (pristine), 10 runs:
+  for i in $(seq 10); do rm -f $WORK/cm/base32/src/include/metis.h; make -C $WORK/cm/base32 -j8 all 2>&1 | grep -c 'Generating metis.h'; done
+  -> race-base-all.log: "2" in 9 runs out of 10, "1" once (both libraries ran dummysizes on the same output).
+  (Caveat learnt the hard way: "make -j8 scotchmetisv3 scotchmetisv5" does NOT show it, because
+   CMake's top-level Makefile has .NOTPARALLEL and builds command-line goals one after the other:
+   race-base.log is that run, 12 x "1". CI runs "make -j16" (= all), which is the racy path.)
+
+Patched ($WORK/cm/patched32), same loop: race-patched-all.log = 10 x "1".
+  Makefile2 now has: scotchmetisv{3,5}.dir/all: src/libscotchmetis/CMakeFiles/metis_h.dir/all

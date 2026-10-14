@@ -1,0 +1,5 @@
+GRA-11  Harwell-Boeing loader indexes verttax with unchecked row index
+  <build>/bin/gcv -ib bad99.hb /dev/null        (row index 99 in a 4x4 matrix)
+  <build>/bin/gcv -ib bad0.hb  /dev/null        (blank field -> decoded 0)
+PRISTINE: AddressSanitizer heap-buffer-overflow READ in graphGeomLoadHabo graph_io_habo.c:280.
+PATCHED : "graphGeomLoadHabo: bad input (9)". ok.hb still loads.

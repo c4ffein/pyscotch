@@ -1,0 +1,4 @@
+Probe for the k-way diffusion twin (kgraph_map_df.c, owned by group G13): attempt to reach the "graph too small to have
+any usable anchors" abort (velsmsk == 0 -> goto fail, which skips two barriers) with several threads, using an isolated
+heavy vertex that gets a part of its own.  ./kdf 12 4 3 [strategy]  -> rc=0, no hang: the path was not reached from the
+public API in this experiment; the defect (PS2-G09-4) is reported source-read, with alt/PS2-G09-4-kgraph_map_df-abort-sync.diff.

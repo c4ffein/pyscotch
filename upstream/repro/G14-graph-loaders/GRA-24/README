@@ -1,0 +1,5 @@
+GRA-24  Harwell-Boeing format parser isdigit() typo rejects nX,mIw formats
+  <build>/bin/gcv -ib pre.hb out_pre.grf        (format (1X,10I3))
+  <build>/bin/gcv -ib ok.hb  out_ok.grf         (format (10I3))
+PRISTINE: pre.hb -> "graphGeomLoadHabo: bad input (2)" (skip-prefix format rejected).
+PATCHED : pre.hb loads; output byte-identical to ok.hb's.

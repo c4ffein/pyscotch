@@ -1,0 +1,96 @@
+From 703c3607127af9e4fb24e872878fccda51bd836d Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:18:51 +0000
+Subject: [PATCH 144/240] Bugfix: do not allocate communication arrays in
+ `dgraphMatchSyncColl()` [report R. Perry]
+
+At each matching pass, `dgraphMatchSyncColl()` allocated its four
+count and displacement arrays, and returned alone when the allocation
+failed, while the other processes entered the all-to-all exchanges of
+the pass and waited forever.
+
+Use the count arrays of the coarsening data and the private arrays of
+the coarse graph instead, as `dgraphCoarsenBuildColl()` already does:
+they are allocated in `dgraphCoarsenInit()`, whose errors are agreed
+upon by all processes, and are not used before the coarse graph is
+built.
+
+Refs: DGR-13
+---
+ src/libscotch/dgraph_match_sync_coll.c | 26 +++++++++-----------------
+ 1 file changed, 9 insertions(+), 17 deletions(-)
+
+diff --git a/src/libscotch/dgraph_match_sync_coll.c b/src/libscotch/dgraph_match_sync_coll.c
+index 088383a..6c0c651 100644
+--- a/src/libscotch/dgraph_match_sync_coll.c
++++ b/src/libscotch/dgraph_match_sync_coll.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2009,2021,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2009,2021,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 6.1  : from : 27 dec 2021     **/
+ /**                                 to   : 27 dec 2021     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 30 mar 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -86,13 +86,13 @@ DgraphMatchData * restrict  mateptr)              /* [norestrict:async] */
+   int                 procngbnbr;
+   int                 procngbidx;
+   int                 procngbnum;
+-  int * restrict      vsndcnttab;
+-  int * restrict      vrcvcnttab;
+-  int * restrict      vsnddsptab;
+-  int * restrict      vrcvdsptab;
+ 
+   Dgraph * const                      grafptr    = mateptr->c.finegrafptr; /* [norestrict:async] */
+   const int * restrict const          procngbtab = grafptr->procngbtab;
++  int * restrict const                vsndcnttab = mateptr->c.vsndcnttab; /* TRICK: use coarsening work arrays, as in dgraphCoarsenBuildColl() */
++  int * restrict const                vrcvcnttab = mateptr->c.vrcvcnttab;
++  int * restrict const                vrcvdsptab = mateptr->c.coargrafptr->procrcvtab; /* TRICK: use coarse graph procrcvtab and procsndtab */
++  int * restrict const                vsnddsptab = mateptr->c.coargrafptr->procsndtab;
+   int * restrict const                procgsttax = mateptr->c.procgsttax;
+   const Gnum * restrict const         procvgbtab = mateptr->procvgbtab;
+   const Gnum * restrict const         vertloctax = grafptr->vertloctax;
+@@ -118,14 +118,6 @@ DgraphMatchData * restrict  mateptr)              /* [norestrict:async] */
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
+-  if ((vsnddsptab = memAlloc (4 * grafptr->procglbnbr * sizeof (int))) == NULL) {
+-    errorPrint ("dgraphMatchSyncColl: out of memory");
+-    return (1);
+-  }
+-  vsndcnttab = vsnddsptab + grafptr->procglbnbr;  /* TRICK: put vsnddsptab, vsndcnttab, vrcvdsptab in order for memSet() */
+-  vrcvdsptab = vsndcnttab + grafptr->procglbnbr;
+-  vrcvcnttab = vrcvdsptab + grafptr->procglbnbr;
+-
+   for (procngbnum = 0; procngbnum < procngbnbr; procngbnum ++) /* Reset indices for sending messages */
+     nsndidxtab[procngbnum] = mateptr->c.vsnddsptab[procngbtab[procngbnum]];
+ 
+@@ -193,7 +185,9 @@ DgraphMatchData * restrict  mateptr)              /* [norestrict:async] */
+     vsnddattab[vsndidxnum].datatab[1] = mateglbnum;
+   }
+ 
+-  memSet (vsnddsptab, 0, 3 * grafptr->procglbnbr * sizeof (int)); /* TRICK: resets vsnddsptab, vsndcnttab, vrcvdsptab */
++  memSet (vsndcnttab, 0, grafptr->procglbnbr * sizeof (int));
++  memSet (vrcvdsptab, 0, grafptr->procglbnbr * sizeof (int));
++  memSet (vsnddsptab, 0, grafptr->procglbnbr * sizeof (int));
+   for (procngbnum = 0; procngbnum < procngbnbr; procngbnum ++) {
+     int                 procglbnum;
+ 
+@@ -429,7 +423,5 @@ DgraphMatchData * restrict  mateptr)              /* [norestrict:async] */
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
+-  memFree (vsnddsptab);
+-
+   return (0);
+ }
+-- 
+2.47.3
+

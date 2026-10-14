@@ -1,0 +1,8 @@
+COR-03: terminal numbers of a "sub" architecture were range/duplicate-checked only under SCOTCH_DEBUG_ARCH1.
+Cases: sub_range "sub 2 0 99 cmplt 4", sub_toomany "sub 2 0 1 cmplt 1", sub_dup "sub 2 0 0 cmplt 4",
+       sub_zero "sub 0 cmplt 4", sub_neg "sub -1 cmplt 4", and SCOTCH_archSub(cmplt4, {0,99}) through the API.
+Pristine: heap-buffer-overflow WRITE in archSubArchBuild (arch_sub.c:472/474) for sub_range/sub_toomany;
+          heap-use-after-free for sub_dup (Build fails late, then COR-04); negative-size allocation for sub_zero/sub_neg;
+          SCOTCH_archSub {0,99}: heap-buffer-overflow WRITE.
+Patched (0002): "archSubArchBuild: invalid vertex number in vertex list" / "invalid number of terminal domains" /
+          "duplicate vertex number in vertex list" / "archSubArchLoad: bad input (1)"; load ret=1; API ret=2; no sanitizer report.

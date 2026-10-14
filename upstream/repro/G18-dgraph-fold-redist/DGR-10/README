@@ -1,0 +1,24 @@
+DGR-10: dgraphGatherAll2() error path: NULL dereference on non-roots, uninitialised free on root
+=================================================================================================
+Harness: ../common (gatherfi; the plain libraries are built with -ftrivial-auto-var-init=pattern
+so that uninitialised locals are deterministic garbage).
+
+Pristine:
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/gatherfi 2 1 0 0 -- gather 0 5
+  nth=0 exit=139 :: (1): ERROR: dgraphGatherAll2: out of memory (3);
+                    dgraph_gather_all.c:212:16: runtime error: member access within null pointer of type 'struct Graph'
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/gatherfi 2 0 0 3 -- gather 0 5
+  nth=0 exit=139 :: (0): ERROR: dgraphGatherAll2: out of memory (1); signal 11  <- free(recvcnttab), uninitialised
+  nth=1 exit=139 :: (0): ERROR: dgraphGatherAll2: out of memory (2); signal 11  <- same
+  nth=2 exit=1   :: rank 0 rc=1, rank 1 rc=0 (no agreement, PS-DGR-4)
+
+Patched (commit 0004): non-root nth=0 and root nth=0..2: exit=1, both ranks "gather rc=1";
+  nth=3: rc=0 and the centralized graph checks; alias mode (API-04) unchanged.
+
+Twin hdgraphGather() (same commit), through SCOTCH_dgraphOrderCompute (orderfi, m16x16.grf, np=4),
+allocation #123 on rank 0 is "hdgraphGather: out of memory (2)":
+  pristine: ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/orderfi 4 0 123 123 -- data/m16x16.grf
+            exit=139, signal 11: hgraphExit() frees a never-set edge array with a never-set base value
+  patched:  exit=1, no crash, ranks 0,1 "cannot compute ordering".
+  (ranks 2,3 return 0 in both cases: the two folded halves of hdgraphOrderNd2() do not agree on
+  failure in release builds, hdgraph_order_nd.c:301-307, another group's file; see extra.json.)

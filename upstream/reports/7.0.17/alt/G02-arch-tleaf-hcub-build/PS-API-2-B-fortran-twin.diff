@@ -1,0 +1,29 @@
+diff --git a/src/libscotch/library_arch_f.c b/src/libscotch/library_arch_f.c
+index b838d39..6bcac7e 100644
+--- a/src/libscotch/library_arch_f.c
++++ b/src/libscotch/library_arch_f.c
+@@ -360,6 +360,24 @@ int * const                 revaptr),   \
+ **
+ */
+ 
++SCOTCH_FORTRAN (                      \
++ARCHLTLEAF, archltleaf, (             \
++SCOTCH_Arch * const         archptr,  \
++const SCOTCH_Num * const    levlnbr,  \
++const SCOTCH_Num * const    sizetab,  \
++const SCOTCH_Num * const    linktab,  \
++const SCOTCH_Num * const    permnbr,  \
++const SCOTCH_Num * const    permtab,  \
++int * const                 revaptr), \
++(archptr, levlnbr, sizetab, linktab, permnbr, permtab, revaptr))
++{
++  *revaptr = SCOTCH_archLtleaf (archptr, *levlnbr, sizetab, linktab, *permnbr, permtab);
++}
++
++/*
++**
++*/
++
+ SCOTCH_FORTRAN (                      \
+ ARCHTLEAF, archtleaf, (               \
+ SCOTCH_Arch * const         archptr,  \

@@ -1,0 +1,22 @@
+diff --git a/src/libscotch/dmapping_io.c b/src/libscotch/dmapping_io.c
+index 717381e..603f120 100644
+--- a/src/libscotch/dmapping_io.c
++++ b/src/libscotch/dmapping_io.c
+@@ -144,6 +144,8 @@ FILE * restrict const           stream)
+       errorPrint ("dmapSave: bad output (1)");
+       reduloctab[0] = 1;
+     }
++    else
++      vlbltax -= grafptr->baseval;                /* Base label array since displacement array is based */
+   }
+   else {                                          /* Process is not the root       */
+     vlbltax = NULL;                               /* Prevent Valgrind from yelling */
+@@ -167,8 +169,6 @@ FILE * restrict const           stream)
+   }
+ 
+   if (grafptr->vlblloctax != NULL) {
+-    vlbltax -= grafptr->baseval;                  /* Base label array since displacement array is based */
+-
+     if (commGatherv (grafptr->vlblloctax + grafptr->baseval, grafptr->vertlocnbr, GNUM_MPI,
+                      vlbltax, grafptr->proccnttab, grafptr->procdsptab, GNUM_MPI, protnum, grafptr->proccomm) != MPI_SUCCESS) {
+       errorPrint ("dmapSave: communication error (3)");

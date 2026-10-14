@@ -1,0 +1,2 @@
+nth=3 exit=134 :: 1 (1): ERROR: dgraphGrow2Ptop: out of memory (1);1 fishim: rank 1: failing allocation #3;1 fishim: rank 1: signal 6, backtrace:;1 rank 2: grow rc=0 seen=0;1 rank 3: grow rc=0 seen=0;
+nth=4 exit=0 :: 1 rank 0: grow rc=0 seen=0;1 rank 1: grow rc=0 seen=4;1 rank 2: grow rc=0 seen=0;1 rank 3: grow rc=0 seen=0;

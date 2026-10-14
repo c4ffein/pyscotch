@@ -1,0 +1,22 @@
+DGR-22: Gnum message sizes narrowed to int MPI counts in fold and redist; unchecked Waitall
+===========================================================================================
+Not runnable at scale (needs > 2^31 vertices or edges in one message, i.e. > 16 GB per message).
+
+Narrowing sites (64-bit Gnum build flags, gcc -Wconversion, pristine):
+  mpicc <CFLAGS64> -DSCOTCH_PTSCOTCH -Wconversion -I... -c dgraph_fold.c   -> 22 "conversion from 'Gnum' to 'int' may change value"
+  hdgraph_fold.c -> 18, dgraph_redist.c -> 4 (:295 degree sum, :435/:444/:461 int accumulators)
+
+Boundary (mpicount.c, Open MPI on this box):
+  mpicc -O0 mpicount.c -o mpicount; mpirun -np 1 ./mpicount
+  Gnum count 2147483647 -> int count 2147483647 : MPI_Isend rc=0 (MPI_SUCCESS)
+  Gnum count 2147483648 -> int count -2147483648 : MPI_Isend rc=2 (MPI_ERR_COUNT: invalid count argument)
+  Gnum count 4294967300 -> int count 4 : silently sends 4 elements
+So the first overflowing size aborts the job (MPI_ERRORS_ARE_FATAL); sizes >= 2^32 are silently
+truncated and produce a wrong folded/redistributed graph without any diagnostic.
+
+Patch (commit 0007): dgraphFoldComm() refuses graphs whose maximum local vertex count does not fit
+in an int (bounds every vertex message); receivers reject received edge counts that do not fit, at
+the collective gate of commit 0003; dgraphRedist2() accumulates data totals as Gnums and rejects
+send and receive totals that do not fit, at its (now unconditional) agreements. The unchecked
+MPI_Waitall is checked in commit 0003. With 32-bit Gnums the checks are trivially false; both trees
+compile without warnings; all check targets pass (the checks are exercised only as no-ops).

@@ -1,0 +1,8 @@
+dgtst(1): ERROR: dgraphLoadDist: bad input (1)
+--------------------------------------------------------------------------
+prterun detected that one or more processes exited with non-zero status,
+thus causing the job to be terminated. The first process to do so was:
+
+   Process name: [prterun-8f72f7c979a7-981512@1,1]
+   Exit code:    1
+--------------------------------------------------------------------------

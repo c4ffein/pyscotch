@@ -1,0 +1,70 @@
+From 84057926c2c61a7a3d04491121b60b4db002c3de Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:58:23 +0000
+Subject: [PATCH 3/7] Bugfix: do not leave pending sends or an unmatched
+ abortion message on loader failure [report R. Perry]
+
+When a receiver in `dgraphLoadCent()` answered `TAGBAD` (it could not
+allocate its edge arrays), the root broke out of the distribution loop
+without waiting on the vertex, load and label `MPI_Isend()`s it had
+already posted, then freed those send buffers; and its abortion loop
+started at the current process, sending an extra zero-byte
+`TAGVERTLOCTAB` message to the very process that had just refused -- a
+message it was no longer waiting for, which then lingered on the
+communicator and disturbed its next collective use.
+
+Wait on the pending sends before freeing the buffers, and start the
+abortion loop one process past the one that already knows of the failure.
+
+Refs: DGR-19
+---
+ src/libscotch/dgraph_io_load.c | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/src/libscotch/dgraph_io_load.c b/src/libscotch/dgraph_io_load.c
+index ebbdc22..230c430 100644
+--- a/src/libscotch/dgraph_io_load.c
++++ b/src/libscotch/dgraph_io_load.c
+@@ -318,6 +318,7 @@ const int                   protnum)              /* Root process number
+ 
+   if (fileptr != NULL) {
+     Gnum                procnum;
++    Gnum                procabrnum;               /* First process to send an abortion message to */
+ 
+     for (procnum = 0; procnum < grafptr->procglbnbr; procnum ++) {
+       Gnum                vertrednnd;
+@@ -325,6 +326,8 @@ const int                   protnum)              /* Root process number
+       Gnum                edgerednum;
+       Gnum                veloredsum;
+ 
++      procabrnum = procnum;                       /* By default, the process being served still waits for data */
++
+       for (vertrednum = edgerednum = baseval, veloredsum = 0,
+            vertrednnd = DATASIZE (vertglbnbr, grafptr->procglbnbr, procnum) + baseval;
+            vertrednum < vertrednnd; vertrednum ++) {
+@@ -456,8 +459,11 @@ const int                   protnum)              /* Root process number
+             errorPrint ("dgraphLoadCent: communication error (8)");
+             return (1);
+           }
+-          if (stattab[0].MPI_TAG != TAGOK)        /* If receiver could not allocate memory for edge arrays */
+-            cheklocval = 1;
++          if (stattab[0].MPI_TAG != TAGOK) {      /* If receiver could not allocate memory for edge arrays */
++            cheklocval  = 1;
++            procabrnum  = procnum + 1;            /* Refusing process already knows of the failure; do not abort it again */
++            MPI_Waitall (requnbr, &requtab[0], &stattab[0]); /* Complete pending sends before buffers are freed or reused */
++          }
+           else {
+             if (MPI_Isend (edgeredtax + baseval, edgerednum - baseval, GNUM_MPI,
+                            procnum, TAGEDGELOCTAB, grafptr->proccomm, &requtab[requnbr ++]) != MPI_SUCCESS) {
+@@ -532,7 +538,7 @@ const int                   protnum)              /* Root process number
+       }
+ 
+       if (cheklocval != 0) {                      /* If error encountered                           */
+-        for ( ; procnum < grafptr->procglbnbr; procnum ++) { /* Send abortion messages              */
++        for (procnum = procabrnum; procnum < grafptr->procglbnbr; procnum ++) { /* Send abortion messages */
+           if (procnum != grafptr->proclocnum) {   /* Abortion messages complete vertloctab receives */
+             if (MPI_Send (vertredtax + baseval, 0, GNUM_MPI, procnum, TAGVERTLOCTAB, grafptr->proccomm) != MPI_SUCCESS)
+               errorPrint ("dgraphLoadCent: communication error (11)");
+-- 
+2.47.3
+

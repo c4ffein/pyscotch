@@ -1,0 +1,33 @@
+From c75aed11d7d2f3fb5aa27541cd967e30eac4d03c Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:18:30 +0000
+Subject: [PATCH 085/240] Bugfix: fix isdigit() test in Harwell-Boeing format
+ parser [report R. Perry]
+
+graphGeomLoadHaboFormat() tested `! isdigit (*charptr < '0')`, applying
+isdigit() to the 0/1 result of a comparison instead of to the character.
+Formats with a skip prefix such as (1X,10I8) were therefore always
+rejected. Test the character itself, like the other isdigit() calls in
+the routine.
+
+Refs: GRA-24
+---
+ src/libscotch/graph_io_habo.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/libscotch/graph_io_habo.c b/src/libscotch/graph_io_habo.c
+index b64aef0..81bfb1d 100644
+--- a/src/libscotch/graph_io_habo.c
++++ b/src/libscotch/graph_io_habo.c
+@@ -409,7 +409,7 @@ const char * const                  dataptr)      /* Format string       */
+     for (charptr ++; *charptr != '\0'; charptr ++) {
+       if (*charptr == '\0')                       /* Error if end of string */
+         return (1);
+-      if (! isdigit (*charptr < '0'))
++      if (! isdigit ((int) (unsigned char) *charptr))
+         break;
+       number = number * 10 + *charptr - '0';
+     }
+-- 
+2.47.3
+

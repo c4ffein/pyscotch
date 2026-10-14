@@ -1,0 +1,12 @@
+Shared harness for the reproducers of group G19 (reused from G18: repro/common of G18-dgraph-fold-redist)
+WORK=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce
+fishim.c / fishim.so : LD_PRELOAD malloc/realloc fault injector. Counts allocations made from a library whose path contains
+   "scotch" (NB: this also counts the reproducer's own mallocs, which is why ring.h allocates BEFORE arming). Fails the FI_NTH-th
+   counted allocation on MPI rank FI_RANK once the program sets the exported variable fi_armed (fi.h: fi_arm (1)).
+   gcc -O1 -g -fPIC -shared -o fishim.so fishim.c -ldl
+   ASan builds cannot be preloaded, so injections run against UBSan-only builds: pristine = /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/pristinefi (pristine 7.0.17 sources,
+   built by G18), patched = /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/buildfi (this series).
+fi.h, ring.h : helpers included by the reproducers.
+build.sh BUILDDIR : compiles every reproducer against BUILDDIR into repro/<ID>/bin_<basename BUILDDIR>/.
+scan.sh LIBDIR BIN NP FAILRANK NTH_FROM NTH_TO -- args : one line per injected allocation index; "HANG" = 15 s timeout.
+Non-injection reproducers (DGR-11, DGR-12, DGR-21) run against the ASan builds: pristine = /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/asan, patched = /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/build.

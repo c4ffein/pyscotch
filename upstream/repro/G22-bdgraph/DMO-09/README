@@ -1,0 +1,17 @@
+DMO-09 : the 'bal' strategy variable (bbalglbval) is stale, uninitialised or different across processes
+=======================================================================================================
+cd $WORK/repro/common ; the driver prints bal (the field) next to balcalc (|compglbload0dlt|/compglbload0avg).
+Pristine runs (probes_base.txt; basefi = pattern-initialised stack, so garbage is visible):
+  'q{strat=f}'                 np=3: bal=1 balcalc=0.00615      (stale value of bdgraphInit2 after Sq)
+  'q{strat=f}x{bal=0.001}z'    np=3: bal=0.000897 balcalc=1     (stale value after bdgraphZero)
+  'm{asc=/(levl<0)?z;,low=q{strat=f}x{bal=0},seq=q{strat=f}x{bal=0},fold=d,dvert=100000,vert=100}'
+                               np=2: rank 0 bal=0.000128, rank 1 bal=0        <- DIFFERENT ACROSS RANKS
+                               np=4: rank 1 bal=0.000128, ranks 0,2,3 bal=0   (balcalc identical on all)
+     (duplicated folding: each process copies bbalglbval from its own half's coarse graph, whose
+      partition is not the selected one; with fold=d and the default vert/dvert the earlier probes show
+      bal=-5.3e303 = never initialised coarse value)
+  'q{strat=f}q{strat=/(bal<0)?z;}' np=2: z RUNS (load0=15606): the gathered Bgraph's bbalval is never set
+      on a second Sq (only bgraphZero sets it on the first one), so the sequential strategy branched on
+      uninitialised memory; '(bal>0)?z;' does not run z.
+Patched runs (probes_patched.txt, probes_patched_debug.txt on the -DSCOTCH_DEBUG_ALL tree):
+  bal == balcalc on every process in all of the above; the second-Sq probe runs z for (bal>0) only.

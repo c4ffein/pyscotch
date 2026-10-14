@@ -1,0 +1,51 @@
+From 2105a2cecdbfcdd8e14995951472bf9068bacb41 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:18:30 +0000
+Subject: [PATCH 084/240] Bugfix: validate row indices in Harwell-Boeing loader
+ [report R. Perry]
+
+graphGeomLoadHabo() decoded each non-zero row index from fixed-width
+columns and used it directly to index verttax[]. A blank field (decoded
+as 0), a row number beyond the matrix order, or non-digit characters
+drove verttax[habnzrval]++ out of bounds. Reject row indices outside
+[1, habcolnbr] right after decoding.
+
+Refs: GRA-11
+---
+ src/libscotch/graph_io_habo.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/graph_io_habo.c b/src/libscotch/graph_io_habo.c
+index b961f0e..b64aef0 100644
+--- a/src/libscotch/graph_io_habo.c
++++ b/src/libscotch/graph_io_habo.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2010,2016,2018,2019,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2010,2016,2018,2019,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 04 aug 2016     **/
+ /**                                 to   : 27 aug 2019     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 31 jul 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -274,6 +274,11 @@ const char * const          dataptr)              /* Tag value        */
+         graphFree  (grafptr);
+         return (1);
+       }
++      if ((habnzrval < 1) || (habnzrval > habcolnbr)) { /* Row index must be a valid vertex number (also rejects blank fields) */
++        errorPrint ("graphGeomLoadHabo: bad input (9)");
++        graphFree  (grafptr);
++        return (1);
++      }
+       habnzrtab[habnzrnum] = habnzrval;
+       if (habnzrval != vertnum) {                 /* If not loop edge      */
+         grafptr->verttax[vertnum] ++;             /* Account for arc       */
+-- 
+2.47.3
+

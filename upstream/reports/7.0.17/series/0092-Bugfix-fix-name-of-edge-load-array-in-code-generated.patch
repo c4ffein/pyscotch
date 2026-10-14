@@ -1,0 +1,47 @@
+From f38ea4e169cc2e98e9dd335246776b5ccd12326f Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:52:45 +0000
+Subject: [PATCH 092/240] Bugfix: fix name of edge load array in code generated
+ by `graphDump()` [report R. Perry]
+
+The internal `graphDump()` routine emitted the edge load array under
+the name "edlotab" but referred to it as "delotab" when setting the
+`edlotax` field, so that the generated C code of a graph with edge
+loads did not compile.
+
+Refs: GRA-27
+---
+ src/libscotch/graph_dump.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/libscotch/graph_dump.c b/src/libscotch/graph_dump.c
+index 4098a03..b2d0bbf 100644
+--- a/src/libscotch/graph_dump.c
++++ b/src/libscotch/graph_dump.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2019,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2019,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 6.0  : from : 27 dec 2019     **/
+ /**                                 to   : 29 dec 2019     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 19 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -128,7 +128,7 @@ FILE * const                fileptr)              /* Output stream       */
+                  dataptr, prefptr, suffptr, grafptr->baseval) < 0);
+   if (grafptr->edlotax != NULL)
+     o |= (fprintf (fileptr,
+-                   "  %sedlotax = %sdelotab%s - " GNUMSTRING ";\n",
++                   "  %sedlotax = %sedlotab%s - " GNUMSTRING ";\n",
+                    dataptr, prefptr, suffptr, grafptr->baseval) < 0);
+   o |= (fprintf (fileptr,
+                  "  %sedlosum = " GNUMSTRING ";\n"
+-- 
+2.47.3
+

@@ -1,0 +1,12 @@
+API-02: SCOTCH_contextOptionSetNum() switched on the option value (fixed upstream in 0f793bf)
+--------------------------------------------------------------------------------------------
+opt.c: SetNum (DETERMINISTIC, 1), SetNum (DETERMINISTIC, 5), SetNum (7, 1), Parse ("d"), Parse ("x"), Parse ("d,r"),
+Parse ("u"); prints return values and the two option values after each step.
+
+7.0.17 (both 32- and 64-bit trees):
+  SetNum (DETERMINISTIC, 1) = 0 ; afterwards deterministic=1 fixedseed=1   (fixed: switch (optinum), implication kept)
+  SetNum (DETERMINISTIC, 5) = 0 (value clamped to 1) ; SetNum (7, 1) = 1 "invalid option name"
+  Parse ("d") = 0 ; Parse ("x") = 1 "invalid parameter name before "x"" (return value now propagated)
+  Parse ("d,r") = 0 -> deterministic=1 fixedseed=0 : 'r' after 'd' undoes the implied fixed seed (order-dependent; noted)
+What 0f793bf does NOT cover: the fixed-seed option it sets has no run-time consumer (see ../PS2-G06-1), and
+SCOTCH_contextOptionParse() had no Fortran interface and no user-manual entry (see ../PS2-G06-2, patches/0005).

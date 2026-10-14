@@ -1,0 +1,30 @@
+diff --git a/src/scotch/atst.c b/src/scotch/atst.c
+index 32caa0e..23eda81 100644
+--- a/src/scotch/atst.c
++++ b/src/scotch/atst.c
+@@ -158,7 +158,7 @@ char *                      argv[])
+       (termnum != termnbr))
+     errorPrint ("main: cannot enumerate terminal domains");
+ 
+-  distmin = (SCOTCH_Num) (((unsigned long) ((SCOTCH_Num) -1)) >> 1); /* Set to maximum number in Anum */
++  distmin = -1;                                   /* No pair processed yet */
+   distmax = 0;
+   distsum = 0;
+ 
+@@ -167,13 +167,15 @@ char *                      argv[])
+       SCOTCH_Num          distval;
+ 
+       distval = SCOTCH_archDomDist (&archdat, &termtab[ter0num], &termtab[ter1num]); /* Compute distance between pairs */
+-      if (distmin > distval)
++      if ((distmin < 0) || (distmin > distval))   /* First pair sets the minimum */
+         distmin = distval;
+       if (distmax < distval)
+         distmax = distval;
+       distsum += distval;
+     }
+   }
++  if (distmin < 0)                                /* If no pair at all */
++    distmin = 0;
+   distavg = (termnbr > 1)
+             ? (double) distsum / ((double) termnbr * (double) (termnbr - 1) / 2.0)
+             : 0.0L;

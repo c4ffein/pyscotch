@@ -1,0 +1,25 @@
+COR-15: intLoad() wraps on overflow (every loader relies on it)
+===============================================================
+Builds: $WORK/build (32-bit INT, ASan+UBSan), $WORK/build64 (-DINTSIZE64), $WORK/buildfi64 (plain 64-bit),
+        $WORK/buildO2 (-O3, for timing). Pristine = libraries before patch 0001 was mirrored.
+Files:  archload.c       loads a target file with SCOTCH_archLoad() and prints SCOTCH_archSize()
+        c_ovf32.tgt      "cmplt 4294967298" (the review's end-to-end case)
+        c_ovf32b.tgt     "cmplt 5000000000" (wraps to a value LARGER than the previous one: escapes 6a552f9's debug check)
+        c_ovf64.tgt      "cmplt 9223372036854775810" (64-bit INT overflow)
+        c_max32.tgt      "cmplt 2147483647" (must still load)
+        intload_fuzz.c   random digit strings (1..22 digits, signs, values around INTVALMAX) vs strtoll():
+                         intLoad must return 1 + exact value iff the value is in [-INTVALMAX, INTVALMAX]
+        timing/loadonly.c  SCOTCH_graphLoad() wall time; graph generated with gmk_m2 1500 1500 (72 MB, 2.25M vertices)
+
+Commands (CF = CFLAGS of the build's Makefile.inc):
+  gcc $CF -I$B/include archload.c -o archload -L$B/lib -lscotch -lscotcherr -lz -lm -pthread
+  gcc $CF -I$B/src/libscotch -I$B/include intload_fuzz.c -o intload_fuzz -L$B/lib -lscotch -lscotcherr -lz -lm -pthread
+  LD_LIBRARY_PATH=$B/lib ./archload c_ovf32.tgt ; ./intload_fuzz 7 300000
+
+Pristine 32-bit:  c_ovf32  -> "runtime error: signed integer overflow: 429496729 * 10" ; archLoad ret=0 archSize=2
+                  c_ovf32b -> archLoad ret=0 archSize=705032704
+                  fuzz: 200000 strings, 109743 mismatches (e.g. "2147483651" -> 1, value -2147483645)
+Pristine 64-bit:  c_ovf64  -> archLoad ret=1 only because the wrapped value is negative; fuzz 300000 strings, 63957 mismatches
+Patched 32/64:    c_ovf32/c_ovf32b/c_ovf64 -> "ERROR: intLoad: overflow", archLoad ret=1; c_max32 loads (archSize=2147483647);
+                  fuzz: 0 mismatches on both int sizes; src/check: check_common_integer passes on both.
+Timing (-O3, best of 5 SCOTCH_graphLoad on the 72 MB graph, same session): patched 1.079 s, pristine 1.169 s (noise).

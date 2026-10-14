@@ -1,0 +1,28 @@
+diff -ru a/src/libscotch/bgraph_bipart_gg.c b/src/libscotch/bgraph_bipart_gg.c
+--- a/src/libscotch/bgraph_bipart_gg.c	2026-10-13 09:20:18.834253540 +0000
++++ b/src/libscotch/bgraph_bipart_gg.c	2026-10-13 09:20:18.834253540 +0000
+@@ -150,6 +150,12 @@
+   const Anum                    dod2val = grafptr->domndist * 2;
+   const Gnum * restrict const   cmg0tax = passptr->cmg0tax;
+ 
++  if (thrdnum != 0)                               /* Spawn local context from shared one before thread 0 draws from it */
++    intRandSpawn (grafptr->contptr->randptr, thrdnum, &randdat);
++#ifndef BGRAPHBIPARTGGNOTHREAD
++  threadBarrier (descptr);                        /* All local contexts spawned before any thread draws */
++#endif /* BGRAPHBIPARTGGNOTHREAD */
++
+   thrdptr->parttab = NULL;                        /* In case of error                 */
+   partsiz = (thrdnum == 0) ? 0 : grafptr->s.vertnbr; /* Thread 0 uses graph part data */
+   if ((bgraphBipartGgTablInit (&tabldat) != 0) ||
+@@ -173,9 +179,8 @@
+     contptr = grafptr->contptr;                   /* Use provided context */
+   }
+   else {
+-    parttax = thrdptr->parttab - grafptr->s.baseval; /* Use local array                       */
+-    intRandSpawn (grafptr->contptr->randptr, thrdnum, &randdat); /* Create fake local context */
+-    contdat.randptr = &randdat;
++    parttax = thrdptr->parttab - grafptr->s.baseval; /* Use local array */
++    contdat.randptr = &randdat;                   /* Use spawned local context */
+     contptr = &contdat;
+   }
+ 

@@ -1,0 +1,29 @@
+From f6f060c9047469fb2128fba5624837647a6f68dc Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:10:04 +0000
+Subject: [PATCH 222/240] Bugfix: fix C standard flag in x86-64 FreeBSD
+ Makefile.inc [report PyScotch]
+
+"-std" without a value is rejected by gcc and clang ("unrecognized
+command-line option '-std'"), so the x86-64 FreeBSD template could not
+compile anything. Use "-std=c99", as the i686 FreeBSD template does.
+---
+ src/Make.inc/Makefile.inc.x86-64_pc_freebsd | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/Make.inc/Makefile.inc.x86-64_pc_freebsd b/src/Make.inc/Makefile.inc.x86-64_pc_freebsd
+index e90980f..2d87376 100644
+--- a/src/Make.inc/Makefile.inc.x86-64_pc_freebsd
++++ b/src/Make.inc/Makefile.inc.x86-64_pc_freebsd
+@@ -15,7 +15,7 @@ CCS		= cc
+ CCP		= mpicc
+ CCD		= cc
+ FCS		= gfortran
+-CFLAGS		+= -std -fPIC -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME -DIDXSIZE64 -Dcpu_set_t=cpuset_t -D__BSD_VISIBLE
++CFLAGS		+= -std=c99 -fPIC -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME -DIDXSIZE64 -Dcpu_set_t=cpuset_t -D__BSD_VISIBLE
+ CLIBFLAGS	=
+ LDFLAGS		+= -lz -lm -lthread
+ CP		= cp
+-- 
+2.47.3
+

@@ -1,0 +1,39 @@
+--- a/src/libscotch/bdgraph_bipart_sq.c
++++ b/src/libscotch/bdgraph_bipart_sq.c
+@@ -192,7 +192,8 @@
+         errorPrint ("bdgraphBipartSq: out of memory (1)");
+         reduloctab[5] = 1;                        /* Allocated data will be freed along with graph structure */
+       }
+-      dgrfptr->partgsttax -= dgrfptr->s.baseval;
++      else
++        dgrfptr->partgsttax -= dgrfptr->s.baseval;
+     }
+     if ((dgrfptr->fronloctab = (Gnum *) memAlloc (dgrfptr->s.vertlocnbr * sizeof (Gnum))) == NULL) {
+       errorPrint ("bdgraphBipartSq: out of memory (2)");
+@@ -204,10 +205,6 @@
+     errorPrint ("bdgraphBipartSq: communication error (2)");
+     return     (1);
+   }
+-  if ((reduloctab[4] != 0) && (reduloctab[4] != dgrfptr->s.procglbnbr)) {
+-    errorPrint ("bdgraphBipartSq: internal error");
+-    return     (1);
+-  }
+ 
+   if ((MPI_Op_free   (&bestoperdat) != MPI_SUCCESS) ||
+       (MPI_Type_free (&besttypedat) != MPI_SUCCESS)) {
+@@ -215,6 +212,15 @@
+     return     (1);
+   }
+ 
++  if (reduglbtab[5] != 0) {                       /* If some process could not allocate its data */
++    bgraphExit (&cgrfdat);
++    return     (1);
++  }
++  if ((reduglbtab[4] != 0) && (reduglbtab[4] != dgrfptr->s.procglbnbr)) { /* If sequential bipartitioning failed on some processes only */
++    errorPrint ("bdgraphBipartSq: internal error");
++    bgraphExit (&cgrfdat);
++    return     (1);
++  }
+   if (reduglbtab[3] != 0) {                       /* If none of the sequential methods succeeded */
+     bgraphExit (&cgrfdat);
+     return     (1);

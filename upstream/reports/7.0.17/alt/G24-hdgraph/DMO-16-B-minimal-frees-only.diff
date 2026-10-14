@@ -1,0 +1,54 @@
+diff --git a/src/libscotch/hdgraph_order_nd.c b/src/libscotch/hdgraph_order_nd.c
+index d54a2c9..31702df 100644
+--- a/src/libscotch/hdgraph_order_nd.c
++++ b/src/libscotch/hdgraph_order_nd.c
+@@ -407,8 +407,10 @@ const HdgraphOrderNdParam * restrict const  paraptr)
+ 
+   switch (indgrafdat01.typeval) {
+     case HDGRAPHORDERNDTYPECENT :
+-      if ((cblkptr01 = dorderNewSequ (cblkptr)) == NULL)
++      if ((cblkptr01 = dorderNewSequ (cblkptr)) == NULL) {
++        hgraphExit (&indgrafdat01.data.cgrfdat);  /* Free folded graph */
+         goto fail;
++      }
+       if (grafptr->levlnum > 0) {                 /* If intermediate level nested dissection graph */
+         hdgraphExit   (grafptr);                  /* Free graph before going to next level         */
+         dorderDispose (cblkptr);                  /* Dispose of column block node too              */
+@@ -424,8 +426,10 @@ const HdgraphOrderNdParam * restrict const  paraptr)
+ #else /* SCOTCH_DEBUG_HDGRAPH2 */
+     default :
+ #endif /* SCOTCH_DEBUG_HDGRAPH2 */
+-      if ((cblkptr01 = dorderNew (cblkptr, indgrafdat01.data.dgrfdat.s.proccomm)) == NULL)
++      if ((cblkptr01 = dorderNew (cblkptr, indgrafdat01.data.dgrfdat.s.proccomm)) == NULL) {
++        hdgraphExit (&indgrafdat01.data.dgrfdat); /* Free folded graph */
+         goto fail;
++      }
+       if (grafptr->levlnum > 0) {                 /* If intermediate level nested dissection graph */
+         hdgraphExit   (grafptr);                  /* Free graph before going to next level         */
+         dorderDispose (cblkptr);                  /* Dispose of column block node too              */
+diff --git a/src/libscotch/kdgraph_map_rb_part.c b/src/libscotch/kdgraph_map_rb_part.c
+index c60c710..b582a3c 100644
+--- a/src/libscotch/kdgraph_map_rb_part.c
++++ b/src/libscotch/kdgraph_map_rb_part.c
+@@ -372,11 +372,13 @@ const KdgraphMapRbPartData * restrict const dataptr)
+       return (o);
+     case 2 :                                      /* On error */
+       errorPrint ("kdgraphMapRbPart2: cannot bipartition domain");
++      dgraphExit (&grafptr->data.dgrfdat);
+       return (1);
+   }
+ 
+   if (dgraphGhst (&grafptr->data.dgrfdat) != 0) { /* Compute ghost edge array if not already present, to have vertgstnbr (and procsidtab) */
+     errorPrint ("kdgraphMapRbPart2: cannot compute ghost edge array");
++    dgraphExit (&grafptr->data.dgrfdat);
+     return (1);
+   }
+ 
+@@ -394,6 +396,7 @@ const KdgraphMapRbPartData * restrict const dataptr)
+ 
+   if ((o != 0) || (bdgraphBipartSt (&actgrafdat, dataptr->paraptr->stratsep) != 0)) { /* Bipartition edge-separation graph   */
+     bdgraphExit (&actgrafdat);
++    dgraphExit  (&grafptr->data.dgrfdat);
+     return (1);
+   }
+ 

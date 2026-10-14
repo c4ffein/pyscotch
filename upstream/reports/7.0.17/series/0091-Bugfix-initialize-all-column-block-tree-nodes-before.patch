@@ -1,0 +1,65 @@
+From 844f592b5bd7317047036ae233b2b95870b038f6 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:52:45 +0000
+Subject: [PATCH 091/240] Bugfix: initialize all column block tree nodes before
+ ordering components in `hgraphOrderCc()` [report PyScotch]
+
+`hgraphOrderCc()` set the number of sub-blocks of its tree node to the
+number of connected components, but initialized the sub-block cells
+one at a time, just before ordering each component. If the ordering
+of some component failed, the remaining cells were left uninitialized
+and `orderExit()`, when freeing the tree, dereferenced and freed
+garbage pointers (observed as an invalid free in
+`SCOTCH_graphOrderExit()` after a failed `SCOTCH_graphOrderCompute()`
+with strategy "o{strat=b{cmin=0}}" on a disconnected graph).
+
+Initialize all cells before ordering any component, as
+`hgraphOrderNd()` does.
+
+Refs: PS2-G15-1
+---
+ src/libscotch/hgraph_order_cc.c | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/src/libscotch/hgraph_order_cc.c b/src/libscotch/hgraph_order_cc.c
+index aa9fcb9..932bd84 100644
+--- a/src/libscotch/hgraph_order_cc.c
++++ b/src/libscotch/hgraph_order_cc.c
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 6.0  : from : 04 apr 2018     **/
+ /**                                 to   : 06 jun 2018     **/
+ /**                # Version 7.0  : from : 26 apr 2021     **/
+-/**                                 to   : 14 apr 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -172,17 +172,19 @@ const HgraphOrderCcParam * restrict const paraptr)
+   cblkptr->typeval = ORDERCBLKDICO;               /* Node becomes a set of disconnected components */
+   cblkptr->cblknbr = rootnbr;
+ 
++  for (rootnum = 0; rootnum < rootnbr; rootnum ++) { /* Initialize tree node array so that tree is consistent even if ordering fails */
++    cblkptr->cblktab[rootnum].typeval = ORDERCBLKLEAF;
++    cblkptr->cblktab[rootnum].vnodnbr = roottab[rootnum + 1] - roottab[rootnum];
++    cblkptr->cblktab[rootnum].cblknbr = 0;
++    cblkptr->cblktab[rootnum].cblktab = NULL;
++  }
++
+   o = 0;                                          /* Assume everything will be all right */
+ 
+-  for (rootnum = 0; rootnum < rootnbr; rootnum ++) { /* Initialize tree node array */
++  for (rootnum = 0; rootnum < rootnbr; rootnum ++) { /* For all connected components */
+     Gnum                vnodnbr;
+ 
+     vnodnbr = roottab[rootnum + 1] - roottab[rootnum];
+-    cblkptr->cblktab[rootnum].typeval = ORDERCBLKLEAF;
+-    cblkptr->cblktab[rootnum].vnodnbr = vnodnbr;
+-    cblkptr->cblktab[rootnum].cblknbr = 0;
+-    cblkptr->cblktab[rootnum].cblktab = NULL;
+-
+     if (hgraphInduceList (grafptr, vnodnbr, &queutab[roottab[rootnum]], grafptr->s.vertnbr - grafptr->vnohnbr, &indgrafdat) != 0) {
+       errorPrint ("hgraphOrderCc: cannot create induced graph");
+       memFree    (queutab);                       /* Free group leader */
+-- 
+2.47.3
+

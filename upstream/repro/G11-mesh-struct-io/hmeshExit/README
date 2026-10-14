@@ -1,0 +1,4 @@
+PS2-G11-mesh-struct-io-4: hmeshExit() alias test "vehdtax != m.vendtax + (baseval - velmbas)" is false for aliased arrays only when elements come first.
+  ./hexit   pristine -> "AddressSanitizer: attempting free on address which was not malloc()-ed ... _SCOTCHhmeshExit hmesh.c:76" (nodes-first halo mesh, vehdtax aliases a distinct vendtab)
+            patched  -> "hmeshExit done"
+Fixed by patches/0003.

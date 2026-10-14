@@ -1,0 +1,96 @@
+# DGR-13 option B (NOT preferred, sketch): keep every allocation where it is and add an int MPI_Allreduce agreement after each one (matching work array: one per pass, i.e. five per coarsening level; thread array; adjacency computation) plus the unconditional one on the coarse arrays. Simple and robust but adds up to seven collectives per level on the hot path of the multilevel scheme, which the maintainer explicitly avoids ("Communication cannot be overlapped by a useful one"); option A adds exactly one (the coarse-array agreement) and reuses existing arrays and the existing final reduction for the rest. Threaded branch left as in the tree. Not compiled.
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/dgraph_coarsen.c b/src/libscotch/dgraph_coarsen.c
+index 09540aa..d4aaa4f 100644
+--- a/src/libscotch/dgraph_coarsen.c
++++ b/src/libscotch/dgraph_coarsen.c
+@@ -880,10 +880,17 @@ DgraphCoarsenData * restrict const  coarptr)
+     nsndidxtab[procngbnum] = coarptr->vsnddsptab[procngbtab[procngbnum]];
+ 
+ #if (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD)
++  cheklocval = 0;
+   if ((coarptr->thrdtab = memAlloc (thrdnbr * sizeof (DgraphCoarsenThread))) == NULL) { /* TRICK: thrdnbr and not thrdmin for reduction across all threads */
+     errorPrint ("dgraphCoarsenBuild: out of memory (1)");
+-    return (1);                                   /* TODO: cleaner exit */
++    cheklocval = 1;
++  }
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
++    errorPrint ("dgraphCoarsenBuild: communication error (0)");
++    chekglbval = 1;
+   }
++  if (chekglbval != 0)
++    return (1);
+ 
+   coarptr->thrdtab[0].edgelocsum = 0;             /* No local edges exist before thread 0 */
+   thrdnum = 1;
+@@ -1086,15 +1093,11 @@ DgraphCoarsenData * restrict const  coarptr)
+     errorPrint ("dgraphCoarsenBuild: out of memory (2)");
+     cheklocval = 1;
+   }
+-  coarptr->nsndidxtab = esndcnttab;               /* TRICK: allow data array to be released on error    */
+-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication cannot be overlapped by a useful one */
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_SUM, proccomm) != MPI_SUCCESS) {
++  coarptr->nsndidxtab = esndcnttab;               /* TRICK: allow data array to be released on error */
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_SUM, proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
+     errorPrint ("dgraphCoarsenBuild: communication error (2)");
+     chekglbval = 1;
+   }
+-#else /* SCOTCH_DEBUG_DGRAPH1 */
+-  chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+   if (chekglbval != 0) {
+     dgraphFree (coargrafptr);
+     return (1);
+@@ -1260,10 +1263,16 @@ DgraphCoarsenData * restrict const  coarptr)
+   else
+ #endif /* (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD) */
+   {
+-    if (dgraphCoarsenBuildSeq (coarptr)) {
+-      errorPrint ("dgraphCoarsenBuild: could not compute adjacency (2)");
+-      return (1);
+-    }
++    cheklocval = dgraphCoarsenBuildSeq (coarptr);
++  }
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
++    errorPrint ("dgraphCoarsenBuild: communication error (6)");
++    chekglbval = 1;
++  }
++  if (chekglbval != 0) {
++    errorPrint ("dgraphCoarsenBuild: could not compute adjacency (2)");
++    dgraphFree (coargrafptr);
++    return (1);
+   }
+ 
+   coargrafptr->edgeloctax  = memRealloc (coargrafptr->edgeloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum));
+diff --git a/src/libscotch/dgraph_match_sync_coll.c b/src/libscotch/dgraph_match_sync_coll.c
+index 088383a..815c26c 100644
+--- a/src/libscotch/dgraph_match_sync_coll.c
++++ b/src/libscotch/dgraph_match_sync_coll.c
+@@ -90,6 +90,8 @@ DgraphMatchData * restrict  mateptr)              /* [norestrict:async] */
+   int * restrict      vrcvcnttab;
+   int * restrict      vsnddsptab;
+   int * restrict      vrcvdsptab;
++  int                 cheklocval;
++  int                 chekglbval;
+ 
+   Dgraph * const                      grafptr    = mateptr->c.finegrafptr; /* [norestrict:async] */
+   const int * restrict const          procngbtab = grafptr->procngbtab;
+@@ -118,8 +120,18 @@ DgraphMatchData * restrict  mateptr)              /* [norestrict:async] */
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
++  cheklocval = 0;
+   if ((vsnddsptab = memAlloc (4 * grafptr->procglbnbr * sizeof (int))) == NULL) {
+     errorPrint ("dgraphMatchSyncColl: out of memory");
++    cheklocval = 1;
++  }
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
++    errorPrint ("dgraphMatchSyncColl: communication error (0)");
++    chekglbval = 1;
++  }
++  if (chekglbval != 0) {
++    if (vsnddsptab != NULL)
++      memFree (vsnddsptab);
+     return (1);
+   }
+   vsndcnttab = vsnddsptab + grafptr->procglbnbr;  /* TRICK: put vsnddsptab, vsndcnttab, vrcvdsptab in order for memSet() */

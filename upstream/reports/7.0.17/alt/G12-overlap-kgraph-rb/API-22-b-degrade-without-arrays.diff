@@ -1,0 +1,11 @@
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -714,6 +714,8 @@
+                      &compsize, (size_t) (partnbr * sizeof (Gnum)),
+                      &listtab,  (size_t) ((partnbr + 1) * sizeof (GraphMapViewList)), NULL) == NULL) {
+     errorPrint (STRINGIFY (SCOTCH_graphPartOvlView) ": out of memory");
++    fprintf (stream, "P\tsep=?\n");                /* Cannot compute per-part statistics */
++    return (0);
+   }
+   listtab ++;                                     /* TRICK: Trim array so that listtab[-1] is valid */
+   memSet (listtab, ~0, partnbr * sizeof (GraphMapViewList)); /* Set vertex indices to ~0            */

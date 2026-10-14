@@ -1,0 +1,13 @@
+COR-18: per-rank random seeds collided in 7.0.16 (ranks 1 and 2 with seed 1)
+===========================================================================
+rankstream.c : MPI program; each rank calls SCOTCH_randomProc (rank), optionally SCOTCH_randomSeed (argv[1]),
+               SCOTCH_randomReset (), then prints its first 6 SCOTCH_randomVal (1e9) values.
+seedmath.c   : standalone re-implementation of the 7.0.16 and 7.0.17 seeding formulas; counts state collisions
+               among 1024 ranks for 6 seeds.
+Build/run: mpicc $CF -DSCOTCH_PTSCOTCH -I$B/include rankstream.c -o rankstream32 -L$B/lib -lptscotch -lscotch -lptscotcherr ...
+           mpirun --oversubscribe -np 4 ./rankstream32 [seed]
+Results on 7.0.17 (32-bit build, COMMON_RANDOM_FIXED_SEED on -> seed 1): 4 distinct streams; seed 12345 and seed 0
+(same code path as the time(NULL) seed used when COMMON_RANDOM_FIXED_SEED is off, common_integer.c:317-321): distinct.
+seedmath: 1024 ranks x 6 seeds: 7.0.16 formula 1022 collisions (ranks 2k-1 / 2k with seed 1), 7.0.17 formula 0.
+Residual (info only): the product (2s+1)(2p+1) is symmetric, so seed s on rank p equals seed p on rank s
+(seen: seed 0 rank 1 stream == seed 1 rank 0 stream).

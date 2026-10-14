@@ -1,0 +1,67 @@
+--- a/src/libscotch/library_mesh_graph.c	2026-10-13 08:40:02.907404191 +0000
++++ b/src/libscotch/library_mesh_graph.c	2026-10-13 13:24:28.537918748 +0000
+@@ -80,6 +80,11 @@
+ const SCOTCH_Mesh * restrict const  meshptr,
+ SCOTCH_Graph * restrict const       grafptr)
+ {
++  if (contextContainerTrue (grafptr)) {           /* Output graph must not be a context container */
++    errorPrint (STRINGIFY (SCOTCH_meshGraph) ": cannot build graph into a container");
++    return     (1);
++  }
++
+   return (meshGraphNodal ((Mesh *) CONTEXTOBJECT (meshptr), (Graph *) grafptr));
+ }
+ 
+@@ -97,5 +102,10 @@
+ SCOTCH_Graph * restrict const       grafptr,
+ const SCOTCH_Num                    noconbr)
+ {
++  if (contextContainerTrue (grafptr)) {           /* Output graph must not be a context container */
++    errorPrint (STRINGIFY (SCOTCH_meshGraphDual) ": cannot build graph into a container");
++    return     (1);
++  }
++
+   return (meshGraphDual ((Mesh *) CONTEXTOBJECT (meshptr), (Graph *) grafptr, noconbr));
+ }
+--- a/src/libscotch/library_dmesh_dgraph.c	2026-10-13 08:40:02.903404122 +0000
++++ b/src/libscotch/library_dmesh_dgraph.c	2026-10-13 13:24:28.537918748 +0000
+@@ -49,6 +49,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "dgraph.h"
+ #include "dmesh.h"
+ #include "ptscotch.h"
+@@ -75,5 +76,10 @@
+ SCOTCH_Dgraph * restrict const      grafptr,
+ const SCOTCH_Num                    noconbr)
+ {
++  if (contextContainerTrue (grafptr)) {           /* Output graph must not be a context container */
++    errorPrint (STRINGIFY (SCOTCH_dmeshDgraphDual) ": cannot build graph into a container");
++    return     (1);
++  }
++
+   return (dmeshDgraphDual ((Dmesh *) meshptr, (Dgraph *) grafptr, noconbr));
+ }
+--- a/src/libscotch/library_graph_dump.c	2026-10-13 08:40:02.907404191 +0000
++++ b/src/libscotch/library_graph_dump.c	2026-10-13 13:24:28.537918748 +0000
+@@ -52,6 +52,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "graph.h"
+ #include "graph_dump.h"
+ #include "scotch.h"
+@@ -84,6 +85,10 @@
+ 
+   prefstr = (prefptr != NULL) ? prefptr : "";
+   suffstr = (suffptr != NULL) ? suffptr : "";
++  if (contextContainerTrue (libgrafptr)) {        /* Containers hold no graph data of their own */
++    errorPrint (STRINGIFY (SCOTCH_graphDump) ": cannot dump a container");
++    return     (1);
++  }
+   grafptr = (const Graph *) libgrafptr;
+ 
+   o = graphDumpArrays (grafptr, "SCOTCH_Num", prefstr, suffstr, fileptr);

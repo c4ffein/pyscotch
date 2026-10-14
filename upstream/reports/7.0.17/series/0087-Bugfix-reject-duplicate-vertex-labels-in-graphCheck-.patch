@@ -1,0 +1,64 @@
+From 8d070c348c19b6890abe7e2271bae7a431f2a109 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:18:39 +0000
+Subject: [PATCH 087/240] Bugfix: reject duplicate vertex labels in
+ graphCheck() [report PyScotch]
+
+Vertex labels index a relabeling table and must be unique; the file
+loaders enforce this, but a graph built through SCOTCH_graphBuild() with
+a user label array containing duplicates passed graphCheck(), and
+label consumers (e.g. SCOTCH_graphTabLoad()) then produced wrong
+results. Check label uniqueness when a label array is present.
+
+Refs: PS-API-5
+---
+ src/libscotch/graph_check.c | 23 +++++++++++++++++++++--
+ 1 file changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/graph_check.c b/src/libscotch/graph_check.c
+index e631391..2527a98 100644
+--- a/src/libscotch/graph_check.c
++++ b/src/libscotch/graph_check.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2011,2012,2016,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2011,2012,2016,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -59,7 +59,7 @@
+ /**                # Version 6.0  : from : 27 jun 2011     **/
+ /**                                 to   : 23 feb 2018     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 12 mar 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -203,5 +203,24 @@ const Graph * const         grafptr)
+     return (1);
+   }
+ 
++  if (grafptr->vlbltax != NULL) {                 /* If graph has vertex labels, they must be unique */
++    Gnum * restrict     sorttab;                  /* Temporary array for label sorting               */
++
++    if ((sorttab = (Gnum *) memAlloc (grafptr->vertnbr * sizeof (Gnum))) == NULL) {
++      errorPrint ("graphCheck: out of memory");
++      return (1);
++    }
++    memCpy (sorttab, grafptr->vlbltax + baseval, grafptr->vertnbr * sizeof (Gnum));
++    intSort1asc1 (sorttab, grafptr->vertnbr);     /* Sort label copy by ascending value */
++    for (vertnum = 1; vertnum < grafptr->vertnbr; vertnum ++) {
++      if (sorttab[vertnum] == sorttab[vertnum - 1]) {
++        errorPrint ("graphCheck: duplicate vertex label");
++        memFree    (sorttab);
++        return (1);
++      }
++    }
++    memFree (sorttab);
++  }
++
+   return (0);
+ }
+-- 
+2.47.3
+

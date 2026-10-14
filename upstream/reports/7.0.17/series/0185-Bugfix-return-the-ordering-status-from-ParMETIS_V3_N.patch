@@ -1,0 +1,195 @@
+From 8fc867de16634b75efe216537d6e097e329b421e Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:41:39 +0000
+Subject: [PATCH 185/240] Bugfix: return the ordering status from
+ `ParMETIS_V3_NodeND()` [report R. Perry]
+
+`ParMETIS_V3_NodeND()` returned `METIS_OK` only when the separator
+tree could be turned into the ParMETIS `sizes` array, that is, when
+the number of processes is a power of two and a `sizes` array is
+provided, although the ordering had been computed in all cases, as
+documented. Conversely, the return values of
+`SCOTCH_dgraphOrderCompute()` and `SCOTCH_dgraphOrderPerm()` were
+ignored, so that a failed ordering was reported as a success.
+
+The status now reflects the computation of the ordering only, and the
+`sizes` array is filled on a best-effort basis, keeping its documented
+-1 values when the number of processes is not a power of two. The test
+program is run on three processes as well, and checks the `sizes`
+array.
+
+Refs: CLI-09
+---
+ src/check/CMakeLists.txt                   |  1 +
+ src/check/Makefile                         |  1 +
+ src/check/test_libparmetis.c               | 43 ++++++++++++++++++++++
+ src/libscotchmetis/parmetis_dgraph_order.c | 22 +++++------
+ 4 files changed, 56 insertions(+), 11 deletions(-)
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index 3f8ed36..7a3e91f 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -483,6 +483,7 @@ if(BUILD_PTSCOTCH)
+     target_include_directories(test_libparmetisv${version} PRIVATE ${GENERATED_INCLUDE_DIR})
+     target_link_libraries(test_libparmetisv${version} ptscotchparmetisv${version} ptscotch ptscotcherr)
+ 
++    add_test(NAME test_libparmetisv${version}_0 COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 $<TARGET_FILE:test_libparmetisv${version}> ${dat}/bump.grf)
+     add_test(NAME test_libparmetisv${version}_1 COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:test_libparmetisv${version}> ${dat}/bump.grf)
+     add_test(NAME test_libparmetisv${version}_2 COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:test_libparmetisv${version}> ${dat}/bump_b1.grf)
+     add_test(NAME test_libparmetisv${version}_3 COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 4 $<TARGET_FILE:test_libparmetisv${version}> ${dat}/bump_imbal_32.grf)
+diff --git a/src/check/Makefile b/src/check/Makefile
+index a492ca7..d71fc5c 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -422,6 +422,7 @@ test_libmetis_dual_f_v5		:	test_libmetis_dual_f.f90	\
+ # libparmetis
+ 
+ check_libparmetis_v3		:	test_libparmetis_v3
++					$(EXECP3) ./test_libparmetis_v3 data/bump.grf
+ 					$(EXECP4) ./test_libparmetis_v3 data/bump.grf
+ 					$(EXECP4) ./test_libparmetis_v3 data/bump_b1.grf
+ 					$(EXECP4) ./test_libparmetis_v3 data/bump_imbal_32.grf
+diff --git a/src/check/test_libparmetis.c b/src/check/test_libparmetis.c
+index 3846524..50ed37d 100644
+--- a/src/check/test_libparmetis.c
++++ b/src/check/test_libparmetis.c
+@@ -194,6 +194,48 @@ const SCOTCH_Num            partnbr)
+   }
+ }
+ 
++/* checkSizes checks the separator tree sizes
++** returned by ParMETIS_V3_NodeND: when the number
++** of processes is a power of two, subdomain and
++** separator sizes must sum up to the number of
++** vertices; else, all values must be -1.
++** It exits on error.
++*/
++
++static
++void
++checkSizes (
++const SCOTCH_Num            vertglbnbr,
++const int                   procglbnbr,
++const SCOTCH_Num * const    sizetab)
++{
++  SCOTCH_Num          sizesum;
++  int                 procnum;
++  int                 bitsnbr;
++  int                 proctmp;
++
++  for (bitsnbr = 0, proctmp = procglbnbr; proctmp != 0; proctmp >>= 1) /* Count number of bits set to 1 in procglbnbr */
++    bitsnbr += proctmp & 1;
++
++  for (procnum = 0, sizesum = 0; procnum < (2 * procglbnbr - 1); procnum ++) {
++    if (bitsnbr != 1) {                           /* If number of processes is not a power of two */
++      if (sizetab[procnum] != -1) {
++        SCOTCH_errorPrint ("checkSizes: invalid size value (1)");
++        exit (EXIT_FAILURE);
++      }
++    }
++    else if (sizetab[procnum] < 0) {
++      SCOTCH_errorPrint ("checkSizes: invalid size value (2)");
++      exit (EXIT_FAILURE);
++    }
++    sizesum += sizetab[procnum];
++  }
++  if ((bitsnbr == 1) && (sizesum != vertglbnbr)) {
++    SCOTCH_errorPrint ("checkSizes: invalid size sum");
++    exit (EXIT_FAILURE);
++  }
++}
++
+ /*********************/
+ /*                   */
+ /* The main routine. */
+@@ -367,6 +409,7 @@ char *              argv[])
+   }
+ 
+   checkOrder (baseval, vertlocnbr, vertglbnbr, parttab, proccomm);
++  checkSizes (vertglbnbr, procglbnbr, sizetab);
+ #endif /* (SCOTCH_METIS_VERSION == 3) */
+ 
+   if (MPI_Barrier (proccomm) != MPI_SUCCESS) {    /* Synchronize for debug */
+diff --git a/src/libscotchmetis/parmetis_dgraph_order.c b/src/libscotchmetis/parmetis_dgraph_order.c
+index 731d06c..1398881 100644
+--- a/src/libscotchmetis/parmetis_dgraph_order.c
++++ b/src/libscotchmetis/parmetis_dgraph_order.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2010,2012,2018,2019,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2010,2012,2018,2019,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**                # Version 6.0  : from : 13 sep 2012     **/
+ /**                                 to   : 18 may 2019     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 11 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -103,9 +103,9 @@ const SCOTCH_Num * const    vtxdist,
+ SCOTCH_Num * const          xadj,
+ SCOTCH_Num * const          adjncy,
+ const SCOTCH_Num * const    numflag,
+-const SCOTCH_Num * const    options,              /* Not used */
++const SCOTCH_Num * const    options,              /* Not used                                             */
+ SCOTCH_Num * const          order,
+-SCOTCH_Num * const          sizes,                /* Of size twice the number of processors ; not used */
++SCOTCH_Num * const          sizes,                /* Of size twice the number of processes, or NULL      */
+ MPI_Comm *                  commptr)
+ {
+   MPI_Comm            proccomm;
+@@ -147,14 +147,15 @@ MPI_Comm *                  commptr)
+         SCOTCH_Num          bitsnbr;
+         SCOTCH_Num          proctmp;
+ 
+-        SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat);
+-        SCOTCH_dgraphOrderPerm    (&grafdat, &ordedat, order);
++        if ((SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat) == 0) && /* Status depends on the ordering only; separator sizes are best effort */
++            (SCOTCH_dgraphOrderPerm    (&grafdat, &ordedat, order) == 0))
++          o = METIS_OK;
+ 
+         for (levlmax = -1, bitsnbr = 0, proctmp = procglbnbr; /* Count number of bits set to 1 in procglbnbr */
+              proctmp != 0; levlmax ++, proctmp >>= 1)
+           bitsnbr += proctmp & 1;
+ 
+-        if (bitsnbr == 1) {
++        if ((o == METIS_OK) && (bitsnbr == 1)) {  /* If ordering computed and number of processes is a power of 2 */
+           SCOTCH_Num          cblkglbnbr;
+ 
+           if ((cblkglbnbr = SCOTCH_dgraphOrderCblkDist (&grafdat, &ordedat)) >= 0) {
+@@ -171,7 +172,7 @@ MPI_Comm *                  commptr)
+                 SCOTCH_Num          cblknum;
+ 
+                 memSet (sepaglbtab, ~0, cblkglbnbr * sizeof (SCOTCH_Num) * 3);
+-               
++
+                 for (rootnum = -1, cblknum = 0; cblknum < cblkglbnbr; cblknum ++) {
+                   SCOTCH_Num          fathnum;
+ 
+@@ -206,7 +207,6 @@ MPI_Comm *                  commptr)
+                 if ((rootnum >= 0) && (sizes != NULL)) { /* If no error above, go on processing separator tree         */
+                   memSet (sizes, 0, (2 * procglbnbr - 1) * sizeof (SCOTCH_Num)); /* Set array of sizes to 0 by default */
+                   _SCOTCH_ParMETIS_V3_NodeNDTree (sizes + (2 * procglbnbr - 1), sizeglbtab, sepaglbtab, levlmax, 0, rootnum, 1);
+-                  o = METIS_OK;
+                 }
+               }
+ 
+@@ -239,9 +239,9 @@ const SCOTCH_Num * const    vtxdist,
+ SCOTCH_Num * const          xadj,
+ SCOTCH_Num * const          adjncy,
+ const SCOTCH_Num * const    numflag,
+-const SCOTCH_Num * const    options,              /* Not used */
++const SCOTCH_Num * const    options,              /* Not used                                        */
+ SCOTCH_Num * const          order,
+-SCOTCH_Num * const          sizes,                /* Of size twice the number of processors; not used */
++SCOTCH_Num * const          sizes,                /* Of size twice the number of processes, or NULL */
+ MPI_Comm *                  commptr)
+ {
+   return (SCOTCHMETISNAMES (ParMETIS_V3_NodeND) (vtxdist, xadj, adjncy, numflag, options, order, sizes, commptr));
+-- 
+2.47.3
+

@@ -1,0 +1,98 @@
+From 00409df830f067292d3fdefa0734dc8934d17c97 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:16:44 +0000
+Subject: [PATCH 170/240] Bugfix: free folded graphs on error in distributed
+ nested dissection [report R. Perry]
+
+When the induction and folding of the second part failed after the
+one of the first part had succeeded, the processes of the first part
+never freed the folded graph they had received. When a column block
+could not be created after a successful folding, the folded graph
+was leaked as well.
+
+Record the status of each part so that processes free their folded
+graph when the other part fails, and free the folded graph when its
+column block cannot be created.
+
+Refs: DMO-16
+---
+ src/libscotch/hdgraph_order_nd.c | 32 +++++++++++++++++++++++---------
+ 1 file changed, 23 insertions(+), 9 deletions(-)
+
+diff --git a/src/libscotch/hdgraph_order_nd.c b/src/libscotch/hdgraph_order_nd.c
+index 1253380..55f6d64 100644
+--- a/src/libscotch/hdgraph_order_nd.c
++++ b/src/libscotch/hdgraph_order_nd.c
+@@ -152,7 +152,6 @@ HdgraphOrderNdGraph * restrict const  fldgrafptr)
+   int                 fldprocnum;
+   int                 fldproccol;
+   int                 fldpartval;
+-  int                 o;
+ 
+ #ifdef SCOTCH_DEBUG_HDGRAPH2
+   if ((orggrafptr->s.flagval & DGRAPHHASEDGEGST) == 0) { /* Ghost edge array must have been already computed */
+@@ -219,20 +218,31 @@ HdgraphOrderNdGraph * restrict const  fldgrafptr)
+     contextThreadLaunch (orggrafptr->contptr, (ThreadFunc) hdgraphOrderNdFold3, (void *) fldthrdtab); /* Only threads 0 and 1 will work */
+ 
+     MPI_Comm_free (&orggrafdat.s.proccomm);
+-
+-    o = ((fldthrdtab[0].orggrafptr == NULL) ||    /* See if an error occured */
+-         (fldthrdtab[1].orggrafptr == NULL));
+   }
+   else
+ #endif /* SCOTCH_PTHREAD_MPI */
+   {
+     fldthrdtab[1].orggrafptr = orggrafptr;
+ 
+-    o = hdgraphOrderNdFold2 (&fldthrdtab[0]) ||   /* Perform inductions in sequence */
+-        hdgraphOrderNdFold2 (&fldthrdtab[1]);
++    if (hdgraphOrderNdFold2 (&fldthrdtab[0]) != 0) /* Perform inductions in sequence */
++      fldthrdtab[0].orggrafptr =                  /* Indicate an error                 */
++      fldthrdtab[1].orggrafptr = NULL;            /* Second induction is not performed */
++    else if (hdgraphOrderNdFold2 (&fldthrdtab[1]) != 0)
++      fldthrdtab[1].orggrafptr = NULL;
+   }
+ 
+-  return (o);
++  if ((fldthrdtab[0].orggrafptr == NULL) ||       /* If an error occured in some part */
++      (fldthrdtab[1].orggrafptr == NULL)) {
++    if (fldthrdtab[fldpartval].orggrafptr != NULL) { /* If our folded graph had been built, free it */
++      if (fldgrafptr->typeval == HDGRAPHORDERNDTYPECENT)
++        hgraphExit (&fldgrafptr->data.cgrfdat);
++      else
++        hdgraphExit (&fldgrafptr->data.dgrfdat);
++    }
++    return (1);
++  }
++
++  return (0);
+ }
+ 
+ /* This routine performs the ordering.
+@@ -404,8 +414,10 @@ const HdgraphOrderNdParam * restrict const  paraptr)
+ 
+   switch (indgrafdat01.typeval) {
+     case HDGRAPHORDERNDTYPECENT :
+-      if ((cblkptr01 = dorderNewSequ (cblkptr)) == NULL)
++      if ((cblkptr01 = dorderNewSequ (cblkptr)) == NULL) {
++        hgraphExit (&indgrafdat01.data.cgrfdat);  /* Free folded graph */
+         goto fail;
++      }
+       if (grafptr->levlnum > 0) {                 /* If intermediate level nested dissection graph */
+         hdgraphExit   (grafptr);                  /* Free graph before going to next level         */
+         dorderDispose (cblkptr);                  /* Dispose of column block node too              */
+@@ -421,8 +433,10 @@ const HdgraphOrderNdParam * restrict const  paraptr)
+ #else /* SCOTCH_DEBUG_HDGRAPH2 */
+     default :
+ #endif /* SCOTCH_DEBUG_HDGRAPH2 */
+-      if ((cblkptr01 = dorderNew (cblkptr, indgrafdat01.data.dgrfdat.s.proccomm)) == NULL)
++      if ((cblkptr01 = dorderNew (cblkptr, indgrafdat01.data.dgrfdat.s.proccomm)) == NULL) {
++        hdgraphExit (&indgrafdat01.data.dgrfdat); /* Free folded graph */
+         goto fail;
++      }
+       if (grafptr->levlnum > 0) {                 /* If intermediate level nested dissection graph */
+         hdgraphExit   (grafptr);                  /* Free graph before going to next level         */
+         dorderDispose (cblkptr);                  /* Dispose of column block node too              */
+-- 
+2.47.3
+

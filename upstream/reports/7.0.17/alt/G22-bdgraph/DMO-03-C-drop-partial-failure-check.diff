@@ -1,0 +1,54 @@
+--- a/src/libscotch/bdgraph_bipart_sq.c
++++ b/src/libscotch/bdgraph_bipart_sq.c
+@@ -94,7 +94,6 @@
+ {
+   inout[5] |= in[5];                              /* Propagate errors */
+ 
+-  inout[4] += in[4];                              /* Count cases for which a bipartitioning error occured */
+   if (inout[3] == 1) {                            /* Handle cases when at least one of them is erroneous  */
+     if (in[3] == 1)
+       return;
+@@ -157,9 +156,9 @@
+   reduloctab[0] =                                 /* In case of error, maximum communication load */
+   reduloctab[1] = GNUMMAX;                        /* And maximum load imbalance                   */
+   reduloctab[2] = dgrfptr->s.proclocnum;
+-  reduloctab[3] =                                 /* Assume sequential bipartioning went fine */
+-  reduloctab[4] = 0;
+-  reduloctab[5] = 0;                              /* Assume no errors */
++  reduloctab[3] = 0;                              /* Assume sequential bipartioning went fine */
++  reduloctab[4] = 0;                              /* Unused slot                               */
++  reduloctab[5] = 0;                              /* Assume no errors                          */
+ 
+   vnumloctax = dgrfptr->s.vnumloctax;             /* No need for vertex number array when centralizing graph */
+   dgrfptr->s.vnumloctax = NULL;
+@@ -172,8 +171,7 @@
+ 
+   if (bgraphBipartSt (&cgrfdat, paraptr->strat) != 0) { /* Bipartition centralized graph */
+     errorPrint ("bdgraphBipartSq: cannot bipartition centralized graph");
+-    reduloctab[3] =
+-    reduloctab[4] = 1;
++    reduloctab[3] = 1;
+   }
+   else {                                          /* Fill local array with local bipartition data */
+     reduloctab[0] = ((cgrfdat.fronnbr != 0) || ((cgrfdat.compsize0 != 0) && ((cgrfdat.s.vertnbr - cgrfdat.compsize0) != 0)))
+@@ -204,10 +202,6 @@
+     errorPrint ("bdgraphBipartSq: communication error (2)");
+     return     (1);
+   }
+-  if ((reduloctab[4] != 0) && (reduloctab[4] != dgrfptr->s.procglbnbr)) {
+-    errorPrint ("bdgraphBipartSq: internal error");
+-    return     (1);
+-  }
+ 
+   if ((MPI_Op_free   (&bestoperdat) != MPI_SUCCESS) ||
+       (MPI_Type_free (&besttypedat) != MPI_SUCCESS)) {
+@@ -215,7 +209,8 @@
+     return     (1);
+   }
+ 
+-  if (reduglbtab[3] != 0) {                       /* If none of the sequential methods succeeded */
++  if ((reduglbtab[3] != 0) ||                     /* If none of the sequential methods succeeded */
++      (reduglbtab[5] != 0)) {                     /* Or if some process could not allocate its data */
+     bgraphExit (&cgrfdat);
+     return     (1);
+   }

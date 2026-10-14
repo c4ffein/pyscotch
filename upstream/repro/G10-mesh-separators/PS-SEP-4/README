@@ -1,0 +1,11 @@
+PS-SEP-4: hallOrderHdR2Halmd aborts with "internal error (2)" when a zero-degree variable has weight > 1
+Graph level (pristine, any build), vertex loads 2 and no edges / an isolated vertex of load 2 or 3 in a small graph:
+  gord iso_w2.grf /dev/null -od            -> gord: ERROR: hallOrderHdR2Halmd: internal error (2)
+  gord iso_w2_edge.grf /dev/null -od       -> same ;  gord iso_w3_w2_edge.grf /dev/null -od -> same ; isolated_v.grf -> same
+  gord iso_w2.grf /dev/null -of            -> ok (HF twin counts weights, hall_order_hf.c:844)
+  gord iso_w1.grf /dev/null -od            -> ok (unit weights)
+  The default graph strategy uses "f" at the leaves, so plain gord/SCOTCH_graphOrder only hit it with an explicit "d" method.
+Mesh level (default strategy): ../SEP-03/sep03_pristine 30 (or 45, 100) -> ERROR: hallOrderHdR2Halmd: internal error (2)
+  (compression merges the three private nodes of each triangle into one node of weight 3, ole=v{strat=d{...}} orders it with HD)
+Patched: all of the above succeed; gotst validates the orderings; check_prog_gord/gotst include data/isolated_v.grf (patch 0003).
+Alternative alt/PS-SEP-4-b-degree-lists.diff was built in a scratch tree and gives valid orderings too (OPC 24, 13, 40, 443).

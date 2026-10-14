@@ -1,0 +1,32 @@
+# DGR-09 option C (NOT preferred, dgraphBand() only, sketch): receive the error flags in a fake private array allocated on the spot, as dgraphInduce2() does in 3c9b3ab, instead of sizing the re-used index array in Gnums. One more allocation on the error path that can itself fail ("Cannot do a clean exit"), while the index array is already there; the uninitialized free and base problems still need the other fixes of option A.
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/dgraph_band.c b/src/libscotch/dgraph_band.c
+index 2b3bad8..8748e62 100644
+--- a/src/libscotch/dgraph_band.c
++++ b/src/libscotch/dgraph_band.c
+@@ -221,16 +221,19 @@ Context *                           contptr)      /*+ Execution context
+   }
+ 
+   if (cheklocval != 0) {                          /* In case of memory error */
+-    bandgrafptr->procdsptab[0] = -1;
+-    if (MPI_Allgather (&bandgrafptr->procdsptab[0], 1, GNUM_MPI, /* Send received data to dummy array */
+-                       bandvnumgsttax + bandgrafptr->baseval, 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
++    Gnum                dummval;
++
++    if ((bandgrafptr->procdsptab == NULL) &&      /* If private data could not be allocated */
++        ((bandgrafptr->procdsptab = memAlloc (grafptr->procglbnbr * sizeof (Gnum))) == NULL)) /* TRICK: will be freed by dgraphFree() */
++      return (1);                                 /* Cannot do a clean exit */
++    dummval = -1;
++    if (MPI_Allgather (&dummval, 1, GNUM_MPI,     /* TRICK: use (possibly fake) procdsptab for synchronization */
++                       bandgrafptr->procdsptab, 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS)
+       errorPrint ("dgraphBand: communication error (1)");
+-      return (1);
+-    }
+     if (bandfronloctab != NULL)
+       memFree (bandfronloctab);
+-    dgraphFree (bandgrafptr);
+     memFree    (bandvnumgsttax + bandgrafptr->baseval);
++    dgraphFree (bandgrafptr);
+     return (1);
+   }
+   else {

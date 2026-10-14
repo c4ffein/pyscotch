@@ -1,0 +1,14 @@
+--- a/src/libscotch/vgraph_separate_gg.c
++++ b/src/libscotch/vgraph_separate_gg.c
+@@ -183,6 +183,11 @@
+         cmpldlt = comploaddlt - veloval * dwg0val;
+ 
+         if (comploaddlt < ABS (cmpldlt)) {        /* If swapping would cause imbalance */
++          if (verttax[vertnum] == vendtax[vertnum]) { /* If root vertex is isolated, it separates nothing */
++            vexxptr->gainlink.next = VGRAPHSEPAGGSTATEPART0; /* Put it back in part 0                   */
++            comploaddlt += veloval * dwg1val;
++            compload2   -= veloval;
++          }
+           permnum = grafptr->s.vertnbr;           /* Terminate swapping process        */
+           vexxptr = NULL;
+           break;

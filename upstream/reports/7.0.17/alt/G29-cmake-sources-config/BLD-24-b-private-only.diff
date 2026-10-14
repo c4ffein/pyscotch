@@ -1,0 +1,24 @@
+diff --git a/src/libscotch/CMakeLists.txt b/src/libscotch/CMakeLists.txt
+index f67caea..05f5c91 100644
+--- a/src/libscotch/CMakeLists.txt
++++ b/src/libscotch/CMakeLists.txt
+@@ -539,15 +539,15 @@ if(APPLE)
+ endif()
+ 
+ if(OS_IS_FREEBSD)
+-  target_compile_definitions(scotch PUBLIC cpu_set_t=cpuset_t __BSD_VISIBLE)
++  target_compile_definitions(scotch PRIVATE cpu_set_t=cpuset_t __BSD_VISIBLE)
+ endif()
+ 
+ if(SCOTCH_DETERMINISTIC STREQUAL FULL)
+-  target_compile_definitions(scotch PUBLIC COMMON_RANDOM_FIXED_SEED)
+-  target_compile_definitions(scotch PUBLIC SCOTCH_DETERMINISTIC)
++  target_compile_definitions(scotch PRIVATE COMMON_RANDOM_FIXED_SEED)
++  target_compile_definitions(scotch PRIVATE SCOTCH_DETERMINISTIC)
+   message(STATUS "Determinism: full")
+ elseif(SCOTCH_DETERMINISTIC STREQUAL FIXED_SEED)
+-  target_compile_definitions(scotch PUBLIC COMMON_RANDOM_FIXED_SEED)
++  target_compile_definitions(scotch PRIVATE COMMON_RANDOM_FIXED_SEED)
+   message(STATUS "Determinism: fixed random seed")
+ else()
+   message(STATUS "Determinism: none")

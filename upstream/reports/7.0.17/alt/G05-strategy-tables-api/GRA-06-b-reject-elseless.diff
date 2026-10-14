@@ -1,0 +1,16 @@
+Alternative for GRA-06: reject an else-less conditional ordering strategy
+instead of defaulting to the identity ordering. Rejected: ordering needs a
+result, and existing user strategies that omit the else branch (a documented
+no-op in mapping/separation) would start to fail. Shown for hgraphOrderSt only.
+
+--- a/src/libscotch/hgraph_order_st.c
++++ b/src/libscotch/hgraph_order_st.c
+@@ hgraphOrderSt STRATNODECOND else branch @@
+         else {                                    /* Else if expression is false             */
+           if (straptr->data.conddat.stratab[1] != NULL) /* And if there is an else statement */
+             o = hgraphOrderSt (grafptr, ordeptr, ordenum, cblkptr, straptr->data.conddat.stratab[1]);
++          else {                                  /* Else no strategy to apply */
++            errorPrint ("hgraphOrderSt: conditional ordering strategy requires an else branch");
++            o = 1;
++          }
+         }

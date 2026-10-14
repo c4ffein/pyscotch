@@ -1,0 +1,5 @@
+SEP-21: hmeshMesh() memCpy size precedence (nodes-first halo branch) -- fixed upstream in f36ab36 (7.0.17).
+  ./hmeshmesh   pristine 7.0.17 -> hmeshMesh=0 (the memCpy is right) but "ERROR: meshCheck: invalid number of isolated element vertices" meshCheck=1:
+                the halo node turned into a fake empty element is not counted in veisnbr (nor velosum)  [PS2-G11-mesh-struct-io-2]
+                patched  -> hmeshMesh=0 meshCheck=0 velmnbr=3 velmbas=3 vnodnbr=3 edgenbr=8
+Fixed by patches/0004.

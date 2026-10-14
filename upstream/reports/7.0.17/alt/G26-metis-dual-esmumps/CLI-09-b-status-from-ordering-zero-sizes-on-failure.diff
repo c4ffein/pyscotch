@@ -1,0 +1,36 @@
+--- a/src/libscotchmetis/parmetis_dgraph_order.c
++++ b/src/libscotchmetis/parmetis_dgraph_order.c
+@@ -147,14 +147,15 @@
+         SCOTCH_Num          bitsnbr;
+         SCOTCH_Num          proctmp;
+ 
+-        SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat);
+-        SCOTCH_dgraphOrderPerm    (&grafdat, &ordedat, order);
++        if ((SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat) == 0) && /* Status depends on the ordering only */
++            (SCOTCH_dgraphOrderPerm    (&grafdat, &ordedat, order) == 0))
++          o = METIS_OK;
+ 
+         for (levlmax = -1, bitsnbr = 0, proctmp = procglbnbr; /* Count number of bits set to 1 in procglbnbr */
+              proctmp != 0; levlmax ++, proctmp >>= 1)
+           bitsnbr += proctmp & 1;
+ 
+-        if (bitsnbr == 1) {
++        if ((o == METIS_OK) && (bitsnbr == 1)) {  /* If ordering computed and number of processes is a power of 2 */
+           SCOTCH_Num          cblkglbnbr;
+ 
+           if ((cblkglbnbr = SCOTCH_dgraphOrderCblkDist (&grafdat, &ordedat)) >= 0) {
+@@ -203,10 +204,10 @@
+                   }
+                 }
+ 
+-                if ((rootnum >= 0) && (sizes != NULL)) { /* If no error above, go on processing separator tree         */
+-                  memSet (sizes, 0, (2 * procglbnbr - 1) * sizeof (SCOTCH_Num)); /* Set array of sizes to 0 by default */
+-                  _SCOTCH_ParMETIS_V3_NodeNDTree (sizes + (2 * procglbnbr - 1), sizeglbtab, sepaglbtab, levlmax, 0, rootnum, 1);
+-                  o = METIS_OK;
++                if (sizes != NULL) {
++                  memSet (sizes, 0, (2 * procglbnbr - 1) * sizeof (SCOTCH_Num)); /* Set array of sizes to 0 by default, even if tree is not as expected */
++                  if (rootnum >= 0)             /* If no error above, go on processing separator tree */
++                    _SCOTCH_ParMETIS_V3_NodeNDTree (sizes + (2 * procglbnbr - 1), sizeglbtab, sepaglbtab, levlmax, 0, rootnum, 1);
+                 }
+               }
+ 

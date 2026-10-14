@@ -1,0 +1,50 @@
+# COR-15 option B: accumulate in UINT and detect the wrap after the fact; accepts -INTVALMAX-1.
+# Not the recommended option: more code per digit (a division), and the only value it
+# gains (INT_MIN) cannot legitimately appear in a Scotch file. Untested beyond compiling.
+--- a/src/libscotch/common_integer.c
++++ b/src/libscotch/common_integer.c
+@@ -83,7 +83,8 @@ INT * const                 valptr)               /*+ Area where to put value +*/
+ {
+   int                 sign;                       /* Sign flag      */
+   int                 car;                        /* Character read */
+-  INT                 val;                        /* Value          */
++  UINT                val;                        /* Value          */
++  UINT                tmp;                        /* Previous value */
+ 
+   sign = 0;                                       /* Assume positive constant     */
+   for ( ; ; ) {                                   /* Consume whitespaces and sign */
+@@ -106,27 +107,22 @@ INT * const                 valptr)               /*+ Area where to put value +*/
+     return (0);                                   /* Then it is an error          */
+   val = car - '0';                                /* Get first digit              */
+   for ( ; ; ) {
+-#ifdef COMMON_DEBUG
+-    INT                 tmp;                      /* Saved value */
+-#endif /* COMMON_DEBUG */
+-
+     car = getc (stream);
+     if ((car < '0') || (car > '9')) {
+       ungetc (car, stream);
+       break;
+     }
+-#ifdef COMMON_DEBUG
+     tmp = val;
+-#endif /* COMMON_DEBUG */
+-    val = val * 10 + (car - '0');                 /* Accumulate digits */
+-#ifdef COMMON_DEBUG
+-    if (val < tmp) {                              /* In case of overflow */
++    val = val * 10 + (car - '0');                 /* Accumulate digits (unsigned: no undefined behavior) */
++    if (((val - (car - '0')) / 10) != tmp) {      /* In case of wrap-around                              */
+       errorPrint ("intLoad: overflow");
+       return (0);
+     }
+-#endif /* COMMON_DEBUG */
+   }
+-  *valptr = (sign != 0) ? (- val) : val;          /* Set result */
++  if (val > ((UINT) INTVALMAX + (UINT) sign)) {   /* If value does not fit in INT (allow -INTVALMAX-1) */
++    errorPrint ("intLoad: overflow");
++    return (0);
++  }
++  *valptr = (sign != 0) ? (INT) (- val) : (INT) val; /* Set result */
+ 
+   return (1);
+ }

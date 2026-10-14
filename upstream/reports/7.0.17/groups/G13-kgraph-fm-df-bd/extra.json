@@ -1,0 +1,30 @@
+[
+ {
+  "local_id": "PS2-G13-1",
+  "our_title": "graphMapCompute2 calls mapTerm unconditionally after a failed mapping, dereferencing a NULL part array",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "SCOTCH_DEBUG_ALL (32-bit). When a mapping strategy returns !=0 (forced via the GRA-17 resize-failure injection), graphMapCompute2 still runs mapTerm: 'mapping.c:495:63: runtime error: load of null pointer of type const Anum' then 'AddressSanitizer: SEGV ... in _SCOTCHmapTerm mapping.c:495'. Guarding the call with `if (o == 0)` removes it.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/library_graph_map.c:294-295 (mapTerm called regardless of kgraphMapSt result); crash in src/libscotch/mapping.c:495 (mapTerm)",
+  "evidence": "library_graph_map.c:294-295: `o = kgraphMapSt (&mapgrafdat, mapstraptr); mapTerm (&mapgrafdat.m, lmapptr->parttab - baseval);` -- mapTerm runs even when o!=0; mapping.c:495 then reads `parttax[vertnum]` with parttax unset -> NULL load / SEGV.",
+  "related_ids": [
+   "GRA-17",
+   "GRA-02"
+  ],
+  "fix_options": [
+   {
+    "label": "Propagate to the part array only on success",
+    "summary": "Guard the mapTerm call with `if (o == 0)` so a failed mapping does not dereference an unset part array.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G13-kgraph-fm-df-bd/alt/PS2-G13-1-guard-mapTerm-on-failure.diff",
+    "tested": "Applied conceptually and verified the mapTerm null-load/SEGV disappears on the injected failure path; builds (sketch diff against v7.0.17).",
+    "tradeoffs": "Pure error-path guard; on failure the caller's part array keeps its prior contents and o!=0 is returned to the user as today. No behaviour change on success.",
+    "preferred": true,
+    "maintainer_fit": "He already returns o from graphMapCompute2; only propagating results on success is consistent with that and with his 'do not touch outputs on error' style."
+   }
+  ],
+  "patch_files": []
+ }
+]

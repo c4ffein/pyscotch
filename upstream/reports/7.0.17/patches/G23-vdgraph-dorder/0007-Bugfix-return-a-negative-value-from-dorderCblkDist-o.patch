@@ -1,0 +1,41 @@
+From e255aa44432feb8bec102b7b82643cd6c51ed09a Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:14:37 +0000
+Subject: [PATCH 07/11] Bugfix: return a negative value from `dorderCblkDist()`
+ on error [report R. Perry]
+
+`SCOTCH_dgraphOrderCblkDist()` is documented to return a negative
+value on error, but `dorderCblkDist()` returned 1, which is a valid
+number of distributed column blocks, so that callers could not detect
+the failure before sizing the arrays of `SCOTCH_dgraphOrderTreeDist()`.
+
+Refs: DMO-14
+---
+ src/libscotch/dorder_tree_dist.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/dorder_tree_dist.c b/src/libscotch/dorder_tree_dist.c
+index 4b85bd8..0bb2e60 100644
+--- a/src/libscotch/dorder_tree_dist.c
++++ b/src/libscotch/dorder_tree_dist.c
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 5.1  : from : 28 nov 2007     **/
+ /**                                 to   : 09 may 2008     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 25 aug 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -117,7 +117,7 @@ const Dorder * restrict const ordeptr)
+   Gnum                dblkglbnbr;
+ 
+   if (dorderCblkDist2 (ordeptr, &dblklocnbr, &dblkglbnbr) != 0)
+-    return (1);
++    return (-1);
+ 
+   return (dblkglbnbr);
+ }
+-- 
+2.47.3
+

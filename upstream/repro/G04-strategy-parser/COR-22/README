@@ -1,0 +1,9 @@
+COR-22: a (possibly empty) strategy is accepted as the value of any parameter; Strat* stored over an INT/case slot.
+  cd ../common
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'r{sep=m{vert=}}'       -> ret=0 (!), LeakSanitizer 104 bytes (parser_yy.y:180, the empty node)
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'r{sep=m{vert=()}}'     -> ret=0, leak
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'n{sep=m{vert=/(vert>1)?f;g}}' o -> ret=0, whole sub-tree leaked (parser_yy.y:196/288/225/563...)
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'r{job=,bal=0.05,map=t,poli=S,sep=m}' -> Strat* stored in a case slot; stratSave crashes (library_parser.c:135), fuzz hit
+  LD_LIBRARY_PATH=$WORK/build/lib ./st_pristine 'r{sep=m{vert=}}'
+    patched: 'invalid value for parameter "vert" of method "m", line 1, column 14, before "}}"', ret=1
+  Regression test: src/check/test_strat_seq.c (stratbadtab[1], [2]).

@@ -1,0 +1,12 @@
+Shared harnesses (compile against any build tree B with its CFLAGS; "-DHAVE_LTLEAF_PROTO" once library.h declares SCOTCH_archLtleaf):
+  CF=$(grep '^CFLAGS' $B/src/Makefile.inc | cut -d= -f2-)
+  gcc $CF -I$B/include -o archload  archload.c  -L$B/lib -lscotch -lscotcherr -lz -lm -lpthread -lrt
+  gcc $CF [-DHAVE_LTLEAF_PROTO] -I$B/include -o archbuild archbuild.c -L$B/lib -lscotch -lscotcherr -lz -lm -lpthread -lrt
+  gcc -O0 -g -shared -fPIC -o failmalloc.so failmalloc.c -ldl
+  export LD_LIBRARY_PATH=$B/lib UBSAN_OPTIONS=print_stacktrace=1
+archload "<one target-file line>"   : SCOTCH_archInit + SCOTCH_archLoad + SCOTCH_archSize + SCOTCH_archExit
+archbuild <mode> [dim]              : builder calls (0 ltleaf perm {5,0}; 1 ltleaf duplicate perm; 2 ltleaf permnbr 3 on size 4;
+                                      3 <dim> hcub; 4 tleaf sizes {0,-3}; 5 tleaf levlnbr -1; 6 tleaf levlnbr 0; 7 tleaf 65536x65536;
+                                      8 valid ltleaf + archSave; 9/10 ltleaf/tleaf for malloc-failure injection) then SCOTCH_archExit
+FAILMALLOC=n LD_PRELOAD=./failmalloc.so ./archbuild 9   : fails the n-th malloc (plain, non-ASan build only)
+Trees: $WORK/build (32-bit ASan+UBSan, patched), $WORK/build64 (64-bit, patched), $WORK/plainpristine / $WORK/plain (no sanitizer; pristine / patched).

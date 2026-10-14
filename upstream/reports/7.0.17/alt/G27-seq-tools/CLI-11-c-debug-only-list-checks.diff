@@ -1,0 +1,65 @@
+diff --git a/src/libscotch/arch_deco_build.c b/src/libscotch/arch_deco_build.c
+index 58b6eda..db0c509 100644
+--- a/src/libscotch/arch_deco_build.c
++++ b/src/libscotch/arch_deco_build.c
+@@ -192,8 +192,15 @@ Context * const             contptr)              /*+ Execution context
+   mappdat.domnnbr = 1;
+ 
+   jobtab[0].domnum = 0;                           /* All vertices mapped to first domain              */
+-  if (tgtlisttab != NULL)                         /* If vertex list given                             */
+-    graphInduceList (tgtgrafptr, tgtlistnbr, tgtlisttab, &jobtab[0].grafdat); /* Restrict initial job */
++  if (tgtlisttab != NULL) {                       /* If vertex list given */
++    if (graphInduceList (tgtgrafptr, tgtlistnbr, tgtlisttab, &jobtab[0].grafdat) != 0) { /* Restrict initial job */
++      errorPrint ("archDecoArchBuild: cannot induce graph");
++      archExit   (&archdat);
++      mapExit    (&mappdat);
++      memFree    (jobtab);
++      return     (1);
++    }
++  }
+   else {                                          /* If no vertex list given                          */
+     jobtab[0].grafdat = *tgtgrafptr;              /* Job takes whole graph                            */
+     jobtab[0].grafdat.flagval &= ~GRAPHFREETABS;  /* Graph is a clone                                 */
+diff --git a/src/libscotch/graph_induce.c b/src/libscotch/graph_induce.c
+index 0a5e6fb..41b2106 100644
+--- a/src/libscotch/graph_induce.c
++++ b/src/libscotch/graph_induce.c
+@@ -133,6 +133,15 @@ Graph * restrict const          indgrafptr)
+     Gnum                orgvertnum;
+ 
+     orgvertnum = indvnumtax[indvertnum];
++#ifdef SCOTCH_DEBUG_GRAPH2
++    if ((orgvertnum < orggrafptr->baseval) ||     /* If vertex number out of range */
++        (orgvertnum >= orggrafptr->vertnnd)   ||
++        (orgindxtax[orgvertnum] != ~0)) {         /* Or vertex already selected    */
++      errorPrint ("graphInduceList: invalid vertex list");
++      graphExit  (indgrafptr);
++      return     (1);
++    }
++#endif /* SCOTCH_DEBUG_GRAPH2 */
+ 
+     orgindxtax[orgvertnum] = indvertnum;          /* Mark selected vertices */
+     indedgenbr += orgvendtax[orgvertnum] - orgverttax[orgvertnum];
+diff --git a/src/libscotch/library_graph_induce.c b/src/libscotch/library_graph_induce.c
+index 94afc7d..365da9f 100644
+--- a/src/libscotch/library_graph_induce.c
++++ b/src/libscotch/library_graph_induce.c
+@@ -87,6 +87,18 @@ SCOTCH_Graph * restrict const       indgrafptr)
+   const Graph * const srcorggrafptr = (Graph *) CONTEXTOBJECT (orggrafptr);
+   Graph * const       srcindgrafptr = (Graph *) CONTEXTOBJECT (indgrafptr);
+ 
++#ifdef SCOTCH_DEBUG_LIBRARY2
++  SCOTCH_Num          vnumnum;
++
++  for (vnumnum = 0; vnumnum < vnumnbr; vnumnum ++) {
++    if ((vnumtab[vnumnum] <  srcorggrafptr->baseval) ||
++        (vnumtab[vnumnum] >= srcorggrafptr->vertnnd)) {
++      errorPrint (STRINGIFY (SCOTCH_graphInduceList) ": invalid parameters");
++      return (1);
++    }
++  }
++#endif /* SCOTCH_DEBUG_LIBRARY2 */
++
+   o = graphInduceList (srcorggrafptr,
+                        (const Gnum) vnumnbr,
+                        (const Gnum * restrict const) vnumtab,

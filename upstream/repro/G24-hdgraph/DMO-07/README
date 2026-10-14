@@ -1,0 +1,8 @@
+DMO-07: dorderNew() result dereferenced in hdgraphOrderNd2()  (patches/0001)
+==========================================================================
+C=$WORK/repro/common  (see common/README). Rank 0's allocation #70 (np 3, m16x16.grf) is the dorderNew() of the separator node.
+base:    $C/one.sh $WORK/basefi/lib  $C/bin_basefi/orderfi  3 0 70 rc
+  -> (0): ERROR: dorderNew: out of memory; (0,1,2): ERROR: dorderNew: cannot create new node;
+     hdgraph_order_nd.c:363:26: runtime error: member access within null pointer of type 'struct DorderCblk' (3 ranks); signal 11
+patched: $C/one.sh $WORK/buildfi/lib $C/bin_buildfi/orderfi 3 0 70 rc
+  -> rank 0/1/2: order rc=1, live scotch blocks 0 on every rank.  Same for allocation #108 (second-level separator node).

@@ -1,0 +1,11 @@
+--- a/src/libscotchmetis/Makefile
++++ b/src/libscotchmetis/Makefile
+@@ -171,6 +171,8 @@
+ 					../libscotch/common.h				\
+ 					$(SCOTCHINCLUDEDIR)/scotch.h			\
+ 					metis.h
++
++parmetis_%_$(V)$(OBJ)		:	| parmetis.h
+ 
+ parmetis.h			:	../libscotch/dummysizes$(EXE)			\
+ 					library_parmetis.h

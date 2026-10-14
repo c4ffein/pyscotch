@@ -1,0 +1,12 @@
+### BLD-16 patched (a) all vertices unmapped
+...K6o9uv/test_scotch_graph_map: ERROR: checkMap: invalid mapping (1)
+rc=1
+### BLD-16 patched (b) fixed vertex (0,0) moved from part 0 to part 1
+...jOhZG4/test_scotch_graph_map: ERROR: checkMap: invalid mapping (3)
+rc=1
+### BLD-16 patched (c) invalid terminal 0 on the variable-sized architecture
+...fu8VVT/test_scotch_graph_map: ERROR: checkMap: invalid mapping (2)
+rc=1
+### BLD-16 patched (d) part number beyond the architecture size (cmplt 5)
+...GxWxF7/test_scotch_graph_map: ERROR: checkMap: invalid mapping (2)
+rc=1

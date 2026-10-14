@@ -1,0 +1,44 @@
+From 771d80e0342a819b54e5aa07156ae2c5ea741d32 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:29:10 +0000
+Subject: [PATCH 04/10] Bugfix: free previous value of a strategy parameter
+ that is set twice [report PyScotch]
+
+When a strategy-valued parameter was given several times in a method,
+as in `m{asc=b,asc=b}`, the second sub-strategy overwrote the pointer
+to the first one, which leaked.
+
+Refs: PS2-G04-strategy-parser-1
+---
+ src/libscotch/parser_yy.y | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/parser_yy.y b/src/libscotch/parser_yy.y
+index 834e0e6..44f8f75 100644
+--- a/src/libscotch/parser_yy.y
++++ b/src/libscotch/parser_yy.y
+@@ -483,6 +483,8 @@ PARAMVAL      : VALCASE
+                 penvptr->paraptr = ($1).param;    /* Restore current parameter */
+ 
+                 if ((penvptr->paraptr->typeval & STRATPARAMDEPRECATED) == 0) { /* If parameter is not deprecated */
++                  Strat **            slotptr;    /* Pointer to strategy parameter slot */
++
+ #ifdef SCOTCH_DEBUG_PARSER2
+                   if (((penvptr->paraptr->doffptr - penvptr->paraptr->dbasptr) + sizeof (Strat *)) > sizeof (StratNodeMethodData)) {
+                     errorPrint ("stratParserParse: internal error (5)");
+@@ -491,8 +493,10 @@ PARAMVAL      : VALCASE
+                   }
+ #endif /* SCOTCH_DEBUG_PARSER2 */
+ 
+-                  *((Strat **) ((byte *) &penvptr->straptr->data.methdat.datadat +
+-                                (penvptr->paraptr->doffptr - penvptr->paraptr->dbasptr))) = ($2);
++                  slotptr = (Strat **) ((byte *) &penvptr->straptr->data.methdat.datadat +
++                                        (penvptr->paraptr->doffptr - penvptr->paraptr->dbasptr));
++                  stratExit (*slotptr);           /* Free previous value of parameter, if any */
++                  *slotptr = ($2);
+                 }
+               }
+               | error
+-- 
+2.47.3
+

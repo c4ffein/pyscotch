@@ -1,0 +1,287 @@
+From 58e79a59e3b9d946173e0cad9a56a761a83252bc Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:07:51 +0000
+Subject: [PATCH 181/240] Bugfix: apply the Fortran null array convention to
+ all arrays of `METIS_PartMeshDual()` [report R. Perry]
+
+In `METIS_PartMeshDual()`, the Fortran convention according to which
+null arrays are those equal to `ne` was applied to `options`, `tpwgts`
+and `vsize`, but not to `vwgt`, which was passed as is to
+`SCOTCH_graphBuild()`: the scalar `*ne` was read as a vertex weight
+array, overflowing the caller's stack. Also, when the communication
+volume was requested through `options[METIS_OPTION_OBJTYPE]` without
+any `vsize` array, the null pointer was rebased and passed to
+`_SCOTCH_METIS_OutputVol()`, which crashed for base value 1. Finally,
+the return value of `SCOTCH_graphBuild()` was ignored.
+
+The null array convention is now applied once, at the beginning of the
+routine, and the local `velotab` and `vsiztab` pointers are used
+throughout. A null `vsiztab` is passed as such to
+`_SCOTCH_METIS_OutputVol()`, which then assumes unit sizes. The graph
+is mapped only if it could be built, as `_SCOTCH_METIS_PartGraph2()`
+already does.
+
+The C and Fortran test programs now exercise the null array convention
+and the computation of the communication volume without vertex sizes.
+
+Refs: CLI-05
+---
+ src/check/test_libmetis_dual.c             | 71 +++++++++++++++++-----
+ src/check/test_libmetis_dual_f.f90.in      | 26 +++++++-
+ src/libscotchmetis/metis_graph_part_dual.c | 56 +++++++++--------
+ 3 files changed, 112 insertions(+), 41 deletions(-)
+
+diff --git a/src/check/test_libmetis_dual.c b/src/check/test_libmetis_dual.c
+index 6bebf84..5e10e6f 100644
+--- a/src/check/test_libmetis_dual.c
++++ b/src/check/test_libmetis_dual.c
+@@ -43,7 +43,7 @@
+ /**   DATES      : # Version 6.1  : from : 10 feb 2021     **/
+ /**                                 to   : 17 jul 2021     **/
+ /**                # Version 7.0  : from : 08 aug 2024     **/
+-/**                                 to   : 12 apr 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -65,6 +65,45 @@
+ #include "scotch.h"
+ #include "metis.h"                                /* Our "metis.h" file */
+ 
++/**********************************/
++/*                                */
++/* Consistency checking routines. */
++/*                                */
++/**********************************/
++
++/* checkPart checks that element and node
++** partition values are in the proper range.
++** It exits on error.
++*/
++
++static
++void
++checkPart (
++const SCOTCH_Num            baseval,
++const SCOTCH_Num            velmnbr,
++const SCOTCH_Num            vnodnbr,
++const SCOTCH_Num            partnbr,
++const SCOTCH_Num * const    epart,
++const SCOTCH_Num * const    npart)
++{
++  SCOTCH_Num          vertnum;
++
++  for (vertnum = 0; vertnum < velmnbr; vertnum ++) { /* Verify element partition range */
++    if ((epart[vertnum] <   baseval) ||
++        (epart[vertnum] >= (baseval + partnbr))) {
++      SCOTCH_errorPrint ("checkPart: invalid partition (1)");
++      exit (EXIT_FAILURE);
++    }
++  }
++  for (vertnum = 0; vertnum < vnodnbr; vertnum ++) { /* Verify node partition range */
++    if ((npart[vertnum] <   baseval) ||
++        (npart[vertnum] >= (baseval + partnbr))) {
++      SCOTCH_errorPrint ("checkPart: invalid partition (2)");
++      exit (EXIT_FAILURE);
++    }
++  }
++}
++
+ /*********************/
+ /*                   */
+ /* The main routine. */
+@@ -155,25 +194,29 @@ char *              argv[])
+ 
+   SCOTCHMETISNAMEC (METIS_PartMeshDual) (&ne, &nn, eptr, eind, vgwt, NULL, &ncommon, &nparts, tpwgt, options, &objval, epart, npart);
+   if (objval < 0) {
+-    SCOTCH_errorPrint ("main: error in METIS_PartMeshDual");
++    SCOTCH_errorPrint ("main: error in METIS_PartMeshDual (1)");
+     exit (EXIT_FAILURE);
+   }
+ 
+-  for (vertnum = 0; vertnum < ne; vertnum ++) {   /* Verify element partition range */
+-    if ((epart[vertnum] <   baseval) ||
+-        (epart[vertnum] >= (baseval + nparts))) {
+-      SCOTCH_errorPrint ("main: invalid partition (1)");
+-      exit (EXIT_FAILURE);
+-    }
++  checkPart (baseval, ne, nn, nparts, epart, npart);
++
++  SCOTCHMETISNAMEC (METIS_PartMeshDual) (&ne, &nn, eptr, eind, &ne, &ne, &ncommon, &nparts, tpwgt, options, &objval, epart, npart); /* Null arrays are passed as ne, as the Fortran interface does */
++  if (objval < 0) {
++    SCOTCH_errorPrint ("main: error in METIS_PartMeshDual (2)");
++    exit (EXIT_FAILURE);
+   }
+-  for (vertnum = 0; vertnum < nn; vertnum ++) {   /* Verify node partition range */
+-    if ((npart[vertnum] <   baseval) ||
+-        (npart[vertnum] >= (baseval + nparts))) {
+-      SCOTCH_errorPrint ("main: invalid partition (2)");
+-      exit (EXIT_FAILURE);
+-    }
++
++  checkPart (baseval, ne, nn, nparts, epart, npart);
++
++  options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_VOL; /* Compute communication volume without vertex sizes */
++  SCOTCHMETISNAMEC (METIS_PartMeshDual) (&ne, &nn, eptr, eind, vgwt, NULL, &ncommon, &nparts, tpwgt, options, &objval, epart, npart);
++  if (objval < 0) {
++    SCOTCH_errorPrint ("main: error in METIS_PartMeshDual (3)");
++    exit (EXIT_FAILURE);
+   }
+ 
++  checkPart (baseval, ne, nn, nparts, epart, npart);
++
+   free (npart);
+   free (epart);
+ 
+diff --git a/src/check/test_libmetis_dual_f.f90.in b/src/check/test_libmetis_dual_f.f90.in
+index 5e38e96..6892ee8 100644
+--- a/src/check/test_libmetis_dual_f.f90.in
++++ b/src/check/test_libmetis_dual_f.f90.in
+@@ -133,7 +133,7 @@ program test_libmetis_dual
+ 
+     call SCOTCHMETISNAMEFU (METIS_PartMeshDual) (ne, nn, eptr, eind, vgwt, vsize, ncommon, nparts, tpwgt, options, objval, epart, npart)
+     if (objval < 0) then
+-      print *, "ERROR: main: error in METIS_PartMeshDual"
++      print *, "ERROR: main: error in METIS_PartMeshDual (1)"
+       call exit_c (1)
+     end if
+   end block
+@@ -151,6 +151,30 @@ program test_libmetis_dual
+     end if
+   end do
+ 
++  block
++    real(c_double)          :: tpwgt(3) = [ 0.75, 0.125, 0.125 ]
++    integer(SCOTCH_NUMSIZE) :: netab(1) = [ ne ]  ! Null arrays are passed as ne, here as an array element to please the compiler
++
++    call SCOTCHMETISNAMEFU (METIS_PartMeshDual) (netab(1), nn, eptr, eind, netab(1), netab(1), ncommon, nparts, tpwgt, options, objval, epart, npart)
++    if (objval < 0) then
++      print *, "ERROR: main: error in METIS_PartMeshDual (2)"
++      call exit_c (1)
++    end if
++  end block
++
++  do i = 1, ne                                    ! Verify element partition range
++    if ((epart(i) < baseval) .or. (epart(i) >= (baseval + nparts))) then
++      print *, "ERROR: main: invalid partition (3)"
++      call exit_c (1)
++    end if
++  end do
++  do i = 1, nn                                    ! Verify node partition range
++    if ((npart(i) < baseval) .or. (npart(i) >= (baseval + nparts))) then
++      print *, "ERROR: main: invalid partition (4)"
++      call exit_c (1)
++    end if
++  end do
++
+   deallocate (npart)
+   deallocate (epart)
+ 
+diff --git a/src/libscotchmetis/metis_graph_part_dual.c b/src/libscotchmetis/metis_graph_part_dual.c
+index b83a339..9e75306 100644
+--- a/src/libscotchmetis/metis_graph_part_dual.c
++++ b/src/libscotchmetis/metis_graph_part_dual.c
+@@ -91,9 +91,11 @@ SCOTCH_Num * const          npart)                /*+ Node partition array to be
+   SCOTCH_Graph        graftmp;
+   SCOTCH_Arch         archdat;
+   SCOTCH_Strat        stradat;
+-  SCOTCH_Num          baseval;                    /* Global base value                   */
+-  SCOTCH_Num          velmbas;                    /* Base value of mesh element vertices */
+-  SCOTCH_Num          vnodbas;                    /* Base value of mesh node vertices    */
++  const SCOTCH_Num *  velotab;                    /* Element weight array, or NULL             */
++  const SCOTCH_Num *  vsiztab;                    /* Element communication size array, or NULL */
++  SCOTCH_Num          baseval;                    /* Global base value                       */
++  SCOTCH_Num          velmbas;                    /* Base value of mesh element vertices     */
++  SCOTCH_Num          vnodbas;                    /* Base value of mesh node vertices        */
+   SCOTCH_Num          vnodnum;
+   SCOTCH_Num          vertnbr;
+   SCOTCH_Num *        verttab;
+@@ -104,7 +106,10 @@ SCOTCH_Num * const          npart)                /*+ Node partition array to be
+   SCOTCH_Mesh         meshdat;
+   int                 o;
+ 
+-  baseval = _SCOTCH_METIS_optionGet (options, ne, METIS_OPTION_NUMBERING, 0); /* For the Fortran interface, null arrays are those equal to ne */
++  velotab = ((vwgt  != NULL) && (vwgt  != ne)) ? vwgt  : NULL; /* For the Fortran interface, null arrays are those equal to ne */
++  vsiztab = ((vsize != NULL) && (vsize != ne)) ? vsize : NULL;
++
++  baseval = _SCOTCH_METIS_optionGet (options, ne, METIS_OPTION_NUMBERING, 0);
+   if ((baseval < 0) || (baseval > 1)) {
+     SCOTCH_errorPrint ("SCOTCH_METIS_PartMeshDual: invalid numbering option");
+     *objval = METIS_ERROR_INPUT;
+@@ -169,7 +174,7 @@ SCOTCH_Num * const          npart)                /*+ Node partition array to be
+ 
+   SCOTCH_graphData (&grafdat, NULL, &vertnbr, &verttab, &vendtab, NULL, NULL, &edgenbr, &edgetab, NULL); /* Get graph topology arrays */
+ 
+-  if ((vsize != NULL) && (vsize != ne)) {
++  if (vsiztab != NULL) {                          /* If communication sizes provided, turn them into edge loads */
+     const SCOTCH_Num * restrict vsiztax;
+     Gnum                        vertnum;
+     Gnum                        edgenum;
+@@ -186,14 +191,14 @@ SCOTCH_Num * const          npart)                /*+ Node partition array to be
+     }
+     edlotax = edlotab - baseval;                  /* Base access to edlotax */
+     edgetax = edgetab - baseval;
+-    vsiztax = vsize   - baseval;
++    vsiztax = vsiztab - baseval;
+ 
+     for (vertnum = 0, edgenum = baseval;          /* Un-based scan of vertex array verttab */
+          vertnum < vertnbr; vertnum ++) {
+       SCOTCH_Num          vsizval;                /* Communication size of current vertex */
+       SCOTCH_Num          edgennd;
+ 
+-      vsizval = vsize[vertnum];
++      vsizval = vsiztab[vertnum];
+       for (edgennd = vendtab[vertnum]; edgenum < edgennd; edgenum ++) { /* Based traversal of compact edge array */
+         SCOTCH_Num          vertend;              /* Based end vertex number                                     */
+ 
+@@ -205,29 +210,28 @@ SCOTCH_Num * const          npart)                /*+ Node partition array to be
+   else                                            /* No edge array */
+     edlotab = NULL;
+ 
+-  SCOTCH_graphInit  (&graftmp);
+-  SCOTCH_graphBuild (&graftmp, baseval, vertnbr, verttab, vendtab, vwgt, NULL, edgenbr, edgetab, edlotab);
+-  SCOTCH_stratInit  (&stradat);
++  o = METIS_ERROR;                                /* Assume something will go wrong */
++  SCOTCH_graphInit (&graftmp);
++  if (SCOTCH_graphBuild (&graftmp, baseval, vertnbr, verttab, vendtab, velotab, NULL, edgenbr, edgetab, edlotab) == 0) {
++    SCOTCH_stratInit (&stradat);
++    if (SCOTCH_graphMap (&graftmp, &archdat, &stradat, epart) == 0) {
++      if (baseval != 0) {                         /* MeTiS part array is based, Scotch is not */
++        SCOTCH_Num          vertnum;
+ 
+-  if (SCOTCH_graphMap (&graftmp, &archdat, &stradat, epart) == 0) {
+-    if (baseval != 0) {                           /* MeTiS part array is based, Scotch is not */
+-      SCOTCH_Num          vertnum;
++        for (vertnum = 0; vertnum < vertnbr; vertnum ++)
++          epart[vertnum] += baseval;
++      }
+ 
+-      for (vertnum = 0; vertnum < vertnbr; vertnum ++)
+-        epart[vertnum] += baseval;
++      if ((vsiztab != NULL) ||                    /* If computation of communication volume wanted */
++          (_SCOTCH_METIS_optionGet (options, ne, METIS_OPTION_OBJTYPE, METIS_OBJTYPE_CUT) == METIS_OBJTYPE_VOL))
++        o = _SCOTCH_METIS_OutputVol (baseval, vertnbr + baseval, verttab - baseval, edgetab - baseval,
++                                     (vsiztab != NULL) ? (vsiztab - baseval) : NULL, *nparts, epart - baseval, objval);
++      else
++        o = _SCOTCH_METIS_OutputCut (baseval, vertnbr + baseval, verttab - baseval, edgetab - baseval,
++                                     (edlotab != NULL) ? (edlotab - baseval) : NULL, epart - baseval, objval);
+     }
+-
+-    if (((vsize != NULL) && (vsize != ne)) ||     /* If computation of communication volume wanted */
+-        ((options != NULL) && (options != ne) && (options[METIS_OPTION_OBJTYPE] == METIS_OBJTYPE_VOL)))
+-      o = _SCOTCH_METIS_OutputVol (baseval, vertnbr + baseval, verttab - baseval, edgetab - baseval, vsize - baseval, *nparts, epart - baseval, objval);
+-    else
+-      o = _SCOTCH_METIS_OutputCut (baseval, vertnbr + baseval, verttab - baseval, edgetab - baseval,
+-                                   (edlotab != NULL) ? (edlotab - baseval) : NULL, epart - baseval, objval);
++    SCOTCH_stratExit (&stradat);
+   }
+-  else
+-    o = METIS_ERROR;
+-
+-  SCOTCH_stratExit (&stradat);
+   SCOTCH_graphExit (&graftmp);
+   if (edlotab != NULL)
+     memFree (edlotab);
+-- 
+2.47.3
+

@@ -1,0 +1,17 @@
+GRA-14: graphCoarsen() reports success after an allocation failure
+Files: inj.c (LD_PRELOAD malloc/realloc failure injector: fails the N-th call after the harness arms it), coarsen.c
+(SCOTCH_graphCoarsen / SCOTCH_graphCoarsenMatch on bump.grf, then SCOTCH_graphCheck + SCOTCH_graphExit on success).
+Build: gcc -O0 -g -fPIC -shared inj.c -o inj.so -ldl
+       gcc -O0 -g -fsanitize=address,undefined -I<tree>/include coarsen.c -o coarsen -L<tree>/lib -lscotch -lscotcherr -lz -lm -lpthread ./inj.so
+Run (LD_LIBRARY_PATH=<tree>/lib UBSAN_OPTIONS=print_stacktrace=1 (pristine tree: INFRA/asan; patched: $WORK/build or $WORK/build64), ASAN_OPTIONS=verify_asan_link_order=0:detect_leaks=1):
+  for n in $(seq 1 60); do LD_PRELOAD=./inj.so SCOTCH_PTHREAD_NUMBER=1 ./coarsen <tree>/src/check/data/bump.grf $n; done
+  for n in $(seq 1 90); do LD_PRELOAD=./inj.so SCOTCH_PTHREAD_NUMBER=4 ./coarsen <tree>/src/check/data/bump.grf $n; done
+  for n in $(seq 1 12); do LD_PRELOAD=./inj.so SCOTCH_PTHREAD_NUMBER=1 ./coarsen <tree>/src/check/data/bump.grf $n match; done
+Pristine (1 thread): N=7 (edge array) -> "graphCoarsen3: out of memory (1)" then ret=0 and ASan heap-use-after-free in
+graphCheck (dangling verttax); N=8 (hash table) -> ret=0, coarse graph with edgenbr=0, graphCheck fails;
+match mode N=4 (queue) -> "graphMatch: out of memory" then ret=0 with coarvertnbr=0 and 9800 invalid mates.
+4 threads: N=11 (graphMatchInit) -> leak of the mating array; N=13-16 (queues) -> leak of the lock array; N=18 -> use-after-free;
+N=19-22 (hash tables) -> ret=0 with "graphCheck: invalid vertex arrays" + leaks of other threads' hash tables.
+Patched: every injected failure during coarsening returns 2, LeakSanitizer clean, no sanitizer report (32-bit and 64-bit).
+Remaining: N=2 (contextThreadInit2 OOM leaks the context values: G05/G06), N=9 / N=23 (shrinking memRealloc returning NULL
+-> NULL edge array: tree-wide unchecked shrink pattern, PS2-G15-4, not patched).

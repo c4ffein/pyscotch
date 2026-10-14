@@ -1,0 +1,16 @@
+--- a/src/libscotchmetis/parmetis_dgraph_order.c
++++ b/src/libscotchmetis/parmetis_dgraph_order.c
+@@ -147,9 +147,10 @@
+         SCOTCH_Num          bitsnbr;
+         SCOTCH_Num          proctmp;
+ 
+-        SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat);
+-        SCOTCH_dgraphOrderPerm    (&grafdat, &ordedat, order);
+-
++        if ((SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat) != 0) || /* Keep METIS_ERROR when no separator sizes can be returned */
++            (SCOTCH_dgraphOrderPerm    (&grafdat, &ordedat, order) != 0))
++          bitsnbr = 0;                            /* Skip separator tree processing */
++        else
+         for (levlmax = -1, bitsnbr = 0, proctmp = procglbnbr; /* Count number of bits set to 1 in procglbnbr */
+              proctmp != 0; levlmax ++, proctmp >>= 1)
+           bitsnbr += proctmp & 1;

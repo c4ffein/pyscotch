@@ -1,0 +1,173 @@
+From 37282912f4087db1b705a41de1a10dcb6735d449 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:07:49 +0000
+Subject: [PATCH 001/240] Bugfix: clean up properly on sub-architecture loading
+ and building errors [report R. Perry]
+
+When loading a "sub" target architecture failed, `archSubArchLoad()`
+freed the original architecture itself while `archLoad()` freed it
+again through `archSubArchFree()`; when the type of the original
+architecture was invalid, it was freed without having been initialized.
+`archSubArchBuild()` also set the sub-architecture fields before it
+could fail, and leaked its terminal array on failure.
+
+The original architecture now belongs to the sub-architecture body as
+soon as it is allocated, `archSubArchBuild()` sets the body fields only
+on success and frees all of its data on every error path, and
+`archSubArchFree()` accepts bodies in which nothing was allocated.
+
+Refs: COR-04, PS-COR-3
+---
+ src/libscotch/arch_sub.c | 60 ++++++++++++++++++++++++----------------
+ 1 file changed, 36 insertions(+), 24 deletions(-)
+
+diff --git a/src/libscotch/arch_sub.c b/src/libscotch/arch_sub.c
+index bdb9baa..39b0871 100644
+--- a/src/libscotch/arch_sub.c
++++ b/src/libscotch/arch_sub.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2015,2016,2018,2019,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2015,2016,2018,2019,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 6.0  : from : 13 mar 2015     **/
+ /**                                 to   : 15 may 2018     **/
+ /**                # Version 7.0  : from : 18 feb 2018     **/
+-/**                                 to   : 10 sep 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -88,6 +88,9 @@ FILE * restrict const       stream)
+   }
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
++  subarchptr->archptr = NULL;                     /* Assume nothing allocated yet */
++  subarchptr->termtab = NULL;
++
+   if (intLoad (stream, &termnbr) != 1) {
+     errorPrint ("archSubArchLoad: bad input (1)");
+     return (1);
+@@ -111,14 +114,12 @@ FILE * restrict const       stream)
+     memFree    (termtab);
+     return (1);
+   }
++  archInit (orgarchptr);                          /* Original architecture can always be freed, even if not loaded */
++  subarchptr->archptr = orgarchptr;               /* From now on, it will be freed by archSubArchFree()             */
+ 
+-  o = archLoad (orgarchptr, stream);
++  o = archLoad (orgarchptr, stream);              /* On error, caller will clean up by calling archSubArchFree() */
+   if (o == 0)
+     o = archSubArchBuild (subarchptr, orgarchptr, termnbr, termtab);
+-  if (o != 0) {
+-    archExit (orgarchptr);
+-    memFree  (orgarchptr);
+-  }
+ 
+   memFree (termtab);
+ 
+@@ -190,12 +191,14 @@ ArchSub * const             archptr)
+   }
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+-  if ((archArch (archptr)->flagval & ARCHFREE) != 0) { /* If sub-architecture needs to be freed too */
++  if (((archArch (archptr)->flagval & ARCHFREE) != 0) && /* If original architecture needs to be freed too */
++      (archptr->archptr != NULL)) {               /* And if it was allocated                               */
+     archFree (archptr->archptr);
+     memFree  (archptr->archptr);
+   }
+ 
+-  memFree (archptr->termtab);                     /* Free group leader */
++  if (archptr->termtab != NULL)                   /* If sub-architecture was built */
++    memFree (archptr->termtab);                   /* Free group leader             */
+ 
+   return (0);
+ }
+@@ -377,6 +380,7 @@ const Anum * const          vnumtab)              /* Ordered list of remaining t
+ #ifdef SCOTCH_DEBUG_ARCH1
+   const char *            messptr;                /* Pointer to error message              */
+ #endif /* SCOTCH_DEBUG_ARCH1 */
++  int                     o;
+ 
+   if ((orgarchptr->clasptr->flagval & ARCHVAR) != 0) {
+     errorPrint ("archSubArchBuild: variable-sized architectures not supported");
+@@ -420,12 +424,6 @@ const Anum * const          vnumtab)              /* Ordered list of remaining t
+ 
+   treetab ++;                                     /* TRICK: Hide first slot */
+ 
+-  subarchptr->archptr = orgarchptr;
+-  subarchptr->termnbr = vnumnbr;
+-  subarchptr->termtab = termtab;
+-  subarchptr->domnnbr = domnnbr;
+-  subarchptr->domntab = domntab;
+-
+   for (orgtermnum = 0; orgtermnum < orgtermnbr; orgtermnum ++) { /* Initialize values for all vertices of original architecture */
+     treetab[orgtermnum].domnsiz =
+     treetab[orgtermnum].domnwgt = 0;
+@@ -462,9 +460,10 @@ const Anum * const          vnumtab)              /* Ordered list of remaining t
+ #ifdef SCOTCH_DEBUG_ARCH2
+     if (o != 0) {
+       errorPrint ("archSubArchBuild: internal error (1)");
+-      memFree    (treetab - 1);
+-      memFree    (termtab);
+-      return (2);
++      orgarchptr->clasptr->matchExit (&matcdat);  /* Free matching structure */
++      memFree (treetab - 1);
++      memFree (termtab);
++      return  (2);
+     }
+ #endif /* SCOTCH_DEBUG_ARCH2 */
+     termtab[vnumnum].termnum = vnumtab[vnumnum];  /* Record number of original terminal number */
+@@ -481,28 +480,41 @@ const Anum * const          vnumtab)              /* Ordered list of remaining t
+ 
+   if (rootptr == NULL) {
+     errorPrint ("archSubArchBuild: cannot create sub-architecture (1)");
+-    memFree    (treetab - 1);
++    memFree    (treetab - 1);                     /* Coarser tree blocks have already been freed */
++    memFree    (termtab);
+     return (2);
+   }
++
++  o = 0;                                          /* Assume everything will be all right */
+ #ifdef SCOTCH_DEBUG_ARCH2
+   if (rootptr->domnsiz != vnumnbr) {
+     errorPrint ("archSubArchBuild: internal error (2)");
+-    return (2);
++    o = 2;
+   }
++  else
+ #endif /* SCOTCH_DEBUG_ARCH2 */
+-
+   if (archSubArchBuild3 (domntab, termtab, rootptr, 1, 0) != domnnbr) {
+     errorPrint ("archSubArchBuild: cannot create sub-architecture (2)");
+-    memFree    (treetab - 1);
+-    return (2);
++    o = 2;
+   }
+-  domntab[0].dfatidx = -1;                        /* Set index of root father as -1 */
+ 
+   for (treetab --; treetab != NULL; treetab = treetmp) { /* Free all tree blocks    */
+     treetmp = treetab[0].sonstab[0];              /* Get pointer to next tree block */
+     memFree (treetab);
+   }
+ 
++  if (o != 0) {                                   /* If sub-architecture could not be built */
++    memFree (termtab);
++    return  (o);
++  }
++  domntab[0].dfatidx = -1;                        /* Set index of root father as -1 */
++
++  subarchptr->archptr = orgarchptr;               /* Set sub-architecture fields only on success */
++  subarchptr->termnbr = vnumnbr;
++  subarchptr->termtab = termtab;
++  subarchptr->domnnbr = domnnbr;
++  subarchptr->domntab = domntab;
++
+   return (0);
+ }
+ 
+-- 
+2.47.3
+

@@ -1,0 +1,7 @@
+PS2-G01-arch-sub-dist-1 (short name PS2-G01-1 in this directory).
+PS2-G01-1 (new): a sub-architecture made of ONE terminal vertex other than vertex 0 is rooted at the wrong tree slot
+        (archSubArchBuild2() is called with the number of kept vertices as "finevertnbr" and returns treetab[0] at once).
+Cases: sub_one "sub 1 3 cmplt 4", sub_one_hcub "sub 1 6 hcub 3" (crash), sub_one0 "sub 1 0 cmplt 4" (works by accident);
+       build2one.c: SCOTCH_archBuild2(m4x4.grf, 1, {5}) (crash) vs {0} (works) -- the deco2 twin.
+Pristine: ASan SEGV in archSubArchBuild3 (arch_sub.c:345) / archDeco2BuildBuild3 (arch_deco2_build.c:502).
+Patched (0005): all cases build/load/save/reload with size=1 and no sanitizer report; test_scotch_arch gains such a sub-architecture.

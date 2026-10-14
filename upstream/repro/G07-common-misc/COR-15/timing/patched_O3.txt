@@ -1,0 +1,6 @@
+run 0: 1.104 s
+run 1: 1.079 s
+run 2: 1.136 s
+run 3: 1.279 s
+run 4: 1.203 s
+best of 5: 1.079 s

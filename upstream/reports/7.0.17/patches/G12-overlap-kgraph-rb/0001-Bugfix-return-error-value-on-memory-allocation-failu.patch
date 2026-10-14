@@ -1,0 +1,53 @@
+From f40c12a4d5aa4853865d0487b080a68963ac7fbf Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:12:12 +0000
+Subject: [PATCH 1/9] Bugfix: return error value on memory allocation failure
+ in `SCOTCH_graphPartOvlView()` [report R. Perry]
+
+When its work arrays could not be allocated, the routine printed an
+error message but carried on, and dereferenced NULL array pointers.
+Return 1, as the other library routines do, and fix the header comment
+that still described a void routine.
+
+Refs: API-22
+---
+ src/libscotch/library_graph_map_view.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/src/libscotch/library_graph_map_view.c b/src/libscotch/library_graph_map_view.c
+index 4fd3df8..ad1757e 100644
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -56,7 +56,7 @@
+ /**                # Version 6.1  : from : 01 jul 2021     **/
+ /**                                 to   : 01 jul 2021     **/
+ /**                # Version 7.0  : from : 07 may 2019     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -679,9 +679,9 @@ FILE * const                  stream)             /*+ Output stream
+ /* This routine writes the characteristics
+ ** of the given overlap partition to the
+ ** given stream.
+-** It returns :
+-** - void  : in case of success
+-** - exit  : on error (because of errorPrint)
++** It returns:
++** - 0   : on success.
++** - !0  : on error.
+ */
+ 
+ int
+@@ -714,6 +714,7 @@ FILE * const                        stream)
+                      &compsize, (size_t) (partnbr * sizeof (Gnum)),
+                      &listtab,  (size_t) ((partnbr + 1) * sizeof (GraphMapViewList)), NULL) == NULL) {
+     errorPrint (STRINGIFY (SCOTCH_graphPartOvlView) ": out of memory");
++    return (1);
+   }
+   listtab ++;                                     /* TRICK: Trim array so that listtab[-1] is valid */
+   memSet (listtab, ~0, partnbr * sizeof (GraphMapViewList)); /* Set vertex indices to ~0            */
+-- 
+2.47.3
+

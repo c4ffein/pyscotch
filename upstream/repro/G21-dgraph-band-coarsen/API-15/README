@@ -1,0 +1,16 @@
+API-15: SCOTCH_dgraphCoarsen() copies the folded multinode array from a NULL pointer (status: still-present, fixed by patch 0010)
+All reproducers use the shared driver repro/common/g21fi.c and the LD_PRELOAD fault shim repro/common/fishim.c (from G18).
+Trees: $WORK/pristinefi = v7.0.17, $WORK/basefi = combined series (base), $WORK/buildfi = base + this series; all built
+with CFLAGS "-O0 -g -fsanitize=undefined -ftrivial-auto-var-init=pattern" (ASan cannot be preloaded), see repro/common/build.sh.
+  cd $WORK/repro/common && ./build.sh $WORK/pristinefi && ./build.sh $WORK/basefi && ./build.sh $WORK/buildfi
+  ./scan.sh LIBDIR BIN NP FAILRANK NTH_FROM NTH_TO -- MODE TOPO BASE NL [ARGS]   (one line per failed allocation index; HANG = 15 s timeout)
+Full scan outputs: repro/common/scans/pri_* (v7.0.17), base_* (combined base), fix1_*/fix2_* (patched).
+No fault injection needed (nth=-1). Folding with a user multinode array, np=2:
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 -1 -1 -- coarsen ring 0 8 1 2 0.8 1          (fold OK, sender rank has no coarse vertex)
+    library_dgraph_coarsen.c:163:7: runtime error: null pointer passed as argument 2, which is declared to never be null; rc=0 (the UBSan report of the test suite)
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 -1 -1 -- coarsen path 0 8 1 2 0.51 1 1      (17 vertices, ratio 0.51 not met: dgraphCoarsen returns 1 AFTER setting vertlocnbr)
+    exit=139 :: signal 11 on BOTH ranks (memcpy of vertlocnbr * 16 bytes from NULL)   <- worse than the review says: a crash, not just UB
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 -1 -1 -- coarsen path 0 8 1 1000 0.8 1      (too few vertices: return 1 before anything is set)
+    runtime error on both ranks (size 0), rc=1
+Patched (buildfi), scans/fix2_api15_*.txt: rc=0 / rc=1 / rc=1, no sanitizer output. The suite's test_scotch_dgraph_coarsen is clean after the patch
+(chk_32_check_scotch_dgraph_coarsen.log: sanitizer=0; it reported 3 UBSan lines in G18's and G19's runs).

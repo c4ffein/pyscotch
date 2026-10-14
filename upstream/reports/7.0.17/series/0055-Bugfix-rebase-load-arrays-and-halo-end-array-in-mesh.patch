@@ -1,0 +1,333 @@
+From e934146bf153897eca01404584ba969aa639647e Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:59:26 +0000
+Subject: [PATCH 055/240] Bugfix: rebase load arrays and halo end array in
+ `meshBase()` and `hmeshBase()` [report R. Perry]
+
+`meshBase()` did not shift the `velotax` and `vnlotax` array accesses,
+so after a base change the load arrays were read at the wrong offset
+(`meshCheck()` reports invalid loads). `hmeshBase()` looped over the
+new element range while `vehdtax` was still based on the old one, and
+when `vehdtax` aliased `m.vendtax` it added the adjustment a second
+time to entries that `meshBase()` had just rebased.
+
+Shift the load arrays like `graphBase()` does. In `hmeshBase()`, re-
+alias `vehdtax` when it is the mesh end array, else rebase the array
+access before updating its entries.
+
+Add `test_mesh_base`, which rebases a loaded mesh and a halo mesh (with
+aliased and with distinct halo end arrays) back and forth and checks
+them.
+
+Refs: SEP-23
+---
+ src/check/CMakeLists.txt   |   4 +
+ src/check/Makefile         |  10 +++
+ src/check/test_mesh_base.c | 170 +++++++++++++++++++++++++++++++++++++
+ src/libscotch/hmesh.c      |  18 ++--
+ src/libscotch/mesh.c       |   8 +-
+ 5 files changed, 202 insertions(+), 8 deletions(-)
+ create mode 100644 src/check/test_mesh_base.c
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index 5b3a5d7..f62f413 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -162,6 +162,10 @@ add_test(NAME test_arch_deco_3 COMMAND test_arch_deco 9 0.34)
+ 
+ add_test_scotch(test_fibo 1)
+ 
++# test_mesh_base
++
++add_test_scotch(test_mesh_base 1)
++
+ # Test EsMumps
+ 
+ if(BUILD_LIBESMUMPS AND NOT USE_SUFFIX)
+diff --git a/src/check/Makefile b/src/check/Makefile
+index 8067116..f7ec6ec 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -164,6 +164,7 @@ realclean			:	clean
+ 					test_libmetis_dual_f_v3			\
+ 					test_libmetis_dual_f_v5			\
+ 					test_libparmetis_v3			\
++					test_mesh_base				\
+ 					test_scotch_arch			\
+ 					test_scotch_arch_build			\
+ 					test_scotch_arch_deco			\
+@@ -202,6 +203,7 @@ CHECKSCOTCH = 		check_common_file_compress		\
+ 			check_common_thread			\
+ 			check_arch_deco				\
+ 			check_fibo				\
++			check_mesh_base				\
+ 			check_strat_seq				\
+ 			check_scotch_arch			\
+ 			check_scotch_arch_build			\
+@@ -344,6 +346,14 @@ test_fibo			:	test_fibo.c			\
+ 
+ ##
+ 
++check_mesh_base			:	test_mesh_base
++					$(EXECS) ./test_mesh_base
++
++test_mesh_base			:	test_mesh_base.c		\
++					$(SCOTCHLIBDIR)/libscotch$(LIB)
++
++##
++
+ check_libesmumps		:	test_libesmumps
+ 					$(EXECS) ./test_libesmumps data/bump.grf
+ 					$(EXECS) ./test_libesmumps data/bump_imbal_32.grf
+diff --git a/src/check/test_mesh_base.c b/src/check/test_mesh_base.c
+new file mode 100644
+index 0000000..5abe27a
+--- /dev/null
++++ b/src/check/test_mesh_base.c
+@@ -0,0 +1,170 @@
++/* Copyright 2026 IPB, Universite de Bordeaux, INRIA & CNRS
++**
++** This file is part of the Scotch software package for static mapping,
++** graph partitioning and sparse matrix ordering.
++**
++** This software is governed by the CeCILL-C license under French law
++** and abiding by the rules of distribution of free software. You can
++** use, modify and/or redistribute the software under the terms of the
++** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
++** URL: "http://www.cecill.info".
++**
++** As a counterpart to the access to the source code and rights to copy,
++** modify and redistribute granted by the license, users are provided
++** only with a limited warranty and the software's author, the holder of
++** the economic rights, and the successive licensors have only limited
++** liability.
++**
++** In this respect, the user's attention is drawn to the risks associated
++** with loading, using, modifying and/or developing or reproducing the
++** software by the user in light of its specific status of free software,
++** that may mean that it is complicated to manipulate, and that also
++** therefore means that it is reserved for developers and experienced
++** professionals having in-depth computer knowledge. Users are therefore
++** encouraged to load and test the software's suitability as regards
++** their requirements in conditions enabling the security of their
++** systems and/or data to be ensured and, more generally, to use and
++** operate it in the same conditions as regards security.
++**
++** The fact that you are presently reading this means that you have had
++** knowledge of the CeCILL-C license and that you accept its terms.
++*/
++/************************************************************/
++/**                                                        **/
++/**   NAME       : test_mesh_base.c                        **/
++/**                                                        **/
++/**   AUTHOR     : PyScotch project                        **/
++/**                                                        **/
++/**   FUNCTION   : This module tests the operation of      **/
++/**                the meshBase() and hmeshBase()          **/
++/**                routines.                               **/
++/**                                                        **/
++/**   DATES      : # Version 7.0  : from : 13 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
++/**                                                        **/
++/************************************************************/
++
++/*
++**  The defines and includes.
++*/
++
++#include <stdio.h>
++#if (((defined __STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) || (defined HAVE_STDINT_H))
++#include <stdint.h>
++#endif /* (((defined __STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) || (defined HAVE_STDINT_H)) */
++#include <stdlib.h>
++#include <string.h>
++
++#include "../libscotch/module.h"
++#include "../libscotch/common.h"
++#include "../libscotch/graph.h"
++#include "../libscotch/mesh.h"
++#include "../libscotch/hmesh.h"
++
++#include "scotch.h"
++
++/*
++**  The static variables.
++*/
++
++/* Two triangle elements (1, 2) sharing two of
++   their nodes (3, 4, 5, 6), elements first, base 1,
++   with element and node loads.                  */
++
++static SCOTCH_Num           verttab[7]  = { 1, 4, 7, 8, 10, 12, 13 };
++static SCOTCH_Num           velotab[2]  = { 2, 3 };
++static SCOTCH_Num           vnlotab[4]  = { 1, 2, 3, 4 };
++static SCOTCH_Num           edgetab[12] = { 3, 4, 5,  4, 5, 6,  1,  1, 2,  1, 2,  2 };
++
++/*********************/
++/*                   */
++/* The main routine. */
++/*                   */
++/*********************/
++
++int
++main (
++int                 argc,
++char *              argv[])
++{
++  SCOTCH_Mesh         meshdat;
++  Mesh *              meshptr;
++  Hmesh               hmshdat;
++  Gnum                vehdtab[2];                 /* Distinct halo end array for elements */
++  Gnum                vertnum;
++
++  SCOTCH_errorProg (argv[0]);
++
++  if (SCOTCH_meshInit (&meshdat) != 0) {
++    SCOTCH_errorPrint ("main: cannot initialize mesh");
++    exit (EXIT_FAILURE);
++  }
++  if (SCOTCH_meshBuild (&meshdat, 1, 3, 2, 4, verttab, NULL, velotab, vnlotab, NULL, 12, edgetab) != 0) {
++    SCOTCH_errorPrint ("main: cannot build mesh");
++    exit (EXIT_FAILURE);
++  }
++  meshptr = (Mesh *) &meshdat;
++  if (meshCheck (meshptr) != 0) {
++    SCOTCH_errorPrint ("main: invalid mesh (1)");
++    exit (EXIT_FAILURE);
++  }
++
++  if ((meshBase (meshptr, 0) != 1) ||             /* Rebase mesh to 0 and back to 1 */
++      (meshCheck (meshptr) != 0)   ||
++      (meshBase (meshptr, 1) != 0) ||
++      (meshCheck (meshptr) != 0)   ||
++      (meshBase (meshptr, 1) != 1)) {             /* Rebasing to same base is a no-op */
++    SCOTCH_errorPrint ("main: invalid mesh (2)");
++    exit (EXIT_FAILURE);
++  }
++  for (vertnum = 0; vertnum < 4; vertnum ++) {    /* Check that load arrays are back in place */
++    if (((vertnum < 2) && (meshptr->velotax[vertnum + 1] != velotab[vertnum])) ||
++        (meshptr->vnlotax[vertnum + 3] != vnlotab[vertnum])) {
++      SCOTCH_errorPrint ("main: invalid mesh (3)");
++      exit (EXIT_FAILURE);
++    }
++  }
++
++  memSet (&hmshdat, 0, sizeof (Hmesh));           /* Build halo mesh without halo from mesh */
++  hmshdat.m       = *meshptr;
++  hmshdat.vehdtax = hmshdat.m.vendtax;            /* Halo end array is the mesh end array */
++  hmshdat.veihnbr = 0;
++  hmshdat.vnohnbr = hmshdat.m.vnodnbr;
++  hmshdat.vnohnnd = hmshdat.m.vnodnnd;
++  hmshdat.vnhlsum = hmshdat.m.vnlosum;
++  hmshdat.enohnbr = hmshdat.m.edgenbr;
++
++  if ((hmeshCheck (&hmshdat) != 0)   ||
++      (hmeshBase (&hmshdat, 0) != 1) ||
++      (hmeshCheck (&hmshdat) != 0)   ||
++      (hmeshBase (&hmshdat, 1) != 0) ||
++      (hmeshCheck (&hmshdat) != 0)   ||
++      (hmshdat.vehdtax != hmshdat.m.vendtax)) {
++    SCOTCH_errorPrint ("main: invalid halo mesh (1)");
++    exit (EXIT_FAILURE);
++  }
++
++  for (vertnum = hmshdat.m.velmbas; vertnum < hmshdat.m.velmnnd; vertnum ++) /* Use a distinct halo end array */
++    vehdtab[vertnum - hmshdat.m.velmbas] = hmshdat.m.vendtax[vertnum];
++  hmshdat.vehdtax = vehdtab - hmshdat.m.velmbas;
++
++  if ((hmeshCheck (&hmshdat) != 0)   ||
++      (hmeshBase (&hmshdat, 0) != 1) ||
++      (hmeshCheck (&hmshdat) != 0)   ||
++      (hmeshBase (&hmshdat, 1) != 0) ||
++      (hmeshCheck (&hmshdat) != 0)   ||
++      (hmshdat.vehdtax != (vehdtab - hmshdat.m.velmbas))) {
++    SCOTCH_errorPrint ("main: invalid halo mesh (2)");
++    exit (EXIT_FAILURE);
++  }
++  for (vertnum = hmshdat.m.velmbas; vertnum < hmshdat.m.velmnnd; vertnum ++) {
++    if (hmshdat.vehdtax[vertnum] != hmshdat.m.vendtax[vertnum]) {
++      SCOTCH_errorPrint ("main: invalid halo mesh (3)");
++      exit (EXIT_FAILURE);
++    }
++  }
++
++  SCOTCH_meshExit (&meshdat);                     /* Mesh arrays are not freed, as they are user-provided */
++
++  exit (EXIT_SUCCESS);
++}
+diff --git a/src/libscotch/hmesh.c b/src/libscotch/hmesh.c
+index 4da5d0d..c0267d1 100644
+--- a/src/libscotch/hmesh.c
++++ b/src/libscotch/hmesh.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 4.0  : from : 12 sep 2002     **/
+ /**                                 to   : 10 feb 2003     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 20 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -103,13 +103,19 @@ const Gnum                  baseval)
+   baseold = meshptr->m.baseval;                   /* Record old base value */
+   baseadj = baseval - baseold;                    /* Compute adjustment    */
+ 
+-  meshBase (&meshptr->m, baseval);                /* Change base of mesh */
++  if (meshptr->vehdtax == meshptr->m.vendtax) {   /* If halo end array is the mesh end array */
++    meshBase (&meshptr->m, baseval);              /* Change base of mesh, end array included */
++    meshptr->vehdtax = meshptr->m.vendtax;        /* Update aliased array access             */
++  }
++  else {                                          /* Halo end array is distinct */
++    meshBase (&meshptr->m, baseval);              /* Change base of mesh        */
+ 
+-  for (velmnum = meshptr->m.velmbas; velmnum < meshptr->m.velmnnd; velmnum ++)
+-    meshptr->vehdtax[velmnum] += baseadj;         /* Change base of array */
++    meshptr->vehdtax -= baseadj;                  /* Adjust array access before using new element range */
++    for (velmnum = meshptr->m.velmbas; velmnum < meshptr->m.velmnnd; velmnum ++)
++      meshptr->vehdtax[velmnum] += baseadj;       /* Change base of array */
++  }
+ 
+   meshptr->vnohnnd += baseadj;
+-  meshptr->vehdtax -= baseadj;
+ 
+   return (baseold);                               /* Return old base value */
+ }
+diff --git a/src/libscotch/mesh.c b/src/libscotch/mesh.c
+index ae20745..8efaa4c 100644
+--- a/src/libscotch/mesh.c
++++ b/src/libscotch/mesh.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 4.0  : from : 29 dec 2001     **/
+ /**                                 to   : 05 may 2004     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 20 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -176,6 +176,10 @@ const Gnum                  baseval)
+   meshptr->vendtax -= baseadj;
+   meshptr->edgetax -= baseadj;
+ 
++  if (meshptr->velotax != NULL)
++    meshptr->velotax -= baseadj;
++  if (meshptr->vnlotax != NULL)
++    meshptr->vnlotax -= baseadj;
+   if (meshptr->vnumtax != NULL)
+     meshptr->vnumtax -= baseadj;
+   if (meshptr->vlbltax != NULL)
+-- 
+2.47.3
+

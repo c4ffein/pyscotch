@@ -1,0 +1,28 @@
+Shared fault-injection harness (all reproducers of this group are driven from here)
+====================================================================================
+WORK=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist
+
+fishim.c    LD_PRELOAD malloc/realloc fault injector (reused from the first attempt, re-read and re-verified).
+            Counts only allocations whose caller lies in a library whose path contains "scotch" (MPI
+            allocations are not counted). Fails the FI_NTH-th counted allocation on MPI rank FI_RANK
+            (OMPI_COMM_WORLD_RANK; -1 = all ranks) once the program has set the exported variable
+            fi_armed (resolved with dlsym so that programs link without the shim). FI_LOG=1 prints every
+            counted allocation with its caller symbol. Build:
+              gcc -O1 -g -fPIC -shared -o fishim.so fishim.c -ldl
+            ASan builds cannot be preloaded (ASan must own malloc), so injections run against a plain
+            -O0 -g -fsanitize=undefined -ftrivial-auto-var-init=pattern build of the library:
+              $WORK/pristinefi  (pristine 7.0.17 sources)   $WORK/buildfi  (this series applied)
+            built from INFRA/asan with CFLAGS edited: -fsanitize=address,undefined ->
+            -fsanitize=undefined -ftrivial-auto-var-init=pattern (see $WORK/mirror.sh).
+foldfi.c    dgraphFold() (internal API, as src/check tests do) on a ring graph:
+              mpirun -np P ./foldfi partval base nl [velo] [edlo] [data]
+            receivers check the folded graph (dgraphCheck) and the folded data array.
+gatherfi.c  SCOTCH_dgraphGather(): mode "gather" (rank 0 root, others NULL) or "alias" (others pass
+            their own SCOTCH_Dgraph, Fortran style, API-04).
+orderfi.c   SCOTCH_dgraphOrderCompute() (nested dissection reaches hdgraphFold2() and hdgraphGather()).
+redistfi.c  SCOTCH_dgraphRedist() (packs of 3 vertices to successive processes, internal permutation).
+build.sh BUILDDIR   compiles foldfi/gatherfi against BUILDDIR into bin_<name>/ (redistfi/orderfi: same
+            mpicc line with -I$B/include -I$B/src/libscotch ... -lptscotch -lscotch -lptscotcherr -ldl).
+scan.sh LIBDIR BIN NP FAILRANK FROM TO -- args   one line per injected allocation index FROM..TO;
+            "HANG" = 15 s timeout; exit code and the first error lines are summarised.
+bin_pristinefi/, bin_buildfi/, bin_build*/: compiled drivers.

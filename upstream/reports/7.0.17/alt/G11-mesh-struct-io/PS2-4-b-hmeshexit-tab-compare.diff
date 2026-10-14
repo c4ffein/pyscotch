@@ -1,0 +1,11 @@
+--- a/src/libscotch/hmesh.c	2026-10-13 08:40:02.895403980 +0000
++++ b/src/libscotch/hmesh.c	2026-10-13 13:25:19.254826749 +0000
+@@ -71,7 +71,7 @@
+ Hmesh * const               meshptr)
+ {
+   if ((meshptr->vehdtax != NULL) &&               /* Exit halo mesh data */
+-      (meshptr->vehdtax != (meshptr->m.vendtax + (meshptr->m.baseval - meshptr->m.velmbas))) &&
++      ((meshptr->vehdtax + meshptr->m.velmbas) != (meshptr->m.vendtax + meshptr->m.baseval)) && /* If vehdtab is not vendtab */
+       ((meshptr->m.flagval & MESHVERTGROUP) == 0))
+     memFree (meshptr->vehdtax + meshptr->m.velmbas);
+   meshExit (&meshptr->m);                         /* Exit mesh data */

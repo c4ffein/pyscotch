@@ -1,0 +1,19 @@
+# PS-SEP-6 option B: keep the truncation and make the prototype honest (UINT). Contradicts
+# b41893e ("Make pseudo-random generator API 64-bit wide"), which made the API UINT64 on
+# purpose, and leaves contextThreadLaunchSplit() seeding sub-contexts with 32-bit seeds in
+# 32-bit INT builds. Not recommended. Not run.
+--- a/src/libscotch/common.h
++++ b/src/libscotch/common.h
+@@
+-UINT64                      intRandVal2         (IntRandContext * const);
++UINT                        intRandVal2         (IntRandContext * const);
+--- a/src/libscotch/common_integer.c
++++ b/src/libscotch/common_integer.c
+@@
+-UINT64
++UINT
+ intRandVal2 (
+ IntRandContext * const      contptr)              /*+ Random context to load +*/
+ {
+   return ((UINT) intRandVal3 (&contptr->statdat));
+ }

@@ -1,0 +1,24 @@
+--- a/src/libscotch/hmesh_mesh.c	2026-10-13 08:40:02.895403980 +0000
++++ b/src/libscotch/hmesh_mesh.c	2026-10-13 13:24:28.349915382 +0000
+@@ -121,18 +121,9 @@
+     meshptr->velmbas = hmshptr->m.velmbas;
+     meshptr->velmnnd = hmshptr->m.velmnnd;
+   }
+-  else {                                          /* If nodes numbered before elements */
+-    if ((meshptr->vendtax = memAlloc ((hmshptr->m.velmnbr + hmshptr->m.vnodnbr) * sizeof (Gnum))) == NULL) { /* Turn halo nodes into empty elements */
+-      errorPrint ("hmeshHgraph: out of memory (2)");
+-      return     (1);
+-    }
+-    memCpy (meshptr->vendtax, hmshptr->m.vendtax + hmshptr->m.baseval, hmshptr->vnohnbr * sizeof (Gnum)); /* Copy non-halo node part */
+-    memCpy (meshptr->vendtax + hmshptr->vnohnbr, hmshptr->m.verttax + hmshptr->vnohnnd, (hmshptr->m.vnodnbr - hmshptr->vnohnbr) * sizeof (Gnum)); /* Create empty fake element part */
+-    memCpy (meshptr->vendtax + hmshptr->m.vnodnbr, hmshptr->vehdtax + hmshptr->m.velmbas, hmshptr->m.velmnbr * sizeof (Gnum));
+-
+-    meshptr->velmnbr = hmshptr->m.velmnbr + hmshptr->m.vnodnbr - hmshptr->vnohnbr; /* Turn halo node vertices into element vertices */
+-    meshptr->velmbas = hmshptr->vnohnnd;
+-    meshptr->velmnnd = hmshptr->m.velmnnd;
++  else {                                          /* If nodes numbered before elements: no caller builds such halo meshes */
++    errorPrint ("hmeshMesh: halo meshes with nodes numbered first not supported");
++    return     (1);
+   }
+   meshptr->vendtax -= meshptr->baseval;
+ 

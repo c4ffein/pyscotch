@@ -1,0 +1,24 @@
+diff --git a/src/libscotch/vdgraph_separate_bd.c b/src/libscotch/vdgraph_separate_bd.c
+index 26217de..43257ca 100644
+--- a/src/libscotch/vdgraph_separate_bd.c
++++ b/src/libscotch/vdgraph_separate_bd.c
+@@ -98,12 +98,19 @@ const VdgraphSeparateBdParam * const  paraptr)    /*+ Method parameters +*/
+   Gnum                    reduglbtab[3];
+   Gnum * restrict         edloloctax;             /* Save value for edge loads while we pretend we don't have them */
+   Gnum                    fronlocnum;
++  Gnum                    vertlocnum;
+ 
+   if (grafptr->compglbsize[2] == 0)               /* If no frontier to base on  */
+     return (0);                                   /* Then do nothing            */
+   if (paraptr->distmax < 1)                       /* If distance is 0 (or less) */
+     return (0);                                   /* Then do nothing            */
+ 
++  grafptr->complocload[0] =                       /* Recompute local part loads, which may be stale after a store update */
++  grafptr->complocload[1] =
++  grafptr->complocload[2] = 0;
++  for (vertlocnum = grafptr->s.baseval; vertlocnum < grafptr->s.vertlocnnd; vertlocnum ++)
++    grafptr->complocload[grafptr->partgsttax[vertlocnum]] += (grafptr->s.veloloctax == NULL) ? 1 : grafptr->s.veloloctax[vertlocnum];
++
+   edloloctax = grafptr->s.edloloctax;             /* Fake no edge loads on original graph as we do not need them */
+   grafptr->s.edloloctax = NULL;
+   if (dgraphBand (&grafptr->s, grafptr->complocsize[2], grafptr->fronloctab, grafptr->partgsttax,

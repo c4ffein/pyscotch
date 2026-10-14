@@ -1,0 +1,9 @@
+GRA-21: bipartition graph leaked by kgraphMapRbBgraph() on error. usage: gra21 termnum [c|h]
+Pristine (INFRA/asan/lib, LeakSanitizer ON):
+  ./gra21.32 100 c  -> ERROR: kgraphMapRbBgraph: invalid fixed part array ... "Direct leak of 1016 byte(s) ... _SCOTCHbgraphInit bgraph.c:120
+                       _SCOTCHkgraphMapRbBgraph kgraph_map_rb.c:530 kgraphMapRbPart2 kgraph_map_rb_part.c:255"
+  ./gra21.32 100 h  -> same through kgraphMapRbMap, plus (pristine) UBSan in kgraphCost after the failure (see PS2-G12-1)
+Patched (../build/lib): no bgraphInit frame in the leak report (only the reproducer's own 2 arrays, 5124 bytes).
+Allocation-failure path, plain build + LD_PRELOAD (fails the veextax malloc, call #53 for this input):
+  FAIL_NTH=53 LD_PRELOAD=../common/failmalloc.so ./gra21.plain 1 c
+  patched: "ERROR: kgraphMapRbBgraph: out of memory" ... ret=1, "failmalloc: 54 malloc calls, 0 blocks never freed"

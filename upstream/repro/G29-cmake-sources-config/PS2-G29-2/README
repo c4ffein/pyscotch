@@ -1,0 +1,9 @@
+PS2-G29-2: symbol_fax.c compiled standalone by the CMake build of libEsMUMPS.
+
+  grep -n 'symbol_fax' $WORK/src-base/src/esmumps/Makefile    -> LIBESMUMPSDEPS lists symbol_fax_graph only; symbol_fax.c is a dependency of symbol_fax_graph.o
+  grep -n '#include "symbol_fax.c"' $WORK/src-base/src/esmumps/symbol_fax_graph.c -> line 131
+  nm -D $WORK/cm/base32/lib/libesmumps.so | grep -i symbolfax
+    T _ESMUMPSsymbolFaxGraph
+    T symbolFax                         <- un-prefixed, never called
+  Makefile build ($WORK/build/lib/libesmumps.so, "make esmumps"): only T _ESMUMPSsymbolFaxGraph
+  patched: nm -D $WORK/cm/patched32/lib/libesmumps.so | grep -i symbolfax -> only _ESMUMPSsymbolFaxGraph

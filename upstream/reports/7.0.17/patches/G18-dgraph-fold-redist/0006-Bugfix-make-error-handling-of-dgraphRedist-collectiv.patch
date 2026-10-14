@@ -1,0 +1,122 @@
+From 2622197aa347192e13ea7336bf48eaa553de65fd Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:50:44 +0000
+Subject: [PATCH 6/7] Bugfix: make error handling of `dgraphRedist()`
+ collective in all build modes [report PyScotch]
+
+In non-debug builds, the agreements on local allocation errors in
+`dgraphRedist()` and `dgraphRedist2()` were compiled out, so a process
+that failed to allocate its data returned alone while the other
+processes entered the collective operations and waited forever.
+
+Always perform the agreements, as in `hdgraphGather()`. Also free the
+vertex and edge arrays that were allocated but not yet attached to the
+destination graph when some process fails.
+
+Refs: PS-DGR-4
+---
+ src/libscotch/dgraph_redist.c | 59 +++++++++++++++++------------------
+ 1 file changed, 28 insertions(+), 31 deletions(-)
+
+diff --git a/src/libscotch/dgraph_redist.c b/src/libscotch/dgraph_redist.c
+index 1411ec0..cd5c730 100644
+--- a/src/libscotch/dgraph_redist.c
++++ b/src/libscotch/dgraph_redist.c
+@@ -126,14 +126,10 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+     errorPrint ("dgraphRedist: out of memory");
+     cheklocval = 1;
+   }
+-#ifdef SCOTCH_DEBUG_DGRAPH2
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, srcgrafptr->proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, srcgrafptr->proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
+     errorPrint ("dgraphRedist: communication error (1)");
+-    return (1);
++    chekglbval = 1;
+   }
+-#else /* SCOTCH_DEBUG_DGRAPH2 */
+-  chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_DGRAPH2 */
+   if (chekglbval != 0) {
+     if (procvrttab != NULL)
+       memFree (procvrttab);
+@@ -267,14 +263,10 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+     errorPrint ("dgraphRedist2: out of memory (1)");
+     cheklocval = 1;
+   }
+-#ifdef SCOTCH_DEBUG_DGRAPH2
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, srcgrafptr->proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, srcgrafptr->proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
+     errorPrint ("dgraphRedist2: communication error (1)");
+-    return (1);
++    chekglbval = 1;
+   }
+-#else /* SCOTCH_DEBUG_DGRAPH2 */
+-  chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_DGRAPH2 */
+   if (chekglbval != 0) {
+     dgraphFree (dstgrafptr);
+     return (1);
+@@ -345,36 +337,41 @@ Dgraph * restrict const     dstgrafptr)           /* Destination distributed gra
+   dstedgedatsiz = (permflagval == 0)              /* If vertices are received in destination order, edge data can be unpacked in place */
+                   ? (dstedlolocsiz + MAX (dstedgelocdlt, srcgrafptr->degrglbmax)) /* TRICK: extra space only for edge loads and degrmax, to avoid overlap */
+                   : (dstedgelocsiz * fledval);    /* Else destination edge arrays must not overlap receive area */
++
++  cheklocval = 1;                                 /* Assume an error  */
++  dstedgeloctax = NULL;                           /* In case of error */
+   if (memAllocGroup ((void **) (void *)
+                      &dstvertloctax, (size_t) ((dstvertlocnbr + dstvertlocdlt + 1) * sizeof (Gnum)), /* Create compact array */
+                      &dstveloloctax, (size_t) ( dstvelolocsiz                      * sizeof (Gnum)),
+                      &dstvlblloctax, (size_t) ((dstvertlocnbr + dstvertlocdlt)     * sizeof (Gnum)), NULL) == NULL) { /* Vertex labels always present */
+     errorPrint ("dgraphRedist2: out of memory (2)");
+-    cheklocval = 1;
++    goto fail;
+   }
+-  else if (dstvertloctax -= baseval,
+-           dstveloloctax  = ((srcgrafptr->veloloctax != NULL) ? dstveloloctax - baseval : NULL),
+-           dstvlblloctax -= baseval,
+-           memAllocGroup ((void **) (void *)
+-                          &dstedgeloctax, (size_t) (dstedgedatsiz * sizeof (Gnum)),
+-                          &dsnddattab,    (size_t) (dsnddatnbr    * sizeof (Gnum)), /* TRICK: send space will be edgeloctab or edloloctab    */
+-                          &drcvdattab,    (size_t) (drcvdatnbr    * sizeof (Gnum)), NULL) == NULL) { /* TRICK: Remaining space will be freed */
++  dstvertloctax -= baseval;
++  dstveloloctax  = (srcgrafptr->veloloctax != NULL) ? dstveloloctax - baseval : NULL;
++  dstvlblloctax -= baseval;
++
++  if (memAllocGroup ((void **) (void *)
++                     &dstedgeloctax, (size_t) (dstedgedatsiz * sizeof (Gnum)),
++                     &dsnddattab,    (size_t) (dsnddatnbr    * sizeof (Gnum)), /* TRICK: send space will be edgeloctab or edloloctab    */
++                     &drcvdattab,    (size_t) (drcvdatnbr    * sizeof (Gnum)), NULL) == NULL) { /* TRICK: Remaining space will be freed */
+     errorPrint ("dgraphRedist2: out of memory (3)");
+-    cheklocval = 1;
++    goto fail;
+   }
+-  else {
+-    dstedgeloctax -= baseval;
+-    dstedloloctax  = (srcgrafptr->edloloctax != NULL) ? (dstedgeloctax + dstedgelocsiz) : NULL;
+-  }
+-#ifdef SCOTCH_DEBUG_DGRAPH2
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, srcgrafptr->proccomm) != MPI_SUCCESS) {
++  dstedgeloctax -= baseval;
++  dstedloloctax  = (srcgrafptr->edloloctax != NULL) ? (dstedgeloctax + dstedgelocsiz) : NULL;
++
++  cheklocval = 0;                                 /* Everything went well */
++fail:
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, srcgrafptr->proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
+     errorPrint ("dgraphRedist2: communication error (3)");
+-    return (1);
++    chekglbval = 1;
+   }
+-#else /* SCOTCH_DEBUG_DGRAPH2 */
+-  chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_DGRAPH2 */
+   if (chekglbval != 0) {
++    if (dstedgeloctax != NULL)                    /* Arrays are not attached to graph yet */
++      memFree (dstedgeloctax + baseval);
++    if (dstvertloctax != NULL)
++      memFree (dstvertloctax + baseval);
+     dgraphFree (dstgrafptr);
+     return (1);
+   }
+-- 
+2.47.3
+

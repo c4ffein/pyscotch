@@ -1,0 +1,15 @@
+DGR-02: folded graph freed with base value 0 while its arrays are based (heap corruption)
+=========================================================================================
+Harness: ../common. Same as DGR-01 but with base value 1 (foldfi args: 0 1 5 1 1 1).
+
+Pristine:
+  cd ../common; ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/foldfi 4 0 3 6 -- 0 1 5 1 1 1
+  nth=3 exit=124 :: HANG (vertex group failed: vertloctax still NULL, nothing misfreed, DGR-01 hang)
+  nth=4 exit=134 :: (0): ERROR: dgraphFold2: out of memory (4); fishim: rank 0: signal 6 (glibc abort: free(): invalid pointer)
+  nth=5 exit=134 :: (0): ERROR: dgraphFold2: out of memory (5); signal 6
+  nth=6 exit=134 :: (0): ERROR: dgraphFold2: out of memory (6); signal 6
+  With base 0 the same runs only hang: the wrong-base free is invisible.
+
+Patched: nth=3..6 exit=1 on all ranks, no abort; nth=7 exit=0.
+Twin hdgraphFold2() has the identical ordering (memSet at hdgraph_fold.c:182, baseval at :879) and
+is fixed in the same commit; exercised through orderfi (see ../DGR-01/README).

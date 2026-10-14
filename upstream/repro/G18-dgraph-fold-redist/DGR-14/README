@@ -1,0 +1,13 @@
+DGR-14: abs() on a pointer difference in dgraphRedist2() debug checks: fixed in 7.0.17 (f545452)
+==================================================================================================
+  git -C INFRA/scotch.git diff v7.0.16 v7.0.17 -- src/libscotch/dgraph_redist.c
+  -      if (abs ((dstedloloctax + dstedgelocnum) - (drcvdattab + drcvdatidx)) < dstdegrval) {
+  +      if (ABS ((dstedloloctax + dstedgelocnum) - (drcvdattab + drcvdatidx)) < dstdegrval) {
+  (and the same at the edge array check)   common.h: #define ABS(x) MAX ((x), -(x))
+Compile check (64-bit Gnum flags, -Wall -Wextra -DSCOTCH_DEBUG_DGRAPH2), files in this directory
+(dgraph_redist_7016.c = git show v7.0.16:src/libscotch/dgraph_redist.c):
+  7.0.16: dgraph_redist_7016.c:455:11 and :464:9: warning: absolute value function 'abs' given an
+          argument of type 'long int' but has parameter of type 'int' which may cause truncation [-Wabsolute-value]
+  7.0.17: no warning.
+  git grep '\babs (' v7.0.17 -- src: remaining call sites are in src/check (int arguments),
+  src/scotch/amk_m2.h (int coordinates) and comments of hall_order_hf.c: no other Gnum/ptrdiff abs().

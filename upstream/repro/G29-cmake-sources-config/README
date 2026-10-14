@@ -1,0 +1,10 @@
+Common setup for every reproducer in this directory.
+
+  cmake 4.4.4 (from the uv cache wheel; no system cmake):
+    export PATH=/home/dev/.cache/uv/archive-v0/AYBj08OZ5Y7UxitH/cmake/data/bin:$PATH
+  WORK=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G29-cmake-sources-config
+  $WORK/src-base    = git archive of base-combined (v7.0.17 + the 142-commit combined series)
+  $WORK/src-patched = git archive of base-combined + this group's 11 commits
+  Pristine CMake build:  cmake -S $WORK/src-base -B $WORK/cm/base32 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=$WORK/cm/inst-base32 && make -C $WORK/cm/base32 -j8 && make -C $WORK/cm/base32 install
+  Patched CMake build:   same with src-patched / cm/patched32 / inst-patched32
+  (CI's own flags, ci/build_cmake.sh: -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON)

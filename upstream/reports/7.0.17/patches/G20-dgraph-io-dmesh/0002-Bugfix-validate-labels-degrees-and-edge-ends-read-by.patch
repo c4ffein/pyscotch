@@ -1,0 +1,151 @@
+From f3a8ff05b1db0a3f154ca1365497c5c0f86685fb Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:52:48 +0000
+Subject: [PATCH 2/7] Bugfix: validate labels, degrees and edge ends read by
+ distributed graph loaders [report R. Perry]
+
+`dgraphLoadCent()` and `dgraphLoadDist()` stored file-controlled vertex
+labels, vertex degrees, edge ends and edge loads without range checking,
+unlike `graphLoad()` for the centralized format. A negative label is
+later used to index sorting arrays; an out-of-range edge end of an
+unlabeled graph indexes vertex arrays once the graph is built; a huge
+degree can overflow the running edge index.
+
+Reject negative labels and degrees, reject edge loads below one, test the
+arc-array overflow without overflowing the edge index, and, for unlabeled
+graphs, range-check each edge end against [baseval, vertnnd[ after base
+adjustment -- the same discipline as `graphLoad()`.
+
+Refs: DGR-03
+---
+ src/libscotch/dgraph_io_load.c | 46 +++++++++++++++++++++++++---------
+ 1 file changed, 34 insertions(+), 12 deletions(-)
+
+diff --git a/src/libscotch/dgraph_io_load.c b/src/libscotch/dgraph_io_load.c
+index 32abbfc..ebbdc22 100644
+--- a/src/libscotch/dgraph_io_load.c
++++ b/src/libscotch/dgraph_io_load.c
+@@ -333,7 +333,8 @@ const int                   protnum)              /* Root process number
+         if (vlblredtax != NULL) {                 /* If must read label            */
+           Gnum                vlblredval;         /* Vertex label value to be read */
+ 
+-          if (intLoad (fileptr, &vlblredval) != 1) { /* Read label data */
++          if ((intLoad (fileptr, &vlblredval) != 1) || /* Read label data                        */
++              (vlblredval < 0)) {
+             errorPrint ("dgraphLoadCent: bad input (2)");
+             cheklocval = 1;
+             break;
+@@ -352,7 +353,8 @@ const int                   protnum)              /* Root process number
+             veloredsum            +=
+             veloredtax[vertrednum] = veloredval;
+         }
+-        if (intLoad (fileptr, &degrredval) != 1) { /* Read vertex degree */
++        if ((intLoad (fileptr, &degrredval) != 1) || /* Read vertex degree */
++            (degrredval < 0)) {
+           errorPrint ("dgraphLoadCent: bad input (4)");
+           cheklocval = 1;
+           break;
+@@ -393,7 +395,8 @@ const int                   protnum)              /* Root process number
+           if (proptab[1] != 0) {                  /* If must read edge load        */
+             Gnum                edloredval;       /* Value where to read edge load */
+ 
+-            if (intLoad (fileptr, &edloredval) != 1) { /* Read edge load data */
++            if ((intLoad (fileptr, &edloredval) != 1) || /* Read edge load data */
++                (edloredval < 1)) {
+               errorPrint ("dgraphLoadCent: bad input (5)");
+               cheklocval = 1;
+               break;
+@@ -401,12 +404,20 @@ const int                   protnum)              /* Root process number
+             if (edloredtax != NULL)
+               edloredtax[edgerednum] = edloredval;
+           }
+-          if (intLoad (fileptr, &edgeredval) != 1) { /* Read edge data */
++          if ((intLoad (fileptr, &edgeredval) != 1) || /* Read edge data                                    */
++              (edgeredval < 0)) {
+             errorPrint ("dgraphLoadCent: bad input (6)");
+             cheklocval = 1;
+             break;
+           }
+-          edgeredtax[edgerednum] = edgeredval + baseadj;
++          edgeredval += baseadj;                  /* Adjust edge end to graph base (baseadj is zero for labeled graphs) */
++          if ((vlblredtax == NULL) &&             /* If edge ends are vertex indices, they must be in range           */
++              ((edgeredval < baseval) || (edgeredval >= (vertglbnbr + baseval)))) {
++            errorPrint ("dgraphLoadCent: invalid arc end number");
++            cheklocval = 1;
++            break;
++          }
++          edgeredtax[edgerednum] = edgeredval;
+         }
+         if (cheklocval != 0)
+           break;
+@@ -807,7 +818,8 @@ const GraphLoadFlag         flagval)              /* Graph loading flags
+     if (vlblloctax != NULL) {                     /* If must read label            */
+       Gnum                vlbllocval;             /* Vertex label value to be read */
+ 
+-      if (intLoad (fileptr, &vlbllocval) != 1) {  /* Read label data */
++      if ((intLoad (fileptr, &vlbllocval) != 1) || /* Read label data                        */
++          (vlbllocval < 0)) {
+         errorPrint ("dgraphLoadDist: bad input (2)");
+         cheklocval = 1;
+         break;
+@@ -826,7 +838,8 @@ const GraphLoadFlag         flagval)              /* Graph loading flags
+         velolocsum            +=
+         veloloctax[vertlocnum] = velolocval;
+     }
+-    if (intLoad (fileptr, &degrlocval) != 1) {    /* Read vertex degree */
++    if ((intLoad (fileptr, &degrlocval) != 1) ||  /* Read vertex degree */
++        (degrlocval < 0)) {
+       errorPrint ("dgraphLoadDist: bad input (4)");
+       cheklocval = 1;
+       break;
+@@ -835,12 +848,12 @@ const GraphLoadFlag         flagval)              /* Graph loading flags
+       degrlocmax = degrlocval;
+ 
+     vertloctax[vertlocnum] = edgelocnum;          /* Set index in edge array */
+-    degrlocval += edgelocnum;
+-    if (degrlocval > edgelocnnd) {                /* Check if edge array overflows */
++    if (degrlocval > (edgelocnnd - edgelocnum)) { /* Check if edge array overflows (avoiding edgelocnum overflow) */
+       errorPrint ("dgraphLoadDist: invalid arc count (1)");
+       cheklocval = 1;
+       break;
+     }
++    degrlocval += edgelocnum;
+ 
+     for ( ; edgelocnum < degrlocval; edgelocnum ++) {
+       Gnum                edgelocval;         /* Value where to read edge end */
+@@ -848,7 +861,8 @@ const GraphLoadFlag         flagval)              /* Graph loading flags
+       if (proptab[1] != 0) {                  /* If must read edge load        */
+         Gnum                edlolocval;       /* Value where to read edge load */
+ 
+-        if (intLoad (fileptr, &edlolocval) != 1) { /* Read edge load data */
++        if ((intLoad (fileptr, &edlolocval) != 1) || /* Read edge load data */
++            (edlolocval < 1)) {
+           errorPrint ("dgraphLoadDist: bad input (5)");
+           cheklocval = 1;
+           break;
+@@ -856,12 +870,20 @@ const GraphLoadFlag         flagval)              /* Graph loading flags
+         if (edloloctax != NULL)
+           edloloctax[edgelocnum] = edlolocval;
+       }
+-      if (intLoad (fileptr, &edgelocval) != 1) { /* Read edge data */
++      if ((intLoad (fileptr, &edgelocval) != 1) || /* Read edge data                                    */
++          (edgelocval < 0)) {
+         errorPrint ("dgraphLoadDist: bad input (6)");
+         cheklocval = 1;
+         break;
+       }
+-      edgeloctax[edgelocnum] = edgelocval + baseadj;
++      edgelocval += baseadj;                      /* Adjust edge end to graph base (baseadj is zero for labeled graphs) */
++      if ((vlblloctax == NULL) &&                 /* If edge ends are vertex indices, they must be in range           */
++          ((edgelocval < baseval) || (edgelocval >= (reduglbtab[3] + baseval)))) {
++        errorPrint ("dgraphLoadDist: invalid arc end number");
++        cheklocval = 1;
++        break;
++      }
++      edgeloctax[edgelocnum] = edgelocval;
+     }
+     if (cheklocval != 0)
+       break;
+-- 
+2.47.3
+

@@ -1,0 +1,14 @@
+PS2-G21-1 (new): dgraphBand2Coll()/dgraphBand2Ptop() allocation failure is not agreed upon in release builds: hang (patch 0002)
+All reproducers use the shared driver repro/common/g21fi.c and the LD_PRELOAD fault shim repro/common/fishim.c (from G18).
+Trees: $WORK/pristinefi = v7.0.17, $WORK/basefi = combined series (base), $WORK/buildfi = base + this series; all built
+with CFLAGS "-O0 -g -fsanitize=undefined -ftrivial-auto-var-init=pattern" (ASan cannot be preloaded), see repro/common/build.sh.
+  cd $WORK/repro/common && ./build.sh $WORK/pristinefi && ./build.sh $WORK/basefi && ./build.sh $WORK/buildfi
+  ./scan.sh LIBDIR BIN NP FAILRANK NTH_FROM NTH_TO -- MODE TOPO BASE NL [ARGS]   (one line per failed allocation index; HANG = 15 s timeout)
+Full scan outputs: repro/common/scans/pri_* (v7.0.17), base_* (combined base), fix1_*/fix2_* (patched).
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 3 4 -- band path 0 8 2       (collective variant, np=2)
+    nth=3 HANG :: SCOTCH_dgraphBand: out of memory (1); dgraphBand2Coll: out of memory (1); rank 1: band rc=1  (rank 0 waits in MPI_Alltoall)
+    nth=4 HANG :: dgraphBand2Coll: out of memory (1); rank 1: band rc=1
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 3 3 -- grow ring 0 8 2        -> nth=3 HANG (dgraphGrow2Coll)
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/g21fi 2 1 0 1 -- bandint path 0 8 2    -> nth=0,1 HANG (internal dgraphBand)
+  (the point-to-point variant crashed first, DGR-07; after patch 0001 alone it would hang the same way.)
+Patched: scans/fix1_band_path_b0.txt nth=3,4 -> rank 0,1: band rc=1; fix1_grow_ring_b0.txt nth=3 -> rc=1 on both; fix1_bandint_path_b0.txt nth=0,1 -> rc=1 on both.

@@ -1,0 +1,12 @@
+diff --git a/src/libscotch/CMakeLists.txt b/src/libscotch/CMakeLists.txt
+index f67caea..948641f 100644
+--- a/src/libscotch/CMakeLists.txt
++++ b/src/libscotch/CMakeLists.txt
+@@ -208,7 +208,6 @@ set(SCOTCH_C_SOURCES
+   common.c
+   common.h
+   common_context.c
+-  common_error.c
+   common_file.c
+   common_file.h
+   common_file_compress.c

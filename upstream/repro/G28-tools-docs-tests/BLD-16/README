@@ -1,0 +1,14 @@
+BLD-16: test_scotch_graph_map accepts unmapped vertices, unbounded parts, moved fixed vertices
+
+Corruptions inserted before the checkMap() call of the main loop (anchor differs before/after since
+the call changed), graph data/m16x16.grf, 32-bit ASan tree:
+  (a) memset (parttab, ~0, vertnbr * sizeof (SCOTCH_Num));                       all vertices unmapped
+  (b) if ((archnum < 2) && ((typenum == 1) || (typenum >= 5))) parttab[COORD (0, 0)] = 1;   fixed vertex moved
+  (c) if (archnum == 3) parttab[5] = 0;                 terminal 0 does not exist in a variable-sized hypercube
+  (d) if (archnum == 3) parttab[5] = 1000000;  (before) / if (archnum == 0) parttab[5] = 5; (after: cmplt 5 has 0..4)
+
+Before (BLD-16_before.txt): (a) rc=0, (b) rc=0, (c) rc=0, (d) rc=0.
+After  (BLD-16_after.txt, patches/0008): (a) invalid mapping (1) rc=1, (b) invalid mapping (3) rc=1,
+       (c) invalid mapping (2) rc=1, (d) invalid mapping (2) rc=1.
+Unmutated: check_scotch_graph_map rc=0 on m4x4, m4x4_b100000, m16x16 (BLD-16_after_unmutated32.log,
+check_scotch_graph_map_64.log).

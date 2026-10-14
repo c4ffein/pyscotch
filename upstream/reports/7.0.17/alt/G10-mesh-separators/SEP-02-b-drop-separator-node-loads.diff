@@ -1,0 +1,61 @@
+--- a/src/libscotch/mesh_induce_sepa.c
++++ b/src/libscotch/mesh_induce_sepa.c
+@@ -125,7 +125,6 @@
+   Gnum                          indvelmnbr;       /* (Approximate) number of element vertices in induced mesh   */
+   Gnum                          indvertnbr;       /* (Approximate) number of vertices in induced mesh           */
+   Gnum                          indvnodnum;       /* Number of current node vertex in induced mesh              */
+-  Gnum                          indvnlosum;       /* Sum of node vertex load array                              */
+   Gnum                          indvelmnum;       /* Number of current element vertex in induced mesh           */
+   Gnum * restrict               indedgetax;       /* Based array to edge array of induced mesh                  */
+   Gnum                          indedgenum;       /* Number of current edge to be created in induced mesh       */
+@@ -177,16 +176,7 @@
+   hashmsk = hashmsk * 4 + 3;                      /* Compute size of node hash table */
+ 
+   indvertnbr = indvelmnbr + orgsepanbr;           /* Upper bound on number of all vertices */
+-  if (orgmeshptr->velotax != NULL) {
+-    p = memAllocGroup ((void **) (void *)
+-          &indmeshptr->verttax, (size_t) (indvertnbr * sizeof (Gnum)), /* verttab is not compact */
+-          &indmeshptr->vendtax, (size_t) (indvertnbr * sizeof (Gnum)),
+-          &indmeshptr->vnumtax, (size_t) (orgsepanbr * sizeof (Gnum)), /* vnumtab is of size indnodenbr                */
+-          &indmeshptr->velotax, (size_t) (orgsepanbr * sizeof (Gnum)), NULL); /* Element vertices assumed not weighted */
+-    indmeshptr->velotax -= indmeshptr->vnodbas;
+-  }
+-  else
+-    p = memAllocGroup ((void **) (void *)
++  p = memAllocGroup ((void **) (void *)         /* Induced separator mesh is never weighted */
+           &indmeshptr->verttax, (size_t) (indvertnbr * sizeof (Gnum)),
+           &indmeshptr->vendtax, (size_t) (indvertnbr * sizeof (Gnum)),
+           &indmeshptr->vnumtax, (size_t) (orgsepanbr * sizeof (Gnum)), NULL); /* vnumtab is of size indnodenbr */
+@@ -212,7 +202,7 @@
+   indvneltax -= indmeshptr->velmbas;
+   orgindxtax -= orgmeshptr->baseval;
+ 
+-  for (indvnumnum = 0, indvnodnum = indedgenum = indmeshptr->baseval, indvelmnum = orgsepanbr + indvnodnum, indedgenbr = 0, indvnlosum = 0;
++  for (indvnumnum = 0, indvnodnum = indedgenum = indmeshptr->baseval, indvelmnum = orgsepanbr + indvnodnum, indedgenbr = 0;
+        indvnumnum < orgsepanbr; indvnumnum ++) {  /* For all node vertices in separator      */
+     Gnum                orgvnodnum;               /* Number of current node in original mesh */
+     Gnum                orgenodnum;
+@@ -224,14 +214,6 @@
+       orgindxtax[orgvnodnum] = indvnodnum ++;     /* One more node vertex created                */
+     indmeshptr->verttax[orgindxtax[orgvnodnum]] = indedgenum; /* Set beginning of edge sub-array */
+     indmeshptr->vnumtax[orgindxtax[orgvnodnum]] = orgvnodnum - (orgmeshptr->vnodbas - orgmeshptr->baseval);
+-    if (indmeshptr->velotax != NULL) {
+-      Gnum                indvnloval;
+-
+-      indvnloval  = orgmeshptr->velotax[orgvnodnum];
+-      indvnlosum += indvnloval;
+-      indmeshptr->velotax[orgindxtax[orgvnodnum]] = indvnloval;
+-    }
+-
+     indenodnum  = indedgenum;                     /* Record position of node edge sub-array */
+     indedgenum += orgmeshptr->vendtax[orgvnodnum] - /* Reserve space for node edges         */
+                   orgmeshptr->verttax[orgvnodnum];
+@@ -344,7 +326,7 @@
+   indmeshptr->edgetax -= indmeshptr->baseval;
+ 
+   indmeshptr->velosum = indmeshptr->velmnbr;      /* TODO: account for element weights */
+-  indmeshptr->vnlosum = (indmeshptr->velotax == NULL) ? orgsepanbr : indvnlosum;
++  indmeshptr->vnlosum = orgsepanbr;
+   indmeshptr->degrmax = orgmeshptr->degrmax;      /* Rough estimate */
+ 
+   if (orgmeshptr->vnumtax != NULL) {              /* If mesh is a submesh */

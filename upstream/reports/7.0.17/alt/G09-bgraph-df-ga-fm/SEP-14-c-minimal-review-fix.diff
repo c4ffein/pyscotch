@@ -1,0 +1,27 @@
+diff --git a/src/libscotch/bgraph_bipart_df.c b/src/libscotch/bgraph_bipart_df.c
+index 6f16fd5..f5bc557 100644
+--- a/src/libscotch/bgraph_bipart_df.c
++++ b/src/libscotch/bgraph_bipart_df.c
+@@ -357,8 +357,8 @@ skip:
+ #ifdef SCOTCH_DEBUG_BGRAPH2
+           errorPrintW ("bgraphBipartDfLoop: overflow");
+ #endif /* SCOTCH_DEBUG_BGRAPH2 */
+-          loopptr->abrtval = 1;                   /* Threads need to halt                      */
+-          vertnum = vancnnt;                      /* Skip regular computations but synchronize */
++          loopptr->abrtval = 1;                   /* Threads need to halt                                                        */
++          vertnum = vancnnt - 1;                  /* Skip remaining computations of run but synchronize; last value overwritten */
+         }
+ 
+         difntax[vertnum] = diffval * ielstax[vertnum];
+@@ -516,6 +516,11 @@ const BgraphBipartDfParam * const paraptr)        /*+ Method parameters +*/
+   bgraphBipartDfLoop (NULL, &loopdat);
+ #endif /* BGRAPHBIPARTDFNOTHREAD */
+ 
++  if (loopdat.abrtval != 0) {                     /* If some thread aborted, thread data are not valid */
++    memFree (loopdat.thrdtab);                    /* Free group leader */
++    return (1);
++  }
++
+   grafptr->fronnbr      = loopdat.thrdtab[thrdlst].fronnnd[0]; /* Get data after scan-reduction */
+   grafptr->compload0    = grafptr->s.velosum - loopdat.thrdtab[thrdlst].compload1[0];
+   grafptr->compload0dlt = grafptr->compload0 - grafptr->compload0avg;

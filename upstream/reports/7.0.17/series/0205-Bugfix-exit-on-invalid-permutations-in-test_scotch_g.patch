@@ -1,0 +1,52 @@
+From ec732ff2c0464670bbae5018323bc0f10a7c44b2 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:15:33 +0000
+Subject: [PATCH 205/240] Bugfix: exit on invalid permutations in
+ test_scotch_graph_order [report R. Perry]
+
+`checkOrder()' only printed a message when a permutation value, an
+inverse permutation value or a permutation pair was invalid, and the
+test is linked with the non-exiting error library, so that the
+program still exited with success. Moreover, the pair check used
+the out-of-range permutation value as an index into the inverse
+permutation array. Exit with failure at the first invalid value, as
+the other checking routines of the test programs do.
+
+Refs: BLD-04
+---
+ src/check/test_scotch_graph_order.c | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/src/check/test_scotch_graph_order.c b/src/check/test_scotch_graph_order.c
+index 281607b..99b4989 100644
+--- a/src/check/test_scotch_graph_order.c
++++ b/src/check/test_scotch_graph_order.c
+@@ -92,16 +92,22 @@ const SCOTCH_Num * const    peritab)
+ 
+     permval = permtab[vertnum];
+     if ((permval <  baseval) ||
+-        (permval >= vertnnd))
++        (permval >= vertnnd)) {
+       SCOTCH_errorPrint ("checkOrder: invalid permutation value");
++      exit (EXIT_FAILURE);
++    }
+ 
+     perival = peritab[vertnum];
+     if ((perival <  baseval) ||
+-        (perival >= vertnnd))
++        (perival >= vertnnd)) {
+       SCOTCH_errorPrint ("checkOrder: invalid inverse permutation value");
++      exit (EXIT_FAILURE);
++    }
+ 
+-    if (peritab[permval - baseval] != (vertnum + baseval))
++    if (peritab[permval - baseval] != (vertnum + baseval)) {
+       SCOTCH_errorPrint ("checkOrder: invalid permutation pair");
++      exit (EXIT_FAILURE);
++    }
+   }
+ }
+ 
+-- 
+2.47.3
+

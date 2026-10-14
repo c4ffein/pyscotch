@@ -1,0 +1,110 @@
+From f98b6a5fdfe4f741ef81a2c45bb59baa5f2f05ac Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:33:20 +0000
+Subject: [PATCH 080/240] Bugfix: propagate extended-edge array growth failures
+ in `kgraphMapFm()' [report R. Perry]
+
+`kgraphMapFmEdgeResize()' wrote the doubled array size back to the caller before
+attempting the reallocation, and its two callers `kgraphMapFmPartAdd()' and
+`kgraphMapFmPartAdd2()' ignored its return value. On a reallocation failure the
+size field therefore claimed the larger array while the buffer was unchanged,
+and the next slot was written past it (heap-buffer-overflow). The size is now
+published only after a successful reallocation, the two add routines return 1
+when the resize fails, and the three call sites in `kgraphMapFm()' check them and
+clean up.
+
+Refs: GRA-17
+---
+ src/libscotch/kgraph_map_fm.c | 37 +++++++++++++++++++++++++----------
+ 1 file changed, 27 insertions(+), 10 deletions(-)
+
+diff --git a/src/libscotch/kgraph_map_fm.c b/src/libscotch/kgraph_map_fm.c
+index 4efeedf..33922ce 100644
+--- a/src/libscotch/kgraph_map_fm.c
++++ b/src/libscotch/kgraph_map_fm.c
+@@ -521,13 +521,13 @@ KgraphMapFmTabl * restrict const    tablptr)
+   edxxtab = *edxxtabptr;
+   edxxsiz = *edxxsizptr;
+ 
+-  edxxsiz *= 2;                                 /* Compute new array size  */
+-  *edxxsizptr = edxxsiz;                        /* Propagate back new size */
++  edxxsiz *= 2;                                 /* Compute new array size */
+ 
+   if ((edxxtmp = memRealloc (edxxtab, edxxsiz * sizeof (KgraphMapFmEdge))) == NULL) {
+-    errorPrint ("kgraphMapFmEdgeResize: out of memory");
++    errorPrint ("kgraphMapFmEdgeResize: out of memory"); /* Old array and size are left untouched */
+     return     (1);
+   }
++  *edxxsizptr = edxxsiz;                        /* Propagate back new size only on success */
+   if (edxxtmp != edxxtab) {                     /* If array has been reallocated, re-link all edges */
+     Gnum                edxxidx;
+ 
+@@ -568,8 +568,9 @@ KgraphMapFmTabl * restrict const    tablptr)
+   const Arch * restrict const     archptr = grafptr->m.archptr;
+   const ArchDom * restrict const  domntab = grafptr->m.domntab;
+ 
+-  if (*edxxnbrptr >= *edxxsizptr)                 /* If new slot would not fit  */
+-    kgraphMapFmEdgeResize (vexxtab, -1, edxxtabptr, edxxsizptr, *edxxnbrptr, tablptr); /* No vexxidx because vertex extended edges will be readd later */
++  if ((*edxxnbrptr >= *edxxsizptr) &&             /* If new slot would not fit */
++      (kgraphMapFmEdgeResize (vexxtab, -1, edxxtabptr, edxxsizptr, *edxxnbrptr, tablptr) != 0)) /* No vexxidx because vertex extended edges will be readd later */
++    return (1);
+ 
+   edxxtab = *edxxtabptr;
+   edxxidx = (*edxxnbrptr) ++;                     /* Allocate new slot */
+@@ -708,8 +709,9 @@ KgraphMapFmTabl * restrict const            tablptr)
+     }
+ 
+     if (edxxidx == -1) {                          /* If edge slot not found    */
+-      if (*edxxnbrptr >= *edxxsizptr)             /* If new slot would not fit */
+-        kgraphMapFmEdgeResize (vexxtab, vexxidx, edxxtabptr, edxxsizptr, *edxxnbrptr, tablptr);
++      if ((*edxxnbrptr >= *edxxsizptr) &&         /* If new slot would not fit */
++          (kgraphMapFmEdgeResize (vexxtab, vexxidx, edxxtabptr, edxxsizptr, *edxxnbrptr, tablptr) != 0))
++        return (1);
+ 
+       edxxidx = (*edxxnbrptr) ++;                 /* Allocate new slot */
+       edxxtab = *edxxtabptr;                      /* Update edxxtab    */
+@@ -1127,7 +1129,12 @@ const KgraphMapFmParam * const    paraptr)        /*+ Method parameters +*/
+     if ((pfixtax == NULL) || (pfixtax[vertnum] == -1)) { /* Add only not fixed vertices */
+       for (hashnum = (vertnum * KGRAPHMAPFMHASHPRIME) & hashmsk; vexxtab[hashnum].vertnum != ~0; hashnum = (hashnum + 1) & hashmsk) ;
+ 
+-      kgraphMapFmPartAdd (grafptr, vertnum, hashnum, vexxtab, &edxxtab, &edxxsiz, &edxxnbr, tablptr);
++      if (kgraphMapFmPartAdd (grafptr, vertnum, hashnum, vexxtab, &edxxtab, &edxxsiz, &edxxnbr, tablptr) != 0) {
++        errorPrint ("kgraphMapFm: out of memory (5b)");
++        memFree    (vexxtab);                     /* Free group leader */
++        kgraphMapFmTablExit (tablptr);
++        return     (1);
++      }
+ 
+ #ifdef SCOTCH_DEBUG_KGRAPH2
+       if (vexxtab[hashnum].edxxidx == -1) {       /* If vertex does not have any neighbor */
+@@ -1498,7 +1505,12 @@ const KgraphMapFmParam * const    paraptr)        /*+ Method parameters +*/
+              (vexxtab[vexxend].vertnum != vertend) && (vexxtab[vexxend].vertnum != ~0); vexxend = (vexxend + 1) & hashmsk) ;
+ 
+         if (vexxtab[vexxend].vertnum == ~0) {     /* If neighbor vertex not yet inserted, create it */
+-          kgraphMapFmPartAdd (grafptr, vertend, vexxend, vexxtab, &edxxtab, &edxxsiz, &edxxnbr, tablptr);
++          if (kgraphMapFmPartAdd (grafptr, vertend, vexxend, vexxtab, &edxxtab, &edxxsiz, &edxxnbr, tablptr) != 0) {
++            errorPrint ("kgraphMapFm: out of memory (6b)");
++            memFree    (vexxtab);                 /* Free group leader */
++            kgraphMapFmTablExit (tablptr);
++            return     (1);
++          }
+           hashnbr ++;                             /* One more vertex in hash table */
+ #ifdef SCOTCH_DEBUG_KGRAPH2
+           if (vexxtab[vexxend].edxxidx == -1) {
+@@ -1635,7 +1647,12 @@ const KgraphMapFmParam * const    paraptr)        /*+ Method parameters +*/
+           Gnum        edxxidx;
+ #endif /* SCOTCH_DEBUG_KGRAPH2 */
+ 
+-          kgraphMapFmPartAdd2 (grafptr, vexxtab, vexxend, &edxxtab, &edxxsiz, &edxxnbr, vexxtab[vexxend].domnnum, domnend, edloval, tablptr); /* Add new extended edge */
++          if (kgraphMapFmPartAdd2 (grafptr, vexxtab, vexxend, &edxxtab, &edxxsiz, &edxxnbr, vexxtab[vexxend].domnnum, domnend, edloval, tablptr) != 0) { /* Add new extended edge */
++            errorPrint ("kgraphMapFm: out of memory (7b)");
++            memFree    (vexxtab);                 /* Free group leader */
++            kgraphMapFmTablExit (tablptr);
++            return     (1);
++          }
+ #ifdef SCOTCH_DEBUG_KGRAPH2
+           for (edxxidx = vexxtab[vexxend].edxxidx; (edxxidx != -1) && (edxxtab[edxxidx].domnnum != domnend); edxxidx = edxxtab[edxxidx].edxxidx) ;
+           if (edxxidx == -1) {
+-- 
+2.47.3
+

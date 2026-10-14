@@ -1,0 +1,57 @@
+From 4c329596cb1a40b55b8c6a1bcb3217a6e870624d Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:41:39 +0000
+Subject: [PATCH 8/8] Bugfix: build libesmumps once when making `esmumps` and
+ `ptesmumps` in parallel
+
+The `ptesmumps` target of the main Makefile did not depend on
+`esmumps` and ran the `scotch` goal of the esmumps directory again, so
+that `make -j esmumps ptesmumps`, as run by the CI, compiled the same
+objects and linked the same library twice, concurrently, in the same
+directory. `ptesmumps` now depends on `esmumps` and only installs the
+library under its parallel name, and `ptinstall` depends on
+`ptscotch`, as in the other directories.
+
+Refs: BLD-17
+---
+ src/Makefile         | 4 ++--
+ src/esmumps/Makefile | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/Makefile b/src/Makefile
+index 29fddf1..5a38ed7 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -125,8 +125,8 @@ esmumps				:	scotch
+ escheck				:	esmumps
+ 					(cd check ; $(MAKE) escheck)
+ 
+-ptesmumps			:	scotch	ptscotch
+-					(cd esmumps ; $(MAKE) ptscotch && $(MAKE) ptinstall)
++ptesmumps			:	esmumps	ptscotch
++					(cd esmumps ; $(MAKE) ptinstall)
+ 
+ install				:	required	$(bindir)	$(includedir)	$(libdir)	$(mandir)/man1
+ 					-$(CP) -f ../bin/[agm]*$(EXE) $(bindir)
+diff --git a/src/esmumps/Makefile b/src/esmumps/Makefile
+index 883a558..a4803d5 100644
+--- a/src/esmumps/Makefile
++++ b/src/esmumps/Makefile
+@@ -1,4 +1,4 @@
+-## Copyright 2004,2007-2010,2012,2015,2020,2022 IPB, Universite de Bordeaux, INRIA & CNRS
++## Copyright 2004,2007-2010,2012,2015,2020,2022,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ ##
+ ## This file is part of the Scotch software package for static mapping,
+ ## graph partitioning and sparse matrix ordering.
+@@ -65,7 +65,7 @@ install				:	scotch					\
+ 					-$(CP) library.h $(SCOTCHINCLUDEDIR)/esmumps.h
+ 					-$(CP) libesmumps$(LIB) $(SCOTCHLIBDIR)
+ 
+-ptinstall			:	scotch					\
++ptinstall			:	ptscotch				\
+ 					library.h
+ 					-$(CP) library.h $(SCOTCHINCLUDEDIR)/esmumps.h
+ 					-$(CP) libesmumps$(LIB) $(SCOTCHLIBDIR)/libptesmumps$(LIB)
+-- 
+2.47.3
+

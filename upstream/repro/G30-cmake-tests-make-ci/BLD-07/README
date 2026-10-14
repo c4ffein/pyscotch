@@ -1,0 +1,15 @@
+BLD-07: ci/build_makefile.sh pipes make into tee without pipefail.
+Dry run (local, no GitLab): copies of the tree in $W/ci-dry-old (base-combined scripts) and $W/ci-dry-new
+(patched scripts). Because liblzma/libbz2 headers are not installed here, -DCOMMON_FILE_COMPRESS_LZMA,
+-DCOMMON_FILE_COMPRESS_BZ2, -lbz2 -llzma were stripped from ci/Makefile.inc and ci/env_makefile.sh in
+both copies (not part of what is tested). "make -j" (unbounded) is capped by shim/make to -j4/-j8.
+  export JOB_INT=32 JOB_THREAD=n JOB_DETERMINISTIC=n JOB_DEBUG=n JOB_RENAME=n CI_PIPELINE_SOURCE=push
+  sed -i '1i #error "..."' src/libscotch/graph.c   (broken case)
+  PATH=shim:$PATH ./ci/build_makefile.sh
+Results:
+  old-broken.status: OLD script, broken source: exit status 0     <- the build job goes green
+  old-good.status:   OLD script, good source:   exit status 0
+  new-broken.status: NEW script, broken source: exit status 1
+  new-good.status:   NEW script, good source:   exit status 0
+Logs alongside (old-broken.log shows "error: #error ...", then the script exits 0).
+ci/test_makefile.sh and ci/build_cmake.sh have no pipes.

@@ -1,0 +1,6 @@
+GRA-10  unlabelled edge end out of range -> OOB / base-adjust slips through
+  <build>/bin/gpart 2 badend.grf /dev/null     (edge end 100000 in a 4-vertex graph)
+  <build>/bin/gtst conv.grf                     (file base 1, edge end 0, loaded base 0 -> -1)
+PRISTINE: gpart -> AddressSanitizer SEGV in bgraphBipartGg2 (graphLoad returned 0).
+          conv.grf -> graphLoad ret 0; only graphCheck/gtst flags it.
+PATCHED : both -> "graphLoad: invalid arc end number". Valid base-0/base-1 files still load.

@@ -1,0 +1,990 @@
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f7ad9120e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f7ad912322d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f7ad912349e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f7ad9144640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f7ad9161d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f7ad9161f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55e3d8080aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f7ad8199ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f7ad8199d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55e3d807d490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f7ad8fdb68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f7ad8fddbcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f7ad8fdda76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f7ad8fdde34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f7ad8fdf499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f7ad8fde5b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f7ad9141529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f7ad9142fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f7ad9124802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f7ad9144640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f7ad91232dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f7ad912349e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f7ad9144640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f7ad9161d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f7ad9161f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55e3d8080aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f7ad8199ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f7ad8199d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55e3d807d490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f660147be2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f660147e22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f660147e49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f660149f640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f66014bcd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f66014bcf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55a02879eaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f66004f4ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f66004f4d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55a02879b490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f660133668a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f6601338bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f6601338a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f6601338e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f660133a499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f66013395b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f660149c529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f660149dfec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f660147f802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f660149f640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f660147e2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f660147e49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f660149f640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f66014bcd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f66014bcf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55a02879eaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f66004f4ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f66004f4d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55a02879b490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f47c4411e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f47c441422d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f47c441449e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f47c4435640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f47c4452d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f47c4452f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55ec4ff79aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f47c348aca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f47c348ad64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55ec4ff76490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f47c42cc68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f47c42cebcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f47c42cea76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f47c42cee34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f47c42d0499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f47c42cf5b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f47c4432529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f47c4433fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f47c4415802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f47c4435640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f47c44142dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f47c441449e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f47c4435640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f47c4452d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f47c4452f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55ec4ff79aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f47c348aca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f47c348ad64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55ec4ff76490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f99a56d9e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f99a56dc22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f99a56dc49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f99a56fd640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f99a571ad6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f99a571af75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55a0327c0aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f99a4752ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f99a4752d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55a0327bd490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f99a559468a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f99a5596bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f99a5596a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f99a5596e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f99a5598499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f99a55975b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f99a56fa529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f99a56fbfec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f99a56dd802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f99a56fd640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f99a56dc2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f99a56dc49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f99a56fd640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f99a571ad6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f99a571af75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55a0327c0aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f99a4752ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f99a4752d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55a0327bd490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fb289956e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7fb28995922d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7fb28995949e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7fb28997a640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7fb289997d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7fb289997f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x558742800aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7fb2889cfca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7fb2889cfd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x5587427fd490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fb28981168a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7fb289813bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7fb289813a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7fb289813e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7fb289815499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7fb2898145b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7fb289977529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7fb289978fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7fb28995a802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7fb28997a640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7fb2899592dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7fb28995949e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7fb28997a640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7fb289997d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7fb289997f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x558742800aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7fb2889cfca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7fb2889cfd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x5587427fd490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f05c9f28e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f05c9f2b22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f05c9f2b49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f05c9f4c640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f05c9f69d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f05c9f69f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55c0c69efaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f05c8fa1ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f05c8fa1d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55c0c69ec490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f05c9de368a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f05c9de5bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f05c9de5a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f05c9de5e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f05c9de7499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f05c9de65b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f05c9f49529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f05c9f4afec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f05c9f2c802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f05c9f4c640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f05c9f2b2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f05c9f2b49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f05c9f4c640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f05c9f69d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f05c9f69f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55c0c69efaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f05c8fa1ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f05c8fa1d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55c0c69ec490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f0938663e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f093866622d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f093866649e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f0938687640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f09386a4d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f09386a4f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x5578044a7aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f09376dcca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f09376dcd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x5578044a4490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f093851e68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f0938520bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f0938520a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f0938520e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f0938522499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f09385215b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f0938684529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f0938685fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f0938667802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f0938687640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f09386662dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f093866649e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f0938687640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f09386a4d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f09386a4f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x5578044a7aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f09376dcca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f09376dcd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x5578044a4490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f3cdaeb2e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f3cdaeb522d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f3cdaeb549e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f3cdaed6640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f3cdaef3d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f3cdaef3f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55d904cc1aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f3cd9f2bca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f3cd9f2bd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55d904cbe490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f3cdad6d68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f3cdad6fbcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f3cdad6fa76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f3cdad6fe34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f3cdad71499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f3cdad705b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f3cdaed3529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f3cdaed4fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f3cdaeb6802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f3cdaed6640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f3cdaeb52dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f3cdaeb549e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f3cdaed6640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f3cdaef3d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f3cdaef3f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55d904cc1aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f3cd9f2bca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f3cd9f2bd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55d904cbe490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fad9544ee2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7fad9545122d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7fad9545149e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7fad95472640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7fad9548fd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7fad9548ff75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55f7a7867aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7fad944c7ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7fad944c7d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55f7a7864490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fad9530968a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7fad9530bbcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7fad9530ba76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7fad9530be34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7fad9530d499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7fad9530c5b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7fad9546f529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7fad95470fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7fad95452802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7fad95472640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7fad954512dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7fad9545149e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7fad95472640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7fad9548fd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7fad9548ff75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55f7a7867aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7fad944c7ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7fad944c7d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55f7a7864490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f9e2d39de2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f9e2d3a022d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f9e2d3a049e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f9e2d3c1640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f9e2d3ded6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f9e2d3def75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x5630bc644aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f9e2c416ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f9e2c416d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x5630bc641490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f9e2d25868a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f9e2d25abcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f9e2d25aa76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f9e2d25ae34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f9e2d25c499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f9e2d25b5b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f9e2d3be529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f9e2d3bffec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f9e2d3a1802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f9e2d3c1640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f9e2d3a02dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f9e2d3a049e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f9e2d3c1640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f9e2d3ded6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f9e2d3def75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x5630bc644aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f9e2c416ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f9e2c416d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x5630bc641490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fae58e2be2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7fae58e2e22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7fae58e2e49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7fae58e4f640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7fae58e6cd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7fae58e6cf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x555f803bdaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7fae57ea4ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7fae57ea4d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x555f803ba490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fae58ce668a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7fae58ce8bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7fae58ce8a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7fae58ce8e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7fae58cea499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7fae58ce95b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7fae58e4c529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7fae58e4dfec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7fae58e2f802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7fae58e4f640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7fae58e2e2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7fae58e2e49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7fae58e4f640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7fae58e6cd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7fae58e6cf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x555f803bdaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7fae57ea4ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7fae57ea4d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x555f803ba490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f4b6f46ae2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f4b6f46d22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f4b6f46d49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f4b6f48e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f4b6f4abd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f4b6f4abf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55f698eb5aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f4b6e4e3ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f4b6e4e3d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55f698eb2490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f4b6f32568a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f4b6f327bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f4b6f327a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f4b6f327e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f4b6f329499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f4b6f3285b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f4b6f48b529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f4b6f48cfec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f4b6f46e802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f4b6f48e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f4b6f46d2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f4b6f46d49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f4b6f48e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f4b6f4abd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f4b6f4abf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55f698eb5aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f4b6e4e3ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f4b6e4e3d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55f698eb2490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7faabfe24e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7faabfe2722d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7faabfe2749e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7faabfe48640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7faabfe65d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7faabfe65f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x556529912aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7faabee9dca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7faabee9dd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55652990f490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7faabfcdf68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7faabfce1bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7faabfce1a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7faabfce1e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7faabfce3499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7faabfce25b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7faabfe45529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7faabfe46fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7faabfe28802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7faabfe48640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7faabfe272dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7faabfe2749e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7faabfe48640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7faabfe65d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7faabfe65f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x556529912aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7faabee9dca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7faabee9dd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55652990f490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f7e2b03ae2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f7e2b03d22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f7e2b03d49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f7e2b05e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f7e2b07bd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f7e2b07bf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55896e027aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f7e2a0b3ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f7e2a0b3d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55896e024490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f7e2aef568a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f7e2aef7bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f7e2aef7a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f7e2aef7e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f7e2aef9499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f7e2aef85b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f7e2b05b529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f7e2b05cfec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f7e2b03e802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f7e2b05e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f7e2b03d2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f7e2b03d49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f7e2b05e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f7e2b07bd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f7e2b07bf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55896e027aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f7e2a0b3ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f7e2a0b3d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55896e024490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f4e6adf8e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f4e6adfb22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f4e6adfb49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f4e6ae1c640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f4e6ae39d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f4e6ae39f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55c139db9aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f4e69e71ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f4e69e71d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55c139db6490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f4e6acb368a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f4e6acb5bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f4e6acb5a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f4e6acb5e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f4e6acb7499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f4e6acb65b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f4e6ae19529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f4e6ae1afec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f4e6adfc802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f4e6ae1c640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f4e6adfb2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f4e6adfb49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f4e6ae1c640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f4e6ae39d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f4e6ae39f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55c139db9aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f4e69e71ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f4e69e71d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55c139db6490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fc7f8c5de2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7fc7f8c6022d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7fc7f8c6049e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7fc7f8c81640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7fc7f8c9ed6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7fc7f8c9ef75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55795429faad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7fc7f7cd6ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7fc7f7cd6d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55795429c490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fc7f8b1868a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7fc7f8b1abcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7fc7f8b1aa76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7fc7f8b1ae34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7fc7f8b1c499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7fc7f8b1b5b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7fc7f8c7e529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7fc7f8c7ffec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7fc7f8c61802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7fc7f8c81640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7fc7f8c602dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7fc7f8c6049e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7fc7f8c81640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7fc7f8c9ed6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7fc7f8c9ef75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55795429faad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7fc7f7cd6ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7fc7f7cd6d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55795429c490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f44e2df8e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f44e2dfb22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f44e2dfb49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f44e2e1c640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f44e2e39d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f44e2e39f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55628ac03aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f44e1e71ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f44e1e71d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55628ac00490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f44e2cb368a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f44e2cb5bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f44e2cb5a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f44e2cb5e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f44e2cb7499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f44e2cb65b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f44e2e19529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f44e2e1afec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f44e2dfc802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f44e2e1c640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f44e2dfb2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f44e2dfb49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f44e2e1c640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f44e2e39d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f44e2e39f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55628ac03aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f44e1e71ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f44e1e71d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55628ac00490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f8759ea3e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f8759ea622d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f8759ea649e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f8759ec7640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f8759ee4d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f8759ee4f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x557672f18aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f8758f1cca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f8758f1cd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x557672f15490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f8759d5e68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f8759d60bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f8759d60a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f8759d60e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f8759d62499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f8759d615b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f8759ec4529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f8759ec5fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f8759ea7802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f8759ec7640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f8759ea62dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f8759ea649e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f8759ec7640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f8759ee4d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f8759ee4f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x557672f18aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f8758f1cca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f8758f1cd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x557672f15490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f4bc0222e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f4bc022522d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f4bc022549e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f4bc0246640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f4bc0263d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f4bc0263f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x555d668d3aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f4bbf29bca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f4bbf29bd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x555d668d0490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f4bc00dd68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f4bc00dfbcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f4bc00dfa76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f4bc00dfe34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f4bc00e1499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f4bc00e05b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f4bc0243529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f4bc0244fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f4bc0226802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f4bc0246640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f4bc02252dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f4bc022549e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f4bc0246640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f4bc0263d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f4bc0263f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x555d668d3aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f4bbf29bca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f4bbf29bd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x555d668d0490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fde20565e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7fde2056822d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7fde2056849e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7fde20589640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7fde205a6d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7fde205a6f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x556f86a5aaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7fde1f5deca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7fde1f5ded64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x556f86a57490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fde2042068a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7fde20422bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7fde20422a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7fde20422e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7fde20424499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7fde204235b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7fde20586529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7fde20587fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7fde20569802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7fde20589640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7fde205682dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7fde2056849e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7fde20589640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7fde205a6d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7fde205a6f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x556f86a5aaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7fde1f5deca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7fde1f5ded64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x556f86a57490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f73176d1e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f73176d422d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f73176d449e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f73176f5640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f7317712d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f7317712f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x561602b7aaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f731674aca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f731674ad64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x561602b77490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f731758c68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f731758ebcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f731758ea76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f731758ee34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f7317590499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f731758f5b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f73176f2529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f73176f3fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f73176d5802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f73176f5640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f73176d42dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f73176d449e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f73176f5640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f7317712d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f7317712f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x561602b7aaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f731674aca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f731674ad64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x561602b77490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fe42eb71e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7fe42eb7422d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7fe42eb7449e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7fe42eb95640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7fe42ebb2d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7fe42ebb2f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x560a7166eaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7fe42dbeaca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7fe42dbead64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x560a7166b490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fe42ea2c68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7fe42ea2ebcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7fe42ea2ea76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7fe42ea2ee34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7fe42ea30499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7fe42ea2f5b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7fe42eb92529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7fe42eb93fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7fe42eb75802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7fe42eb95640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7fe42eb742dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7fe42eb7449e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7fe42eb95640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7fe42ebb2d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7fe42ebb2f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x560a7166eaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7fe42dbeaca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7fe42dbead64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x560a7166b490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fd68ebd3e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7fd68ebd622d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7fd68ebd649e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7fd68ebf7640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7fd68ec14d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7fd68ec14f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55c54f1ccaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7fd68dc4cca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7fd68dc4cd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55c54f1c9490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fd68ea8e68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7fd68ea90bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7fd68ea90a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7fd68ea90e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7fd68ea92499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7fd68ea915b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7fd68ebf4529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7fd68ebf5fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7fd68ebd7802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7fd68ebf7640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7fd68ebd62dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7fd68ebd649e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7fd68ebf7640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7fd68ec14d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7fd68ec14f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55c54f1ccaad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7fd68dc4cca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7fd68dc4cd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55c54f1c9490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f949cf27e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f949cf2a22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f949cf2a49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f949cf4b640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f949cf68d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f949cf68f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55a820510aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f949bfa0ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f949bfa0d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55a82050d490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f949cde268a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f949cde4bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f949cde4a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f949cde4e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f949cde6499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f949cde55b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f949cf48529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f949cf49fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f949cf2b802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f949cf4b640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f949cf2a2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f949cf2a49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f949cf4b640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f949cf68d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f949cf68f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55a820510aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f949bfa0ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f949bfa0d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55a82050d490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f650f92ae2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f650f92d22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f650f92d49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f650f94e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f650f96bd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f650f96bf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55d1c9d23aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f650e9a3ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f650e9a3d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55d1c9d20490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f650f7e568a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f650f7e7bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f650f7e7a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f650f7e7e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f650f7e9499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f650f7e85b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f650f94b529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f650f94cfec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f650f92e802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f650f94e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f650f92d2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f650f92d49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f650f94e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f650f96bd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f650f96bf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55d1c9d23aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f650e9a3ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f650e9a3d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55d1c9d20490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f27ff71ae2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f27ff71d22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f27ff71d49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f27ff73e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f27ff75bd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f27ff75bf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55d415d7caad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f27fe793ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f27fe793d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55d415d79490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f27ff5d568a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f27ff5d7bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f27ff5d7a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f27ff5d7e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f27ff5d9499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f27ff5d85b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f27ff73b529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f27ff73cfec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f27ff71e802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f27ff73e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f27ff71d2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f27ff71d49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f27ff73e640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f27ff75bd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f27ff75bf75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55d415d7caad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f27fe793ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f27fe793d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55d415d79490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f6b3972fe2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7f6b3973222d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7f6b3973249e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7f6b39753640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7f6b39770d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7f6b39770f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x5635e6174aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7f6b387a8ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7f6b387a8d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x5635e6171490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7f6b395ea68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7f6b395ecbcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7f6b395eca76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7f6b395ece34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7f6b395ee499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7f6b395ed5b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7f6b39750529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7f6b39751fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7f6b39733802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7f6b39753640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7f6b397322dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7f6b3973249e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7f6b39753640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7f6b39770d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7f6b39770f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x5635e6174aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7f6b387a8ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7f6b387a8d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x5635e6171490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7ff692249e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7ff69224c22d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7ff69224c49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7ff69226d640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7ff69228ad6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7ff69228af75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55f360c57aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7ff6912c2ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7ff6912c2d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x55f360c54490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7ff69210468a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7ff692106bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7ff692106a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7ff692106e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7ff692108499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7ff6921075b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7ff69226a529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7ff69226bfec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7ff69224d802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7ff69226d640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7ff69224c2dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7ff69224c49e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7ff69226d640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7ff69228ad6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7ff69228af75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55f360c57aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7ff6912c2ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7ff6912c2d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x55f360c54490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fb5c6244e2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7fb5c624722d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7fb5c624749e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7fb5c6268640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7fb5c6285d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7fb5c6285f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x563e40e98aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7fb5c52bdca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7fb5c52bdd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x563e40e95490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fb5c60ff68a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7fb5c6101bcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7fb5c6101a76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7fb5c6101e34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7fb5c6103499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7fb5c61025b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7fb5c6265529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7fb5c6266fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7fb5c6248802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7fb5c6268640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7fb5c62472dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7fb5c624749e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7fb5c6268640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7fb5c6285d6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7fb5c6285f75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x563e40e98aad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7fb5c52bdca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7fb5c52bdd64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x563e40e95490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+kgraph_map_ml.c:239:44: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fc95d47ee2a in kgraphMapMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:239
+    #1 0x7fc95d48122d in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:382
+    #2 0x7fc95d48149e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #3 0x7fc95d4a2640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #4 0x7fc95d4bfd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #5 0x7fc95d4bff75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #6 0x55781331caad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #7 0x7fc95c4f7ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #8 0x7fc95c4f7d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #9 0x557813319490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+
+bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073708751616 to null pointer
+    #0 0x7fc95d33968a in bgraphBipartMlUncoarsen /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:195
+    #1 0x7fc95d33bbcd in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:329
+    #2 0x7fc95d33ba76 in bgraphBipartMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:322
+    #3 0x7fc95d33be34 in _SCOTCHbgraphBipartMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_ml.c:359
+    #4 0x7fc95d33d499 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:383
+    #5 0x7fc95d33c5b7 in _SCOTCHbgraphBipartSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/bgraph_bipart_st.c:335
+    #6 0x7fc95d49f529 in kgraphMapRbPart2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:274
+    #7 0x7fc95d4a0fec in _SCOTCHkgraphMapRbPart /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb_part.c:391
+    #8 0x7fc95d482802 in _SCOTCHkgraphMapRb /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_rb.c:157
+    #9 0x7fc95d4a2640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #10 0x7fc95d4812dd in kgraphMapMl2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:383
+    #11 0x7fc95d48149e in _SCOTCHkgraphMapMl /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_ml.c:412
+    #12 0x7fc95d4a2640 in _SCOTCHkgraphMapSt /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/kgraph_map_st.c:392
+    #13 0x7fc95d4bfd6d in graphMapCompute2 /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:294
+    #14 0x7fc95d4bff75 in SCOTCH_graphMapCompute /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/libscotch/library_graph_map.c:318
+    #15 0x55781331caad in main /tmp/claude-1000/-home-dev-workspace-pyscotch/2360bf25-430d-4f09-8fe2-45595bf8047f/scratchpad/asan/src/scotch/gmap.c:469
+    #16 0x7fc95c4f7ca7  (/lib/x86_64-linux-gnu/libc.so.6+0x29ca7) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #17 0x7fc95c4f7d64 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29d64) (BuildId: 5e5b51f4c39af9ac589408c1dc432ba390a273cc)
+    #18 0x557813319490 in _start (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build/bin/gpart+0x7490) (BuildId: 3ac8c63872ba3d2a4c0c5aaf533e4ce4eb9de4e2)
+

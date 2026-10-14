@@ -1,0 +1,17 @@
+--- a/src/libscotch/mesh_io.c	2026-10-13 08:40:02.911404262 +0000
++++ b/src/libscotch/mesh_io.c	2026-10-13 13:25:19.214826032 +0000
+@@ -299,13 +299,11 @@
+     }
+   }
+ 
+-#ifdef SCOTCH_DEBUG_MESH2
+-  if (meshCheck (meshptr) != 0) {                 /* Check mesh consistency */
++  if (meshCheck (meshptr) != 0) {                 /* Check mesh consistency: file data cannot be trusted */
+     errorPrint  ("meshLoad: inconsistent mesh data");
+     meshFree    (meshptr);
+     return (1);
+   }
+-#endif /* SCOTCH_DEBUG_MESH2 */
+ 
+   return (0);
+ }

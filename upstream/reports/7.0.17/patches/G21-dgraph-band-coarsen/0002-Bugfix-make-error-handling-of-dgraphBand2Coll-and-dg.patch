@@ -1,0 +1,128 @@
+From 4cfca3acffc5f9160a39028a4943d2ea5e14907d Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:04:24 +0000
+Subject: [PATCH 02/11] Bugfix: make error handling of `dgraphBand2Coll()` and
+ `dgraphBand2Ptop()` collective in all build modes [report PyScotch]
+
+In non-debug builds, the agreement on local allocation errors in the
+band and grow distance computation routines was compiled out, so a
+process that could not allocate its work arrays, or whose caller could
+not allocate the index array, returned alone while the other processes
+entered the collective or point-to-point communications of the first
+distance level and waited forever. The consistency check of the
+distance parameter, which is provided by the user, was also compiled
+out.
+
+Always perform the agreement and the parameter check, as in
+`hdgraphGather()`.
+---
+ src/libscotch/dgraph_band_grow.c | 42 +++++++++++---------------------
+ 1 file changed, 14 insertions(+), 28 deletions(-)
+
+diff --git a/src/libscotch/dgraph_band_grow.c b/src/libscotch/dgraph_band_grow.c
+index 2aaf924..c04e522 100644
+--- a/src/libscotch/dgraph_band_grow.c
++++ b/src/libscotch/dgraph_band_grow.c
+@@ -110,12 +110,8 @@ Context *                         contptr)        /*+ Execution context
+   Gnum                    bandvertlocnnd;
+   Gnum                    bandedgelocnbr;
+   Gnum                    distval;
+-#ifdef SCOTCH_DEBUG_DGRAPH1
+   Gnum                    reduloctab[3];
+   Gnum                    reduglbtab[3];
+-#else /* SCOTCH_DEBUG_DGRAPH1 */
+-  Gnum                    reduglbtab[1];
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+ 
+   const Gnum * restrict const vertloctax = grafptr->vertloctax;
+   const Gnum * restrict const vendloctax = grafptr->vendloctax;
+@@ -124,7 +120,9 @@ Context *                         contptr)        /*+ Execution context
+ 
+   procngbnbr = grafptr->procngbnbr;
+ 
+-  reduglbtab[0] = 0;                              /* Assume everything is all right */
++  reduloctab[0] = 0;                              /* Assume everything is all right */
++  reduloctab[1] =   distmax;
++  reduloctab[2] = - distmax;
+ 
+   vrcvdatsiz = DGRAPHBANDGROWSMUL (grafptr->procsndnbr); /* Senders and receivers inverted because we send local, not halo vertices */
+   vsnddatsiz = DGRAPHBANDGROWSMUL (grafptr->vertgstnbr - grafptr->vertlocnbr);
+@@ -140,21 +138,16 @@ Context *                         contptr)        /*+ Execution context
+                       &vrcvdattab, (size_t) (vrcvdatsiz          * sizeof (Gnum)),
+                       &vsnddattab, (size_t) (vsnddatsiz          * sizeof (Gnum)), NULL) == NULL)) {
+     errorPrint (DGRAPHBANDGROWNSTR "Coll: out of memory (1)");
+-    reduglbtab[0] = 1;
++    reduloctab[0] = 1;
+   }
+-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication not needed and not absorbable by the algorithm */
+-  reduloctab[0] = reduglbtab[0];
+-  reduloctab[1] =   distmax;
+-  reduloctab[2] = - distmax;
+-  if (MPI_Allreduce (reduloctab, reduglbtab, 3, GNUM_MPI, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (reduloctab, reduglbtab, 3, GNUM_MPI, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
+     errorPrint (DGRAPHBANDGROWNSTR "Coll: communication error (1)");
+-    return (1);
++    reduglbtab[0] = 1;
+   }
+-  if (reduglbtab[1] != - reduglbtab[2]) {
++  else if (reduglbtab[1] != - reduglbtab[2]) {
+     errorPrint (DGRAPHBANDGROWNSTR "Coll: invalid parameters");
+     reduglbtab[0] = 1;
+   }
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+   if (reduglbtab[0] != 0) {
+     if (procvgbtab != NULL)
+       memFree (procvgbtab);                       /* Free group leader */
+@@ -348,12 +341,8 @@ Context *                         contptr)        /*+ Execution context
+   Gnum                    bandedgelocnbr;
+   Gnum                    distval;
+   Gnum                    deteval;                /* Flag set if deterministic behavior    */
+-#ifdef SCOTCH_DEBUG_DGRAPH1
+   Gnum                    reduloctab[3];
+   Gnum                    reduglbtab[3];
+-#else /* SCOTCH_DEBUG_DGRAPH1 */
+-  Gnum                    reduglbtab[1];
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+ 
+   const Gnum * restrict const vertloctax = grafptr->vertloctax;
+   const Gnum * restrict const vendloctax = grafptr->vendloctax;
+@@ -362,7 +351,9 @@ Context *                         contptr)        /*+ Execution context
+ 
+   procngbnbr = grafptr->procngbnbr;
+ 
+-  reduglbtab[0] = 0;                             /* Assume everything is all right */
++  reduloctab[0] = 0;                              /* Assume everything is all right */
++  reduloctab[1] =   distmax;
++  reduloctab[2] = - distmax;
+ 
+   vrcvdatsiz = DGRAPHBANDGROWSMUL (grafptr->procsndnbr); /* Senders and receivers inverted because we send local, not halo vertices */
+   vsnddatsiz = DGRAPHBANDGROWSMUL (grafptr->vertgstnbr - grafptr->vertlocnbr);
+@@ -378,21 +369,16 @@ Context *                         contptr)        /*+ Execution context
+                       &vrcvdattab, (size_t) (vrcvdatsiz       * sizeof (Gnum)),
+                       &vsnddattab, (size_t) (vsnddatsiz       * sizeof (Gnum)), NULL) == NULL)) {
+     errorPrint (DGRAPHBANDGROWNSTR "Ptop: out of memory (1)");
+-    reduglbtab[0] = 1;
++    reduloctab[0] = 1;
+   }
+-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication not needed and not absorbable by the algorithm */
+-  reduloctab[0] = reduglbtab[0];
+-  reduloctab[1] =   distmax;
+-  reduloctab[2] = - distmax;
+-  if (MPI_Allreduce (reduloctab, reduglbtab, 3, GNUM_MPI, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (reduloctab, reduglbtab, 3, GNUM_MPI, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
+     errorPrint (DGRAPHBANDGROWNSTR "Ptop: communication error (1)");
+-    return (1);
++    reduglbtab[0] = 1;
+   }
+-  if (reduglbtab[1] != - reduglbtab[2]) {
++  else if (reduglbtab[1] != - reduglbtab[2]) {
+     errorPrint (DGRAPHBANDGROWNSTR "Ptop: invalid parameters");
+     reduglbtab[0] = 1;
+   }
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+   if (reduglbtab[0] != 0) {
+     if (procvgbtab != NULL)
+       memFree (procvgbtab);                       /* Free group leader */
+-- 
+2.47.3
+

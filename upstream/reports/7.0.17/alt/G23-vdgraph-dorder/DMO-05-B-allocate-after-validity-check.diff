@@ -1,0 +1,64 @@
+diff --git a/src/libscotch/vdgraph_separate_ml.c b/src/libscotch/vdgraph_separate_ml.c
+index bafed9c..7de07ee 100644
+--- a/src/libscotch/vdgraph_separate_ml.c
++++ b/src/libscotch/vdgraph_separate_ml.c
+@@ -396,16 +396,6 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Based multinode array
+     return (0);
+   }
+ 
+-  if (memAllocGroup ((void **) (void *)
+-                     &vsndcnttab, (size_t) (finegrafptr->s.procglbnbr *     sizeof (int)), /* TRICK: srcvdattab after ssnddattab, after vsndcnttab     */
+-                     &ssnddattab, (size_t) (finegrafptr->s.procglbnbr * 3 * sizeof (Gnum)), /* TRICK: ssnddattab is vrcvcnttab, vsnddsptab, vrcvdsptab */
+-                     &srcvdattab, (size_t) (finegrafptr->s.procglbnbr * 3 * sizeof (Gnum)),
+-                     &vsnddattab, (size_t) (coargrafptr->s.vertlocnbr * 2 * sizeof (Gnum)), /* TRICK: vsnddattab overlaps with vrcvdattab */
+-                     &vrcvdattab, (size_t) (MAX ((coargrafptr->s.vertlocnbr * 2), finegrafptr->s.vertlocnbr) * sizeof (Gnum)), NULL) == NULL) {
+-    errorPrint ("vdgraphSeparateMlUncoarsen: out of memory (2)");
+-    reduloctab[5] = 1;
+-  }
+-
+   if (coargrafptr->s.procglbnbr <= 0) {           /* If unused folded coargrafptr   */
+     reduloctab[0] = 1;                            /* Set it as invalid              */
+     reduloctab[1] = 0;                            /* Useless rank                   */
+@@ -440,19 +430,36 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Based multinode array
+     return (1);
+   }
+ 
+-  if (reduglbtab[5] != 0) {                       /* If memory error, return                     */
+-    if (vsndcnttab != NULL)                       /* Partgsttax will be freed at the above level */
+-      memFree (vsndcnttab);
++  if (reduglbtab[5] != 0)                         /* If memory error, return; partgsttax will be freed at the above level */
+     return (1);
+-  }
+ 
+   if (reduglbtab[0] == 1) {                       /* If all possible partitions are invalid */
+-#ifdef SCOTCH_DEBUG_BDGRAPH2
++#ifdef SCOTCH_DEBUG_VDGRAPH2
+     errorPrintW ("vdgraphSeparateMlUncoarsen: no valid partition");
+-#endif /* SCOTCH_DEBUG_BDGRAPH2 */
++#endif /* SCOTCH_DEBUG_VDGRAPH2 */
+     return (1);                                   /* All invalid partitions will lead to low method be applied at upper level */
+   }
+ 
++  if (memAllocGroup ((void **) (void *)
++                     &vsndcnttab, (size_t) (finegrafptr->s.procglbnbr *     sizeof (int)), /* TRICK: srcvdattab after ssnddattab, after vsndcnttab     */
++                     &ssnddattab, (size_t) (finegrafptr->s.procglbnbr * 3 * sizeof (Gnum)), /* TRICK: ssnddattab is vrcvcnttab, vsnddsptab, vrcvdsptab */
++                     &srcvdattab, (size_t) (finegrafptr->s.procglbnbr * 3 * sizeof (Gnum)),
++                     &vsnddattab, (size_t) (coargrafptr->s.vertlocnbr * 2 * sizeof (Gnum)), /* TRICK: vsnddattab overlaps with vrcvdattab */
++                     &vrcvdattab, (size_t) (MAX ((coargrafptr->s.vertlocnbr * 2), finegrafptr->s.vertlocnbr) * sizeof (Gnum)), NULL) == NULL) {
++    errorPrint ("vdgraphSeparateMlUncoarsen: out of memory (2)");
++    reduloctab[5] = 1;
++  }
++#ifdef SCOTCH_DEBUG_VDGRAPH1                      /* Communication cannot be overlapped by a useful one */
++  if (MPI_Allreduce (&reduloctab[5], &reduglbtab[5], 1, GNUM_MPI, MPI_SUM, finegrafptr->s.proccomm) != MPI_SUCCESS) {
++    errorPrint ("vdgraphSeparateMlUncoarsen: communication error (5)");
++    return (1);
++  }
++#else /* SCOTCH_DEBUG_VDGRAPH1 */
++  reduglbtab[5] = reduloctab[5];
++#endif /* SCOTCH_DEBUG_VDGRAPH1 */
++  if (reduglbtab[5] != 0)                         /* If memory error, return; partgsttax will be freed at the above level */
++    return (1);
++
+   finevertlocadj = finegrafptr->s.procvrttab[finegrafptr->s.proclocnum] - finegrafptr->s.baseval;
+   fineveloglbtax = (finegrafptr->s.veloloctax != NULL) ? (finegrafptr->s.veloloctax - finevertlocadj) : NULL; /* Array can be indexed with global vertex numbers */
+   finepartglbtax = finegrafptr->partgsttax - finevertlocadj;

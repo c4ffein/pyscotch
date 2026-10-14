@@ -1,0 +1,19 @@
+# SKETCH (not a clean apply): alternative to the recommended GRA-20 fix.
+# Instead of rejecting a band strategy that changes the number of parts, support
+# it: propagate the new count and resize/recompute the original graph's load
+# arrays.
+#
+# --- a/src/libscotch/kgraph_map_bd.c
+# @@ after kgraphMapSt on the band graph
+# +  orggrafptr->m.domnnbr = bndgrafdat.m.domnnbr; /* Adopt the new part count */
+# +  if (memReallocGroup (orggrafptr->comploadavg,
+# +                       &orggrafptr->comploadavg, bndgrafdat.m.domnnbr * sizeof (Gnum),
+# +                       &orggrafptr->comploaddlt, bndgrafdat.m.domnnbr * sizeof (Gnum), NULL) == NULL)
+# +    return (1);
+# +  /* ... and recompute via kgraphCost instead of the memCpy of comploaddlt ... */
+#
+# Trade-off: real feature work. The surrounding code (anchors, the memCpy of
+# comploaddlt that assumes equal counts, the frontier projection) all assume the
+# count is unchanged, so this needs careful redesign and validation. The routine
+# already documents the change as "not supported", so rejecting it (recommended)
+# matches the intended contract. Not preferred.

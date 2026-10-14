@@ -1,0 +1,154 @@
+[
+ {
+  "local_id": "PS2-G29-1",
+  "our_title": "Dead common_error.c compiled into the CMake libScotch, exporting un-prefixed errorPrint/errorPrintW/errorProg",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "nm -D cm/base32/lib/libscotch.so | grep -E ' [TU] (errorPrint|errorPrintW|errorProg|SCOTCH_errorPrint)$' -> 'U SCOTCH_errorPrint', 'T errorPrint', 'T errorPrintW', 'T errorProg'; Makefile build (INFRA/asan/lib/libscotch.so): only the U lines. grep -n common_error src/libscotch/Makefile -> nothing; git log -S common_error -- src/libscotch/Makefile -> nothing (added to CMake only, e79c930). Patched: no T errorP* in libscotch.so.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/CMakeLists.txt:211; src/libscotch/common_error.c:72-125",
+  "evidence": "src/libscotch/CMakeLists.txt:211 '  common_error.c'; common_error.c:89 'errorPrint (' defining a global, un-renamed routine never called by the library (module.h renames only SCOTCH_errorPrint).",
+  "related_ids": [
+   "BLD-01"
+  ],
+  "fix_options": [
+   {
+    "label": "a: remove the file and its entry",
+    "summary": "git rm src/libscotch/common_error.c; drop it from SCOTCH_C_SOURCES.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G29-cmake-sources-config/patches/0002-Remove-unused-common_error.c-from-libScotch-report-P.patch",
+    "tested": "patched builds, nm, ctest 181/181, ci/check_sources.sh rc=0.",
+    "tradeoffs": "None: the file is referenced nowhere else.",
+    "preferred": true,
+    "maintainer_fit": "He deletes what is unused ('Remove useless structure definition' in the 7.0.17 range)."
+   },
+   {
+    "label": "b: keep the file, drop the CMake entry",
+    "summary": "Only remove the list entry.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G29-cmake-sources-config/alt/PS2-G29-1-b-keep-common-error-file.diff",
+    "tested": "untested as a tree (subset of a).",
+    "tradeoffs": "Leaves a dead file that the checker script would not flag but IDEs and sonar would.",
+    "preferred": false,
+    "maintainer_fit": "Half a cleanup."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G29-cmake-sources-config/patches/0002-Remove-unused-common_error.c-from-libScotch-report-P.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G29-2",
+  "our_title": "symbol_fax.c compiled standalone by the CMake build of libEsMUMPS, exporting an un-prefixed symbolFax",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "nm -D cm/base32/lib/libesmumps.so | grep -i symbolfax -> 'T _ESMUMPSsymbolFaxGraph' and 'T symbolFax'; Makefile build (make esmumps in the ASan tree, build/lib/libesmumps.so): only _ESMUMPSsymbolFaxGraph. Patched CMake build: only _ESMUMPSsymbolFaxGraph.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/esmumps/CMakeLists.txt:77; src/esmumps/symbol_fax_graph.c:131; src/esmumps/Makefile:82-95,195-196",
+  "evidence": "src/esmumps/CMakeLists.txt:76-77 '  symbol_fax_graph.c\\n  symbol_fax.c)'; symbol_fax_graph.c:131 '#include \"symbol_fax.c\"'; esmumps/Makefile LIBESMUMPSDEPS ends with 'symbol_fax_graph$(OBJ)' and :196 lists symbol_fax.c as a dependency only.",
+  "related_ids": [
+   "BLD-01"
+  ],
+  "fix_options": [
+   {
+    "label": "a: remove it from esmumps_src",
+    "summary": "The compiler's dependency scanning tracks the include.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G29-cmake-sources-config/patches/0003-Do-not-compile-symbol_fax.c-on-its-own-in-the-CMake-.patch",
+    "tested": "patched builds; nm; libesmumps consumer link via SCOTCH::esmumps not tested separately (esmumps has no src/check test).",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Mirrors the Makefile exactly."
+   },
+   {
+    "label": "b: mark it HEADER_FILE_ONLY",
+    "summary": "set_source_files_properties(symbol_fax.c PROPERTIES HEADER_FILE_ONLY ON) and keep it listed.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G29-cmake-sources-config/alt/PS2-G29-2-b-symbol-fax-header-only.diff",
+    "tested": "Configured: 0 'symbol_fax.c.o' rules in esmumps.dir/build.make (alt/TESTS.log).",
+    "tradeoffs": "Keeps the file visible in IDEs at the cost of a property nobody else in the tree uses.",
+    "preferred": false,
+    "maintainer_fit": "Unfamiliar idiom for this tree."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G29-cmake-sources-config/patches/0003-Do-not-compile-symbol_fax.c-on-its-own-in-the-CMake-.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G29-3",
+  "our_title": "Misspelt dependency rules in src/libscotch/Makefile (arch_vcpmlt, library_arch_dom -> library_arch.c)",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "awk scan of 'x$(OBJ) : y.c' rules with x != y -> :800 arch_vcpmlt builds arch_vcmplt.c; :2171 library_arch_dom builds library_arch.c (library_error_pt/_exit_pt are intentional). Pristine tree: touch arch_vcmplt.h; make -n arch_vcmplt.o -> nothing (object not rebuilt). Patched Makefile tree: recompiles arch_vcmplt.c; make -j4 scotch ptscotch esmumps: rc 0, 0 warnings in the 32-bit ASan tree and the INTSIZE64 tree; make check (sequential suite, 50 check_* rules): no error.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/Makefile:799-805, 2170-2175",
+  "evidence": "src/libscotch/Makefile:800 'arch_vcpmlt$(OBJ)\\t\\t:\\tarch_vcmplt.c' (phantom target; arch_vcmplt.o only gets the %$(OBJ): %.c pattern rule, :85, so header edits do not rebuild it); :2171 'library_arch_dom$(OBJ)\\t\\t:\\tlibrary_arch.c' (spurious prerequisite; the object is still compiled from library_arch_dom.c because $< of a pattern rule is the pattern's own prerequisite).",
+  "related_ids": [
+   "BLD-01"
+  ],
+  "fix_options": [
+   {
+    "label": "a: fix the two names",
+    "summary": "arch_vcmplt$(OBJ) and library_arch_dom.c.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G29-cmake-sources-config/patches/0004-Fix-misspelt-dependency-rules-in-the-Makefile-of-lib.patch",
+    "tested": "see 'ran'.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "A typo fix; the Makefile dependency rules are hand-maintained (5efb923 adds one by hand)."
+   },
+   {
+    "label": "b: compiler-generated dependencies",
+    "summary": "Add -MMD -MP to the pattern rule and -include *.d, making the hand-written rules redundant (and fix the typos meanwhile).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G29-cmake-sources-config/alt/PS2-G29-3-b-compiler-generated-deps.diff",
+    "tested": "untested: structural; requires a compiler supporting -MMD (not NMake/pgcc guaranteed).",
+    "tradeoffs": "Would remove 2000 lines of hand-written rules eventually, but is a design decision and portability question for the maintainer.",
+    "preferred": false,
+    "maintainer_fit": "Out of scope for a typo; the maintainer keeps explicit rules for portability."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G29-cmake-sources-config/patches/0004-Fix-misspelt-dependency-rules-in-the-Makefile-of-lib.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G29-4",
+  "our_title": "CMake build with SCOTCH_NAME_SUFFIX and ENABLE_TESTS=ON fails to link test_scotch_mesh_build_f (calls not suffixed)",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "cmake -S src-base -B cm/suffix32 -DSCOTCH_NAME_SUFFIX=_pys -DBUILD_SHARED_LIBS=ON ... && make -j4 -> 'Linking Fortran executable ../../bin/test_scotch_mesh_build_f ... undefined reference to scotchfmeshinit_' and 'scotchfmeshbuild_', build rc=2 (default ENABLE_TESTS=ON). Same template in 7.0.17 (src/check/test_scotch_mesh_build_f.f90.in exists there). With -DENABLE_TESTS=OFF the suffixed build succeeds. Not patched here: src/check templates belong to G30 (BLD-09/BLD-10).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/check/test_scotch_mesh_build_f.f90.in:71,83; src/check/CMakeLists.txt:68-80 (suffix_fortran_file)",
+  "evidence": "test_scotch_mesh_build_f.f90.in:71 '  call scotchfmeshinit(meshdat, ierr)' written literally, whereas test_libmetis_dual_f.f90.in:98 writes '  call SCOTCHMETISNAMEFU (METIS_MeshToDual) (...)' which dummysizes -s rewrites; the generated cm/suffix32/src/check/test_scotch_mesh_build_f.f90:71 still reads 'call scotchfmeshinit(meshdat, ierr)' while the library exports scotchfmeshinit_pys_.",
+  "related_ids": [
+   "BLD-02",
+   "BLD-10",
+   "BLD-14"
+  ],
+  "fix_options": [
+   {
+    "label": "a: write the calls through the name macro",
+    "summary": "Use the dummysizes name-substitution form (as test_libmetis_dual_f.f90.in does) for scotchfmeshinit/scotchfmeshbuild/... in test_scotch_mesh_build_f.f90.in.",
+    "diff_file": "",
+    "tested": "untested: not written (G30's file); the metis template proves the mechanism links under a suffix (test_libmetis_dual_f built in the same run).",
+    "tradeoffs": "None once the macro form is used; the Makefile check (src/check/Makefile:578-582) compiles the same template so it must keep working there.",
+    "preferred": true,
+    "maintainer_fit": "Consistent with the other Fortran template."
+   },
+   {
+    "label": "b: skip Fortran tests when a suffix is set",
+    "summary": "if(USE_SUFFIX) do not add the Fortran tests.",
+    "diff_file": "",
+    "tested": "untested: not written.",
+    "tradeoffs": "Hides the gap; suffixed Fortran API stays untested.",
+    "preferred": false,
+    "maintainer_fit": "He would rather fix the test."
+   }
+  ],
+  "patch_files": []
+ }
+]

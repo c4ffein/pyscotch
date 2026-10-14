@@ -1,0 +1,5 @@
+DMO-05: exchange buffer group leaked when all coarse separators are invalid
+cd repro/common; export UBSAN_OPTIONS=print_stacktrace=1
+pristine: LD_LIBRARY_PATH=$WORK/buildp/lib ASAN_OPTIONS=detect_leaks=1 mpirun --oversubscribe -np 3 -x ASAN_OPTIONS -x LD_LIBRARY_PATH ./dtest_buildp 4elt.grf -1 order "$(cat st_z.txt)" 0 n - 2>&1 | grep -E "rc=|vdgraph_separate_ml.c"
+  -> 6 'Direct leak' records whose frame #2 is 'vdgraphSeparateMlUncoarsen vdgraph_separate_ml.c:399' (2 on one rank, 4 on another); rc=0 everywhere.
+patched:  same with build/lib and ./dtest_build -> no vdgraph_separate_ml.c record, rc=0.

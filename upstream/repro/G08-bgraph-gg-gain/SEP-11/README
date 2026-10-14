@@ -1,0 +1,18 @@
+SEP-11: cross-thread reduction in bgraphBipartGg() compares signed imbalance on communication-load ties.
+sep11.c: complete graph K_n, unit edge loads, vertex loads 1+((v*7919)%50), strategy r{sep=h{pass=64}},
+SCOTCH_graphPart into 2 parts, prints cut and |load0-load1|. On K_n all bipartitions with the same part sizes
+have the same cut, so threads tie on communication load and the imbalance tie-break decides.
+Build: gcc -O0 -g -fsanitize=address,undefined -I<include> sep11.c -o sep11 -L<lib> -lscotch -lscotcherr -lz -lm -lpthread
+Run:   for s in $(seq 1 40); do SCOTCH_PTHREAD_NUMBER=8 LD_LIBRARY_PATH=<lib> ./sep11 <n> $s; done
+
+Race-free comparison (det_*.txt): same binary, library = /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build (series) vs /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build_no11
+(series with the one-line ABS change of 0001 reverted; both carry 0002 so the per-thread seeds are reproducible):
+   n=60  no11: mean |l0-l1| = 15.95, max 20    patched: mean 3.15, max 14    per seed: patched better in 39/40, never worse
+   n=200 no11: mean 21.70, max 28              patched: mean 21.10, max 28   per seed: better 1, equal 39
+Pristine 7.0.17 (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/asan, racy) vs patched, n=200 (out_*.txt): mean 22.00 (max 34) vs 21.10 (max 28).
+First lines of det_no11_60.txt / det_patched_60.txt:
+seed=1 cut=899 imbalance=14	seed=1 cut=899 imbalance=2
+seed=2 cut=899 imbalance=20	seed=2 cut=899 imbalance=2
+seed=3 cut=899 imbalance=20	seed=3 cut=899 imbalance=6
+seed=4 cut=899 imbalance=14	seed=4 cut=899 imbalance=14
+seed=5 cut=899 imbalance=20	seed=5 cut=899 imbalance=2

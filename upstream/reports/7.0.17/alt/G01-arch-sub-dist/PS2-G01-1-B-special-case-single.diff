@@ -1,0 +1,32 @@
+--- a/src/libscotch/arch_sub.c
++++ b/src/libscotch/arch_sub.c
+@@ -475,7 +475,12 @@
+     treetab[orgtermnum].vertnum = orgtermnum;     /* Vertex number in original architecture                    */
+   }
+ 
+-  rootptr = archSubArchBuild2 (&matcdat, (Anum (*) (void *, ArchCoarsenMulti * restrict *)) orgarchptr->clasptr->matchMate, treetab, vnumnbr);
++  if (vnumnbr == 1) {                             /* If single terminal vertex, it is the root of the tree */
++    treetab[-1].sonstab[0] = NULL;                /* TRICK: no coarser block to link with                  */
++    rootptr = &treetab[vnumtab[0]];
++  }
++  else
++    rootptr = archSubArchBuild2 (&matcdat, (Anum (*) (void *, ArchCoarsenMulti * restrict *)) orgarchptr->clasptr->matchMate, treetab, vnumnbr);
+ 
+   orgarchptr->clasptr->matchExit (&matcdat);      /* Free matching structure */
+ 
+--- a/src/libscotch/arch_deco2_build.c
++++ b/src/libscotch/arch_deco2_build.c
+@@ -650,7 +650,12 @@
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+   matcdat.vertsum = vnumnbr;                      /* Account for kept vertices of original graph */
+-  rootptr = archSubArchBuild2 (&matcdat, (Anum (*) (void *, ArchCoarsenMulti * restrict *)) archDeco2BuildMatchMate, treetab, vnumnbr);
++  if (vnumnbr == 1) {                             /* If single kept vertex, it is the root of the tree */
++    treetab[-1].sonstab[0] = NULL;                /* TRICK: no coarser block to link with              */
++    rootptr = &treetab[(vnumtab != NULL) ? (vnumtab[0] - baseval) : 0];
++  }
++  else
++    rootptr = archSubArchBuild2 (&matcdat, (Anum (*) (void *, ArchCoarsenMulti * restrict *)) archDeco2BuildMatchMate, treetab, vnumnbr);
+ 
+   if (velotmp != NULL)                            /* Temporary vertex load array will no longer be necessary */
+     memFree (velotmp);

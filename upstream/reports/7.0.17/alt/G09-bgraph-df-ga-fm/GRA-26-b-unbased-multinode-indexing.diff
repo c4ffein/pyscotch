@@ -1,0 +1,70 @@
+diff --git a/src/libscotch/bgraph_bipart_ml.c b/src/libscotch/bgraph_bipart_ml.c
+index a077e52..952757f 100644
+--- a/src/libscotch/bgraph_bipart_ml.c
++++ b/src/libscotch/bgraph_bipart_ml.c
+@@ -192,7 +192,7 @@ const GraphCoarsenMulti * const coarmulttab)      /*+ Pointer to un-based multin
+   Gnum                        finefronnbr;
+   Gnum                        finecompsize1;
+ 
+-  const GraphCoarsenMulti * const coarmulttax = coarmulttab - finegrafptr->s.baseval;
++  const Gnum                      finebaseval = finegrafptr->s.baseval;
+   const Gnum * restrict const     fineverttax = finegrafptr->s.verttax; /* Fast accesses */
+   const Gnum * restrict const     finevendtax = finegrafptr->s.vendtax;
+   const Gnum * restrict const     fineedgetax = finegrafptr->s.edgetax;
+@@ -221,8 +221,8 @@ const GraphCoarsenMulti * const coarmulttab)      /*+ Pointer to un-based multin
+     Gnum                finevertnum1;             /* Second multinode vertex */
+     GraphPart           partval;
+ 
+-    finevertnum0 = coarmulttax[coarvertnum].vertnum[0];
+-    finevertnum1 = coarmulttax[coarvertnum].vertnum[1];
++    finevertnum0 = coarmulttab[coarvertnum - finebaseval].vertnum[0];
++    finevertnum1 = coarmulttab[coarvertnum - finebaseval].vertnum[1];
+     partval      = coarparttax[coarvertnum];
+ 
+     fineparttax[finevertnum0] = partval;
+@@ -246,8 +246,8 @@ const GraphCoarsenMulti * const coarmulttab)      /*+ Pointer to un-based multin
+     Gnum                finevertnum1;             /* Second multinode vertex */
+ 
+     coarvertnum  = coarfrontab[coarfronnum];
+-    finevertnum0 = coarmulttax[coarvertnum].vertnum[0];
+-    finevertnum1 = coarmulttax[coarvertnum].vertnum[1];
++    finevertnum0 = coarmulttab[coarvertnum - finebaseval].vertnum[0];
++    finevertnum1 = coarmulttab[coarvertnum - finebaseval].vertnum[1];
+ 
+     if (finevertnum0 != finevertnum1) {           /* If multinode is made of two distinct vertices */
+       GraphPart           coarpartval;
+diff --git a/src/libscotch/kgraph_map_ml.c b/src/libscotch/kgraph_map_ml.c
+index 4de54a0..020cd35 100644
+--- a/src/libscotch/kgraph_map_ml.c
++++ b/src/libscotch/kgraph_map_ml.c
+@@ -236,7 +236,7 @@ const GraphCoarsenMulti * const coarmulttab)      /*+ Pointer to multinode array
+   Gnum                  finefronnum;
+   Anum * restrict       fineparttax;              /* May not have been allocated yet             */
+ 
+-  const GraphCoarsenMulti * restrict const coarmulttax = coarmulttab - finegrafptr->s.baseval;
++  const Gnum                               finebaseval = finegrafptr->s.baseval;
+   const Gnum * restrict const              fineverttax = finegrafptr->s.verttax;
+   const Gnum * restrict const              finevendtax = finegrafptr->s.vendtax;
+   const Gnum * restrict const              fineedgetax = finegrafptr->s.edgetax;
+@@ -269,8 +269,8 @@ const GraphCoarsenMulti * const coarmulttab)      /*+ Pointer to multinode array
+     Gnum                finevertnum1;             /* Second multinode vertex */
+     Anum                partval;
+ 
+-    finevertnum0 = coarmulttax[coarvertnum].vertnum[0];
+-    finevertnum1 = coarmulttax[coarvertnum].vertnum[1];
++    finevertnum0 = coarmulttab[coarvertnum - finebaseval].vertnum[0];
++    finevertnum1 = coarmulttab[coarvertnum - finebaseval].vertnum[1];
+     partval      = coarparttax[coarvertnum];
+ 
+     fineparttax[finevertnum0] = partval;
+@@ -287,8 +287,8 @@ const GraphCoarsenMulti * const coarmulttab)      /*+ Pointer to multinode array
+     Gnum                finevertnum1;             /* Second multinode vertex */
+ 
+     coarvertnum  = coarfrontab[coarfronnum];
+-    finevertnum0 = coarmulttax[coarvertnum].vertnum[0];
+-    finevertnum1 = coarmulttax[coarvertnum].vertnum[1];
++    finevertnum0 = coarmulttab[coarvertnum - finebaseval].vertnum[0];
++    finevertnum1 = coarmulttab[coarvertnum - finebaseval].vertnum[1];
+ 
+     if (finevertnum0 != finevertnum1) {           /* If multinode si made of two distinct vertices */
+       Gnum                fineedgenum;

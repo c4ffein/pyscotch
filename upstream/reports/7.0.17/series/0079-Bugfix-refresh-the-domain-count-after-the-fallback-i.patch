@@ -1,0 +1,102 @@
+From 876e788ee2498b0a543d5d55763941e680315369 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:19:19 +0000
+Subject: [PATCH 079/240] Bugfix: refresh the domain count after the fallback
+ in `kgraphMapFm()' [report R. Perry]
+
+When the mapping had no frontier but was imbalanced, `kgraphMapFm()' ran a
+fallback strategy that can increase the number of domains, yet it kept reusing
+the count cached at routine entry in a `const' local. The imbalance arrays were
+reallocated and indexed with the stale, smaller count, so the following FM pass
+read and wrote past them (heap-buffer-overflow in `kgraphMapFmTablGet()'); the
+same stale count also undersized the backtrack-array growth test and truncated
+the write-back of the domain load deltas.
+
+The count is now a mutable local, re-read from the mapping after the fallback,
+and the imbalance arrays are reallocated and refilled with it. The fallback
+strategy, which was previously leaked and whose result was ignored, is now
+checked and freed, and the error paths free the imbalance arrays.
+
+Refs: GRA-02
+---
+ src/libscotch/kgraph_map_fm.c | 28 ++++++++++++++++++++++------
+ 1 file changed, 22 insertions(+), 6 deletions(-)
+
+diff --git a/src/libscotch/kgraph_map_fm.c b/src/libscotch/kgraph_map_fm.c
+index 55e6ce1..4efeedf 100644
+--- a/src/libscotch/kgraph_map_fm.c
++++ b/src/libscotch/kgraph_map_fm.c
+@@ -44,7 +44,7 @@
+ /**   DATES      : # Version 6.0  : from : 03 mar 2011     **/
+ /**                                 to   : 06 jun 2018     **/
+ /**                # Version 7.0  : from : 03 aug 2018     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -953,6 +953,7 @@ const KgraphMapFmParam * const    paraptr)        /*+ Method parameters +*/
+   KgraphMapFmEdge   *             edxxtab;        /* Edge extended array                            */
+   Gnum                            edxxnbr;        /* Current number of links in link array          */
+   Gnum                            edxxsiz;
++  Gnum                            domnnbr;        /* Current number of domains; may change after the fallback mapping */
+   Gnum                            edxxnum;
+   Gnum                            edxxcdx;        /* Index for extended edge copy                   */
+   Gnum                            edcunbr;        /* Current number of unused extended edge slots   */
+@@ -994,12 +995,13 @@ const KgraphMapFmParam * const    paraptr)        /*+ Method parameters +*/
+   const Gnum * restrict const     edgetax = grafptr->s.edgetax;
+   const Gnum * restrict const     edlotax = grafptr->s.edlotax;
+   const Arch * restrict const     archptr = grafptr->m.archptr;
+-  const Gnum                      domnnbr = grafptr->m.domnnbr;
+   const ArchDom * restrict const  domntab = grafptr->m.domntab;
+   Anum * restrict const           parttax = grafptr->m.parttax;
+   Anum * restrict const           parotax = grafptr->r.m.parttax;
+   const Gnum * restrict const     pfixtax = grafptr->pfixtax;
+ 
++  domnnbr = grafptr->m.domnnbr;                   /* Get current number of domains */
++
+ #ifdef SCOTCH_DEBUG_KGRAPH3                       /* Allocation of extra memory needed for the check routine */
+   if ((chektab = memAlloc (domnnbr * 3 * sizeof(Gnum))) == NULL) {
+     errorPrint ("kgraphMapFm: out of memory (1)");
+@@ -1034,20 +1036,34 @@ const KgraphMapFmParam * const    paraptr)        /*+ Method parameters +*/
+       return  (0);
+     }
+     else {                                        /* Imbalance must be fought */
+-      const Strat *         strat;
++      Strat *               strat;
++      int                   o;
+ 
+-      strat = stratInit (&kgraphmapststratab, "r{sep=h{pass=10}}"); /* Use a standard algorithm */
+-      kgraphMapSt (grafptr, strat);               /* Perform mapping */
++      if ((strat = stratInit (&kgraphmapststratab, "r{sep=h{pass=10}}")) == NULL) { /* Use a standard algorithm */
++        errorPrint ("kgraphMapFm: cannot initialize fallback strategy");
++        memFree    (comploadmax);                 /* Free group leader */
++        return     (1);
++      }
++      o = kgraphMapSt (grafptr, strat);           /* Perform mapping */
++      stratExit (strat);
++      if (o != 0) {
++        errorPrint ("kgraphMapFm: cannot compute fallback mapping");
++        memFree    (comploadmax);                 /* Free group leader */
++        return     (1);
++      }
+ 
+       if (grafptr->fronnbr == 0) {                /* If new partition has no frontier */
+         memFree (comploadmax);
+         return  (0);                              /* This algorithm is still useless  */
+       }
+ 
+-      if (memReallocGroup ((void *) comploadmax,  /* domnnbr has changed after mapping */
++      domnnbr = grafptr->m.domnnbr;               /* Number of domains may have changed after the fallback mapping */
++
++      if (memReallocGroup ((void *) comploadmax,
+                            &comploadmax, (size_t) (domnnbr * sizeof (Gnum)),
+                            &comploaddlt, (size_t) (domnnbr * sizeof (Gnum)), NULL) == NULL) {
+         errorPrint ("kgraphMapFm: out of memory (3)");
++        memFree    (comploadmax);                 /* Free group leader */
+         return     (1);
+       }
+ 
+-- 
+2.47.3
+

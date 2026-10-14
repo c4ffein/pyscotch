@@ -1,0 +1,28 @@
+--- a/src/libscotch/kgraph_cost.c	2026-10-13 08:40:02.899404051 +0000
++++ b/src/libscotch/kgraph_cost.c	2026-10-13 09:44:53.276450520 +0000
+@@ -147,11 +147,11 @@
+     const Gnum                  vertancnnd = grafptr->s.vertnnd - domnnbr;
+     Gnum                        veloval;
+ 
+-    for (domnnum = 0; domnnum < domnnbr; domnnum ++)
+-      if ((grafptr->s.verttax[vertancnnd + domnnum + 1] - grafptr->s.verttax[vertancnnd + domnnum]) != 0)
+-        continue;
++    for (domnnum = 0; domnnum < domnnbr; domnnum ++) /* Search for an isolated anchor */
++      if ((grafptr->s.verttax[vertancnnd + domnnum + 1] - grafptr->s.verttax[vertancnnd + domnnum]) == 0)
++        break;
+ 
+-    if (domnnum != domnnbr) {
++    if (domnnum != domnnbr) {                     /* If there is at least one isolated anchor */
+       for (domnnum = 0; domnnum < domnnbr; domnnum ++) {
+         if ((grafptr->s.verttax[vertancnnd + domnnum + 1] - grafptr->s.verttax[vertancnnd + domnnum]) == 0) {
+           veloval = grafptr->s.velotax[vertancnnd + domnnum];
+@@ -175,6 +175,9 @@
+   domnrat -= fdomwgt;
+   velosum = grafptr->s.velosum - fvelsum;
+   for (domnnum = 0; domnnum < domnnbr; domnnum ++) {
++    if (((grafptr->s.flagval & KGRAPHHASANCHORS) != 0) && /* Skip isolated anchors, already frozen above */
++        ((grafptr->s.verttax[grafptr->s.vertnnd - domnnbr + domnnum + 1] - grafptr->s.verttax[grafptr->s.vertnnd - domnnbr + domnnum]) == 0))
++      continue;
+     compload[domnnum]            -=
+     grafptr->comploadavg[domnnum] = (Gnum) ((double) velosum * ((double) archDomWght (archptr, &domntab[domnnum]) / domnrat));
+   }

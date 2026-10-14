@@ -1,0 +1,32 @@
+# COR-15 option C: simply make the 7.0.17 debug check unconditional.
+# Not recommended: the check runs after a signed overflow (undefined behavior, the
+# compiler may delete it) and misses wraps that land above the previous value
+# ("5000000000" with 32-bit INTs gives 705032704 > 500000000 and is accepted). Untested.
+--- a/src/libscotch/common_integer.c
++++ b/src/libscotch/common_integer.c
+@@ -106,25 +106,19 @@ INT * const                 valptr)               /*+ Area where to put value +*/
+     return (0);                                   /* Then it is an error          */
+   val = car - '0';                                /* Get first digit              */
+   for ( ; ; ) {
+-#ifdef COMMON_DEBUG
+     INT                 tmp;                      /* Saved value */
+-#endif /* COMMON_DEBUG */
+ 
+     car = getc (stream);
+     if ((car < '0') || (car > '9')) {
+       ungetc (car, stream);
+       break;
+     }
+-#ifdef COMMON_DEBUG
+     tmp = val;
+-#endif /* COMMON_DEBUG */
+     val = val * 10 + (car - '0');                 /* Accumulate digits */
+-#ifdef COMMON_DEBUG
+     if (val < tmp) {                              /* In case of overflow */
+       errorPrint ("intLoad: overflow");
+       return (0);
+     }
+-#endif /* COMMON_DEBUG */
+   }
+   *valptr = (sign != 0) ? (- val) : val;          /* Set result */
+ 

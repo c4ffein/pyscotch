@@ -1,0 +1,131 @@
+diff --git a/src/scotch/amk_ccc.c b/src/scotch/amk_ccc.c
+index b78724e..8b43b37 100644
+--- a/src/scotch/amk_ccc.c
++++ b/src/scotch/amk_ccc.c
+@@ -154,9 +154,9 @@ char *                      argv[])
+ 
+   fileBlockOpen (C_fileTab, C_FILENBR);           /* Open all files */
+ 
+-  ccnbr = ccdim * (1 << ccdim);                   /* Compute number of vertices           */
+-  ccbit = (1 << ccdim) - 1;                       /* Get maximum position number          */
+-  for (ccmax = ((1 << (ccdim + 1)) - 1), i = ccdim - 1; /* Compute biggest terminal value */
++  ccnbr = ccdim * ((SCOTCH_Num) 1 << ccdim);                   /* Compute number of vertices           */
++  ccbit = ((SCOTCH_Num) 1 << ccdim) - 1;                       /* Get maximum position number          */
++  for (ccmax = (((SCOTCH_Num) 1 << (ccdim + 1)) - 1), i = ccdim - 1; /* Compute biggest terminal value */
+        i != 0;
+        i >>= 1)
+     ccmax = (ccmax << 1) | (i & 1);
+@@ -167,7 +167,7 @@ char *                      argv[])
+ 
+   for (v.lvl = 0; v.lvl < ccdim; v.lvl ++) {      /* For all levels                    */
+     for (v.pos = 0; v.pos <= ccbit; v.pos ++) {   /* For all positions in these levels */
+-      t = (1 << ccdim) | v.pos;                   /* Perform the hypercube cuts        */
++      t = ((SCOTCH_Num) 1 << ccdim) | v.pos;                   /* Perform the hypercube cuts        */
+       for (i = v.lvl, j = ccdim; j != 1; ) {      /* Perform the cycle cuts            */
+         t <<= 1;
+         k = (j + 1) >> 1;
+@@ -201,7 +201,7 @@ char *                      argv[])
+ 
+         d ++;                                     /* Search for neighbors at next level */
+         x.lvl = w.lvl;                            /* Add neighbors to queue             */
+-        x.pos = w.pos ^ (1 << x.lvl);
++        x.pos = w.pos ^ ((SCOTCH_Num) 1 << x.lvl);
+         C_distaPut (&x, d);
+         x.lvl = (w.lvl == 0) ? (ccdim - 1) : (w.lvl - 1);
+         x.pos = w.pos;
+diff --git a/src/scotch/amk_fft2.c b/src/scotch/amk_fft2.c
+index 03e64c2..02de843 100644
+--- a/src/scotch/amk_fft2.c
++++ b/src/scotch/amk_fft2.c
+@@ -151,8 +151,8 @@ char *                      argv[])
+ 
+   fileBlockOpen (C_fileTab, C_FILENBR);           /* Open all files */
+ 
+-  fnbr = (fdim + 1) * (1 << fdim);                /* Compute number of vertices      */
+-  fmsk = (1 << fdim) - 1;                         /* Get maximum position number     */
++  fnbr = (fdim + 1) * ((SCOTCH_Num) 1 << fdim);                /* Compute number of vertices      */
++  fmsk = ((SCOTCH_Num) 1 << fdim) - 1;                         /* Get maximum position number     */
+   for (i = fdim, fmax = 1; i > 0; i --)           /* Compute maximum terminal number */
+     fmax = (fmax << 2) | 2;
+   fmax  |= 1;
+@@ -165,7 +165,7 @@ char *                      argv[])
+     for (v.pos = 0; v.pos <= fmsk; v.pos ++) {
+       SCOTCH_Num          b;                      /* Bitmask value */
+ 
+-      for (i = v.lvl, b = 1 << (fdim - 1), t = 1; /* Recurse through the vertical + horizontal cuts */
++      for (i = v.lvl, b = (SCOTCH_Num) 1 << (fdim - 1), t = 1; /* Recurse through the vertical + horizontal cuts */
+            i <= fdim;
+            i ++, b >>= 1) {
+         t <<= 1;                                  /* Vertical cut: tell if vertex is in left or...   */
+@@ -177,7 +177,7 @@ char *                      argv[])
+       else {                                      /* Else                                            */
+         t |= 1;                                   /* This time vertex is in the lower part           */
+         t <<= (v.lvl - 1);                        /* Make space for the chain bipartition            */
+-        t |= v.pos & ((1 << (v.lvl - 1)) - 1);    /* Bipartition the chain following the lowest bits */
++        t |= v.pos & (((SCOTCH_Num) 1 << (v.lvl - 1)) - 1);    /* Bipartition the chain following the lowest bits */
+       }
+ 
+       fprintf (C_filepntrarcout, SCOTCH_NUMSTRING "\t1\t" SCOTCH_NUMSTRING "\n",
+@@ -210,7 +210,7 @@ char *                      argv[])
+           x.lvl = w.lvl - 1;
+           x.pos = w.pos;
+           C_distaPut (&x, d);
+-          x.pos = w.pos ^ (1 << (w.lvl - 1));
++          x.pos = w.pos ^ ((SCOTCH_Num) 1 << (w.lvl - 1));
+           C_distaPut (&x, d);
+         }
+         if (w.lvl < fdim) {
+@@ -219,7 +219,7 @@ char *                      argv[])
+           x.lvl = w.lvl + 1;
+           x.pos = w.pos;
+           C_distaPut (&x, d);
+-          x.pos = w.pos ^ (1 << w.lvl);
++          x.pos = w.pos ^ ((SCOTCH_Num) 1 << w.lvl);
+           C_distaPut (&x, d);
+         }
+       }
+diff --git a/src/scotch/amk_hy.c b/src/scotch/amk_hy.c
+index a96ef6c..9288380 100644
+--- a/src/scotch/amk_hy.c
++++ b/src/scotch/amk_hy.c
+@@ -146,8 +146,8 @@ char *                      argv[])
+ 
+   fileBlockOpen (C_fileTab, C_FILENBR);           /* Open all files */
+ 
+-  hnbr =  1 << hdim;                              /* Compute number of terminals */
+-  hmax = (1 << (hdim + 1)) - 1;                   /* Maximum terminal value      */
++  hnbr =  (SCOTCH_Num) 1 << hdim;                              /* Compute number of terminals */
++  hmax = ((SCOTCH_Num) 1 << (hdim + 1)) - 1;                   /* Maximum terminal value      */
+ 
+   fprintf (C_filepntrtgtout, "deco\n0\n" SCOTCH_NUMSTRING "\t" SCOTCH_NUMSTRING "\n", /* Print the file header */
+            (SCOTCH_Num) hnbr,                     /* Print number of terminal domains */
+diff --git a/src/scotch/gmk_hy.c b/src/scotch/gmk_hy.c
+index f50355f..c066008 100644
+--- a/src/scotch/gmk_hy.c
++++ b/src/scotch/gmk_hy.c
+@@ -143,8 +143,8 @@ char *                      argv[])
+ 
+   fileBlockOpen (C_fileTab, C_FILENBR);           /* Open all files */
+ 
+-  hnbr = 1 <<  hdim;                              /* Compute number of vertices */
+-  hbit = 1 << (hdim - 1);                         /* Compute highest bit value  */
++  hnbr = (SCOTCH_Num) 1 <<  hdim;                              /* Compute number of vertices */
++  hbit = (SCOTCH_Num) 1 << (hdim - 1);                         /* Compute highest bit value  */
+ 
+   fprintf (C_filepntrsrcout, "0\n" SCOTCH_NUMSTRING "\t" SCOTCH_NUMSTRING "\n0\t000\n",
+            (SCOTCH_Num) hnbr,                     /* Print number of vertices     */
+diff --git a/src/scotch/gmk_ub2.c b/src/scotch/gmk_ub2.c
+index ad95d3f..a84e2b6 100644
+--- a/src/scotch/gmk_ub2.c
++++ b/src/scotch/gmk_ub2.c
+@@ -161,8 +161,8 @@ char *                      argv[])
+ 
+   fileBlockOpen (C_fileTab, C_FILENBR);           /* Open all files */
+ 
+-  ubnbr = 1 <<  ubdim;                            /* Compute number of vertices */
+-  ubbit = 1 << (ubdim - 1);                       /* Bit to add on the left     */
++  ubnbr = (SCOTCH_Num) 1 <<  ubdim;                            /* Compute number of vertices */
++  ubbit = (SCOTCH_Num) 1 << (ubdim - 1);                       /* Bit to add on the left     */
+ 
+   fprintf (C_filepntrsrcout, "0\n" SCOTCH_NUMSTRING "\t" SCOTCH_NUMSTRING "\n0\t000\n",
+            (SCOTCH_Num) ubnbr,                    /* Print number of vertices     */

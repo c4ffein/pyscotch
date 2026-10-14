@@ -1,0 +1,41 @@
+Alternative (not committed, untested): minimal change. Read loads through the inverse permutation
+only for original graphs (vnumtax == NULL, ordenum == 0 is not required since positions are
+[ordenum, ordenum + vnohnbr[), keep the (wrong) vertex-order sum for induced subgraphs, and stop
+re-running the strategy in the recursion by calling an inner routine. Leaves ND leaves (ole=b)
+unbalanced and the trailing zero-load defect in place.
+--- a/src/libscotch/hgraph_order_bl.c
++++ b/src/libscotch/hgraph_order_bl.c
+@@ -136,10 +136,11 @@
+       Gnum                cblkidx;                /* Ghost column block index for even splitting    */
+ 
++      const Gnum * restrict const peritab = ordeptr->peritab;
++      const int                   origval = (grafptr->s.vnumtax == NULL); /* Ordering holds local vertex indices */
++
+       vnlomax =
+       vnlosum = 0;
+-      vnodbas =
+-      vnodnum = grafptr->s.baseval;
++      vnodbas =
++      vnodnum = origval ? ordenum : grafptr->s.baseval;
+       cblknum =
+       cblkidx = 0;
+@@ -159,7 +160,7 @@
+         } while (vnlomax <= vnlosum);             /* Next bound must be higher than current state */
+ 
+         do {                                      /* Accumulate weights until bound is reached */
+-          vnlosum += grafptr->s.velotax[vnodnum];
++          vnlosum += grafptr->s.velotax[origval ? peritab[vnodnum] : vnodnum]; /* Loads in ordering order only for original graph */
+           vnodnum ++;
+         } while (vnlosum < vnlomax);
+ 
+@@ -188,8 +189,11 @@
+   else {                                          /* Block already partitioned */
+     Gnum                cblknum;
+ 
++    /* Recursion must not re-run the strategy: hgraphOrderBl() would have to be split into a
++    ** strategy-running entry point and a leaf-splitting routine, as done in the committed patch.
++    */
+     for (cblknum = 0; cblknum < cblkptr->cblknbr; cblknum ++) {
+       if (hgraphOrderBl (grafptr, ordeptr, ordenum, cblkptr->cblktab + cblknum, paraptr) != 0)
+         return (1);
+     }

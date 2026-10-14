@@ -1,0 +1,17 @@
+BLD-15: test_scotch_mesh_graph exits 0 when SCOTCH_graphCheck fails on the converted graph
+
+Corruption: after SCOTCH_meshGraph(), set edgetab[0] = 999999 through SCOTCH_graphData().
+  L='{ SCOTCH_Num * edgetab; SCOTCH_graphData (&grafdat, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &edgetab, NULL); edgetab[0] = 999999; }'
+
+Pristine 7.0.17 test + pristine library (INFRA/asan, INFRA/v7.0.17):
+  $ mutate.sh $INFRA/asan $INFRA/v7.0.17/src/check/test_scotch_mesh_graph.c '^  if \(SCOTCH_graphCheck \(&grafdat\) != 0\)' "$L" data/ship001.msh
+  ...: ERROR: graphCheck: invalid edge array
+  ...: ERROR: main: invalid graph converted from mesh
+  rc=0                                               <- defect
+
+Combined series (G11's commit 7f94e1c, work/G11-mesh-struct-io/patches/0009, made the check exit):
+  $ mutate.sh $B scotch/src/check/test_scotch_mesh_graph.c '^    if \(SCOTCH_graphCheck \(&grafdat\) != 0\)' "$L" data/ship001.msh
+  ...: ERROR: graphCheck: invalid edge array
+  ...: ERROR: main: invalid graph converted from mesh
+  rc=1                                               <- fixed; no further patch from G28
+  unmutated check_scotch_mesh_graph: rc=0 (32-bit, and 64-bit: check_scotch_mesh_graph_64.log)

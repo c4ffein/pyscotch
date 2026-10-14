@@ -1,0 +1,6 @@
+DMO-18 (vdgraph half; bdgraph half is G22's 0006/0001): no user-visible reproducer (debug-only code).
+ml half (patch 0001): SCOTCH_DEBUG_BDGRAPH1/2 -> SCOTCH_DEBUG_VDGRAPH1/2 in vdgraphSeparateMlUncoarsen; exercised by the DEBUG_ALL runs of DMO-12.
+sq half (patch 0011): pristine vdgraph_separate_sq.c:181 reduced reduglbtab[3] (global flag) instead of reduloctab[3], so the
+'internal error (1)' partial-failure test could never fire; now a 5th summed slot of the best-separator reduction, as bdgraphBipartSq.
+Check: LD_LIBRARY_PATH=$WORK/<build|build64|builddbg>/lib mpirun --oversubscribe -np 3 ./dtest_<tree> 4elt.grf -1 order \
+  'n{sep=m{vert=120,low=q{strat=h},asc=b{width=3,strat=q{strat=f}}},ole=s,ose=s,osq=s}' 0 n -   -> rc=0 on all ranks, no error (all three trees).

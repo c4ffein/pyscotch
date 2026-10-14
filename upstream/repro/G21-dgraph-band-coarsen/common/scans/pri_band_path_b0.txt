@@ -1,0 +1,11 @@
+nth=0 exit=0 :: 1 (1): ERROR: contextValuesInit: out of memory;1 fishim: rank 1: failing allocation #0;1 rank 0: band rc=0 seen=0;1 rank 1: band rc=0 seen=9;
+nth=1 exit=124 :: HANG; 1 (1): ERROR: SCOTCH_dgraphBand: cannot initialize context;1 (1): ERROR: contextThreadInit2: out of memory;1 fishim: rank 1: failing allocation #1;1 rank 1: band rc=1 seen=2;
+nth=2 exit=124 :: HANG; 1 (1): ERROR: SCOTCH_dgraphBand: cannot initialize context;1 (1): ERROR: threadContextInit: out of memory;1 fishim: rank 1: failing allocation #2;1 rank 1: band rc=1 seen=3;
+nth=3 exit=124 :: HANG; 1 (1): ERROR: SCOTCH_dgraphBand: out of memory (1);1 (1): ERROR: dgraphBand2Coll: out of memory (1);1 fishim: rank 1: failing allocation #3;1 rank 1: band rc=1 seen=4;
+nth=4 exit=124 :: HANG; 1 (1): ERROR: dgraphBand2Coll: out of memory (1);1 fishim: rank 1: failing allocation #4;1 rank 1: band rc=1 seen=5;
+nth=5 exit=139 :: 1 (1): ERROR: SCOTCH_dgraphBand: out of memory (2);1 fishim: rank 1: failing allocation #5;1 fishim: rank 1: signal 11, backtrace:;1 library_dgraph_band.c:201:32: runtime error: store to null pointer of type 'Gnum';
+nth=6 exit=1 :: 1 (1): ERROR: SCOTCH_dgraphBand: out of memory (3);1 fishim: rank 1: failing allocation #6;1 rank 0: band rc=1 seen=0;1 rank 1: band rc=1 seen=7;
+nth=7 exit=1 :: 1 (1): ERROR: SCOTCH_dgraphBand: out of memory (4);1 [8f72f7c979a7:1046737] PMIX ERROR: PMIX_ERR_UNREACH in file ../../../src/server/pmix_server.c at line 3184;1 fishim: rank 1: failing allocation #7;1 rank 0: band rc=1 seen=0;1 rank 1: band rc=1 seen=8;
+nth=8 exit=124 :: HANG; 1 (1): ERROR: SCOTCH_dgraphBand: cannot perform halo exchange;1 (1): ERROR: dgraphHaloSync2: out of memory;1 fishim: rank 1: failing allocation #8;1 rank 1: band rc=1 seen=9;
+nth=9 exit=0 :: 1 rank 0: band rc=0 seen=0;1 rank 1: band rc=0 seen=9;
+nth=10 exit=0 :: 1 rank 0: band rc=0 seen=0;1 rank 1: band rc=0 seen=9;

@@ -1,0 +1,33 @@
+GRA-17 -- FM edge-array growth publishes the new size before reallocating
+==========================================================================
+kgraphMapFmEdgeResize did `edxxsiz *= 2; *edxxsizptr = edxxsiz;` BEFORE the
+memRealloc, and its callers kgraphMapFmPartAdd/PartAdd2 ignored the return value.
+On a reallocation failure the published size claims the larger array while the
+buffer is unchanged, and the next slot is written past it.
+
+The resize path is only reached under memory pressure (edxxsiz starts at 16x the
+frontier, capped at edgenbr). To exercise it deterministically, an IDENTICAL
+fault hook was added to the memRealloc call in both a pristine and a patched
+SCOTCH_DEBUG_ALL libscotch (the only real difference being the GRA-17 fix):
+
+  /* in kgraphMapFmEdgeResize, both libs */
+  if ((edxxtmp = ((getenv ("GRA17_FAIL") != NULL) ? NULL
+                  : memRealloc (edxxtab, edxxsiz * sizeof (KgraphMapFmEdge)))) == NULL) {
+
+Then, with strategy
+  m{vert=30,low=r{sep=h{pass=10}},asc=b{width=3,bnd=d{pass=40}f{bal=0.05,move=120},org=f{bal=0.05,move=120}}}
+on a 40x40 grid onto cmplt(64):
+  GRA17_FAIL=1 ./gra17_pristine 40 64 "$STRAT"
+    -> ERROR: kgraphMapFmEdgeResize: out of memory
+    -> AddressSanitizer: heap-buffer-overflow WRITE of size 4
+         #0 kgraphMapFmPartAdd kgraph_map_fm.c:717
+         #1 kgraphMapFm         kgraph_map_fm.c:1114
+  GRA17_FAIL=1 ./gra17_patched 40 64 "$STRAT"
+    -> FM returns the failure cleanly, no overflow in kgraphMapFm
+       (a separate downstream mapTerm NULL-deref then appears -- recorded as
+        PS2-G13-1 in extra.json; it is a graphMapCompute2 error-path weakness,
+        not part of GRA-17).
+
+failrealloc.c is an LD_PRELOAD realloc-fail shim kept for reference; it cannot be
+used together with ASan (ASan's own realloc interceptor wins), which is why the
+in-source hook above was used instead.

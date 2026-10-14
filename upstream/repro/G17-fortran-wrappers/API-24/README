@@ -1,0 +1,8 @@
+F="-g -fsanitize=address,undefined -I$W/build/include -L$W/build/lib -Wl,-rpath,$W/build/lib"   # or build64
+mpifort $F missing_f.f90 -o missing_f -lptscotch -lscotch -lptscotcherr -lz -lm -lpthread   # pristine: 13 undefined references
+gfortran $F seq_f.f90 -o seq_f -lscotch -lscotcherr -lz -lm -lpthread && ./seq_f > seq_f.out     # prints "seq_f: OK"
+gcc $F seq_c.c -o seq_c -lscotch -lscotcherr -lz -lm -lpthread && ./seq_c > seq_c.out
+diff <(grep '^MESHSTAT\|^SIZEOF' seq_f.out) seq_c.out                                            # identical on both trees
+mpifort $F par_f.f90 -o par_f -lptscotch -lscotch -lptscotcherr -lz -lm -lpthread
+ASAN_OPTIONS=detect_leaks=0 mpirun --oversubscribe -np 2 ./par_f                                 # prints "par_f: OK"
+Results kept: seq_f_build*.out, seq_c_build*.out, par_f_build*.out (32- and 64-bit, patched libraries).

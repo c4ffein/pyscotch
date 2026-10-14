@@ -1,0 +1,55 @@
+From 9f7edc77ab7739db18fc7fd514e3996419fcdf04 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:44:24 +0000
+Subject: [PATCH 08/11] Bugfix: check the result of edge array shrinking in
+ `dgraphInduce2()` [report PyScotch]
+
+The edge array of the induced graph is shrunk to its final size with
+`memRealloc()`, whose result was rebased without being tested. Should
+shrinking fail, the induced graph would point to a non-existent array.
+
+Keep the original array, which is valid and large enough, when
+shrinking fails.
+---
+ src/libscotch/dgraph_induce.c | 18 +++++++-----------
+ 1 file changed, 7 insertions(+), 11 deletions(-)
+
+diff --git a/src/libscotch/dgraph_induce.c b/src/libscotch/dgraph_induce.c
+index 6164b68..4e5836f 100644
+--- a/src/libscotch/dgraph_induce.c
++++ b/src/libscotch/dgraph_induce.c
+@@ -83,6 +83,8 @@ Dgraph * restrict const     indgrafptr)
+   Gnum                indedgelocmax;              /* (Approximate) number of edges in induced graph */
+   Gnum                indedgelocnbr;              /* Real number of edges in induced graph          */
+   Gnum                indedgelocnum;
++  Gnum *              indedgeloctmp;              /* Pointer to shrunk edge array, if any           */
++  Gnum                indedlooftval;              /* Offset of edge load array w.r.t. edge array    */
+   Gnum * restrict     indedloloctax;
+   Gnum                inddegrlocmax;              /* Local maximum degree                           */
+   Gnum                baseval;
+@@ -232,17 +234,11 @@ fail2:
+   if (orgvlblloctax == NULL)                      /* If we didn't have vertex labels, use vertex index array as vertex label array */
+     indgrafptr->vlblloctax = indgrafptr->vnumloctax;
+ 
+-  if (indedloloctax != NULL) {                    /* Re-allocate arrays and delete orgindxtab             */
+-    size_t              indedlooftval;            /* Offset of edge load array with respect to edge array */
+-
+-    indedlooftval = indedloloctax - indgrafptr->edgeloctax;
+-    indgrafptr->edgeloctax  = memRealloc (indgrafptr->edgeloctax + baseval, (indedlooftval + indedgelocnbr) * sizeof (Gnum));
+-    indgrafptr->edgeloctax -= baseval;
+-    indedloloctax = indgrafptr->edgeloctax + indedlooftval; /* Use old index into old array as new index to avoid alignment problems */
+-  }
+-  else {
+-    indgrafptr->edgeloctax  = memRealloc (indgrafptr->edgeloctax + baseval, indedgelocnbr * sizeof (Gnum));
+-    indgrafptr->edgeloctax -= baseval;
++  indedlooftval = (indedloloctax != NULL) ? (indedloloctax - indgrafptr->edgeloctax) : 0; /* Use old index into old array as new index to avoid alignment problems */
++  if ((indedgeloctmp = memRealloc (indgrafptr->edgeloctax + baseval, (indedlooftval + indedgelocnbr) * sizeof (Gnum))) != NULL) { /* Shrink edge arrays and delete orgindxtab; keep them as is if shrinking fails */
++    indgrafptr->edgeloctax = indedgeloctmp - baseval;
++    if (indedloloctax != NULL)
++      indedloloctax = indgrafptr->edgeloctax + indedlooftval;
+   }
+ 
+   indvertlocnum = baseval;
+-- 
+2.47.3
+

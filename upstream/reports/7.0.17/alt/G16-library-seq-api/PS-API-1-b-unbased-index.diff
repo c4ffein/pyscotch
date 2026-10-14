@@ -1,0 +1,19 @@
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -483,12 +483,12 @@
+   migrcostsum = 0;
+   if (lmaoptr != NULL) {
+     for (vertnum = grafptr->baseval; vertnum < grafptr->vertnnd; vertnum ++) {
+-      if ((parttax[vertnum] == -1) || (parotax[vertnum] == -1))
++      if ((parttax[vertnum] == -1) || (parotax[vertnum - grafptr->baseval] == -1)) /* Old array is not based */
+         continue;
+-      if (parotax[vertnum] != parttax[vertnum]) {
++      if (parotax[vertnum - grafptr->baseval] != parttax[vertnum]) {
+         migrnbr ++;
+-        archDomTerm (archptr, &domnorg, parotax[vertnum]); /* Get terminal domains */
+-        archDomTerm (archptr, &domnold, parotax[vertnum]);
++        archDomTerm (archptr, &domnorg, parttax[vertnum]); /* Get terminal domains */
++        archDomTerm (archptr, &domnold, parotax[vertnum - grafptr->baseval]);
+         migrdistavg += archDomDist (archptr, &domnorg, &domnold);
+         migrloadavg += (grafptr->velotax == NULL) ? 1 : grafptr->velotax[vertnum];
+         migrcostsum += emraval * ((vmlotax != NULL) ? vmlotax[vertnum] : 1);

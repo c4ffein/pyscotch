@@ -1,0 +1,8 @@
+DMO-02: un-based label arrays gathered with based displacements
+cd repro/common; export UBSAN_OPTIONS=print_stacktrace=1 ASAN_OPTIONS=detect_leaks=0
+pristine: LD_LIBRARY_PATH=$WORK/buildp/lib mpirun --oversubscribe -np 3 $WORK/buildp/bin/dgord lbl.grf ord.out ; cat ord.out
+  -> 12 / -1094795586 106 / 101 107 / 102 108 / ... / 109 -1094795586 / 110 101 / 111 102   (labels of the previous vertex, first uninitialized)
+  overflow proof (glibc malloc, chunk-aligned 14-vertex graph): LD_LIBRARY_PATH=$WORK/buildfi/lib mpirun --oversubscribe -np 1 $WORK/buildfi/bin/dgord lbl14.grf o.out
+  -> 'Fatal glibc error: malloc.c:2601 (sysmalloc): assertion failed' (np=3: 'munmap_chunk(): invalid pointer'); same with -Tt.out (dorderSaveTree2).
+patched:  same commands with build/lib and buildfip/lib: ord.out '12 / 101 107 / 102 108 / ... / 112 103', lbl14 runs exit 0.
+check line: cd $WORK/build/src/check; mpirun --oversubscribe -n 3 ../../bin/dgord data/m4x4_b1_elv.grf /tmp/x.ord -T/tmp/x.tre -vt (pristine prints -1094795586 labels, patched 4,6,...).

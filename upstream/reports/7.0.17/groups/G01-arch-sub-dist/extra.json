@@ -1,0 +1,78 @@
+[
+ {
+  "local_id": "PS2-G01-arch-sub-dist-1",
+  "our_title": "Sub-architecture of a single terminal vertex other than vertex 0 is rooted at the wrong tree slot",
+  "severity": "high",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Harness /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G01-arch-sub-dist/repro/PS2-G01-1/ (run.sh <libdir>). Pristine 7.0.17 ASan lib: 'sub 1 3 cmplt 4' -> 'AddressSanitizer: SEGV on unknown address 0x504400000008 ... #0 archSubArchBuild3 arch_sub.c:345 #1 _SCOTCHarchSubArchBuild arch_sub.c:494 #2 _SCOTCHarchSubArchLoad arch_sub.c:117 #3 _SCOTCHarchLoad arch.c:213 #4 SCOTCH_archLoad'; 'sub 1 6 hcub 3' -> same; 'sub 1 0 cmplt 4' works (by accident). Public API twin: build2one.c = SCOTCH_archBuild2 (m4x4.grf, 1, {5}) -> 'SEGV ... #0 archDeco2BuildBuild3 arch_deco2_build.c:502 #1 _SCOTCHarchDeco2ArchBuild arch_deco2_build.c:722 #2 SCOTCH_archBuild2 library_arch_build.c:186'; with {0} it works. Patched (0005): all four cases succeed with size=1, save/reload round-trip, no sanitizer or leak report, on 32-bit, 64-bit and SCOTCH_DEBUG_ALL trees; test_scotch_arch (with the new single-vertex sub-architecture) passes; malloc-failure sweep over 'sub 1 3 cmplt 4' clean.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/arch_sub.c:478 (archSubArchBuild passes vnumnbr to archSubArchBuild2), src/libscotch/arch_deco2_build.c:653 (archDeco2ArchBuild passes vnumnbr), src/libscotch/arch_sub.c:225-228 (archSubArchBuild2's base case returns the first slot of the array)",
+  "evidence": "arch_sub.c:478: '  rootptr = archSubArchBuild2 (&matcdat, (Anum (*) (void *, ArchCoarsenMulti * restrict *)) orgarchptr->clasptr->matchMate, treetab, vnumnbr);' and 225-227: '  if (finevertnbr <= 1) {                         /* If recursion achieved, start building architecture */' / '    finetreetab[-1].sonstab[0] = NULL;' / '    return (finetreetab);                         /* Return root of subdomain tree                      */' -- at the finest level treetab is indexed by original terminal number (429-436, 472-475), so with one kept terminal t != 0 the root is treetab[0] (domnsiz 0, termnum ANUMMAX) and archSubArchBuild3 writes termtab[ANUMMAX] (arch_sub.c:345).",
+  "related_ids": [
+   "COR-03",
+   "COR-04",
+   "PS-COR-3"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Pass the number of original vertices to archSubArchBuild2() (patch 0005)",
+    "summary": "archSubArchBuild() passes orgtermnbr and archDeco2ArchBuild() passes vertnbr, which is what the parameter 'finevertnbr' (size of the array) means; coarsening then runs down to one vertex in all cases and the kept terminal becomes the root through the normal single-child collapse of archSubArchBuild3(). Adds a single-vertex sub-architecture to test_scotch_arch.c (ARCHNBR 26 -> 27).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G01-arch-sub-dist/patches/0005-Bugfix-build-sub-architectures-made-of-a-single-term.patch",
+    "tested": "see 'ran'; check_scotch_arch/_build/_deco, check_prog_amk/amk_grf/acpl/gmap on 32/64-bit; git am",
+    "tradeoffs": "For vnumnbr >= 2 nothing changes (the parameter is only compared to 1). The deco2 change is in arch_deco2_build.c (possible overlap with a deco group patch: a one-token change on line 653).",
+    "preferred": true,
+    "maintainer_fit": "fixes the callers' misuse of a documented parameter instead of special-casing; both callers in one commit, like his twin fixes (e.g. 6a030db covering every SCOTCH_mesh* routine)."
+   },
+   {
+    "label": "B. Special-case a single kept vertex in both callers",
+    "summary": "If vnumnbr == 1, set treetab[-1].sonstab[0] = NULL and take &treetab[vnumtab[0]] as root without calling archSubArchBuild2().",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G01-arch-sub-dist/alt/PS2-G01-1-B-special-case-single.diff",
+    "tested": "compiled against the build tree's headers only",
+    "tradeoffs": "Two more branches that duplicate a TRICK of archSubArchBuild2(); the matcher structure is still initialized for nothing.",
+    "preferred": false,
+    "maintainer_fit": "unlikely: it works around the parameter instead of passing the right value."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G01-arch-sub-dist/patches/0005-Bugfix-build-sub-architectures-made-of-a-single-term.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G01-arch-sub-dist-2",
+  "our_title": "archDistArchBuild and the dist pseudo-architecture have had no caller since 6.0",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "git grep of 'archDistArchBuild (' and 'archClass (\"dist\")' over src/ at tags scotch_6.0, v6.0.6, v6.1.0, v7.0.0, v7.0.17: only the definition (arch_dist.c:138), the class table entry (arch.c:107) and the module.h rename (module.h:510). The repartitioning code carries the regular-edge multiplier in Kgraph itself (kgraph.c:92-130 'crloval', kgraph_map_rb.c:636-637, kgraph_map_fm.c:363,414). 'dist' is absent from the user manual's target-file section (doc/src/scotch/s_f.tex).",
+  "why_not_run": "nothing to run: a dead routine",
+  "location_7_0_17": "src/libscotch/arch_dist.c:137-153, src/libscotch/arch.c:107, src/libscotch/arch_dist_mpi.c",
+  "evidence": "arch_dist.c:48-51: '**   NOTES      : # This pseudo-architecture is used by   **' / '**                  graph repartitioning routines to      **' / '**                  handle floating-point migration       **' / '**                  costs.' -- no repartitioning routine references ArchDist.",
+  "related_ids": [
+   "COR-05"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Keep, make loadable (patch 0003)",
+    "summary": "What the series does: the class remains and now works from files.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G01-arch-sub-dist/patches/0003-Bugfix-allocate-and-own-the-original-architecture-wh.patch",
+    "tested": "as COR-05",
+    "tradeoffs": "keeps ~600 lines of unused code alive",
+    "preferred": true,
+    "maintainer_fit": "conservative; his call"
+   },
+   {
+    "label": "B. Remove the dist module",
+    "summary": "Delete arch_dist*.[ch], the class-table entry, union members, renames, build entries.",
+    "diff_file": "",
+    "tested": "untested: not written (design decision)",
+    "tradeoffs": "removes a loadable/saveable file type",
+    "preferred": false,
+    "maintainer_fit": "a5ee23b shows he removes dead definitions, but this is a whole class"
+   }
+  ],
+  "patch_files": []
+ }
+]

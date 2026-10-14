@@ -1,0 +1,8 @@
+inputs: 2000 distinct sanitizer signatures: 3 inputs with hits: 47
+  45  common_integer.c:121:15: runtime error: signed integer overflow: 999999999999999999 * 10 cannot be represented
+      e.g. 'ltleaf 99999999999999999999 1 1 0'
+   1  arch_sub.c:409:18: runtime error: signed integer overflow: 9223372036854775807 + 1 cannot be represented in ty
+      e.g. 'sub 1 0 tleaf 1 9223372036854775807 1'
+   1  ERROR: AddressSanitizer: out of memory: allocator is trying to allocate 0x3000000038 bytes
+      e.g. 'sub 1 0 tleaf 1 4294967296 1'
+FUZZDONE

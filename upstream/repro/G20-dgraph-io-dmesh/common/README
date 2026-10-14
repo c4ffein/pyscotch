@@ -1,0 +1,17 @@
+Shared harness for G20 (distributed graph/mesh I/O and dual).
+LIBS: build from $WORK/scotch via $WORK/mirror.sh. Three library trees:
+  $WORK/pristine    ASan+UBSan 32-bit, UNPATCHED  (baseline for ASan crashes)
+  $WORK/build       ASan+UBSan 32-bit, PATCHED
+  $WORK/pristinefi  UBSan-only 32-bit, current sources (for LD_PRELOAD fault injection;
+                    ASan cannot be preloaded). Rebuild with mirror.sh after each edit.
+Drivers (build with ./build.sh <BUILDDIR> -> bin_<name>/):
+  dgload FILE [-d] [-2] [-b B] [-f F]   load a graph through SCOTCH_dgraphLoad, check it.
+                                        -d distributed (%r template), -2 second load on same comm.
+  dmload FILE-%r.adm [noconbr] [-b B]   load a mesh + SCOTCH_dmeshDgraphDual + check.
+  dmloadonly FILE-%r.adm                load mesh only (LeakSanitizer isolation).
+  dmual [N]                             N elements sharing node 0 -> forces edge-hash resize.
+  halofi FILE                           load labeled graph + SCOTCH_dgraphSave -> dgraphHaloSync2.
+Fault injectors (LD_PRELOAD; program arms them by setting exported fi_armed):
+  fishim.so    fail the FI_NTH-th scotch allocation on rank FI_RANK (FI_LOG=1 logs; reused from G18).
+  reallfail.so once armed, every scotch realloc returns NULL (for the DGR-20 spin).
+Run under: ASAN_OPTIONS=detect_leaks=0 mpirun --oversubscribe -np P ... ; 15s timeout => HANG.

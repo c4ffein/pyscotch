@@ -1,0 +1,22 @@
+diff --git a/src/scotch/gout_c.c b/src/scotch/gout_c.c
+index 0636d9a..775bcae 100644
+--- a/src/scotch/gout_c.c
++++ b/src/scotch/gout_c.c
+@@ -705,13 +705,13 @@ char * const                strgptr)              /* Pointer to the string to pa
+       int                 argunum;
+       int                 flagval;
+ 
+-      argeptr = strpbrk (argbptr, ",}\0");        /* Search for the argument end  */
++      argusiz = strcspn (argbptr, ",}");          /* Search for the argument end  */
++      argeptr = argbptr + argusiz;
+       if (*argeptr == '\0')                       /* If there is no end delimiter */
+         return (3);                               /* Return syntax error value    */
+ 
+-      argusiz = ((argeptr - argbptr) < 127)       /* Get argument bounded length */
+-                ? (argeptr - argbptr)
+-                : 127;
++      if (argusiz > 127)                          /* Bound argument length */
++        argusiz = 127;
+       strncpy (argubuf, argbptr, argusiz);        /* Copy argument to the buffer    */
+       argubuf[argusiz] = '\0';                    /* Mark the end of the argument   */
+       argqptr = strpbrk (argubuf, "=");           /* Search for the '=' character   */

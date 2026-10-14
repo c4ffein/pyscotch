@@ -1,0 +1,4 @@
+COR-25: newline detection in parserLocationUpdate() (fixed upstream in a94688c, verified).
+  cd ../common
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine "$(printf 'r{\n\n sep=m{asc=\nb{x}}}')"  -> 'line 4, column 2'  (line correct; column 0-based: see PS2-G04-strategy-parser-2)
+  LD_LIBRARY_PATH=$WORK/build/lib ./st_pristine "$(printf 'r{\n\n sep=m{asc=\nb{x}}}')"    -> 'line 4, column 3'

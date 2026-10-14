@@ -1,0 +1,117 @@
+From 715aea77bc30fa994c32cc0e0d7e33add318787f Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:57:40 +0000
+Subject: [PATCH 054/240] Bugfix: give `MESHVERTGROUP` its own flag bit [report
+ PyScotch]
+
+`MESHVERTGROUP` and `MESHFREEOTHR` were both defined as 0x0010. A mesh
+whose vertex arrays are grouped, such as one produced by `meshLoad()`
+(flags `MESHFREEVERT | MESHVERTGROUP`), therefore also had the "free
+other arrays" flag set, and `meshFree()` passed `vlbltab`, an interior
+pointer of the vertex array group, to `memFree()`. Loading any labeled
+mesh file and freeing the mesh aborted with an invalid free.
+
+Move `MESHVERTGROUP` to 0x0020, like `GRAPHVERTGROUP`. Add a labeled
+mesh file to the test data, which `mtst` loads, checks and frees.
+
+Refs: PS-SEP-1
+---
+ src/check/CMakeLists.txt      |  4 +++-
+ src/check/Makefile            |  1 +
+ src/check/data/small2_lbl.msh | 16 ++++++++++++++++
+ src/libscotch/mesh.h          |  8 ++++----
+ 4 files changed, 24 insertions(+), 5 deletions(-)
+ create mode 100644 src/check/data/small2_lbl.msh
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index 6d052ed..5b3a5d7 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -43,7 +43,7 @@
+ ##   DATES      : # Version 6.0  : from : 01 sep 2014     ##
+ ##                                 to     01 sep 2021     ##
+ ##                # Version 7.0  : from : 01 sep 2021     ##
+-##                                 to     11 feb 2026     ##
++##                                 to     13 oct 2026     ##
+ ##                                                        ##
+ ############################################################
+ 
+@@ -575,6 +575,8 @@ foreach(mmk_msh m2_5_1 m2_5_4 m3_5_4_3)
+   set_tests_properties(mcv_msh_${mmk_msh} PROPERTIES FIXTURES_REQUIRED MMK_MESHES)
+ endforeach()
+ 
++add_test(NAME mtst_small2_lbl COMMAND mtst ${dat}/small2_lbl.msh)
++
+ # check_prog_mord
+ 
+ foreach(mmk_msh m2_5_1 m2_5_4 m3_5_4_3)
+diff --git a/src/check/Makefile b/src/check/Makefile
+index 9dc285c..8067116 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -724,6 +724,7 @@ check_prog_mcv		        :	check_prog_mmk
+ 					$(PROGDIFF) $(TMPDIR)/m2_5_1.msh $(TMPDIR)/output_m2_5_1.msh
+ 					$(PROGDIFF) $(TMPDIR)/m2_5_4.msh $(TMPDIR)/output_m2_5_4.msh
+ 					$(PROGDIFF) $(TMPDIR)/m2_5_4_3.msh $(TMPDIR)/output_m2_5_4_3.msh
++					$(EXECS) $(SCOTCHBINDIR)/mtst data/small2_lbl.msh
+ 
+ 
+ check_prog_mord                 :	check_prog_gmk_msh
+diff --git a/src/check/data/small2_lbl.msh b/src/check/data/small2_lbl.msh
+new file mode 100644
+index 0000000..09b8edc
+--- /dev/null
++++ b/src/check/data/small2_lbl.msh
+@@ -0,0 +1,16 @@
++1
++6	7	36
++0	6	100
++10	3	20	21	22
++11	3	20	21	25
++12	3	21	25	24
++13	3	21	24	26
++14	3	21	26	23
++15	3	21	23	22
++20	2	10	11
++21	6	10	11	12	13	14	15
++22	2	10	15
++23	2	14	15
++24	2	12	13
++25	2	11	12
++26	2	13	14
+diff --git a/src/libscotch/mesh.h b/src/libscotch/mesh.h
+index a03e817..1418203 100644
+--- a/src/libscotch/mesh.h
++++ b/src/libscotch/mesh.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2010,2018,2019,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2010,2018,2019,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 06 jun 2018     **/
+ /**                                 to   : 06 jun 2018     **/
+ /**                # Version 7.0  : from : 03 may 2019     **/
+-/**                                 to   : 30 aug 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -61,11 +61,11 @@
+ 
+ #define MESHFREEEDGE                0x0001        /* Free edgetab array        */
+ #define MESHFREEVERT                0x0002        /* Free verttab array        */
+-#define MESHFREEVEND                0x0004        /* Free verttab array        */
++#define MESHFREEVEND                0x0004        /* Free vendtab array        */
+ #define MESHFREEVNUM                0x0008        /* Free vnumtab array        */
+ #define MESHFREEOTHR                0x0010        /* Free all other arrays     */
+ #define MESHFREETABS                0x001F        /* Free all mesh arrays      */
+-#define MESHVERTGROUP               0x0010        /* All vertex arrays grouped */
++#define MESHVERTGROUP               0x0020        /* All vertex arrays grouped */
+ 
+ /*+ The Mesh flag type. +*/
+ 
+-- 
+2.47.3
+

@@ -1,0 +1,14 @@
+PS2-G08-2: context split in recursive bipartitioning / nested dissection ignores the deterministic option
+----------------------------------------------------------------------------------------------------------
+Commands (tree T in {build = series, build_alt_a = series + alt/PS2-G08-2-a-common-context-no-split.diff,
+build_alt_b = series + alt/PS2-G08-2-b-order-callers-no-split.diff}):
+  for t in 1 2 4; do SCOTCH_DETERMINISTIC=1 SCOTCH_PTHREAD_NUMBER=$t $T/bin/gord  data/bump.grf   ord.$t;  done
+  for t in 1 2 4; do SCOTCH_DETERMINISTIC=1 SCOTCH_PTHREAD_NUMBER=$t $T/bin/gpart 8 data/bump.grf part.$t; done
+  for t in 1 4;   do SCOTCH_DETERMINISTIC=1 SCOTCH_PTHREAD_NUMBER=$t $T/bin/mord  data/cube_8.msh mord.$t; done
+Differing lines vs the 1-thread result:
+  build       : gord 1v2=3532 1v4=6186 ; gpart 1v2=0 1v4=5646 ; mord 1v4=0 ; run-to-run at 2 threads: 0
+  build_alt_a : gord 1v2=0    1v4=0    ; gpart 1v2=829 1v4=829 (residual = bgraphBipartGg per-thread PRNG, G08's SEP-13)
+  build_alt_b : gord 1v2=0    1v4=0    ; gpart unchanged (kgraphMapRbPart split is G12's 0009, not in alt-b)
+hgraph_order_nd.c:305 and hmesh_order_nd.c:261 split the context like kgraph_map_rb_part.c:316 and wgraph_part_rb.c:377
+(G12's 0009) do; vgraph_separate_gg.c:145 / vmesh_separate_gg.c:186 consume contextIntRandVal() in the sub-contexts.
+dgraph_fold_dup.c:166 also splits but consumes no random numbers (git grep intRand src/libscotch/dgraph_fold*.c: none).

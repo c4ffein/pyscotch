@@ -1,0 +1,18 @@
+--- a/src/libscotch/vdgraph_separate_sq.c
++++ b/src/libscotch/vdgraph_separate_sq.c
+@@ -178,12 +178,13 @@
+     return     (1);
+   }
+ #ifdef SCOTCH_DEBUG_VDGRAPH2
+-  if (MPI_Allreduce (&reduglbtab[3], &reduloctab[3], 1, GNUM_MPI, MPI_SUM, dgrfptr->s.proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (&reduloctab[3], &reduloctab[4], 1, GNUM_MPI, MPI_SUM, dgrfptr->s.proccomm) != MPI_SUCCESS) { /* Count local failures in spare slot */
+     errorPrint ("vdgraphSeparateSq: communication error (3)");
+     return     (1);
+   }
+-  if ((reduloctab[3] != 0) && (reduloctab[3] != dgrfptr->s.procglbnbr)) {
++  if ((reduloctab[4] != 0) && (reduloctab[4] != dgrfptr->s.procglbnbr)) { /* If sequential separation failed on some processes only */
+     errorPrint ("vdgraphSeparateSq: internal error (1)");
++    vgraphExit (&cgrfdat);
+     return     (1);
+   }
+ #endif /* SCOTCH_DEBUG_VDGRAPH2 */

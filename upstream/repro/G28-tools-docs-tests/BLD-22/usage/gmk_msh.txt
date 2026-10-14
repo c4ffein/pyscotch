@@ -1,0 +1,5 @@
+Usage is:
+  gmk_msh [<input mesh file> [<output graph file>]] <options>
+    -d<noconbr>  : Build a dual graph instead of a primal graph, based on a minimum number of common neighbors (default: 1)
+    -h           : Display this help
+    -V           : Print program version and copyright

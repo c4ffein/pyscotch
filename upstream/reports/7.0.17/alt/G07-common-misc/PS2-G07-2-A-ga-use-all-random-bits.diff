@@ -1,0 +1,19 @@
+# PS2-G07-2 (info, not committed): bgraphBipartGaLoop() slices each 64-bit random value into
+# sizeof (UINT) = 4 or 8 BITS (bytes mistaken for bits), consuming 8x more random draws than
+# needed. Harmless (the bits used are random), but wasteful; fixing it changes the GA results,
+# which is the maintainer's call. Not run.
+--- a/src/libscotch/bgraph_bipart_ga.c
++++ b/src/libscotch/bgraph_bipart_ga.c
+@@ -173,11 +173,11 @@
+   while (partnum > 0) {                           /* Fill (remaining) deme area with random values */
+-    UINT                randval;                  /* Integer random value to slice into bits       */
++    UINT64              randval;                  /* Integer random value to slice into bits       */
+     Gnum                randnbr;                  /* Number of slices to use in a random value     */
+ 
+-    randval = contextIntRandVal2 (grafptr->contptr); /* Get UINT random value */
+-    randnbr = MIN (sizeof (UINT), partnum);       /* Compute useable slices   */
++    randval = contextIntRandVal2 (grafptr->contptr); /* Get 64-bit random value */
++    randnbr = MIN ((Gnum) (sizeof (UINT64) << 3), partnum); /* Compute useable bit slices */
+     while (randnbr -- > 0) {
+       demetab[-- partnum] = (GraphPart) (randval & 1); /* Use lowest bit value as part value */
+       randval >>= 1;                              /* Shift to next bit                       */

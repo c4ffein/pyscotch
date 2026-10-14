@@ -1,0 +1,90 @@
+From 64cc9d3993716d33d28b2b8fa7fc5fea1670744b Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:31:13 +0000
+Subject: [PATCH 07/10] Bugfix: check the range of integer literals in strategy
+ strings [report R. Perry]
+
+Integer literals of strategy strings were converted with `atol()` and
+`atof()` and cast to `INT` without any check: values that do not fit
+silently yielded a wrong value (`atol()` saturates, and `(INT) atol()`
+truncates on 64-bit `long` or 32-bit Windows `long`), and the
+conversion of an out-of-range `double` to `INT` is undefined behavior.
+Accumulate the digits with an overflow check, as `intLoad()` does, and
+reject out-of-range values by returning `YYerror` to the parser, which
+then reports the invalid parameter value.
+
+Refs: COR-26
+---
+ src/libscotch/parser_ll.l | 32 ++++++++++++++++++++++++--------
+ 1 file changed, 24 insertions(+), 8 deletions(-)
+
+diff --git a/src/libscotch/parser_ll.l b/src/libscotch/parser_ll.l
+index 922fa3b..ce3cb1a 100644
+--- a/src/libscotch/parser_ll.l
++++ b/src/libscotch/parser_ll.l
+@@ -51,7 +51,7 @@
+ /**                # Version 5.1  : from : 09 jun 2009     **/
+ /**                                 to   : 24 jul 2011     **/
+ /**                # Version 7.0  : from : 02 mar 2018     **/
+-/**                                 to   : 07 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # In order for flex to read its input   **/
+ /**                  with getc() instead of fread, we set  **/
+@@ -65,6 +65,7 @@
+ 
+ #define YY_DECL                     int yylex (YYSTYPE * yylval_param, YYLTYPE * yylloc, yyscan_t yyscanner)
+ 
++#include "module.h"                               /* Renaming must precede the declarations of common.h    */
+ #include "common.h"                               /* Early inclusion to handle the inclusion of <stdint.h> */
+ 
+ #if (defined COMMON_OS_WINDOWS || defined HAVE_NOT_UNISTD_H)
+@@ -133,12 +134,31 @@ STRING                      \"[^\"]*\"
+                               return (VALDOUBLE);
+                             }
+ 
+-<lparamint>{INTEGER}        {
+-                              PARSERYYLVAL (INTEGER) = (INT) atol (yytext);
++<lparamint,ltest>{INTEGER}  {
++                              INT                 intval;
++                              int                 i;
++
++                              for (intval = 0, i = 0; yytext[i] != '\0'; i ++) { /* Accumulate digits */
++                                if (intval > ((INTVALMAX - (yytext[i] - '0')) / 10)) { /* In case of overflow */
++                                  errorPrint ("stratParserParse: value out of range, line %d, column %d, at \"%s\"",
++                                              yylloc->libenum, yylloc->cobenum, yylloc->tebeptr);
++                                  return (YYerror);
++                                }
++                                intval = intval * 10 + (yytext[i] - '0');
++                              }
++                              PARSERYYLVAL (INTEGER) = intval;
+                               return (VALINT);
+                             }
+ <lparamint>{FLOAT}          {
+-                              PARSERYYLVAL (INTEGER) = (INT) atof (yytext); /* FLOAT is put after so that INTEGER can be matched */
++                              double              dblval;
++
++                              dblval = atof (yytext); /* FLOAT is put after so that INTEGER can be matched */
++                              if (dblval >= ((double) INTVALMAX + 1.0)) { /* If value does not fit in an INT */
++                                errorPrint ("stratParserParse: value out of range, line %d, column %d, at \"%s\"",
++                                            yylloc->libenum, yylloc->cobenum, yylloc->tebeptr);
++                                return (YYerror);
++                              }
++                              PARSERYYLVAL (INTEGER) = (INT) dblval;
+                               return (VALINT);
+                             }
+ 
+@@ -149,10 +169,6 @@ STRING                      \"[^\"]*\"
+                               return (VALSTRING);
+                             }
+ 
+-<ltest>{INTEGER}            {
+-                              PARSERYYLVAL (INTEGER) = (INT) atol (yytext);
+-                              return (VALINT);
+-                            }
+ <ltest>{FLOAT}              {
+                               PARSERYYLVAL (DOUBLE) = atof (yytext);
+                               return (VALDOUBLE);
+-- 
+2.47.3
+

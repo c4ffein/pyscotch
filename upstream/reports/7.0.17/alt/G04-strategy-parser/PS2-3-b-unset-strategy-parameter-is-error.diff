@@ -1,0 +1,28 @@
+--- a/src/libscotch/parser_yy.y
++++ b/src/libscotch/parser_yy.y
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 30 sep 2014     **/
+ /**                                 to   : 27 apr 2018     **/
+ /**                # Version 7.0  : from : 02 mar 2018     **/
+-/**                                 to   : 25 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -310,10 +310,12 @@
+                   if ((paratab[paraidx].methnum == penvptr->straptr->data.methdat.methnum) && /* If a strategy parameter found for this method */
+                       (paratab[paraidx].typeval == STRATPARAMSTRAT)) {
+                     if (*((Strat **) ((byte *) &penvptr->straptr->data.methdat.datadat + /* And this parameter has not been set */
+-                        (paratab[paraidx].doffptr - paratab[paraidx].dbasptr))) == NULL)
+-                      errorPrintW ("stratParserParse: strategy parameter \"%s\" of method \"%s\" not set, line %d, column %d, before \"%s\"",
+-                                   paratab[paraidx].nameptr, penvptr->stratab->methtab[penvptr->straptr->data.methdat.methnum].nameptr,
+-                                   (@2).libenum, (@2).cobenum, (@2).tebeptr);
++                        (paratab[paraidx].doffptr - paratab[paraidx].dbasptr))) == NULL) {
++                      errorPrint ("stratParserParse: strategy parameter \"%s\" of method \"%s\" not set, line %d, column %d, before \"%s\"",
++                                  paratab[paraidx].nameptr, penvptr->stratab->methtab[penvptr->straptr->data.methdat.methnum].nameptr,
++                                  (@2).libenum, (@2).cobenum, (@2).tebeptr);
++                      YYABORT;                    /* Method node is freed by stratParserParse() */
++                    }
+                   }
+                 }
+ 

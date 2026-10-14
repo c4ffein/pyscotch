@@ -1,0 +1,17 @@
+# PS2-G21-3 (context.h, another group's file: notes only, NOT part of this series): CONTEXTINIT() evaluates contextInit(), contextOptionsInit() and contextCommit() in a comma expression and returns only the last result, so an out-of-memory in contextOptionsInit() ("contextValuesInit: out of memory", repro scans nth=0) is ignored and the library routine runs with default option values and returns 0. Sketch: fold the result of contextOptionsInit() into the macro value; contextExit() must then tolerate a half-initialized context (not checked).
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/context.h b/src/libscotch/context.h
+index 5d3271f..83ebcca 100644
+--- a/src/libscotch/context.h
++++ b/src/libscotch/context.h
+@@ -114,8 +114,8 @@ int                         contextOptionsInit  (Context * const);
+    : (c##_contptr = (void *) &c##_contdat,      \
+       c##_cdatptr = (void *) (c),               \
+       contextInit        (&c##_contdat),        \
+-      contextOptionsInit (&c##_contdat),        \
+-      contextCommit      (&c##_contdat)))
++      (contextOptionsInit (&c##_contdat) ||     \
++       contextCommit      (&c##_contdat))))
+ 
+ #define CONTEXTGETDATA(c)           c##_contptr
+ #define CONTEXTGETOBJECT(c)         c##_cdatptr

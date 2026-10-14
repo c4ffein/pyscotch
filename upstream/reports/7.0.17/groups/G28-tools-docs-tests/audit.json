@@ -1,0 +1,458 @@
+[
+ {
+  "id": "CLI-20",
+  "our_title": "gmap usage announces imbalance default 0.05 and blames '-C' for bad '-c' letters",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "gpart -h | grep -- -b<val>  ->  '-b<val>    : Load imbalance tolerance (default: 0.05)'; grep -n 'kbalval = 0.01' src/scotch/gmap.c -> 170; echo 'cmplt 3' | gmap bump.grf - /dev/null -cZ -> \"gmap: ERROR: main: invalid strategy selection option 'Z' after '-C'\". Patched: '(default: 0.01)' and \"after '-c'\". git log -S shows both the 0.01 assignment and the 0.05 text date from the same 6.0 commit (eca6fb5, 2012).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "diagnostic/help text only; same as the review",
+  "location_7_0_17": "src/scotch/gmap.c:105, 170, 250",
+  "evidence": "gmap.c:105 '\"  -b<val>    : Load imbalance tolerance (default: 0.05)\",' ; :170 'kbalval = 0.01;                                 /* Default imbalance              */' ; :250 'errorPrint (\"main: invalid strategy selection option '%c' after '-C'\", argv[i][j]);'",
+  "upstream_change": "",
+  "review_accuracy": "accurate (gmap/gpart only; dgmap.c:82/150 agree on 0.05; the man page and user's manual state no default, so only the usage string needs fixing)",
+  "first_pass_critique": "Status, evidence and preferred option right. It did not notice the dead '-q' parameter check two lines further down (gmap.c:279, dgmap.c:272 test argv[i][1], which is the option letter: PS2-G28-1), nor that the second option would also change the library default it cites (library_graph_map.c:218), which is a behaviour change far beyond a help-text bug.",
+  "extra_instances": [
+   {
+    "location": "src/scotch/gmap.c:279",
+    "quote": "if (argv[i][1] == '\\0')\n              errorPrint (\"main: missing parameter after '-q' for gmap\");",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/scotch/dgmap.c:272",
+    "quote": "if (argv[i][1] == '\\0')\n              errorPrint (\"main: missing parameter after '-q' for dgmap\");",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a. Fix the usage text and the message",
+    "summary": "'(default: 0.01)'; \"after '-c'\" (one commit with BLD-23's gscat usage fix).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0001-Bugfix-make-usage-texts-of-gmap-and-gscat-match-thei.patch",
+    "tested": "gpart -h / gmap -cZ as above; both builds 0 warnings; check_prog_gmap, check_prog_gpart* pass (make check 32/64)",
+    "tradeoffs": "none: text only",
+    "preferred": true,
+    "maintainer_fit": "what he did for the same kind of lead in 4e0cbf1 (amk_grf usage text corrected to the real default)"
+   },
+   {
+    "label": "b. Change the code default to 0.05",
+    "summary": "kbalval = 0.05 in gmap.c so that the 13-year-old text becomes true.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/alt/CLI-20-b-change-default-to-0.05.diff",
+    "tested": "compiles (gcc, 0 warnings); not run",
+    "tradeoffs": "changes every gmap/gpart result without -b; dgmap already uses 0.05 so it would align the two tools, but the sequential library default (library_graph_map.c:218) stays 0.01",
+    "preferred": false,
+    "maintainer_fit": "a behaviour change for a doc bug; he would not take it without a reason to prefer 0.05"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0001-Bugfix-make-usage-texts-of-gmap-and-gscat-match-thei.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0002-Bugfix-test-the-right-character-for-a-missing-cluste.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "0002 fixes the dead '-q' check found next to it (PS2-G28-1, extra.json). The man page gmap.1 does not state the default, so no doc change; BLD-22's commit documents the other gmap options."
+ },
+ {
+  "id": "CLI-21",
+  "our_title": "PT-Scotch tools return without MPI_Finalize on help/version; errorPrint never aborts the job",
+  "status": "still-present",
+  "method": "partly-run",
+  "ran": "mpirun --oversubscribe -np 2 dgmap -h (and -V, '?', dgord/dgscat/dggath/dgtst -h): usage printed by every rank, then 'prterun has exited due to process rank 1 ... exited without calling \"finalize\"', rc=1; patched: rc=0 for all 15 paths. Hang test: m16x16.grf scattered on 3 ranks, part-1.grf truncated; timeout 15 mpirun -np 3 dgtst 'part-%r.grf' -> 'dgtst(1): ERROR: dgraphLoadDist: bad input (1)', job killed by prterun, rc=1 in < 1 s (same with dgord); patched with 0004: 'MPI_ABORT was invoked on rank 1 in communicator MPI_COMM_WORLD, Errorcode: 1', rc=1, 1 s.",
+  "read_only": "the hang itself: Open MPI 5 / PRRTE kills the job on a non-zero exit, so the other ranks never hang here; a launcher that keeps the job alive (Slurm srun without KillOnBadExit, some batch systems) is needed to see it",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "help/version exits only produce a spurious launcher error (rc 1); the error path hangs only with launchers that do not kill the job, hence low as in the review",
+  "location_7_0_17": "src/scotch/dgmap.c:176-179, 253-256, 303-307; dgord.c:154-156, 221-223, 253-255; dgscat.c:119-121, 148-150, 162-164; dggath.c:121-123, 150-152, 165-167; dgtst.c:134-136, 162-164, 176-178; src/libscotch/library_error_exit.c:142",
+  "evidence": "dgmap.c:176-179 'if ((argc >= 2) && (argv[1][0] == '?')) {       /* If need for help */\\n    usagePrint (stdout, C_usageList);\\n    return     (EXIT_SUCCESS);\\n  }' after MPI_Init at :165-169; the only MPI_Finalize is at :491. library_error_exit.c:142 'exit (EXIT_FAILURE);' after the SCOTCH_PTSCOTCH rank prefix at :120-126; git grep MPI_Abort -- src finds nothing.",
+  "upstream_change": "",
+  "review_accuracy": "first half accurate and reproduced; the 'others can hang' claim is launcher dependent (not reproducible with Open MPI/PRRTE, which kills the job); its Fix line is what the series does",
+  "first_pass_critique": "Right on both halves and honest about not reproducing the hang. It left MPI_Abort as a non-preferred sketch: the PT variant of the error-exit library already calls MPI_Initialized to print the rank, so it is MPI-aware by design and the abort belongs there (the sketch also lacked the MPI_Finalized guard, needed because MPI_Initialized stays true after MPI_Finalize). It did not note that usage is printed once per rank.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "a. MPI_Finalize before the three early returns of the five tools",
+    "summary": "15 sites, two lines each.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0003-Bugfix-finalize-MPI-before-the-PT-Scotch-programs-ex.patch",
+    "tested": "rc 0 for dgmap -h/-V/?, dgord/dgscat/dggath/dgtst -h with -np 2; make ptcheck 32/64",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "the final return of main already does MPI_Finalize(); return (EXIT_SUCCESS): this makes the early exits identical"
+   },
+   {
+    "label": "b. MPI_Abort in the PT-Scotch error-exit library",
+    "summary": "libptscotcherrexit's errorPrint calls MPI_Abort (MPI_COMM_WORLD, EXIT_FAILURE) when MPI is initialized and not finalized, then exit; the hands-on guide sentence updated.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0004-Abort-the-MPI-job-when-errorPrint-of-the-PT-Scotch-e.patch",
+    "tested": "bad part file on rank 1, -np 3: MPI_ABORT banner, rc 1 in 1 s; make ptcheck 32/64 (the dg* program tests link it)",
+    "tradeoffs": "behaviour change for embedders linking libptscotcherrexit: the whole job dies instead of one process (which is what an exit-on-error library means for an MPI job); Open MPI prints its MPI_ABORT banner",
+    "preferred": true,
+    "maintainer_fit": "the PT variant exists only to be MPI-aware (rank prefix at :120-126); he kept it a separate library precisely so that exit semantics can differ; kept as its own commit so it can be dropped alone"
+   },
+   {
+    "label": "c. Print usage/version on process 0 only, and finalize",
+    "summary": "Same as a, plus 'if (proclocnum == 0)' around the prints, so that -np 8 does not print 8 copies.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/alt/CLI-21-c-usage-on-root-process-only.diff",
+    "tested": "compiles (mpicc, 0 warnings); not run",
+    "tradeoffs": "nicer output but changes what users see on the other ranks' streams; the '?' path runs before the rank is used elsewhere so it is safe",
+    "preferred": false,
+    "maintainer_fit": "cosmetic, no precedent in the tree; he can take it later if wanted"
+   },
+   {
+    "label": "d. MPI_Abort only under a compile flag",
+    "summary": "#ifdef SCOTCH_ERROR_ABORT around the abort, default off.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/alt/CLI-21-d-abort-under-compile-flag.diff",
+    "tested": "compiles with -DSCOTCH_PTSCOTCH -DSCOTCH_ERROR_ABORT; not run",
+    "tradeoffs": "keeps the old behaviour by default, so the hang stays for everyone who does not know the flag",
+    "preferred": false,
+    "maintainer_fit": "he has SCOTCH_ERROR_SLEEP as precedent for such flags, but an opt-in does not fix the reported problem"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0003-Bugfix-finalize-MPI-before-the-PT-Scotch-programs-ex.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0004-Abort-the-MPI-job-when-errorPrint-of-the-PT-Scotch-e.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "; no natural home: the check Makefile has no test of program exit statuses on help paths, and the hang needs a launcher that keeps the job alive",
+  "docs_updated": "doc/src/handson/h_c.tex (libptscotcherrexit now 'aborts the whole MPI job')",
+  "needs": "mpi-fault",
+  "needs_note": "the hang needs a launcher that does not kill the job when a rank exits non-zero; not available (Open MPI 5 only)",
+  "notes": "Patch 0004 is a design decision for the maintainer: MPI_Abort of MPI_COMM_WORLD from a library. I recommend it because the error-exit libraries are documented as 'exit immediately' and, for an MPI job, exit() of one process is undefined by the standard while MPI_Abort is the defined way; it is a separate commit."
+ },
+ {
+  "id": "BLD-23",
+  "our_title": "gscat usage lists bare -i while the parser rejects -i without a number",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "gscat -h -> '    -i  : Create an imbalanced distribution'; gscat 3 m4x4.grf out-%r.grf -i -> \"gscat: ERROR: main: invalid number of vertices in graph parts ''\" rc 1; -i2 rc 0. Patched: '-i<nbr>  : Create an imbalanced distribution of <nbr> vertices per part (save for the last one)'.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "help text; same as the review",
+  "location_7_0_17": "src/scotch/gscat.c:73, 121-124",
+  "evidence": "gscat.c:73 '\"  -i  : Create an imbalanced distribution\",' ; :123-124 'if ((vertlocmin = (SCOTCH_Num) atoll (argv[i] + 2)) < 1)\\n            errorPrint (\"main: invalid number of vertices in graph parts '%s'\", argv[i] + 2);'",
+  "upstream_change": "",
+  "review_accuracy": "accurate; the dgscat(1) man page and p_p.tex already document '-inbr ... For gscat only' (afe4479), so only the usage string drifted",
+  "first_pass_critique": "Correct; its preferred wording ('each part having at least <num> vertices') is wrong: every part but the last gets exactly <nbr> vertices (C_graphScat's vertlocmin is 'Number of vertices for all processes but the last').",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "a. Fix the usage line",
+    "summary": "'-i<nbr>' with the argument, column-aligned like the other tools.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0001-Bugfix-make-usage-texts-of-gmap-and-gscat-match-thei.patch",
+    "tested": "gscat -h; check_prog_gscat (make check 32/64)",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "same as his afe4479 doc update for this very option"
+   },
+   {
+    "label": "b. Accept a bare -i with a default of one vertex per part",
+    "summary": "argv[i][2] == '\\0' -> vertlocmin = 1.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/alt/BLD-23-b-optional-argument.diff",
+    "tested": "compiles (gcc, 0 warnings); not run",
+    "tradeoffs": "new behaviour to document in dgscat.1 and p_p.tex; a one-vertex-per-part default is of little use",
+    "preferred": false,
+    "maintainer_fit": "no precedent for optional numeric arguments in the tools; he documented -inbr as taking a number"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0001-Bugfix-make-usage-texts-of-gmap-and-gscat-match-thei.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ },
+ {
+  "id": "BLD-22",
+  "our_title": "Man pages and user's manuals omit options of gmap, gord, dgmap, dgord, gmtst, gmk_m2/m3, amk_grf",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/BLD-22/dump_usage.sh (every tool's -h) + usage_vs_man.py against v7.0.17: 27 mismatches: gmap.1 lacks -C -f -o -ro -rr -rv -s; gord.1 lacks -C; dgmap.1 lacks -C -s; dgord.1 lacks -b -C; gmtst.1 lacks -o; gmk_hy.1 lacks -y; gout.1 lists -h twice; s_p.tex gmap lacks -f -ro -rr -rv, amk_grf lacks -2, gmtst lacks -o; p_p.tex dgmap lacks -C -q, dgord lacks -b -C. By hand: gmap.1 -c lacks 'r', dgmap.1/dgord.1 -v lack 'a'; dgscat.1(.txt) prints a literal \\textit{nbr}; s_p.tex gmap lists -V twice and says amk_grf makes 'deco 0' by default (amk_grf m4x4.grf | head -2 -> 'deco' '1'). After the patch: 2 mismatches left, both 'no manual section' (gbase, gdump have man pages but no user's-manual section).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "documentation; same as the review",
+  "location_7_0_17": "man/man1/gmap.1.txt:44-80, gord.1.txt:26-56, dgmap.1.txt:51-90, dgord.1.txt:31-63, gmtst.1.txt:28-31, gmk_hy.1.txt:28-45, gout.1.txt:28-29, dgscat.1.txt:96-100; doc/src/scotch/s_p.tex:305-306,335,504-606,711-757; doc/src/ptscotch/p_p.tex:272-343,377-452",
+  "evidence": "gmap.1.txt OPTIONS entries: -bval -copt -h -mstrat -q -qpwght -V -vverb (usage: also -C -f -o -ro -rr -rv -s, -c 'r'); dgord.1.txt: -copt -h -mmfile -ostrat -rpnum -ttfile -V -vverb (usage: -b, -C, -v 'a'); gout.1.txt:29 and :39 '  -h          Display some help.'; dgscat.1.txt:98 'will receive \\\\textit{nbr} vertices of the graph, save'; s_p.tex:606 second '\\\\iteme[\\\\texttt{-V}]'",
+  "upstream_change": "",
+  "review_accuracy": "accurate for the three pages it names; incomplete: it missed dgmap.1 (-C, -s), gmtst.1 (-o), gmk_hy.1 (-y), the sub-flag drift (gmap -c 'r', dgmap/dgord -v 'a'), gout.1's duplicate -h, dgscat.1's LaTeX leak and the user's manuals (gmap -f/-r*, dgmap -C/-q, dgord -b/-C, amk_grf -2, gmtst -o, gmap duplicate -V, stale 'deco 0')",
+  "first_pass_critique": "Status right, scope too narrow (three pages only, 'man pages are not regenerated by me'); its option-2 'generate the options table from the usage lists' is what repro/BLD-22/usage_vs_man.py does as a checker, which is the useful form (the man texts carry prose the usage lines do not). It did not know that the .1.txt sources use an ESC byte between option letter and argument for txt2man.",
+  "extra_instances": [
+   {
+    "location": "man/man1/dgmap.1.txt:51-90",
+    "quote": "no -Copt, no -sobj entry; -vverb lists m, s, t (usage: a, m, s, t)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "man/man1/gmtst.1.txt:28-31",
+    "quote": "  -h          Display some help.\\n\\n  -V          Display program version and copyright.  (usage: -o)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "man/man1/gmk_hy.1.txt:28-45",
+    "quote": "no -y entry (gmk_m2/gmk_m3 usage: '-y        : Invert y coordinate in geometry')",
+    "covered_by_patch": true
+   },
+   {
+    "location": "man/man1/gout.1.txt:29,39",
+    "quote": "  -h          Display some help. (twice)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "man/man1/dgscat.1.txt:98 and dgscat.1",
+    "quote": "will receive \\\\textit{nbr} vertices of the graph, save",
+    "covered_by_patch": true
+   },
+   {
+    "location": "doc/src/scotch/s_p.tex:504-606 (gmap), 305-335 (amk_grf), 752-757 (gmtst)",
+    "quote": "no -f/-ro/-rr/-rv items; '-V' item twice; 'rather than a ``\\\\texttt{deco~0}'' one' while amk_grf writes 'deco 1'; no -2 and -o items",
+    "covered_by_patch": true
+   },
+   {
+    "location": "doc/src/ptscotch/p_p.tex:272-343 (dgmap), 377-452 (dgord)",
+    "quote": "no -C and -q items; no -b and -C items",
+    "covered_by_patch": true
+   },
+   {
+    "location": "doc/src/scotch/s_p.tex (whole)",
+    "quote": "no subsubsection for gbase nor gdump although both have man pages",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a. Document every missing option in the .1.txt sources and the two manuals, regenerate the .1 pages",
+    "summary": "Entries worded from the usage lines and the library manual (graphMapFixed/graphRemap, dorderSaveBlock); ESC-separated option tags and -I flags in man/man1/Makefile as the existing pages do; txt2man regeneration (date 13 October 2026).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0007-Document-the-program-options-missing-from-the-man-pa.patch",
+    "tested": "usage_vs_man.py: 27 -> 2 mismatches; regenerating the 24 pristine pages with the same txt2man reproduces the committed files byte for byte except .TH dates (gout.1 differs by 16 lines because the committed one came from an older txt2man)",
+    "tradeoffs": "gout.1 is regenerated too (its duplicate -h), so it carries the newer txt2man rendering of one example line; the maintainer's own txt2man will give his rendering",
+    "preferred": true,
+    "maintainer_fit": "afe4479 'Update documentation for gscat' (tex + .1.txt + .1 in one commit) and 4e0cbf1 (usage and man text aligned)"
+   },
+   {
+    "label": "b. Keep a checker in the tree",
+    "summary": "Add repro/BLD-22/usage_vs_man.py as a CI step comparing usage texts with man/manual option tables.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/repro/BLD-22/usage_vs_man.py",
+    "tested": "run as above",
+    "tradeoffs": "new tooling; the prose must still be written by hand",
+    "preferred": false,
+    "maintainer_fit": "no precedent for doc-consistency tooling in src/ or ci/; offered as a tool, not a patch"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0007-Document-the-program-options-missing-from-the-man-pa.patch"
+  ],
+  "cleanup_done": "none needed (duplicate entries removed)",
+  "test_added": "; repro/BLD-22/usage_vs_man.py is the checker, not a src/check test",
+  "docs_updated": "man/man1/{gmap,gord,dgmap,dgord,gmtst,gmk_hy,gout,dgscat}.1.txt and .1, man/man1/Makefile, doc/src/scotch/s_p.tex, doc/src/ptscotch/p_p.tex",
+  "needs": "",
+  "needs_note": "",
+  "notes": "gbase and gdump have no user's-manual section at all; writing them is new documentation, left to the maintainer. The PDFs are not regenerated (he does that at release time: 'Generate documentation for v7.0.17')."
+ },
+ {
+  "id": "BLD-18",
+  "our_title": "check_prog_mcv and check_prog_atst are defined but absent from CHECKSCOTCH",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "list audit (repro/BLD-18/README): defined check_* targets not in any CHECK* list = check_prog_atst, check_prog_mcv (+ the debug aggregates check_full/check_prog_full/check_prog_dfull); CMake has atst_4x4x4 and mcv_* tests. make -n check | grep -c 'bin/mcv\\|bin/atst' -> 0 pristine, 4 patched. make check (32-bit and 64-bit, combined series + this series) runs both: see $WORK/check32.log, check64.log.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "test coverage; same as the review",
+  "location_7_0_17": "src/check/Makefile:201-247 (CHECKSCOTCH), 716 (check_prog_atst), 763 (check_prog_mcv)",
+  "evidence": "Makefile:201-247 lists check_prog_amk ... check_prog_acpl, check_prog_gbase ... check_prog_gtst, check_prog_mmk, check_prog_mord: no check_prog_atst, no check_prog_mcv; :716 'check_prog_atst\\t\\t\\t:' ; :763 'check_prog_mcv\\t\\t        :\\tcheck_prog_mmk'",
+  "upstream_change": "",
+  "review_accuracy": "accurate but incomplete: check_prog_atst is orphaned the same way (CMake runs it as atst_4x4x4)",
+  "first_pass_critique": "Right for mcv; missed check_prog_atst although it is the only other orphan; the 'audit the whole list' it did not do is in repro/BLD-18/README.",
+  "extra_instances": [
+   {
+    "location": "src/check/Makefile:716",
+    "quote": "check_prog_atst\\t\\t\\t:\\n\\t\\t\\t\\t\\t$(EXECS) $(SCOTCHBINDIR)/atst $(SCOTCHTGTDIR)/t4x4x4.tgt",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a. Add both targets to CHECKSCOTCH in list order",
+    "summary": "check_prog_atst after check_prog_acpl, check_prog_mcv before check_prog_mmk (its prerequisite).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0005-Run-the-atst-and-mcv-program-tests-from-the-check-ta.patch",
+    "tested": "make check on both trees runs them (4 atst/mcv lines in the -n output)",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "the list is the single place he edits when adding a test (e.g. G07/G09/G11/G12/G19 commits in the combined series add lines there)"
+   },
+   {
+    "label": "b. Chain them as prerequisites of related targets",
+    "summary": "check_prog_acpl depends on check_prog_atst, check_prog_mord on check_prog_mcv.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/alt/BLD-18-b-chain-from-dependent-targets.diff",
+    "tested": "applies (patch --dry-run); not run",
+    "tradeoffs": "hides the two tests behind unrelated targets; a failing mcv would be reported as mord's",
+    "preferred": false,
+    "maintainer_fit": "against the file's idiom (every test is a list entry)"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0005-Run-the-atst-and-mcv-program-tests-from-the-check-ta.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "src/check/Makefile: check_prog_atst and check_prog_mcv now run from `make check`",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "src/check/CMakeLists.txt needs nothing (both tests exist there, marked '# check_prog_atst' / '# check_prog_mcv')."
+ },
+ {
+  "id": "BLD-04",
+  "our_title": "test_scotch_graph_order's checkOrder prints and continues, then indexes with the bad value",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/mutate.sh on the combined-series tree (checkOrder unchanged from 7.0.17): 'permtab[5] = permtab[6];' before the first checkOrder call -> 'ERROR: checkOrder: invalid permutation pair', rc=0; 'permtab[5] = baseval - 7;' -> 'ERROR: checkOrder: invalid permutation value' then 'AddressSanitizer: heap-buffer-overflow ... READ of size 4 ... #0 checkOrder test_scotch_graph_order.c:103'. Patched: rc=1 for both, no overflow; unmutated check_scotch_graph_order rc=0 on 32-bit and 64-bit.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "lower than the review's 'high': the test cannot miss a library bug silently any more than it could flag one, but the library itself is unaffected; the OOB is in the test and only after a library bug (and G15's PS-BLD-1 commit now makes SCOTCH_graphOrderCheck verify permtab, so the test's own check is a second line)",
+  "location_7_0_17": "src/check/test_scotch_graph_order.c:74, 93-104",
+  "evidence": "test_scotch_graph_order.c:94-96 'if ((permval <  baseval) ||\\n        (permval >= vertnnd))\\n      SCOTCH_errorPrint (\"checkOrder: invalid permutation value\");' ; :103-104 'if (peritab[permval - baseval] != (vertnum + baseval))\\n      SCOTCH_errorPrint (\"checkOrder: invalid permutation pair\");' ; header :74 'It exits on error.' ; Makefile:42 LIBSCOTCH = -lscotch -lscotcherr (non-exiting)",
+  "upstream_change": "",
+  "review_accuracy": "accurate; its 'skip the pair check when permval is out of range' is subsumed by exiting at the first error",
+  "first_pass_critique": "Right and well tested; its preferred option is the one committed. Its 'shared helper macro' option would be a style departure the tree does not have.",
+  "extra_instances": [
+   {
+    "location": "src/check/test_scotch_graph_map.c:95-106 (BLD-16), test_scotch_mesh_graph.c:113-114 (BLD-15)",
+    "quote": "same 'print but do not exit' family, handled under their own ids",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a. Exit at the first invalid value",
+    "summary": "Braces + exit (EXIT_FAILURE) after each of the three messages, as checkMap and the test_libmetis*.c checkers do.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0006-Bugfix-exit-on-invalid-permutations-in-test_scotch_g.patch",
+    "tested": "mutations above; check_scotch_graph_order 32/64 (bump.grf, bump_b100000.grf) with G15's load cases still passing",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "the file's own header says 'It exits on error'; checkMap in test_scotch_graph_map.c:98-100 is the sibling idiom"
+   },
+   {
+    "label": "b. Return a status and exit once in main",
+    "summary": "checkOrder returns int, main exits on != 0.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/alt/BLD-04-b-return-status.diff",
+    "tested": "compiles (gcc, 0 warnings); not run",
+    "tradeoffs": "equivalent coverage, two more lines at each of the (now two) call sites",
+    "preferred": false,
+    "maintainer_fit": "he writes exiting checkers in the test programs, not status-returning ones"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0006-Bugfix-exit-on-invalid-permutations-in-test_scotch_g.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "src/check/test_scotch_graph_order.c itself (its checker now fails the run)",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "G15 added a second checkOrder call (after the save/load round trip) and the invalid-file cases; both keep working (the orderLoad error lines in the unmutated run are those expected failures)."
+ },
+ {
+  "id": "BLD-16",
+  "our_title": "test_scotch_graph_map skips unmapped vertices, bounds nothing on variable archs, ignores fixed vertices",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/mutate.sh on m16x16.grf before (combined series): (a) memset parttab to -1 before checkMap rc=0; (b) fixed vertex (0,0) moved to part 1 for the fixed cases rc=0; (c) parttab[5] = 0 on the variable-sized hypercube (terminal 0 does not exist) rc=0; (d) parttab[5] = 1000000 on it rc=0. After (0008): (a) 'checkMap: invalid mapping (1)' rc=1; (b) 'invalid mapping (3)' rc=1; (c) 'invalid mapping (2)' rc=1; (d') parttab[5] = 5 on cmplt 5 'invalid mapping (2)' rc=1. Unmutated: check_scotch_graph_map rc=0 on m4x4, m4x4_b100000, m16x16, 32-bit and 64-bit.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "same as the review: the main sequential mapping test could not detect an unmapped or moved vertex",
+  "location_7_0_17": "src/check/test_scotch_graph_map.c:83-108, 254",
+  "evidence": "test_scotch_graph_map.c:95-96 'if (partval == -1)                            /* Unmapped vertex */\\n      continue;' ; :102-103 'if ((flagval == 0) &&\\n        (partval >= partnbr)) {' ; :254 'checkMap (vertnbr, parttab, archsiz, (archnum == (ARCHNBR - 1)) ? 1 : 0);' (no record of the preset fixed parts anywhere)",
+  "upstream_change": "",
+  "review_accuracy": "accurate on the three gaps; its 'bound partval by the architecture size' is wrong for variable-sized architectures (SCOTCH_archSize (vhcub) = 1 while terminal numbers are binary-tree numbers, arch_vhcub.c:243-244): the right bound is 'is a terminal domain of the architecture', which SCOTCH_archDomTerm answers for every architecture (0 is rejected for vhcub, arch_vhcub.c:102-103; >= termnbr for cmplt, arch_cmplt.c:271)",
+  "first_pass_critique": "Found the three gaps and tested mutations, but its preferred bound '2 * (vertnbr + 2)' for variable-sized architectures is an empirical constant with no meaning (labels are tree numbers whose depth depends on the strategy); SCOTCH_archDomTerm is the library's own definition of a valid terminal. It did not update G12's zero-load fixed-vertex case (which it could not know of) and did not notice that the old 'partnbr/flagval' parameters become dead once the architecture is passed.",
+  "extra_instances": [
+   {
+    "location": "src/check/test_scotch_graph_map.c (combined series) G12's zero-load fixed block: 'checkMap (vertnbr, parttab, vertnbr, 0);'",
+    "quote": "fixed parts were not compared there either",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a. checkMap (archptr, vertnbr, parttab, parftab): valid terminal via SCOTCH_archDomTerm, fixed parts compared with a saved copy",
+    "summary": "Rejects any negative value, any value that is not a terminal domain of the target architecture, and any fixed vertex (parftab[v] != -1) whose part changed; parftab is a copy of parttab taken after the fixed vertices are set, passed for the fixed and remapping-with-fixed-vertices cases and for G12's zero-load case; partnbr/flagval parameters removed.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0008-Bugfix-check-that-all-vertices-and-fixed-vertices-ar.patch",
+    "tested": "mutations (a)-(d) above; unmutated 32/64 on the three graphs",
+    "tradeoffs": "uses SCOTCH_archDomTerm in a test program (first use in src/check, but a public routine of library.h:215); archsiz is still needed to place the fixed vertices",
+    "preferred": true,
+    "maintainer_fit": "defines validity by the library's own terminal-domain notion instead of a magic bound; parftab mirrors the 'parotab' old-mapping copy the test already keeps"
+   },
+   {
+    "label": "b. Minimal: reject -1 and the null terminal only, keep the signature",
+    "summary": "No fixed-vertex comparison.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/alt/BLD-16-b-bounds-only-no-fixed-check.diff",
+    "tested": "compiles (gcc, 0 warnings); not run",
+    "tradeoffs": "catches (a), (c), (d) but still accepts a moved fixed vertex (b), i.e. the review's third gap",
+    "preferred": false,
+    "maintainer_fit": "incomplete; he would ask for the fixed-vertex check since the test exists for SCOTCH_graphMapFixed"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/patches/0008-Bugfix-check-that-all-vertices-and-fixed-vertices-ar.patch"
+  ],
+  "cleanup_done": "checkMap's partnbr and flagval parameters and the 'ARCHNBR - 1' flag computation at the call site removed; archsiz kept (still used to place fixed vertices)",
+  "test_added": "src/check/test_scotch_graph_map.c itself (parftab copy, SCOTCH_archDomTerm validity, fixed-part comparison in all three fixed cases)",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "src/check/CMakeLists.txt needs no change (same program, same arguments)."
+ },
+ {
+  "id": "BLD-15",
+  "our_title": "test_scotch_mesh_graph prints 'invalid graph converted from mesh' and exits 0",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "pristine 7.0.17 test + pristine library (INFRA/asan), edgetab[0] = 999999 inserted after SCOTCH_meshGraph via SCOTCH_graphData: 'ERROR: graphCheck: invalid edge array', 'ERROR: main: invalid graph converted from mesh', rc=0. Combined series (G11's 7f94e1c): same corruption -> rc=1. Unmutated check_scotch_mesh_graph rc=0 (32-bit, 64-bit).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "same as the review",
+  "location_7_0_17": "src/check/test_scotch_mesh_graph.c:113-114",
+  "evidence": "test_scotch_mesh_graph.c:113-114 'if (SCOTCH_graphCheck (&grafdat) != 0)\\n    SCOTCH_errorPrint (\"main: invalid graph converted from mesh\");' then :119 'exit (EXIT_SUCCESS);'",
+  "upstream_change": "",
+  "review_accuracy": "accurate",
+  "first_pass_critique": "Correct; its fix is the one G11 committed (braces + exit) inside the base-change loop it added.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "a. Exit on failure (already in the combined series: G11's commit 7f94e1c)",
+    "summary": "The check now sits inside G11's three-base loop with exit (EXIT_FAILURE); G28 adds nothing.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io/patches/0009-Bugfix-adjust-edge-ends-to-the-requested-base-in-mes.patch",
+    "tested": "mutation above (rc 1), unmutated rc 0 on both trees",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "same idiom as the other checks of the file"
+   },
+   {
+    "label": "b. Keep a status, free the structures, exit once",
+    "summary": "o = SCOTCH_graphCheck (...); exits after graphExit/meshExit with o.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G28-tools-docs-tests/alt/BLD-15-b-status-variable.diff",
+    "tested": "compiles against the pristine file (gcc, 0 warnings); not run",
+    "tradeoffs": "more lines for a test program; conflicts with G11's loop",
+    "preferred": false,
+    "maintainer_fit": "he exits immediately in test programs"
+   }
+  ],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Fixed in the combined series by G11 (work/G11-mesh-struct-io/patches/0009); status 'still-present' refers to 7.0.17. Proof before/after in repro/BLD-15/README."
+ }
+]

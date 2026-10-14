@@ -1,0 +1,43 @@
+--- a/src/libscotch/library_context.c
++++ b/src/libscotch/library_context.c
+@@ -305,14 +305,16 @@
+ 
+   switch (optinum) {
+     case CONTEXTOPTIONNUMRANDOMFIXEDSEED :
+-      if (optitmp != 0)
++      if (optitmp != 0) {
+         optitmp = 1;                              /* Only two values available */
++        intRandSeed (((Context *) libcontptr)->randptr, 1); /* Use fixed random seed from now on */
++      }
+       break;
+     case CONTEXTOPTIONNUMDETERMINISTIC :
+       if (optitmp != 0) {
+         optitmp = 1;                              /* Only two values available */
+ 
+-        o = contextValuesSetInt ((Context *) libcontptr, CONTEXTOPTIONNUMRANDOMFIXEDSEED, 1); /* If deterministic behavior wanted, use fixed random seed */
++        o = SCOTCH_contextOptionSetNum (libcontptr, CONTEXTOPTIONNUMRANDOMFIXEDSEED, 1); /* If deterministic behavior wanted, use fixed random seed */
+       }
+       break;
+     default :
+--- a/src/libscotch/context.c
++++ b/src/libscotch/context.c
+@@ -99,10 +99,17 @@
+     INT                 rafival;
+ 
+     contextValuesGetInt (contptr, CONTEXTOPTIONNUMDETERMINISTIC, &deteval);
+-    contextValuesSetInt (contptr, CONTEXTOPTIONNUMDETERMINISTIC, envGetInt ("SCOTCH_DETERMINISTIC", deteval));
++    deteval = envGetInt ("SCOTCH_DETERMINISTIC", deteval);
++    contextValuesSetInt (contptr, CONTEXTOPTIONNUMDETERMINISTIC, deteval);
+ 
+     contextValuesGetInt (contptr, CONTEXTOPTIONNUMRANDOMFIXEDSEED, &rafival);
+-    contextValuesSetInt (contptr, CONTEXTOPTIONNUMRANDOMFIXEDSEED, envGetInt ("SCOTCH_RANDOM_FIXED_SEED", rafival));
++    rafival = envGetInt ("SCOTCH_RANDOM_FIXED_SEED", rafival);
++    if (deteval != 0)                             /* Deterministic behavior implies fixed random seed */
++      rafival = 1;
++    contextValuesSetInt (contptr, CONTEXTOPTIONNUMRANDOMFIXEDSEED, rafival);
++
++    if (rafival != 0)                             /* If fixed random seed wanted at run time */
++      intRandSeed (contptr->randptr, 1);          /* Use the same seed as COMMON_RANDOM_FIXED_SEED */
+   }
+ 
+   return (o);

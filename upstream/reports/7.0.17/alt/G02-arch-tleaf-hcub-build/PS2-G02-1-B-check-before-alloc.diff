@@ -1,0 +1,40 @@
+diff --git a/src/libscotch/arch_cmpltw.c b/src/libscotch/arch_cmpltw.c
+index 58add39..e62ed67 100644
+--- a/src/libscotch/arch_cmpltw.c
++++ b/src/libscotch/arch_cmpltw.c
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 14 feb 2011     **/
+ /**                                 to   : 12 apr 2015     **/
+ /**                # Version 7.0  : from : 18 feb 2018     **/
+-/**                                 to   : 11 jul 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -170,6 +170,13 @@ const Anum * restrict const velotab)
+     return (1);
+   }
+ 
++  for (vertnum = 0; vertnum < vertnbr; vertnum ++) { /* Check vertex loads before allocating */
++    if (velotab[vertnum] <= 0) {                  /* Target weights cannot be negative nor null */
++      errorPrint ("archCmpltwArchBuild2: invalid parameters (2)");
++      return (1);
++    }
++  }
++
+   if ((vecwtab = (ArchCmpltwLoad *) memAlloc (vertnbr * sizeof (ArchCmpltwLoad))) == NULL) {
+     errorPrint ("archCmpltwArchBuild2: out of memory");
+     return (1);
+@@ -179,12 +186,6 @@ const Anum * restrict const velotab)
+     Anum                veloval;
+ 
+     veloval = velotab[vertnum];
+-    if (veloval <= 0) {                           /* Target weights cannot be negative nor null */
+-      errorPrint ("archCmpltwArchBuild2: invalid parameters (2)");
+-      memFree    (velotab);
+-      return (1);
+-    }
+-
+     velosum += veloval;
+     vecwtab[vertnum].veloval = veloval;
+     vecwtab[vertnum].vertnum = vertnum;

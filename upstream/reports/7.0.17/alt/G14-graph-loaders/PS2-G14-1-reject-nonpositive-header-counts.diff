@@ -1,0 +1,33 @@
+Optional hardening for PS2-G14-1: reject non-positive object counts in the
+Chaco and Matrix Market headers, mirroring graphLoad()'s own vertnbr/edgenbr
+checks (graph_io.c:131-139). Turns a pathological file (negative count ->
+wrapped huge malloc that returns NULL in production / ASan "exceeds maximum",
+or a near-hang on a huge positive count) into an explicit early error.
+Does NOT bound legitimately large positive counts (no safe upper bound exists);
+that, and the Harwell-Boeing format-width / column-pointer trust and the
+intLoad() parse overflow (common_integer.c, out of this group), need the
+maintainer's decision. Untested build.
+
+--- a/src/libscotch/graph_io_chac.c
++++ b/src/libscotch/graph_io_chac.c
+@@ -116,6 +116,11 @@
+     errorPrint ("graphGeomLoadChac: bad input (1)");
+     return     (1);
+   }
++  if ((chavertnbr < 0) || (chaedgenbr < 0)) {     /* Object counts cannot be negative */
++    errorPrint ("graphGeomLoadChac: invalid graph size");
++    return     (1);
++  }
+   getc (filesrcptr);                              /* Purge newline; cannot be merged with fscanf above */
+
+--- a/src/libscotch/graph_io_mmkt.c
++++ b/src/libscotch/graph_io_mmkt.c
+@@ -144,6 +144,10 @@
+   if (mrownbr != mcolnbr) {                       /* If not a square matrix */
+     errorPrint ("graphGeomLoadMmkt: not a square matrix");
+     return     (1);
+   }
++  if ((mrownbr < 0) || (linenbr < 0)) {           /* Object counts cannot be negative */
++    errorPrint ("graphGeomLoadMmkt: invalid matrix size");
++    return     (1);
++  }

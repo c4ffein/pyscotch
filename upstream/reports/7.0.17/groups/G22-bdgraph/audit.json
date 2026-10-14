@@ -1,0 +1,379 @@
+[
+ {
+  "id": "DMO-09",
+  "our_title": "bal strategy variable stale after Sq and Zero, uninitialised for coarse graphs, divergent across folded halves",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "cd $WORK/repro/common (driver prints bal=<bbalglbval> balcalc=<|dlt|/avg>); base-combined UBSan tree:\n  mpirun -np 3 ./bin_basefi/bipartfi 4elt.grf 0 'q{strat=f}' 0 1 -> 'rank 0: ... bal=1 balcalc=0.0061514802'\n  ... 'q{strat=f}x{bal=0.001}z' -> 'bal=0.000897090862 balcalc=1'\n  mpirun -np 2 ... 'm{asc=/(levl<0)?z;,low=q{strat=f}x{bal=0},seq=q{strat=f}x{bal=0},fold=d,dvert=100000,vert=100}' -> 'rank 0: ... bal=0.000128155837 balcalc=0.000128155837' / 'rank 1: ... bal=0 balcalc=0.000128155837' (np=4: rank 1 has 0.000128, ranks 0,2,3 have 0)\n  with the default dvert/vert the coarse value is never initialised: 'bal=-5.31401037e+303' (pattern-initialised stack)\n  mpirun -np 2 ... 'q{strat=f}q{strat=/(bal<0)?z;}' -> z runs ('load0=15606'): uninitialised bbalval of the gathered Bgraph\nPatched (build, buildfi, builddbg): bal == balcalc on all ranks in every probe; (bal<0)?z no longer runs z (repro/DMO-09/*.txt).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "higher than the review's Low: the divergence across processes was reproduced (fold-dup is the default folding mode), and any user strategy with a 'bal' condition (as the shipped SCOTCH_stratDgraphMapBuild strings use 'bal=' parameters, a conditional on bal is a documented construct) can run different collectives on different processes and hang; also an uninitialised-memory read in bdgraphBipartSq's sequential strategy.",
+  "location_7_0_17": "src/libscotch/bdgraph_bipart_ml.c:753 (copy from own coarse graph), bdgraph_bipart_ml.c:85-170 (bdgraphBipartMlCoarsen never sets bbalglbval), bdgraph_bipart_sq.c:235-240, bdgraph.c:178-193 (bdgraphZero), bdgraph_gather_all.c:248-254",
+  "evidence": "bdgraph_bipart_ml.c:753 'finegrafptr->bbalglbval      = coargrafptr->bbalglbval;' after :748 'finegrafptr->compglbload0dlt = finegrafptr->compglbload0 - finegrafptr->compglbload0avg;' (the selected partition's loads); bdgraph_bipart_sq.c:235-240 set compglbload0..fronglbnbr but not bbalglbval; bdgraph.c:184-192 bdgraphZero sets loads but not bbalglbval; bdgraph_gather_all.c:248-254 set compload0dlt but not bbalval (only bgraphZero at :198 does, on the first call).",
+  "upstream_change": "",
+  "review_accuracy": "Accurate; understated: besides staleness, the coarse graph's field is never initialised at all (garbage, not just stale), and the divergence across ranks is real (reproduced with duplicated folding).",
+  "first_pass_critique": "Status/method right. It did not demonstrate the divergence because its probes used the default ml parameters (dvert=1000 means no folding on 4elt at np<=4, and the chain ends through the 'low' strategy whose q leaves the field untouched); its claim 'all ranks held the same stale value' was an artefact of that. Its preferred option A is the right shape but its sketch guards with 'compglbload0avg != 0' in some places and not others and uses ABS in bdgraph_bipart_ml.c while the file family uses the explicit ternary; its gather_all line uses the signed ratio (bgraph.c idiom) where every method uses the absolute one. Option B (recompute in bdgraphBipartSt) would leave the uninitialised coarse value and the gathered Bgraph's bbalval unfixed (the sequential strategy evaluates bal in bgraphBipartSt, not bdgraphBipartSt).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/bdgraph_bipart_ml.c:118-170 (bdgraphBipartMlCoarsen)",
+    "quote": "coargrafptr->compglbload0avg  = finegrafptr->compglbload0avg; ... (no bbalglbval assignment)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/bdgraph_bipart_ex.c:130-132",
+    "quote": "if ((ABS (grafptr->compglbload0dlt) < compglbloaddltmax) || (grafptr->fronglbnbr == 0)) return (0);",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/bdgraph_bipart_bd.c:202",
+    "quote": "bndgrafdat.bbalglbval       = orggrafptr->bbalglbval;",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: recompute from the global loads wherever the partition changes (per-method idiom)",
+    "summary": "bdgraphZero, bdgraphBipartSq (after the Bcast), bdgraphBipartMlUncoarsen (instead of the copy) set bbalglbval = |compglbload0dlt|/compglbload0avg as df/ex/bd/store do; bdgraphGatherAll sets cgrfptr->bbalval the same way. Every graph then gets a valid value before any strategy runs on it (Zero at the coarsest level, Uncoarsen above).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0004-Bugfix-keep-the-bal-strategy-variable-up-to-date-in-.patch",
+    "tested": "probes above on the ASan, UBSan/pattern and DEBUG_ALL trees, np 2..4; builds with 0 warnings on the 32-bit ASan, 64-bit, UBSan/pattern-init and -DSCOTCH_DEBUG_ALL trees; full CHECKPTSCOTCH set on 32-bit and 64-bit trees and the dgraph subset on the DEBUG_ALL tree (SUMMARY.md); dgpart/dgord at -np 1..4 on 32/64-bit trees",
+    "tradeoffs": "Four producer sites to keep in sync for future methods (same as today for the other fields).",
+    "preferred": true,
+    "maintainer_fit": "It is his own convention: bdgraph_bipart_df.c:389, _ex.c:493, _bd.c:444, bdgraph_store.c:174 all end with exactly this assignment."
+   },
+   {
+    "label": "B: refresh lazily in bdgraphBipartSt before evaluating a condition",
+    "summary": "One assignment in the STRATNODECOND case of bdgraphBipartSt.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/alt/DMO-09-B-lazy-recompute-in-bipartst.diff",
+    "tested": "applies on base-combined and compiles (-O2 -Wall, 0 diagnostics); not run",
+    "tradeoffs": "Single site, but hides that methods leave the field stale, and does nothing for the gathered Bgraph's bbalval (evaluated by bgraphBipartSt) nor for the uninitialised coarse value; departs from the per-method convention.",
+    "preferred": false,
+    "maintainer_fit": "No precedent in the tree for strategy variables being refreshed in the strategy evaluator."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0004-Bugfix-keep-the-bal-strategy-variable-up-to-date-in-.patch"
+  ],
+  "cleanup_done": "none needed (the coarse-to-fine copy line is replaced, no field or variable becomes unused)",
+  "test_added": "; no natural home: src/check has no test of strategy conditions on distributed active graphs and 'bal' is not observable through the public API; the driver repro/common/bipartfi.c is the test",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The band graph copy at bdgraph_bipart_bd.c:202 is left: the band graph's average is tilted by the anchor loads, so a recomputed ratio would differ slightly from the original graph's; the copy is of a now-correct value and the band strategy conditions see the original graph's ratio, which is the meaningful one. bdgraphInit2 keeps its signed, zero-guarded form (dlt >= 0 there)."
+ },
+ {
+  "id": "DMO-11",
+  "our_title": "best-partition reductions of ml and sq tie-break on signed load difference",
+  "status": "still-present",
+  "method": "partly-run",
+  "ran": "Patched library runs all probes and the CHECKPTSCOTCH set unchanged (the reduction still selects a valid partition); the selection difference itself (two candidates with equal commload and opposite-sign dlt) was not provoked.",
+  "read_only": "The operators and producers: bdgraph_bipart_ml.c:208-210 / :335 and bdgraph_bipart_sq.c:111-114 / :182; the sequential selection they should mirror: bdgraph_bipart_st.c:353-363 (ABS on both sides since f545452).",
+  "why_not_run": "a runtime proof needs two processes producing partitions of identical cut and opposite-sign imbalance in the same reduction; not controllable with the shipped methods",
+  "severity": "low",
+  "severity_note": "quality only, on exact ties of the primary key",
+  "location_7_0_17": "src/libscotch/bdgraph_bipart_ml.c:208-210 (operator) and :335 (producer); bdgraph_bipart_sq.c:111-114 (operator) and :182 (producer)",
+  "evidence": "bdgraph_bipart_ml.c:335 'reduloctab[4] = coargrafptr->compglbload0dlt;' and :209 '((in[3] == inout[3]) && ((in[4] < inout[4]) ||'; bdgraph_bipart_sq.c:182 'reduloctab[1] = cgrfdat.compload0dlt;' and :113 '((in[1] < inout[1]) ||'; the error sentinel :158 'reduloctab[1] = GNUMMAX; /* And maximum load imbalance */' already assumes an absolute value.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate.",
+  "first_pass_critique": "Right status and fix; its 'method: source-read' is honest. Its diff put ABS on the producer side as I do; nothing wrong found. The vdgraph twins it lists are G23's and are provided here as alt diffs.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/vdgraph_separate_ml.c:422",
+    "quote": "reduloctab[4] = coargrafptr->compglbloaddlt;",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/vdgraph_separate_sq.c:173",
+    "quote": "reduloctab[1] = cgrfdat.comploaddlt;",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: reduce the absolute value (producer side)",
+    "summary": "ABS () at the two producer lines; operators unchanged (pure lexicographic on (cut, |dlt|, rank)).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0005-Bugfix-compare-absolute-imbalances-when-selecting-th.patch",
+    "tested": "builds with 0 warnings on the 32-bit ASan, 64-bit, UBSan/pattern-init and -DSCOTCH_DEBUG_ALL trees; full CHECKPTSCOTCH set on 32-bit and 64-bit trees and the dgraph subset on the DEBUG_ALL tree (SUMMARY.md); dgpart/dgord at -np 1..4 on 32/64-bit trees",
+    "tradeoffs": "The transported slot loses its sign; it is not read afterwards (checked: ml uses reduglbtab[2] only, sq overwrites reduloctab for the Bcast).",
+    "preferred": true,
+    "maintainer_fit": "Matches his f545452 (ABS in bdgraphBipartSt's own comparisons) and the GNUMMAX sentinel; two one-line edits."
+   },
+   {
+    "label": "B: compare absolute values inside the operators",
+    "summary": "ABS (in[k]) < ABS (inout[k]) in the two OpBest routines.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/alt/DMO-11-B-abs-in-operator-ml.diff (and DMO-11-B-abs-in-operator-sq.diff)",
+    "tested": "applies on base-combined and compiles (-O2 -Wall; the ml file keeps the pre-existing foldval warning of DMO-18)",
+    "tradeoffs": "Keeps the signed value available but evaluates ABS at each reduction step; same order as A (commutative/associative).",
+    "preferred": false,
+    "maintainer_fit": "Closer to G08's bgraphBipartGg fix (combined 0041, comparison side), equally acceptable; A is smaller."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0005-Bugfix-compare-absolute-imbalances-when-selecting-th.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "; no natural home (tie-breaking of an MPI reduction is not observable in src/check)",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "vdgraph twins: alt/DMO-11-twin-vdgraph_separate_ml.diff and alt/DMO-11-twin-vdgraph_separate_sq.diff (G23's files, same producer-side design, compile-checked)."
+ },
+ {
+  "id": "DMO-18",
+  "our_title": "bdgraphBipartMlCoarsen's invalid-fold case guarded by the sequential module's debug macro",
+  "status": "partially-fixed",
+  "method": "ran",
+  "ran": "cd $WORK/build/src/libscotch; mpicc -O2 -Wall ... -DSCOTCH_DEBUG_BDGRAPH2 -E bdgraph_bipart_ml.c | grep -c 'bdgraphBipartMlCoarsen: invalid parameter' -> 0 on base-combined (1 with -DSCOTCH_DEBUG_BGRAPH2); mpicc -O2 -Wall -c bdgraph_bipart_ml.c (base) -> \"warning: 'foldval' may be used uninitialized [-Wmaybe-uninitialized]\". Patched DEBUG_ALL tree: the case is compiled (grep -c -> 1) and the -O2 -Wall compile is clean.",
+  "read_only": "The sibling sites of the lead in other groups' files (listed in extra_instances).",
+  "why_not_run": "",
+  "severity": "info",
+  "severity_note": "as the review; the only effect in release builds is the -O2 'may be used uninitialized' warning",
+  "location_7_0_17": "src/libscotch/bdgraph_bipart_ml.c:103-107",
+  "evidence": "bdgraph_bipart_ml.c:103 '#ifdef SCOTCH_DEBUG_BGRAPH2' ... :107 '#endif /* SCOTCH_DEBUG_BDGRAPH2 */'",
+  "upstream_change": "hdgraph_fold.c instance: fixed in the combined series by G18's 'Bugfix: make error handling of `dgraphFold2()` and `hdgraphFold2()` collective' (no 'dgraphFold2' string nor SCOTCH_DEBUG_DGRAPH macro left in hdgraph_fold.c); the other sibling sites are untouched in 7.0.17",
+  "review_accuracy": "Accurate for the bdgraph instance; for hdgraph_order_st.c the '&&' is shared with the sequential hgraph_order_st.c:284 (first pass noted it too).",
+  "first_pass_critique": "Its preferred option only renames the macro; that keeps the default case debug-only and the release-build -O2 warning, which vdgraph_separate_ml.c:104-106 (the twin) avoids by compiling the case unconditionally. Its vdgraph_separate_sq.c sketch reduces the local flag into reduloctab[3] and then compares it, which clobbers the only copy of the local validity flag; the alt diff here reduces into the spare slot reduloctab[4] and frees cgrfdat on the error path.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/vdgraph_separate_ml.c:383-390, 450-452",
+    "quote": "#ifdef SCOTCH_DEBUG_BDGRAPH1 ... #ifdef SCOTCH_DEBUG_BDGRAPH2 (in the vdgraph module)",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/vdgraph_separate_sq.c:181-188",
+    "quote": "MPI_Allreduce (&reduglbtab[3], &reduloctab[3], 1, GNUM_MPI, MPI_SUM, ... if ((reduloctab[3] != 0) && (reduloctab[3] != dgrfptr->s.procglbnbr))",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/hdgraph_order_st.c:190-191 and hgraph_order_st.c:284-285",
+    "quote": "if ((testdat.testval != STRATTESTVAL) && (testdat.nodeval != STRATPARAMLOG))",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/libscotch/vdgraph_check.c:234, 262",
+    "quote": "errorPrint (\"vgraphCheck: invalid local part sizes\")",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: compile the default case unconditionally, as in vdgraphSeparateMlCoarsen",
+    "summary": "Remove the #ifdef/#endif pair around the default case.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0006-Bugfix-always-compile-the-invalid-folding-parameter-.patch",
+    "tested": "preprocessor check and -O2 -Wall compile above; builds with 0 warnings on the 32-bit ASan, 64-bit, UBSan/pattern-init and -DSCOTCH_DEBUG_ALL trees; full CHECKPTSCOTCH set on 32-bit and 64-bit trees and the dgraph subset on the DEBUG_ALL tree (SUMMARY.md); dgpart/dgord at -np 1..4 on 32/64-bit trees",
+    "tradeoffs": "An errorPrint + return in a case that the parser cannot produce (fold is a 'nfd' case parameter); also removes the release-build warning.",
+    "preferred": true,
+    "maintainer_fit": "Identical to his vdgraph_separate_ml.c:104-106; he fixed such warnings in 7.0.17 ('Initialize variable even when not used')."
+   },
+   {
+    "label": "B: only fix the macro name",
+    "summary": "SCOTCH_DEBUG_BGRAPH2 -> SCOTCH_DEBUG_BDGRAPH2.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/alt/DMO-18-B-macro-name-only.diff",
+    "tested": "applies and compiles (0 diagnostics with -DSCOTCH_DEBUG_BDGRAPH2)",
+    "tradeoffs": "Keeps the -O2 warning in release builds; the twin is unconditional.",
+    "preferred": false,
+    "maintainer_fit": "Smaller, but leaves the module inconsistent with its twin."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0006-Bugfix-always-compile-the-invalid-folding-parameter-.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Sibling diffs for G23/G24: alt/DMO-18-sibling-vdgraph_separate_ml.diff, -vdgraph_separate_sq.diff, -hdgraph_order_st.diff, -hgraph_order_st.diff, alt/PS2-G22-4-vdgraph_check-routine-name.diff (all apply on base-combined and compile)."
+ },
+ {
+  "id": "DMO-19",
+  "our_title": "latent external-gain code: wrong coarse merge indices, doubled exactifier term, ungathered and unaccounted gains",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Driver with an attached external gain array (veex=1), pristine 7.0.17 ASan tree ($INFRA/asan):\n  mpirun -np 3 ./bin_build/bipartfi 4elt.grf 0 'm{asc=x{bal=0},low=q{strat=f},seq=q{strat=f},fold=n,dvert=100000,vert=100}' 1 1 -> '==...==ERROR: AddressSanitizer: heap-buffer-overflow ... #0 ... in bdgraphBipartMlCoarsen .../bdgraph_bipart_ml.c:150' (and a heap-use-after-free on another rank); np=1 passes by luck\n  gather mode np=1,3 -> 'bad=14280 of 15606' (veextax never gathered, PS2-G22-2); 'q{strat=f}' veex -> 'bgraph_bipart_gg.c:234:17: runtime error: signed integer overflow' on 0xBEBEBEBE values, check=96\n  the exactifier doubling: with patches 0001-0006 plus the gather fix only, 'q{strat=f{bal=0.2}}x{bal=0}' veex fails bdgraphCheck 'invalid global communication loads' (seen during development); with 0007: check=0\nPatched: 'q{strat=f{bal=0.2}}x{bal=0}' check=0 (np=3); 'm{...fold=F...}' for F in n,f,d and np in 1,2,3,4: check=0 and no sanitizer report on the release tree and on the DEBUG_ALL tree, which runs bdgraphCheck() on every coarse graph (repro/DMO-19/*.txt).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "info",
+  "severity_note": "unreachable today (veexloctax is only ever NULL); kept as the review's Info, but the fixed code is now exercised end to end by the driver",
+  "location_7_0_17": "src/libscotch/bdgraph_bipart_ml.c:128-153 (merge), bdgraph_bipart_ex.c:465, 482, 491-492; plus bdgraph_gather_all.c:197-215 and bdgraph_bipart_ml.c:599-615, 644-661 (found here)",
+  "evidence": "bdgraph_bipart_ml.c:147-150 'finevertnum0 = coarmulttax[coarvertlocnum].vertglbnum[0]; ... finegrafptr->veexloctax[finevertnum0] + finegrafptr->veexloctax[finevertnum1]' (global numbers; after folding both may be remote: dgraph_coarsen.c:908 'always local first multinode vertex' holds only before folding); bdgraph_bipart_ex.c:465 'commlocgainextn += (partval - (partval ^ flagval)) * veexloctax[vertlocnum]; /* Compute half of difference in external load */' is the full difference (partval - (partval^1) = +-1), :482 'reduloctab[4] = commlocgainextn * 2;', :491 'grafptr->commglbload += reduglbtab[3] / 2 + reduglbtab[4];' adds twice the change while :492 'commglbgainextn -= reduglbtab[4]' is right.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate on both points; its 'Fix: convert to local numbers' is insufficient (the partner, and after folding both vertices, may be remote: an exchange is needed), and 'add reduglbtab[4] / 2' works but it is cleaner to send the difference once.",
+  "first_pass_critique": "Right that the review's 'convert to local numbers' is insufficient; its option A sketch (dgraphHaloSync of veex + ghost index) does not work either: after folding the fine vertices of a coarse vertex are not neighbours of anything local, so no ghost index exists; only an owner-lookup exchange works. Its preferred option B (errorPrint + return (1) at three sites) would make the default multilevel strategy fall back to the low strategy at every level once external gains exist, with an error message per call. It missed the gather bug (veextax allocated but not gathered) and the uncoarsening gain omission, both of which make the sequential and multilevel results wrong with external gains.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/bdgraph_gather_all.c:197-215",
+    "quote": "if (dgrfptr->partgsttax == NULL) { bgraphZero (cgrfptr); memFree (froncnttab); return (0); } ... if (dgrfptr->veexloctax != NULL) { if (commAllgatherv (dgrfptr->veexloctax + ...",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/bdgraph_bipart_ml.c:614 and :659",
+    "quote": "finepartgsttax[finevertlocnum] = 0; (no 'finecommlocgainextn += veexval' unlike the local branch at :458)",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: make the latent code right (exchange-based coarse merge, single-counted exactifier term, gather before the early return, part-0 gains in uncoarsening)",
+    "summary": "New static bdgraphBipartMlCoarsenVeex(): sums local fine gains per coarse vertex and requests the gains of remote fine vertices from their owners (owner lookup by dichotomy, MPI_Alltoall of counts, two MPI_Alltoallv; all fine processes take part since folded coarse graphs live on a sub-communicator; allocation failures agreed upon before each exchange). bdgraphBipartEx sends the external load difference once and subtracts it twice from the gain. bdgraphGatherAll gathers veextax before the part-array test. bdgraphBipartMlUncoarsen adds the gain of received part-0 vertices.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0007-Bugfix-fix-external-gain-accounting-in-bdgraphBipart.patch and /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0008-Bugfix-compute-the-external-gains-of-coarse-and-unco.patch",
+    "tested": "veex probes above (q, q+x, m with fold n/f/d, np 1..4) on release and DEBUG_ALL trees, bdgraphCheck clean at every level; builds with 0 warnings on the 32-bit ASan, 64-bit, UBSan/pattern-init and -DSCOTCH_DEBUG_ALL trees; full CHECKPTSCOTCH set on 32-bit and 64-bit trees and the dgraph subset on the DEBUG_ALL tree (SUMMARY.md); dgpart/dgord at -np 1..4 on 32/64-bit trees",
+    "tradeoffs": "~200 new lines of MPI code in a path that production cannot reach until bdgraphInit computes external gains; two extra agreement reductions per coarsening level in that path only; zero behaviour change today.",
+    "preferred": true,
+    "maintainer_fit": "His 'TODO: Compute external gains' (bdgraph.c:105) and the fact that every method (bd, df, ex, ml uncoarsen, check, gather, store) already carries veex code show he intends the feature; the merge follows the owner-lookup/Alltoallv design of his own bdgraphBipartMlUncoarsen (:461-589) and the agreement idiom of his hdgraphGather(). The commits are separate (0007 certain and tiny, 0008 the exchange), so he can take 0007 alone."
+   },
+   {
+    "label": "B: refuse external gains in multilevel coarsening until the feature exists",
+    "summary": "Return (1) with an error message at the top of bdgraphBipartMlCoarsen when veexloctax != NULL (same decision on all processes, so the caller applies the low strategy collectively); delete the wrong merge; keep 0007.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/alt/DMO-19-B-refuse-external-gains-in-coarsening.diff",
+    "tested": "applies on base-combined and compiles (-O2 -Wall; only the pre-existing foldval warning)",
+    "tradeoffs": "No silent miscomputation, 20 lines removed, but the default strategy would degrade to single-level bipartitioning with an error message per call once external gains are enabled; the gather and uncoarsening defects must still be fixed (0007 and the uncoarsening half of 0008).",
+    "preferred": false,
+    "maintainer_fit": "Fail-loudly is not his style for planned features; he keeps and fixes the infrastructure (cf. the veex code kept in all methods)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0007-Bugfix-fix-external-gain-accounting-in-bdgraphBipart.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0008-Bugfix-compute-the-external-gains-of-coarse-and-unco.patch"
+  ],
+  "cleanup_done": "the in-place merge loop and its allocation/error path in bdgraphBipartMlCoarsen are removed (replaced by the routine); the 'Compute half of difference' comment corrected; no field becomes unused",
+  "test_added": "; no natural home: external gains cannot be attached through the public API, so no src/check test can reach the code; the driver repro/common/bipartfi.c (veex=1) is the test",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "User decision: whether to merge 0008 (the exchange) now or hold it until external gains are implemented; 0007 is independent and certain. In 0008 the agreements are unconditional MPI_Allreduce (hdgraphGather idiom), not the '#ifdef SCOTCH_DEBUG_BDGRAPH1' idiom of the surrounding uncoarsening code."
+ },
+ {
+  "id": "DMO-03",
+  "our_title": "Sq method tests local failure count, ignores allocation flag, bases a NULL part array",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "cd $WORK/repro/common; ./scan.sh ../../basefi/lib ./bin_basefi/bipartfi 3 1 0 30 -- 4elt.grf 0 'q{strat=f}' 0 1 (base-combined, injected allocation #n on rank 1):\n  nth=6 (bgraphBipartGg OOM on rank 1): 'HANG; (1): ERROR: bdgraphBipartSq: cannot bipartition centralized graph; (1): ERROR: bdgraphBipartSq: internal error; rank 1: ret=1' (ranks 0,2 in MPI_Bcast); same at nth=23,24 (bgraphBipartFm)\n  nth=25 (part array): '(1): ERROR: bdgraphBipartSq: out of memory (1); signal 11 (Segmentation fault)' (exit 139)\n  nth=26 (frontier array): 'bdgraph_bipart_sq.c:282:42: runtime error: store to null pointer of type Gnum; signal 11'\nPatched (buildfi): nth=6,23,24 -> all ranks 'ret=0' with the same partition and 'check=0'; nth=25,26 -> all ranks 'ret=1', no signal (repro/DMO-03/*.txt).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "higher than the review's Medium: reachable from the default SCOTCH_dgraphMap/Part strategy (q{strat=...} at the coarsest levels and in the sequential fallback), and the outcome is a hang of the whole job or a SIGSEGV on any single-process allocation failure",
+  "location_7_0_17": "src/libscotch/bdgraph_bipart_sq.c:185-221 (:191-195 basing on NULL, :207-210 local count, :218 missing [5] test)",
+  "evidence": "bdgraph_bipart_sq.c:207 'if ((reduloctab[4] != 0) && (reduloctab[4] != dgrfptr->s.procglbnbr)) { errorPrint (\"bdgraphBipartSq: internal error\"); return (1); }' (reduloctab is the local array); reduglbtab[5] (OR of allocation failures, :188, :193, :199) is never read; :195 'dgrfptr->partgsttax -= dgrfptr->s.baseval;' is executed when memAlloc returned NULL.",
+  "upstream_change": "",
+  "review_accuracy": "Accurate; its 'Fix:' (test reduglbtab[4], check reduglbtab[5] before the broadcast, free what was built) is right but incomplete: the NULL part array is based (a non-NULL garbage pointer when baseval != 0), and 'internal error' on partial failure contradicts the reduction operator, which already selects the best partition among the processes whose sequential bipartitioning succeeded (sq.c:98-109).",
+  "first_pass_critique": "Correct status, evidence and injections. Its preferred option A keeps the unconditional 'internal error' on partial failure, which turns a single-process transient failure into a job failure although the operator was designed to tolerate it, and leaves 'partgsttax -= baseval' on NULL. It did not see the bdgraphGatherAll non-collective failures that its own harness hits two allocations earlier (nth=3..5 here: MPI abort).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/bdgraph_bipart_sq.c:191-195",
+    "quote": "if ((dgrfptr->partgsttax = (GraphPart *) memAlloc (...)) == NULL) { ... } dgrfptr->partgsttax -= dgrfptr->s.baseval;",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/bdgraph_gather_all.c:121-171 (called at :166)",
+    "quote": "#ifndef SCOTCH_DEBUG_BDGRAPH1 bgraphExit (cgrfptr); return (1);",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/vdgraph_separate_sq.c:180-189 (twin, debug-only, reduces the wrong array)",
+    "quote": "MPI_Allreduce (&reduglbtab[3], &reduloctab[3], ...",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "A: test the global flags after the reduction, partial-failure check debug-only as in the vdgraph twin",
+    "summary": "Free op/type right after the Allreduce; test reduglbtab[5] (allocation on any process) then, under SCOTCH_DEBUG_BDGRAPH2 only, the global failure count (as vdgraphSeparateSq does), then reduglbtab[3] (all failed); free cgrfdat on each path; base the part array only when allocated (else-if chain of bdgraphBipartMlUncoarsen). In release builds a process whose sequential bipartitioning failed receives the best partition of another process.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0001-Bugfix-make-error-handling-of-bdgraphBipartSq-collec.patch",
+    "tested": "scan above; builds with 0 warnings on the 32-bit ASan, 64-bit, UBSan/pattern-init and -DSCOTCH_DEBUG_ALL trees; full CHECKPTSCOTCH set on 32-bit and 64-bit trees and the dgraph subset on the DEBUG_ALL tree (SUMMARY.md); dgpart/dgord at -np 1..4 on 32/64-bit trees",
+    "tradeoffs": "Release behaviour on partial failure changes from 'internal error' (and hang) to tolerance; the count slot stays in the operator (cheap).",
+    "preferred": true,
+    "maintainer_fit": "Mirrors his own vdgraphSeparateSq (sq twin: consistency check under SCOTCH_DEBUG_VDGRAPH2, release tolerates partial failure through the operator); the else-if basing chain is his in bdgraphBipartMlUncoarsen:282-296."
+   },
+   {
+    "label": "B: the review's fix completed (unconditional global count check, cleanup, flag tested)",
+    "summary": "Same as A but the partial-failure 'internal error' stays unconditional.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/alt/DMO-03-B-unconditional-global-check.diff",
+    "tested": "applies on base-combined and compiles (0 diagnostics); not run",
+    "tradeoffs": "Collective and leak-free, but one process's sequential OOM still fails the whole bipartition although another process has a valid result.",
+    "preferred": false,
+    "maintainer_fit": "Keeps a check the twin only makes in debug mode."
+   },
+   {
+    "label": "C: drop the partial-failure check and the count slot",
+    "summary": "Remove 'inout[4] += in[4]' and the count; test only [3] (none succeeded) and [5] (allocation).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/alt/DMO-03-C-drop-partial-failure-check.diff",
+    "tested": "applies on base-combined and compiles (0 diagnostics); not run",
+    "tradeoffs": "Smallest operator, but loses the debug-mode consistency check that the twin keeps.",
+    "preferred": false,
+    "maintainer_fit": "He kept the check in vdgraph (debug-only)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0001-Bugfix-make-error-handling-of-bdgraphBipartSq-collec.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0002-Bugfix-agree-on-allocation-failures-in-bdgraphGather.patch"
+  ],
+  "cleanup_done": "none needed (op/type freeing moved, not duplicated; no variable becomes unused)",
+  "test_added": "; no natural home: src/check has no fault-injection and no test driving bdgraph methods directly; repro/common (bipartfi.c + fishim.c + scan.sh) is the regression test",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Patch 0002 (bdgraphGatherAll, PS2-G22-1) is part of the same call chain and is needed for the scan to be clean at nth=3..5. nth=27 (dgraphHaloSync2 OOM) still hangs: dgraph_halo.c, other group (known from G18)."
+ },
+ {
+  "id": "DMO-10",
+  "our_title": "int-width abs() on Gnum in distributed bipartitioning: replaced by ABS in 7.0.17",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "git -C $WORK/scotch grep -n '[^a-zA-Z_]abs (' -- src/libscotch src/libscotchmetis src/esmumps -> no match; src/scotch and src/check: only amk_m2.h:105 and test_arch_deco.c:192 (Anum, see extra.json PS2-G22-6). The 64-bit tree (build64, -DINTSIZE64 -DIDXSIZE64) builds with 0 warnings and passes the CHECKPTSCOTCH set and dgpart/dgord at np 1..4; an imbalance above 2^31 was not provoked.",
+  "read_only": "f545452's diff for the five cited lines (bdgraph_bipart_ex.c:130, 245; bdgraph_bipart_st.c:355, 361-362; vdgraph_separate_st.c:320) and the whole-tree grep for remaining abs() uses in bdgraph*, vdgraph*, kdgraph* (none).",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "as the review",
+  "location_7_0_17": "src/libscotch/bdgraph_bipart_ex.c:130, 245; bdgraph_bipart_st.c:355, 361-362; vdgraph_separate_st.c:320 (all ABS now)",
+  "evidence": "bdgraph_bipart_ex.c:130 'if ((ABS (grafptr->compglbload0dlt) < compglbloaddltmax) ||', :245 'compglbloaddlt = ABS (grafptr->compglbload0dlt);'; bdgraph_bipart_st.c:355 '(ABS (savetab[0].compglbload0dlt) > ABS (grafptr->compglbload0dlt))'; vdgraph_separate_st.c:320 'ABS (savetab[0].compglbloaddlt) >= ABS (grafptr->compglbloaddlt)'.",
+  "upstream_change": "f545452 'Bugfix: use size-agnostic macro instead of bounded-size library ABS routine [report R. Perry]' (18 files, also arch_mesh/torus, bgraph_*, kgraph_*, vgraph_*, vmesh_*, dgraph_redist.c); complete for the library.",
+  "review_accuracy": "Accurate.",
+  "first_pass_critique": "Correct ('fixed', 64bit-build needed); it did not check src/scotch and src/check, where two Anum uses remain (info, other groups).",
+  "extra_instances": [
+   {
+    "location": "src/check/test_arch_deco.c:192",
+    "quote": "if (distval != abs (termnum - termend)) {",
+    "covered_by_patch": false
+   },
+   {
+    "location": "src/scotch/amk_m2.h:105",
+    "quote": "#define C_domnDist(x0,y0,x1,y1)     (abs ((x0) - (x1)) + abs ((y0) - (y1)))",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "No patch: fixed completely in the library; the two remaining Anum sites are in test/tool files of other groups (extra.json PS2-G22-6)."
+ },
+ {
+  "id": "PS-DMO-3",
+  "our_title": "1 << 31 on int in the band bipartitioner's flag macros: fixed by G13's unsigned flag sets",
+  "status": "fixed-in-7.0.17",
+  "method": "ran",
+  "ran": "Every run of 'b{...}' strategies on the base-combined UBSan tree (repro/DMO-04/scan_base_np3_rank1.txt, the plain run of 'q{strat=f}b{width=3,bnd=d{pass=40},org=q{strat=f}}' at np=3) and on the patched trees: no 'left shift of 1 by 31' report anywhere; the pristine 7.0.17 report came from flagSet() (common.h:321 '1 << ...'), now '1U << ...' with unsigned int arrays in bdgraph_bipart_bd.c and bdgraph_bipart_ex.c.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "as the first pass",
+  "location_7_0_17": "src/libscotch/bdgraph_bipart_bd.c:343, 382, 388 (flagSet uses) and common.h:319-321 (macros)",
+  "evidence": "base-combined common.h:321 '#define flagSet(a,n) (a)[(n) / (sizeof (unsigned int) << 3)] |= (1U << ((n) & ((sizeof (unsigned int) << 3) - 1)))'; bdgraph_bipart_bd.c:112 'unsigned int * restrict orgflagloctab;', :237 'memAlloc (flagSize (orggrafptr->s.vertlocnnd) * sizeof (unsigned int))'; bdgraph_bipart_ex.c:102-103 'unsigned int * restrict movegsttab; ... flagloctab;'",
+  "upstream_change": "combined series 0074 (G13) 'Bugfix: apply left shifts to unsigned integers in remaining bit sets [report R. Perry]' (common.h macros, bdgraph_bipart_bd.c and bdgraph_bipart_ex.c arrays changed to unsigned int); covers every flagSet/flagVal use in bdgraph_bipart_bd.c (:343, :380, :382, :385, :388, :409) and bdgraph_bipart_ex.c (:371, :382, :385, :410-411, :435, :446, :455, :457)",
+  "review_accuracy": "(not in the review) the first pass's location and diagnosis are accurate",
+  "first_pass_critique": "Its 'use 1U << n' is what G13 did, through the shared macros rather than per site; nothing wrong.",
+  "extra_instances": [],
+  "fix_options": [],
+  "patch_files": [],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Status is 'fixed in the combined series', i.e. by G13's patch 0074, not by upstream 7.0.17; no duplicate commit."
+ }
+]

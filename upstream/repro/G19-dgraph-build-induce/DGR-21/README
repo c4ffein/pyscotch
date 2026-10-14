@@ -1,0 +1,7 @@
+DGR-21: dgraphMatchCheck() scans vertices from baseval to vertlocnbr (a count) instead of vertlocnnd: last vertex skipped when baseval != 0.
+mchk.c base: single process, path of 3 vertices, synthetic DgraphMatchData with vertices b, b+1 mated and b+2 unmatched (internal API).
+  pristine (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/asan, and G18's -DSCOTCH_DEBUG_ALL tree which is pristine for this file):
+     ./bin_asan/mchk 0 -> ERROR: dgraphMatchCheck: unmatched local vertex, rc=1;   ./bin_asan/mchk 1 -> rc=0 (unmatched vertex 3 not seen)
+  patched (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/build and /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/builddbg): base 0 and 1 -> "unmatched local vertex", rc=1.
+  Real path: check_scotch_dgraph_coarsen with data/m4x4_b1.grf on the -DSCOTCH_DEBUG_ALL tree (dgraphMatchCheck is only called under
+  SCOTCH_DEBUG_DGRAPH2) still passes with the patch (see chk_dbg_summary.txt).

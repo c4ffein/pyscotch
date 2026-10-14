@@ -1,0 +1,11 @@
+PS2-G12-2 (mapping strategy with no initial-mapping method dereferences a NULL
+part array) reproducer.  Also exercises PS2-G13-1 (mapTerm after a failed map).
+
+  gcc -O0 -g -fsanitize=address,undefined -I<inc> map.c -o map -L<lib> -lscotch -lscotcherr -lz -lm -lpthread
+  export LD_LIBRARY_PATH=<lib> ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1
+
+  ./map 'f{bal=0.05}'          (refinement-only strategy on a 16x16 grid onto cmplt(4))
+   pristine : kgraph_cost.c:104 'load of null pointer of type Anum' (NULL m.parttax)
+   patched  : ret=0 maxpart=0  (trivial single-domain mapping, then refined)
+  ./map 'b{width=3,bnd=f,org=f}'  same null-deref -> patched ret=0
+  ./map 'd{pass=10}'              SEGV on pristine -> patched ret=0

@@ -1,0 +1,12 @@
+PS-DGR-2  dgraphHaloSync2 send-buffer allocation failure is local-only; peers hang in the halo collective.
+Driver halofi (load labeled graph + SCOTCH_dgraphSave -> dgraphHaloSync2) + fishim on rank 1.
+PRISTINE ($WORK/pristinefi), scan nth on rank 1:
+  for n in 3 4; do timeout 12 mpirun --oversubscribe -np 2 -x LD_PRELOAD=$PWD/../common/fishim.so \
+    -x FI_RANK=1 -x FI_NTH=$n -x LD_LIBRARY_PATH ../common/bin_pristinefi/halofi <labeled grf>; done
+  nth=4 (halo scratch memAllocGroup) -> rank1 "dgraphHaloSync2: out of memory", rank0 HANGS in MPI_Alltoallv.
+  nth=3 (dgraphSave's own vlblgsttax alloc, dgraph_io_save.c) -> same hang (sibling defect, see extra.json).
+FIX: not committed (design decision). alt/PS-DGR-2-A-halosync2-allreduce.diff adds an unconditional
+  agreement inside dgraphHaloSync2 (tested: both ranks rc=1, no hang) but puts an MPI_Allreduce on a
+  hot path (called inside bdgraph/vdgraph diffusion loops). Preferred maintainer fix (alt B, described):
+  pre-allocate the halo scratch in the Dgraph at dgraphGhst time (collective already agrees there),
+  zero per-call cost -- touches dgraph.h + dgraph_ghst.c (G19).

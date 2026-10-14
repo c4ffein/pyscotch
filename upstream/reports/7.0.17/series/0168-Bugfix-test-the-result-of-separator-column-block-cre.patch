@@ -1,0 +1,43 @@
+From f6d0aadf113832c58de5abfb6a8fe16bc1f98700 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:14:13 +0000
+Subject: [PATCH 168/240] Bugfix: test the result of separator column block
+ creation in `hdgraphOrderNd2()` [report R. Perry]
+
+`dorderNew()` is collective and returns NULL on every process when
+some process cannot allocate the new column block. The separator
+node of the nested dissection was used without being tested, so
+that every process dereferenced a NULL pointer. Test it as the two
+other calls of the routine do.
+
+Refs: DMO-07
+---
+ src/libscotch/hdgraph_order_nd.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/hdgraph_order_nd.c b/src/libscotch/hdgraph_order_nd.c
+index d54a2c9..35166de 100644
+--- a/src/libscotch/hdgraph_order_nd.c
++++ b/src/libscotch/hdgraph_order_nd.c
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 12 sep 2012     **/
+ /**                                 to   : 01 may 2019     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 17 aug 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -359,7 +359,8 @@ const HdgraphOrderNdParam * restrict const  paraptr)
+     DorderCblk *        cblkptr2;
+     Hdgraph             indgrafdat2;
+ 
+-    cblkptr2 = dorderNew (cblkptr, grafptr->s.proccomm); /* Create separator node */
++    if ((cblkptr2 = dorderNew (cblkptr, grafptr->s.proccomm)) == NULL) /* Create separator node */
++      goto fail;
+     cblkptr2->ordeglbval = cblkptr->ordeglbval + grafptr->s.vertglbnbr - vspgrafdat.compglbsize[2];
+     cblkptr2->vnodglbnbr = vspgrafdat.compglbsize[2];
+     cblkptr2->cblkfthnum = 2;
+-- 
+2.47.3
+

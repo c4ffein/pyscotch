@@ -1,0 +1,71 @@
+From 38bc94f579c4079476d7eb2d74f7c9ed361fbfb2 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:04:24 +0000
+Subject: [PATCH 04/11] Bugfix: release the context and the cloned graph of
+ `SCOTCH_dgraphGrow()` when the ghost edge array cannot be computed [report R.
+ Perry]
+
+When `dgraphGhst()` failed, `SCOTCH_dgraphGrow()` returned without
+freeing the temporary execution context it may have created, nor the
+ghost edge array that may have been attached to its clone of the user
+graph when some other process failed. Its context error message also
+bore the name of `SCOTCH_dgraphBand()`.
+
+Refs: API-20, PS-DGR-5
+---
+ src/libscotch/library_dgraph_grow.c | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/src/libscotch/library_dgraph_grow.c b/src/libscotch/library_dgraph_grow.c
+index 9ec15f1..636aea4 100644
+--- a/src/libscotch/library_dgraph_grow.c
++++ b/src/libscotch/library_dgraph_grow.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2012,2018,2019,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2012,2018,2019,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 6.0  : from : 26 sep 2012     **/
+ /**                                 to   : 21 may 2018     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -114,8 +114,8 @@ SCOTCH_Num * const          partgsttab)
+   o = 1;                                          /* Assume an error */
+ 
+   if (CONTEXTINIT (orggrafptr)) {
+-    errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": cannot initialize context");
+-    goto fail;
++    errorPrint (STRINGIFY (SCOTCH_dgraphGrow) ": cannot initialize context");
++    goto fail2;
+   }
+ 
+   grafdat = *((Dgraph *) CONTEXTGETOBJECT (orggrafptr)); /* Clone original graph */
+@@ -123,7 +123,7 @@ SCOTCH_Num * const          partgsttab)
+ 
+   if (dgraphGhst (&grafdat) != 0) {               /* Compute ghost edge array if not already present */
+     errorPrint (STRINGIFY (SCOTCH_dgraphGrow) ": cannot compute ghost edge array");
+-    return (1);
++    goto fail1;
+   }
+ 
+   bandpartgsttax = (partgsttab != NULL) ? (Gnum *) partgsttab - grafdat.baseval : NULL;
+@@ -131,8 +131,9 @@ SCOTCH_Num * const          partgsttab)
+   o = (((grafdat.flagval & DGRAPHCOMMPTOP) != 0) ? dgraphGrow2Ptop : dgraphGrow2Coll)
+         (&grafdat, seedlocnbr, seedloctab, distmax, bandpartgsttax, &bandvertlvlnum, &bandvertlocnbr, &bandedgelocsiz, CONTEXTGETDATA (orggrafptr));
+ 
++fail1:
+   dgraphExit (&grafdat);                          /* Free ghost edge arrays if any */
+-fail:
++fail2:
+   CONTEXTEXIT (orggrafptr);
+   return (o);
+ }
+-- 
+2.47.3
+

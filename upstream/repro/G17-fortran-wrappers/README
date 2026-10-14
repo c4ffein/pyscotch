@@ -1,0 +1,19 @@
+G17-fortran-wrappers reproducers. All commands assume:
+  W=$WORK (this group's directory), 32-bit ASan tree in $W/build, 64-bit in $W/build64,
+  LD_LIBRARY_PATH=$W/build/lib (or build64), ASAN_OPTIONS=detect_leaks=0 for MPI runs.
+fortran_audit.py  the systematic audit (evidence for the whole group):
+  python3 -I fortran_audit.py <scotch tree> --md out.md --json out.json
+  audit_pristine.md/json: run on INFRA/v7.0.17 (114 findings); audit_patched.md/json: run on $W/scotch
+  after the series (57 findings, all of them either METIS-v3-only documentation, undocumented wrappers
+  (NODOC, listed in extra.json) or DOCC false positives on variadic/array prototypes).
+API-01/  fort.c mode 0: C and Fortran order-strategy strings byte-identical (fixed in 7.0.17, both trees).
+API-05/  ind.c: GRAPHINDUCELIST/PART through pointers (fixed in 7.0.17, both trees).
+API-13/  fort.c mode 2 (same binary as API-01): on build64, pristine leaves the upper half of the sentinel
+         (0x5a5a5a5a00011170); with patch 0003 archsize is 0x11170. seq_f.f90 (API-24/) checks it from Fortran.
+API-11/  dmv2.c: mpirun -np 2; pristine prints "ierr=-77 (never written)"; patched prints ierr=0 via par_f.
+API-09/  stat_f.f90: mpifort link fails on pristine ("undefined reference to scotchfdgraphstat_"),
+         links and prints velosum=16 with patch 0001.
+API-24/  missing_f.f90: 13 undefined references on pristine, links after patches 0004+0007 (+G02 0001).
+         seq_f.f90 + seq_c.c: functional test of the sequential wrappers (output lines compared with diff).
+         par_f.f90: functional test of the PT-Scotch wrappers (mpirun -np 2), incl. API-09 and API-11.
+BLD-20/  corrupted.f90: generated test with epart(1) forced out of range; exits 1 with the new checks.

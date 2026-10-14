@@ -1,0 +1,11 @@
+SEP-08: Harwell-Boeing mesh loader trusts ELTPTR/VARIND values (checks only under SCOTCH_DEBUG_MESH2) and never sets velosum.
+  ./hbload hb_ok.mtx       pristine -> "ERROR: meshCheck: invalid element vertex load sum" load=0 check=1
+                           patched  -> load=0 check=0 and the mesh is printed
+  ./hbload hb_badvar.mtx   pristine -> "AddressSanitizer: heap-buffer-overflow ... _SCOTCHmeshGeomLoadHabo mesh_io_habo.c:242" (VARIND 9 > NVAR 3)
+                           patched  -> "ERROR: meshGeomLoadHabo: bad input (10)" load=1
+  ./hbload hb_badptr2.mtx  pristine -> "AddressSanitizer: SEGV ... mesh_io_habo.c:282" (ELTPTR 1,99,5)
+                           patched  -> "ERROR: meshGeomLoadHabo: bad input (7)" load=1
+  ./hbload hb_badptr.mtx   pristine -> "bad input (8)" (only the last ELTPTR value was checked); patched -> "bad input (7)"
+Hang (PS2-G11-mesh-struct-io-6): $INFRA/asan/bin/mcv ../fuzz/before/crashes/c0355.rsa /dev/null -ib -os loops on EOF for 9999999999 characters (field width);
+  patched: "bad input (9)" immediately.
+Fixed by patches/0007; regression test: src/check/data/hb3.pue -> hb3.msh in check_prog_mcv.

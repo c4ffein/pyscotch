@@ -1,0 +1,12 @@
+diff --git a/src/esmumps/CMakeLists.txt b/src/esmumps/CMakeLists.txt
+index 293644c..1317623 100644
+--- a/src/esmumps/CMakeLists.txt
++++ b/src/esmumps/CMakeLists.txt
+@@ -93,6 +93,7 @@ set(esmumps_headers
+   fax.h
+   ${GENERATED_INCLUDE_DIR}/esmumps.h)
+ 
++set_source_files_properties(symbol_fax.c PROPERTIES HEADER_FILE_ONLY ON)
+ add_library(esmumps ${esmumps_src} ${esmumps_headers})
+ add_library(SCOTCH::esmumps ALIAS esmumps)
+ 

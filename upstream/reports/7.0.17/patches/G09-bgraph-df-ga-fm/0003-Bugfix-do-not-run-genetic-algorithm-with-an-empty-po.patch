@@ -1,0 +1,30 @@
+From f1688d304527635472459d70addec1ab9234cdbb Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:56:45 +0000
+Subject: [PATCH 3/9] Bugfix: do not run genetic algorithm with an empty
+ population [report PyScotch]
+
+With strategy parameter "pop=0", the per-thread deme size is zero, so
+that thread 0 copied the current partition before the beginning of its
+(empty) deme array, which is a heap buffer overflow.
+---
+ src/libscotch/bgraph_bipart_ga.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/libscotch/bgraph_bipart_ga.c b/src/libscotch/bgraph_bipart_ga.c
+index 434621f..de36473 100644
+--- a/src/libscotch/bgraph_bipart_ga.c
++++ b/src/libscotch/bgraph_bipart_ga.c
+@@ -290,7 +290,8 @@ const BgraphBipartGaParam * const paraptr)        /* Method parameters */
+   const Gnum                demenbr = DEMENBR (paraptr->popunbr, thrdnbr); /* Size of thread local deme */
+   const Gnum                sortnbr = demenbr * thrdnbr; /* Overall number of individuals to sort       */
+ 
+-  if (grafptr->s.vertnbr < 3)                     /* If less than three vertices, no crossing-over possible and nothing relevant to do */
++  if ((grafptr->s.vertnbr < 3) ||                 /* If less than three vertices, no crossing-over possible and nothing relevant to do */
++      (paraptr->popunbr < 1))                     /* If no individuals, nothing to do either                                           */
+     return (0);
+ 
+   if (memAllocGroup ((void **) (void *)
+-- 
+2.47.3
+

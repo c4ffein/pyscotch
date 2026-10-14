@@ -1,0 +1,47 @@
+From aa1d5c03a4bcf6fe76d040827b33ea2b274a0dac Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:06:22 +0000
+Subject: [PATCH 03/11] Do not compile `symbol_fax.c` on its own in the CMake
+ build of libEsMUMPS [report PyScotch]
+
+"symbol_fax.c" is a template file that is included by
+"symbol_fax_graph.c" with SYMBOL_FAX_INCLUDED defined, to produce
+`symbolFaxGraph()`. The Makefile of libEsMUMPS only lists it as a
+dependency of "symbol_fax_graph.o". The CMake file listed it as a
+source file too, so that a CMake-built libEsMUMPS also contained a
+generic, un-prefixed and never called `symbolFax()` routine.
+
+Remove it from the CMake source list; the dependency is tracked by
+the compiler.
+
+Refs: BLD-01
+---
+ src/esmumps/CMakeLists.txt | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/src/esmumps/CMakeLists.txt b/src/esmumps/CMakeLists.txt
+index 293644c..a56d2e9 100644
+--- a/src/esmumps/CMakeLists.txt
++++ b/src/esmumps/CMakeLists.txt
+@@ -44,7 +44,7 @@
+ ##                # Version 7.0  : from : 01 sep 2021     ##
+ ##                                 to     21 apr 2022     ##
+ ##                # Version 7.1  : from : 11 dec 2022     ##
+-##                                 to     01 nov 2023     ##
++##                                 to     13 oct 2026     ##
+ ##                                                        ##
+ ############################################################
+ 
+@@ -78,8 +78,7 @@ set(esmumps_src
+   symbol.c
+   symbol_check.c
+   symbol_cost.c
+-  symbol_fax_graph.c
+-  symbol_fax.c)
++  symbol_fax_graph.c)
+ 
+ set(esmumps_headers
+   module.h
+-- 
+2.47.3
+

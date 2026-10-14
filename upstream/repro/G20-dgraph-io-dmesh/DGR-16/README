@@ -1,0 +1,4 @@
+DGR-16  dmeshLoadAdm 'bad input (2)' frees an unbased eelmloctax -- VERIFIED UNREACHABLE.
+Crafted headers whose local element counts do not sum to velmglbnbr are rejected earlier:
+  dgr16_badsum.adm (np1), dgr16_r%r.adm (np2) -> "dmeshLoadAdm: inconsistent distributed mesh headers", rc=1,
+  never reaching 'bad input (2)'. The hardening commit bases the array before the check anyway (latent-safety).

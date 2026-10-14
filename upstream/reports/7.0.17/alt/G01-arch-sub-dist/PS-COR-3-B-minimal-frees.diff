@@ -1,0 +1,18 @@
+--- a/src/libscotch/arch_sub.c
++++ b/src/libscotch/arch_sub.c
+@@ -482,6 +482,7 @@
+   if (rootptr == NULL) {
+     errorPrint ("archSubArchBuild: cannot create sub-architecture (1)");
+     memFree    (treetab - 1);
++    memFree    (termtab);
+     return (2);
+   }
+ #ifdef SCOTCH_DEBUG_ARCH2
+@@ -494,6 +495,7 @@
+   if (archSubArchBuild3 (domntab, termtab, rootptr, 1, 0) != domnnbr) {
+     errorPrint ("archSubArchBuild: cannot create sub-architecture (2)");
+     memFree    (treetab - 1);
++    memFree    (termtab);
+     return (2);
+   }
+   domntab[0].dfatidx = -1;                        /* Set index of root father as -1 */

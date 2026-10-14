@@ -1,0 +1,16 @@
+diff --git a/src/libscotch/library_dgraph_map.c b/src/libscotch/library_dgraph_map.c
+index 4fcce08..f724b1c 100644
+--- a/src/libscotch/library_dgraph_map.c
++++ b/src/libscotch/library_dgraph_map.c
+@@ -168,6 +168,11 @@ SCOTCH_Strat * const        straptr)              /*+ Mapping strategy   +*/
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
++  if (! archPart (&srcmappptr->m.archdat)) {      /* Parallel mapping is only implemented for complete graph architectures */
++    errorPrint (STRINGIFY (SCOTCH_dgraphMapCompute) ": target architecture not supported for parallel mapping");
++    goto fail;
++  }
++
+   if (*((Strat **) straptr) == NULL) {            /* Set default mapping strategy if necessary */
+     ArchDom             archdomnorg;
+ 

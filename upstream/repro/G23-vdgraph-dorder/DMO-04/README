@@ -1,0 +1,9 @@
+DMO-04: allocation failure in vdgraphSeparateDf masked by the summed reduction (fault injection, UBSan-only trees)
+cd repro/common; export FI_FUNC=vdgraphSeparateDf
+pristine: ./scan.sh $WORK/buildfi/lib  ./dtest_buildfi  3 1 0 17 -- 4elt.grf -1 order "$(cat st_df.txt)" 0 n -   (scan_df_pristine.txt)
+  nth=3 : exit=139 :: (1): ERROR: vdgraphSeparateDf: out of memory; vdgraph_separate_df.c:177:28: runtime error: store to null pointer of type 'float'; signal 11
+  nth=11: same (second Df call)
+patched:  ./scan.sh $WORK/buildfip/lib ./dtest_buildfip 3 1 0 17 -- 4elt.grf -1 order "$(cat st_df.txt)" 0 n -   (scan_df_patched.txt)
+  nth=3 : exit=0 :: (1): ERROR: vdgraphSeparateDf: out of memory; (0),(1): ERROR: vdgraphSeparateBd: cannot separate band graph; rank 0/1/2: OrderCompute rc=0
+Other indices: nth 4-7, 12-15 (dgraphHaloSync2 failures) hang on both trees = PS2-G23-6 (halo design, G20); nth 0-2 (collective dgraphGhst
+failure before any Df code) hang in 1 run out of 3 on both trees = PS2-G23-5 (timing dependent).

@@ -1,0 +1,570 @@
+From fdab86683a8790d6a16eccb1a331c7508a1f6f9a Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:40:07 +0000
+Subject: [PATCH 4/7] Add the Fortran wrappers of documented routines that had
+ none [report R. Perry]
+
+The Scotch and PT-Scotch user's manuals document Fortran routines
+"scotchfarchbuild0", "scotchfarchbuild2", "scotchfgraphorderload",
+"scotchfmeshstat", "scotchfstratsizeof", "scotchfmapsizeof",
+"scotchfordersizeof", "scotchfdgraphfree", "scotchfdgraphgrow",
+"scotchfdmeshfree", "scotchfdmapsizeof" and "scotchfdordersizeof", which
+were never defined in any "library_*_f.c" file, so that Fortran programs
+written from the manuals could not be linked.
+
+Each wrapper mirrors its neighbors: pointer arguments dereferenced for
+scalar values, trailing "ierr" for routines returning an "int", file
+descriptor duplicated and turned into a stream for `SCOTCH_graphOrderLoad()`.
+The wrapper of `SCOTCH_dgraphGrow()` lives in a new file,
+"library_dgraph_grow_f.c", added to the Makefile and CMakeLists.txt.
+
+The wrapper of `SCOTCH_archLtleaf()` is added by a separate commit, as
+the routine itself is not yet declared in "library.h".
+
+Refs: API-24
+---
+ src/libscotch/CMakeLists.txt           |  1 +
+ src/libscotch/Makefile                 |  6 ++
+ src/libscotch/library_arch_build_f.c   | 37 +++++++++++-
+ src/libscotch/library_dgraph_f.c       | 16 +++++-
+ src/libscotch/library_dgraph_grow_f.c  | 78 ++++++++++++++++++++++++++
+ src/libscotch/library_dgraph_map_f.c   | 16 +++++-
+ src/libscotch/library_dgraph_order_f.c | 16 +++++-
+ src/libscotch/library_dmesh_f.c        | 16 +++++-
+ src/libscotch/library_graph_map_f.c    | 16 +++++-
+ src/libscotch/library_graph_order_f.c  | 49 +++++++++++++++-
+ src/libscotch/library_mesh_f.c         | 34 ++++++++++-
+ src/libscotch/library_parser_f.c       | 16 +++++-
+ 12 files changed, 285 insertions(+), 16 deletions(-)
+ create mode 100644 src/libscotch/library_dgraph_grow_f.c
+
+diff --git a/src/libscotch/CMakeLists.txt b/src/libscotch/CMakeLists.txt
+index 63bf21c..f67caea 100644
+--- a/src/libscotch/CMakeLists.txt
++++ b/src/libscotch/CMakeLists.txt
+@@ -763,6 +763,7 @@ set(PTSCOTCH_C_SOURCES
+   library_dgraph_gather.c
+   library_dgraph_gather_f.c
+   library_dgraph_grow.c
++  library_dgraph_grow_f.c
+   library_dgraph_halo.c
+   library_dgraph_halo_f.c
+   library_dgraph_induce.c
+diff --git a/src/libscotch/Makefile b/src/libscotch/Makefile
+index 5ca44f4..f57a25a 100644
+--- a/src/libscotch/Makefile
++++ b/src/libscotch/Makefile
+@@ -252,6 +252,7 @@ LIBPTSCOTCHDEPS =	arch_mpi$(OBJ)				\
+ 			library_dgraph_gather$(OBJ)		\
+ 			library_dgraph_gather_f$(OBJ)		\
+ 			library_dgraph_grow$(OBJ)		\
++			library_dgraph_grow_f$(OBJ)		\
+ 			library_dgraph_halo$(OBJ)		\
+ 			library_dgraph_halo_f$(OBJ)		\
+ 			library_dgraph_induce$(OBJ)		\
+@@ -2332,6 +2333,11 @@ library_dgraph_grow$(OBJ)	:	library_dgraph_grow.c			\
+ 					dgraph.h				\
+ 					ptscotch.h
+ 
++library_dgraph_grow_f$(OBJ)	:	library_dgraph_grow_f.c			\
++					module.h				\
++					common.h				\
++					ptscotch.h
++
+ library_dgraph_halo$(OBJ)	:	library_dgraph_halo.c			\
+ 					module.h				\
+ 					common.h				\
+diff --git a/src/libscotch/library_arch_build_f.c b/src/libscotch/library_arch_build_f.c
+index 8b7f993..acac915 100644
+--- a/src/libscotch/library_arch_build_f.c
++++ b/src/libscotch/library_arch_build_f.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 21 apr 2018     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -95,6 +95,23 @@ const int                   strnbr),  \
+ **
+ */
+ 
++SCOTCH_FORTRAN (                      \
++ARCHBUILD0, archbuild0, (             \
++SCOTCH_Arch * const         archptr,  \
++SCOTCH_Graph * const        grafptr,  \
++const SCOTCH_Num * const    listnbr,  \
++const SCOTCH_Num * const    listptr,  \
++SCOTCH_Strat * const        straptr,  \
++int * const                 revaptr), \
++(archptr, grafptr, listnbr, listptr, straptr, revaptr))
++{
++  *revaptr = SCOTCH_archBuild0 (archptr, grafptr, *listnbr, listptr, straptr);
++}
++
++/*
++**
++*/
++
+ SCOTCH_FORTRAN (                      \
+ ARCHBUILD, archbuild, (               \
+ SCOTCH_Arch * const         archptr,  \
+@@ -107,3 +124,19 @@ int * const                 revaptr), \
+ {
+   *revaptr = SCOTCH_archBuild (archptr, grafptr, *listnbr, listptr, straptr);
+ }
++
++/*
++**
++*/
++
++SCOTCH_FORTRAN (                      \
++ARCHBUILD2, archbuild2, (             \
++SCOTCH_Arch * const         archptr,  \
++SCOTCH_Graph * const        grafptr,  \
++const SCOTCH_Num * const    listnbr,  \
++const SCOTCH_Num * const    listptr,  \
++int * const                 revaptr), \
++(archptr, grafptr, listnbr, listptr, revaptr))
++{
++  *revaptr = SCOTCH_archBuild2 (archptr, grafptr, *listnbr, listptr);
++}
+diff --git a/src/libscotch/library_dgraph_f.c b/src/libscotch/library_dgraph_f.c
+index 38d9302..0473a88 100644
+--- a/src/libscotch/library_dgraph_f.c
++++ b/src/libscotch/library_dgraph_f.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2010,2012,2018,2021,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2010,2012,2018,2021,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -48,7 +48,7 @@
+ /**                # Version 6.1  : from : 15 mar 2021     **/
+ /**                                 to   : 15 mar 2021     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 09 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -100,6 +100,18 @@ SCOTCH_Dgraph * const       grafptr), \
+ **
+ */
+ 
++SCOTCH_FORTRAN (                      \
++DGRAPHFREE, dgraphfree, (             \
++SCOTCH_Dgraph * const       grafptr), \
++(grafptr))
++{
++  SCOTCH_dgraphFree (grafptr);
++}
++
++/*
++**
++*/
++
+ SCOTCH_FORTRAN (                      \
+ DGRAPHSIZEOF, dgraphsizeof, (         \
+ int * const                 sizeptr), \
+diff --git a/src/libscotch/library_dgraph_grow_f.c b/src/libscotch/library_dgraph_grow_f.c
+new file mode 100644
+index 0000000..a91229d
+--- /dev/null
++++ b/src/libscotch/library_dgraph_grow_f.c
+@@ -0,0 +1,78 @@
++/* Copyright 2026 IPB, Universite de Bordeaux, INRIA & CNRS
++**
++** This file is part of the Scotch software package for static mapping,
++** graph partitioning and sparse matrix ordering.
++**
++** This software is governed by the CeCILL-C license under French law
++** and abiding by the rules of distribution of free software. You can
++** use, modify and/or redistribute the software under the terms of the
++** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
++** URL: "http://www.cecill.info".
++**
++** As a counterpart to the access to the source code and rights to copy,
++** modify and redistribute granted by the license, users are provided
++** only with a limited warranty and the software's author, the holder of
++** the economic rights, and the successive licensors have only limited
++** liability.
++**
++** In this respect, the user's attention is drawn to the risks associated
++** with loading, using, modifying and/or developing or reproducing the
++** software by the user in light of its specific status of free software,
++** that may mean that it is complicated to manipulate, and that also
++** therefore means that it is reserved for developers and experienced
++** professionals having in-depth computer knowledge. Users are therefore
++** encouraged to load and test the software's suitability as regards
++** their requirements in conditions enabling the security of their
++** systems and/or data to be ensured and, more generally, to use and
++** operate it in the same conditions as regards security.
++**
++** The fact that you are presently reading this means that you have had
++** knowledge of the CeCILL-C license and that you accept its terms.
++*/
++/************************************************************/
++/**                                                        **/
++/**   NAME       : library_dgraph_grow_f.c                 **/
++/**                                                        **/
++/**   AUTHOR     : Francois PELLEGRINI                     **/
++/**                                                        **/
++/**   FUNCTION   : This module is the Fortran API for the  **/
++/**                distributed graph growing routine of    **/
++/**                the libSCOTCH library.                  **/
++/**                                                        **/
++/**   DATES      : # Version 7.0  : from : 13 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
++/**                                                        **/
++/************************************************************/
++
++/*
++**  The defines and includes.
++*/
++
++#include "module.h"
++#include "common.h"
++#include "ptscotch.h"
++
++/**************************************/
++/*                                    */
++/* These routines are the Fortran API */
++/* for the distributed graph handling */
++/* routines.                          */
++/*                                    */
++/**************************************/
++
++/*
++**
++*/
++
++SCOTCH_FORTRAN (                        \
++DGRAPHGROW, dgraphgrow, (               \
++SCOTCH_Dgraph * const       grafptr,    \
++const SCOTCH_Num * const    seedlocnbr, \
++SCOTCH_Num * const          seedloctab, \
++const SCOTCH_Num * const    distmax,    \
++SCOTCH_Num * const          partgsttab, \
++int * const                 revaptr),   \
++(grafptr, seedlocnbr, seedloctab, distmax, partgsttab, revaptr))
++{
++  *revaptr = SCOTCH_dgraphGrow (grafptr, *seedlocnbr, seedloctab, *distmax, partgsttab);
++}
+diff --git a/src/libscotch/library_dgraph_map_f.c b/src/libscotch/library_dgraph_map_f.c
+index 376c97d..0d08aa2 100644
+--- a/src/libscotch/library_dgraph_map_f.c
++++ b/src/libscotch/library_dgraph_map_f.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2008,2010-2012,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2008,2010-2012,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 29 nov 2012     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -96,6 +96,18 @@ SCOTCH_Dmapping * const     mappptr), \
+ **
+ */
+ 
++SCOTCH_FORTRAN (                      \
++DMAPSIZEOF, dmapsizeof, (             \
++int * const                 sizeptr), \
++(sizeptr))
++{
++  *sizeptr = SCOTCH_dmapSizeof ();
++}
++
++/*
++**
++*/
++
+ SCOTCH_FORTRAN (                      \
+ DGRAPHMAPSAVE, dgraphmapsave, (       \
+ const SCOTCH_Dgraph * const grafptr,  \
+diff --git a/src/libscotch/library_dgraph_order_f.c b/src/libscotch/library_dgraph_order_f.c
+index 4e61d83..b43384c 100644
+--- a/src/libscotch/library_dgraph_order_f.c
++++ b/src/libscotch/library_dgraph_order_f.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2010,2012,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2010,2012,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**                # Version 6.0  : from : 08 jan 2012     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -96,6 +96,18 @@ SCOTCH_Dordering * const      ordeptr), \
+ **
+ */
+ 
++SCOTCH_FORTRAN (                      \
++DORDERSIZEOF, dordersizeof, (         \
++int * const                 sizeptr), \
++(sizeptr))
++{
++  *sizeptr = SCOTCH_dorderSizeof ();
++}
++
++/*
++**
++*/
++
+ SCOTCH_FORTRAN (                        \
+ DGRAPHORDERSAVE, dgraphordersave, (     \
+ const SCOTCH_Dgraph * const   grafptr,  \
+diff --git a/src/libscotch/library_dmesh_f.c b/src/libscotch/library_dmesh_f.c
+index 2268937..980ddb7 100644
+--- a/src/libscotch/library_dmesh_f.c
++++ b/src/libscotch/library_dmesh_f.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -40,7 +40,7 @@
+ /**                routines of the libSCOTCH library.      **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 12 aug 2025     **/
+-/**                                 to   : 12 aug 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -92,6 +92,18 @@ SCOTCH_Dmesh * const        meshptr), \
+ **
+ */
+ 
++SCOTCH_FORTRAN (                      \
++DMESHFREE, dmeshfree, (               \
++SCOTCH_Dmesh * const        meshptr), \
++(meshptr))
++{
++  SCOTCH_dmeshFree (meshptr);
++}
++
++/*
++**
++*/
++
+ SCOTCH_FORTRAN (                      \
+ DMESHSIZEOF, dmeshsizeof, (           \
+ int * const                 sizeptr), \
+diff --git a/src/libscotch/library_graph_map_f.c b/src/libscotch/library_graph_map_f.c
+index 3089840..66143df 100644
+--- a/src/libscotch/library_graph_map_f.c
++++ b/src/libscotch/library_graph_map_f.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2010-2012,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2010-2012,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -49,7 +49,7 @@
+ /**                # Version 6.0  : from : 17 apr 2011     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -102,6 +102,18 @@ SCOTCH_Mapping * const      mappptr), \
+ **
+ */
+ 
++SCOTCH_FORTRAN (                      \
++MAPSIZEOF, mapsizeof, (               \
++int * const                 sizeptr), \
++(sizeptr))
++{
++  *sizeptr = SCOTCH_mapSizeof ();
++}
++
++/*
++**
++*/
++
+ SCOTCH_FORTRAN (                      \
+ GRAPHMAPCOMPUTE, graphmapcompute, (   \
+ SCOTCH_Graph * const        grafptr,  \
+diff --git a/src/libscotch/library_graph_order_f.c b/src/libscotch/library_graph_order_f.c
+index 7528902..d092b9e 100644
+--- a/src/libscotch/library_graph_order_f.c
++++ b/src/libscotch/library_graph_order_f.c
+@@ -50,7 +50,7 @@
+ /**                # Version 6.0  : from : 08 jan 2012     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -106,6 +106,53 @@ SCOTCH_Ordering * const     ordeptr), \
+ **
+ */
+ 
++SCOTCH_FORTRAN (                      \
++ORDERSIZEOF, ordersizeof, (           \
++int * const                 sizeptr), \
++(sizeptr))
++{
++  *sizeptr = SCOTCH_orderSizeof ();
++}
++
++/*
++**
++*/
++
++SCOTCH_FORTRAN (                        \
++GRAPHORDERLOAD, graphorderload, (       \
++const SCOTCH_Graph * const    grafptr,  \
++SCOTCH_Ordering * const       ordeptr,  \
++int * const                   fileptr,  \
++int * const                   revaptr), \
++(grafptr, ordeptr, fileptr, revaptr))
++{
++  FILE *              stream;                     /* Stream to build from handle */
++  int                 filenum;                    /* Duplicated handle           */
++  int                 o;
++
++  if ((filenum = dup (*fileptr)) < 0) {           /* If cannot duplicate file descriptor */
++    errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (GRAPHORDERLOAD)) ": cannot duplicate handle");
++    *revaptr = 1;                                 /* Indicate error */
++    return;
++  }
++  if ((stream = fdopen (filenum, "r")) == NULL) { /* Build stream from handle */
++    errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (GRAPHORDERLOAD)) ": cannot open input stream");
++    close      (filenum);
++    *revaptr = 1;
++    return;
++  }
++
++  o = SCOTCH_graphOrderLoad (grafptr, ordeptr, stream);
++
++  fclose (stream);                                /* This closes filenum too */
++
++  *revaptr = o;
++}
++
++/*
++**
++*/
++
+ SCOTCH_FORTRAN (                        \
+ GRAPHORDERSAVE, graphordersave, (       \
+ const SCOTCH_Graph * const    grafptr,  \
+diff --git a/src/libscotch/library_mesh_f.c b/src/libscotch/library_mesh_f.c
+index 6bf35b0..99b7df5 100644
+--- a/src/libscotch/library_mesh_f.c
++++ b/src/libscotch/library_mesh_f.c
+@@ -48,7 +48,7 @@
+ /**                # Version 6.1  : from : 15 mar 2021     **/
+ /**                                 to   : 15 mar 2021     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 01 apr 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -304,3 +304,35 @@ SCOTCH_Num * const          degrnbr),                  \
+   *vlblidx = (vlbltab != NULL) ? (SCOTCH_Idx) (vlbltab - indxptr) + 1 : *vertidx;
+   *edgeidx = (SCOTCH_Idx) (edgetab - indxptr) + 1;
+ }
++
++/*
++**
++*/
++
++SCOTCH_FORTRAN (                              \
++MESHSTAT, meshstat, (                         \
++const SCOTCH_Mesh * const   meshptr,          \
++SCOTCH_Num * const          vnlominptr,       \
++SCOTCH_Num * const          vnlomaxptr,       \
++SCOTCH_Num * const          vnlosumptr,       \
++double *                    vnloavgptr,       \
++double *                    vnlodltptr,       \
++SCOTCH_Num * const          edegminptr,       \
++SCOTCH_Num * const          edegmaxptr,       \
++double *                    edegavgptr,       \
++double *                    edegdltptr,       \
++SCOTCH_Num * const          ndegminptr,       \
++SCOTCH_Num * const          ndegmaxptr,       \
++double *                    ndegavgptr,       \
++double *                    ndegdltptr),      \
++(meshptr, vnlominptr, vnlomaxptr, vnlosumptr, \
++ vnloavgptr, vnlodltptr, edegminptr,          \
++ edegmaxptr, edegavgptr, edegdltptr,          \
++ ndegminptr, ndegmaxptr, ndegavgptr,          \
++ ndegdltptr))
++{
++  SCOTCH_meshStat (meshptr,
++                   vnlominptr, vnlomaxptr, vnlosumptr, vnloavgptr, vnlodltptr,
++                   edegminptr, edegmaxptr, edegavgptr, edegdltptr,
++                   ndegminptr, ndegmaxptr, ndegavgptr, ndegdltptr);
++}
+diff --git a/src/libscotch/library_parser_f.c b/src/libscotch/library_parser_f.c
+index f6672eb..d594e75 100644
+--- a/src/libscotch/library_parser_f.c
++++ b/src/libscotch/library_parser_f.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2010,2014,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2010,2014,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**                # Version 6.0  : from : 07 jan 2014     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -103,6 +103,18 @@ SCOTCH_Strat * const        straptr), \
+ **
+ */
+ 
++SCOTCH_FORTRAN (                      \
++STRATSIZEOF, stratsizeof, (           \
++int * const                 sizeptr), \
++(sizeptr))
++{
++  *sizeptr = SCOTCH_stratSizeof ();
++}
++
++/*
++**
++*/
++
+ SCOTCH_FORTRAN (                      \
+ STRATSAVE, stratsave, (               \
+ SCOTCH_Strat * const        straptr,  \
+-- 
+2.47.3
+

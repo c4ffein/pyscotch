@@ -1,0 +1,7 @@
+CLI-17: gout option parser dereferences NULL on an unterminated brace argument (src/scotch/gout_c.c C_parse).
+Run:  B=$TREE/bin; export LD_LIBRARY_PATH=$TREE/lib UBSAN_OPTIONS=print_stacktrace=1
+  $B/gout g0.grf g0.xyz /dev/null o.iv -mn '-Oi{c'; echo rc=$?
+  python3 -I fuzz_opt.py $B/gout g0.grf g0.xyz 600 7          # mutation fuzzer over the -O option grammar
+Pristine: UBSan "load of null pointer of type 'char'" gout_c.c:709 then SEGV (rc 141 under the pipe / 1); fuzzer:
+  fuzz_pristine.txt: 600 mutants, 1 distinct signature (this one, 62 hits).
+Patched: "gout: ERROR: main: error in output option string (3)", rc=1; fuzzer: fuzz_patched.txt: 0 signatures.

@@ -1,0 +1,46 @@
+--- a/src/libscotch/library_graph.c
++++ b/src/libscotch/library_graph.c
+@@ -507,7 +507,7 @@
+     else {
+       edlomin =
+       edlomax = 1;
+-      edlosum = srcgrafptr->edgenbr / 2;
++      edlosum = srcgrafptr->edgenbr;              /* Sum over arcs, as in weighted case */
+       edloavg = 1.0L;
+     }
+   }
+--- a/src/libscotch/library_dgraph_stat.c
++++ b/src/libscotch/library_dgraph_stat.c
+@@ -262,7 +262,7 @@
+     else {
+       srclstadat.edlomin =
+       srclstadat.edlomax = 1;
+-      edloglbsum         = srcgrafptr->edgeglbnbr / 2;
++      edloglbsum         = srcgrafptr->edgeglbnbr; /* Sum over arcs, as in weighted case */
+       edloglbavg         = 1.0L;
+     }
+   }
+--- a/doc/src/scotch/s_l.tex
++++ b/doc/src/scotch/s_l.tex
+@@ -3771,7 +3771,8 @@
+ degrees, respectively.
+ {\tt edlomin}, {\tt edlomax}, {\tt edlosum}, {\tt edloavg} and
+ {\tt edlodlt} are the minimum edge load, the maximum edge
+-load, the sum of all edge loads, the average edge load,
++load, the sum of all arc loads (that is, twice the sum of all edge
++loads), the average edge load,
+ and the variance of the edge loads, respectively.
+ \end{itemize}
+ 
+--- a/doc/src/ptscotch/p_l.tex
++++ b/doc/src/ptscotch/p_l.tex
+@@ -2564,7 +2564,8 @@
+ degrees, respectively.
+ {\tt edlomin}, {\tt edlomax}, {\tt edlosum}, {\tt edloavg} and
+ {\tt edlodlt} are the minimum edge load, the maximum edge
+-load, the sum of all edge loads, the average edge load,
++load, the sum of all arc loads (that is, twice the sum of all edge
++loads), the average edge load,
+ and the variance of the edge loads, respectively.
+ 
+ \progret

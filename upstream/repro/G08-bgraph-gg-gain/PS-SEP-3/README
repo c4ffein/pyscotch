@@ -1,0 +1,9 @@
+PS-SEP-3: shared file-static gain-list sentinel written concurrently. Evidence is the ThreadSanitizer material in
+../SEP-13 (tsan_pristine_*.txt, tsan_pristine_d0_*.txt, tsan_patched_*.txt): pristine 7.0.17 reports gain.c:311
+(gainTablAddLog: entrptr->next->prev = linkptr on an empty slot) and bgraph_bipart_gg.c:216/245 (gainTablDel macro:
+linkptr->next->prev = ... on the last link) on 'gainLinkDummy', between GG worker threads and also between
+bgraphBipartFm() (bgraph_bipart_fm.c:524) in one split sub-context and bgraphBipartGg2() in the other.
+With patch 0004 (per-table dummy link) no report mentions gain.c, bgraph_bipart_gg.c or bgraph_bipart_fm.c in 10 runs
+(5 with SCOTCH_DETERMINISTIC=1, 5 with 0, 4 threads) and in a bump.grf k=9 run (212 reports, all graph_match_scan.c).
+Debug coverage of the new signatures: /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg (-DSCOTCH_DEBUG_ALL -DSCOTCH_DEBUG_GAIN3), gpart 1 and 4 threads,
+det 0 and 1, exit 0 each; check_scotch_graph_map, check_prog_gpart, check_scotch_context pass (checkdbg.log).

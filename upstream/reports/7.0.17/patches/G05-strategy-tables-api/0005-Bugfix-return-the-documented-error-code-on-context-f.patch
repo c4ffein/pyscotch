@@ -1,0 +1,60 @@
+From 20ed4b8e9a207c00ed7b88b8e10d7d2ad1aa6f50 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:12:30 +0000
+Subject: [PATCH 5/7] Bugfix: return the documented error code on context
+ failure in `SCOTCH_graphCoarsen()' [report R. Perry]
+
+`SCOTCH_graphCoarsen()' and `SCOTCH_graphCoarsenMatch()' are documented to
+return 0 when coarsening succeeds, 1 when the graph could not be coarsened and
+2 on error, and the distributed twin `SCOTCH_dgraphCoarsen()' already returns 2
+on a context initialization failure. Both sequential routines returned 1 in
+that case, which a caller distinguishing "not coarsened" from "error" reads as
+a successful non-coarsening.
+
+Return 2 on context initialization failure, like the distributed twin.
+
+Refs: API-23
+---
+ src/libscotch/library_graph_coarsen.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/libscotch/library_graph_coarsen.c b/src/libscotch/library_graph_coarsen.c
+index 9042a23..82b6755 100644
+--- a/src/libscotch/library_graph_coarsen.c
++++ b/src/libscotch/library_graph_coarsen.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2011,2012,2014,2015,2018,2019,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2011,2012,2014,2015,2018,2019,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 06 sep 2011     **/
+ /**                                 to   : 23 apr 2018     **/
+ /**                # Version 7.0  : from : 03 may 2019     **/
+-/**                                 to   : 21 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -97,7 +97,7 @@ SCOTCH_Num * restrict const         coarmulttab)  /* Pointer to multinode array
+ 
+   if (CONTEXTINIT (finegrafptr) != 0) {
+     errorPrint (STRINGIFY (SCOTCH_graphCoarsen) ": cannot initialize context");
+-    return (1);
++    return (2);
+   }
+ 
+   coarmultptr = (GraphCoarsenMulti *) coarmulttab; /* Indicate multinode array is user-provided */
+@@ -135,7 +135,7 @@ SCOTCH_Num * restrict const             finematetab) /* Mating array to fill
+ 
+   if (CONTEXTINIT (finegrafptr) != 0) {
+     errorPrint (STRINGIFY (SCOTCH_graphCoarsenMatch) ": cannot initialize context");
+-    return (1);
++    return (2);
+   }
+ 
+   finemateptr = finematetab;                      /* Slot will not be modified but preserve "const" of finematetab */
+-- 
+2.47.3
+

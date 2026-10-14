@@ -1,0 +1,30 @@
+Shared driver and fault-injection harness for G22-bdgraph (all reproducers below use it)
+=======================================================================================
+WORK=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph
+
+bipartfi.c   Driver on the internal API: loads a centralized graph file as a Dgraph (root reads it),
+             builds a Bdgraph with bdgraphInit() on a 2-domain complete architecture, parses a bdgraph
+             bipartitioning strategy with stratInit(&bdgraphbipartststratab, ...) and runs bdgraphBipartSt().
+               mpirun -np P ./bipartfi graphfile baseval "strategy" [veex] [check]
+             Every process prints "rank r: ret=<o> load0= dlt= size0= comm= gainextn= fron= bal=<bbalglbval>
+             balcalc=<|dlt|/avg>". With check=1, bdgraphCheck() is run when all processes returned 0.
+             With veex=1 a deterministic external gain array (veex = (vertglbnum*7919)%11 - 5) is attached
+             to the active graph (bdgraphInit() never does it today), which is the only way to exercise the
+             external-gain code paths (DMO-19). Strategy "gather" checks bdgraphGatherAll() instead.
+             The fault-injection shim is armed around bdgraphBipartSt() only.
+fishim.c     G18's LD_PRELOAD malloc/realloc fault injector (FI_RANK, FI_NTH, FI_LOG; counts only allocations
+             made from a library whose path contains "scotch"). Build: gcc -O1 -g -fPIC -shared -o fishim.so fishim.c -ldl
+scan.sh      scan.sh LIBDIR BIN NP FAILRANK FROM TO -- args : one line per injected allocation index;
+             "HANG" = 20 s timeout; the exit code and the first error lines are summarised.
+build.sh     build.sh BUILDDIR : compiles bipartfi against BUILDDIR into bin_<name>/.
+4elt.grf     test graph (15606 vertices); tleaf.tgt, cmplt7.tgt: targets for the shipped tools.
+
+Trees (all built from the combined series = base-combined, plus my 8 commits for the patched ones):
+  $WORK/basefi   UBSan-only, -ftrivial-auto-var-init=pattern, base-combined (pristine for the scans; ASan
+                 trees cannot be LD_PRELOADed)
+  $WORK/buildfi  same flags, patched
+  $WORK/build    ASan+UBSan 32-bit Gnum, patched     $WORK/build64  64-bit Gnum, patched
+  $WORK/builddbg ASan+UBSan -DSCOTCH_DEBUG_ALL, patched
+  $INFRA/asan    pristine 7.0.17 ASan tree (used for the DMO-19 pristine runs)
+bin_basefi/ bin_buildfi/ bin_build/ bin_build64/ bin_builddbg/ : compiled drivers.
+../tools_np_runs.txt : dgpart / dgmap / dgord at -np 1..4 on the 32-bit and 64-bit patched trees.

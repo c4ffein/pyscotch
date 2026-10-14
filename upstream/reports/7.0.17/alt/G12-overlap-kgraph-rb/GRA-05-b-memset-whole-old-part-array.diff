@@ -1,0 +1,11 @@
+--- a/src/libscotch/kgraph_band.c
++++ b/src/libscotch/kgraph_band.c
+@@ -264,7 +264,7 @@
+       errorPrint ("kgraphBand: out of memory (5)");
+       goto fail;
+     }
+-    memSet (bandparotax + bandvertnbr - bandgrafptr->r.m.domnnbr, ~0, bandgrafptr->r.m.domnnbr * sizeof (Gnum)); /* Old parts of anchors are unspecified */
++    memSet (bandparotax, ~0, bandvertnbr * sizeof (Gnum)); /* All old parts unspecified until set; those of anchors remain so */
+     bandparotax -= bandgrafptr->s.baseval;
+     bandgrafptr->r.m.flagval |= MAPPINGINCOMPLETE | MAPPINGFREEPART; /* Remapping may be incomplete */
+     bandgrafptr->r.m.parttax  = bandparotax;

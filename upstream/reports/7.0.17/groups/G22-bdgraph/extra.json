@@ -1,0 +1,198 @@
+[
+ {
+  "local_id": "PS2-G22-1",
+  "our_title": "bdgraphGatherAll allocation failures are not agreed upon in release builds; one failing process desynchronises the gather",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "cd $WORK/repro/common; ./scan.sh ../../basefi/lib ./bin_basefi/bipartfi 3 1 0 30 -- 4elt.grf 0 'q{strat=f}' 0 1 -> nth=3: '(1): ERROR: bdgraphGatherAll: out of memory (1)', rank 1 prints 'rank 1: ret=1', then '*** MPI_ERRORS_ARE_FATAL (processes in this communicator will now abort' (exit 15); same at nth=4 (out of memory (2)) and nth=5 (out of memory (4)). Patched (buildfi): nth=3,4,5 -> 'rank 0: ret=1', 'rank 1: ret=1', 'rank 2: ret=1' (repro/DMO-03/scan_*.txt).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/bdgraph_gather_all.c:121-171 (release path '#ifndef SCOTCH_DEBUG_BDGRAPH1 bgraphExit (cgrfptr); return (1);' at :123-125, :132-134, :145-147, :164-166; the agreement at :172-181 is compiled only under SCOTCH_DEBUG_BDGRAPH1)",
+  "evidence": "bdgraph_gather_all.c:121-125: 'if ((cgrfptr->frontab = (Gnum *) memAlloc (cgrfptr->s.vertnbr * sizeof (Gnum))) == NULL) { errorPrint (\"bdgraphGatherAll: out of memory (1)\"); #ifndef SCOTCH_DEBUG_BDGRAPH1 bgraphExit (cgrfptr); return (1);' while the other processes continue to commAllgatherv (:203) / MPI_Allgather (:218). bdgraphGatherAll runs in every bdgraphBipartSq call, i.e. at the coarsest levels of the default dgmap/dgpart strategy (q{strat=...}).",
+  "related_ids": [
+   "DMO-03",
+   "DGR-10"
+  ],
+  "fix_options": [
+   {
+    "label": "A: assume-error / goto fail / unconditional agreement, as in the maintainer's hdgraphGather() rework (7.0.17)",
+    "summary": "Set all pointers before the first allocation, jump to a common fail label, always MPI_Allreduce the local status before any collective, free only what was allocated.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0002-Bugfix-agree-on-allocation-failures-in-bdgraphGather.patch",
+    "tested": "scan above (nth 3,4,5 now return 1 on all ranks); full CHECKPTSCOTCH on 32-bit, 64-bit and DEBUG_ALL trees (see SUMMARY.md)",
+    "tradeoffs": "One MPI_Allreduce per bdgraphGatherAll call in release builds (it existed in debug builds already); same structure as hdgraphGather() and as G18's dgraphGatherAll2 rework.",
+    "preferred": true,
+    "maintainer_fit": "He did exactly this in 7.0.17 for hdgraphGather() ('Rework error handling and structure of `hdgraphGather()`', unconditional MPI_Allreduce after a fail: label) and G18 did it for dgraphGatherAll2(), which this routine calls."
+   },
+   {
+    "label": "B: keep the debug-only agreement, document the limitation",
+    "summary": "No code change; accept that an OOM in the centralized gather hangs or aborts the job in release builds.",
+    "diff_file": "",
+    "tested": "untested: no change",
+    "tradeoffs": "Zero cost, but the whole job dies on a single-process OOM, which the review and G18 treat as a defect.",
+    "preferred": false,
+    "maintainer_fit": "Contradicts his own 2026 hdgraphGather() rework."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0002-Bugfix-agree-on-allocation-failures-in-bdgraphGather.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G22-2",
+  "our_title": "bdgraphGatherAll allocates but never gathers the external gain array when the distributed graph has no part array",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "LD_LIBRARY_PATH=$INFRA/asan/lib mpirun -np 3 ./bin_build/bipartfi 4elt.grf 0 gather 1 0 -> 'rank 0: gather veextax=0x530000020400 bad=14280 of 15606' (np=1: same); 'q{strat=f}' with veex -> 'bgraph_bipart_gg.c:234:17: runtime error: signed integer overflow: -1094795308 + -1094795582' (0xBEBEBEBE = uninitialised heap), check=96. Patched: 'bad=0 of 15606', check=0 (repro/DMO-19/probes_*.txt).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/bdgraph_gather_all.c:197-215 (early return at :197-201 precedes the veextax commAllgatherv at :209-215)",
+  "evidence": "bdgraph_gather_all.c:197: 'if (dgrfptr->partgsttax == NULL) { bgraphZero (cgrfptr); memFree (froncnttab); return (0); }' then :209 'if (dgrfptr->veexloctax != NULL) { if (commAllgatherv (dgrfptr->veexloctax + ...'. Latent: veexloctax is NULL today (bdgraph.c:98 'No external gain (yet)').",
+  "related_ids": [
+   "DMO-19"
+  ],
+  "fix_options": [
+   {
+    "label": "A: gather the external gains before testing for the part array",
+    "summary": "Move the veextax commAllgatherv block above the 'partgsttax == NULL' early return.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0007-Bugfix-fix-external-gain-accounting-in-bdgraphBipart.patch",
+    "tested": "gather mode bad=0 at np=1,3; veex strategies q, q+x, m with fold n/f/d at np=1..4 pass bdgraphCheck on release and DEBUG_ALL trees",
+    "tradeoffs": "None (one block moved).",
+    "preferred": true,
+    "maintainer_fit": "Minimal, keeps his structure; the gathered graph must be complete before any sequential method runs on it."
+   },
+   {
+    "label": "B: free veextax and set it to NULL on the early-return path",
+    "summary": "Do not gather external gains when no part array exists; the sequential strategy then runs without them.",
+    "diff_file": "",
+    "tested": "untested: rejected by reading",
+    "tradeoffs": "Silently drops the external gains of the first sequential bipartition (wrong objective); not acceptable.",
+    "preferred": false,
+    "maintainer_fit": "He wants the feature wired through (TODO in bdgraphInit)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0007-Bugfix-fix-external-gain-accounting-in-bdgraphBipart.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G22-3",
+  "our_title": "bdgraphBipartMlUncoarsen omits the external gain of received part-0 vertices",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "With patches 0001-0007 and the coarse-gain merge applied but without this fix: mpirun -np 2 ./bin_build/bipartfi 4elt.grf 0 'm{asc=x{bal=0},low=q{strat=f},seq=q{strat=f},fold=n,dvert=100000,vert=100}' 1 1 -> '(0): ERROR: bdgraphCheck: invalid global communication gains', check=64 on all ranks (np=2,3,4, fold n/f/d); np=1 passes. With the fix: check=0 everywhere (repro/DMO-19/probes_patched_*.txt).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/bdgraph_bipart_ml.c:599-615 (sub-array 0) and :644-661 (sub-array 2)",
+  "evidence": "bdgraph_bipart_ml.c:614 'finepartgsttax[finevertlocnum] = 0;' with no gain update, whereas the local branch does :458 'finecommlocgainextn += veexval * (1 - 2 * coarpartmsk);' (+veex for part 0) and the part-1 sub-arrays do :640 'finecommlocgainextn -= veexval;'. commglbgainextn = sum veex * (1 - 2 * part) therefore lacks +veex for every part-0 fine vertex whose multinode is held by another process.",
+  "related_ids": [
+   "DMO-19"
+  ],
+  "fix_options": [
+   {
+    "label": "A: add the +veex term in the two part-0 receive loops",
+    "summary": "'if (fineveexloctax != NULL) finecommlocgainextn += fineveexloctax[finevertlocnum];' after the part assignment in sub-arrays 0 and 2.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0008-Bugfix-compute-the-external-gains-of-coarse-and-unco.patch",
+    "tested": "veex ml probes with fold n/f/d, np 1..4, release and DEBUG_ALL trees: check=0",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Mirrors the existing part-1 branches; symmetric code."
+   },
+   {
+    "label": "B: recompute commglbgainextn from scratch after the halo exchange",
+    "summary": "Loop over all local vertices at the end of uncoarsening and sum veex*(1-2*part), dropping the incremental accounting.",
+    "diff_file": "",
+    "tested": "untested: alternative design only",
+    "tradeoffs": "Simpler invariant but an extra pass over all local vertices at every level; departs from the incremental style of the routine.",
+    "preferred": false,
+    "maintainer_fit": "He keeps the incremental accounting everywhere (bd, df, ex)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/patches/0008-Bugfix-compute-the-external-gains-of-coarse-and-unco.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G22-4",
+  "our_title": "vdgraphCheck error messages are prefixed with the sequential routine name",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "grep of errorPrint prefixes against file names over bdgraph*/vdgraph*/hdgraph*/kdgraph*; only this file mismatches (after G18 fixed hdgraph_fold.c's 'dgraphFold2').",
+  "why_not_run": "debug-only message text; no behaviour",
+  "location_7_0_17": "src/libscotch/vdgraph_check.c:234 and :262",
+  "evidence": "vdgraph_check.c:234 'errorPrint (\"vgraphCheck: invalid local part sizes\");' and :262 'errorPrint (\"vgraphCheck: invalid global part sizes\");' inside vdgraphCheck().",
+  "related_ids": [
+   "DMO-18"
+  ],
+  "fix_options": [
+   {
+    "label": "A: use the routine's own name",
+    "summary": "Rename the two prefixes to vdgraphCheck.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G22-bdgraph/alt/PS2-G22-4-vdgraph_check-routine-name.diff",
+    "tested": "applies on base-combined, compiles with -O2 -Wall, 0 diagnostics",
+    "tradeoffs": "None; G23's file (vdgraph_check.c).",
+    "preferred": true,
+    "maintainer_fit": "Same class as the DMO-18 copy-paste fixes."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G22-5",
+  "our_title": "dgmap with a plain target file name aborts on non-root processes (target file opened on root only)",
+  "severity": "low",
+  "status": "inconclusive",
+  "method": "ran",
+  "ran": "cd $WORK/repro/common; echo 'cmplt 7' > cmplt7.tgt; mpirun --oversubscribe -np 2 ../../build/bin/dgmap 4elt.grf cmplt7.tgt /dev/null -> 'dgmap(1): ERROR: main: target architecture file not provided', rc=1 (np=3: 2 such errors, np=4: 3); np=1 works; same on the 64-bit tree and on base-combined (the tool is not touched by this series). dgpart and dgord work at np=1..4 (repro/tools_np_runs.txt).",
+  "read_only": "src/scotch/dgmap.c:361 'fileBlockOpenDist (C_fileTab, C_FILENBR, procglbnbr, proclocnum, protglbnum)' opens single-named files on the root process only; :377-379 'if (C_filepntrtgtinp == NULL) errorPrint (\"main: target architecture file not provided\"); SCOTCH_archLoad (&archdat, C_filepntrtgtinp);' runs on every process. Whether a '%p'/'%r' file name pattern is the intended usage was not checked (CLI group).",
+  "why_not_run": "the cause was read, not patched: src/scotch/ belongs to the CLI group; could be intended usage (per-process file names)",
+  "location_7_0_17": "src/scotch/dgmap.c:361, 377-379",
+  "evidence": "see read_only",
+  "related_ids": [
+   "CLI-01"
+  ],
+  "fix_options": [
+   {
+    "label": "A: load the architecture on the root process and broadcast it, or open the target file on every process",
+    "summary": "Either read the architecture on protglbnum and broadcast its description, or let fileBlockOpenDist open read-only single-named files on all processes.",
+    "diff_file": "",
+    "tested": "untested: other group's tool, design to be decided",
+    "tradeoffs": "",
+    "preferred": true,
+    "maintainer_fit": "Unknown; to be routed to the CLI group."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G22-6",
+  "our_title": "int-width abs() remains on Anum values in a test program and in amk_m2",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "git grep '[^a-zA-Z_]abs (' over src/: only src/check/test_arch_deco.c:192 'if (distval != abs (termnum - termend))' (termnum, termend are Anum) and src/scotch/amk_m2.h:105 '#define C_domnDist(x0,y0,x1,y1) (abs ((x0) - (x1)) + abs ((y0) - (y1)))' used on Anum x0..y1 in amk_m2.c:127; no occurrence left in src/libscotch (f545452 covered it).",
+  "why_not_run": "values are small terminal numbers / mesh coordinates; the truncation is only theoretical with -DIDXSIZE64",
+  "location_7_0_17": "src/check/test_arch_deco.c:192; src/scotch/amk_m2.h:105",
+  "evidence": "see read_only",
+  "related_ids": [
+   "DMO-10"
+  ],
+  "fix_options": [
+   {
+    "label": "A: use ABS from common.h in both places",
+    "summary": "Replace abs() by ABS() (common.h:197) as f545452 did in the library.",
+    "diff_file": "",
+    "tested": "untested: other groups' files (CHK/CLI); two one-line edits",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Completes his own f545452 sweep."
+   }
+  ],
+  "patch_files": []
+ }
+]

@@ -1,0 +1,107 @@
+From 4bd5f2c1f77e6c542812230ac501270278c4e82f Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:31:43 +0000
+Subject: [PATCH 073/240] Bugfix: do not split contexts in recursive
+ bipartitioning when deterministic behavior is wanted [report PyScotch]
+
+`kgraphMapRbPart2()` and `wgraphPartRb2()` split the execution context
+in two whenever at least two threads are available. The second
+sub-context receives a new pseudo-random generator, so that the
+pseudo-random sequences consumed by the recursion depend on the number
+of threads, and results differ between runs with 1, 2 or 4 threads even
+when the deterministic option is set, while the documentation states
+that this option yields the same results for any number of threads.
+Run the two sub-tasks in sequence, within the same context, when
+deterministic behavior is wanted, as `graphMatchInit()` does for
+threaded matching.
+
+Refs: PS2-G12-3
+---
+ src/libscotch/kgraph_map_rb_part.c | 12 +++++++++---
+ src/libscotch/wgraph_part_rb.c     |  8 +++++++-
+ 2 files changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/src/libscotch/kgraph_map_rb_part.c b/src/libscotch/kgraph_map_rb_part.c
+index 452476d..d8e5714 100644
+--- a/src/libscotch/kgraph_map_rb_part.c
++++ b/src/libscotch/kgraph_map_rb_part.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2008,2011,2014,2021,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2008,2011,2014,2021,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -49,7 +49,7 @@
+ /**                # Version 6.1  : from : 28 jun 2021     **/
+ /**                                 to   : 28 jun 2021     **/
+ /**                # Version 7.0  : from : 03 may 2021     **/
+-/**                                 to   : 16 jul 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # This is a rewrite of kgraphMapRb()    **/
+ /**                  for complete-graph target topologies. **/
+@@ -69,6 +69,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "parser.h"
+ #include "graph.h"
+ #include "arch.h"
+@@ -214,6 +215,9 @@ KgraphMapRbPartSplit * const  spltptr)
+   Anum                  vflonbrtab[2];            /* Number of fixed vertex slots in subdomains  */
+   Gnum                  vflowgttab[2];            /* Weights of fixed vertex slots in subdomains */
+   KgraphMapRbPartSplit  spltdat;                  /* Parameters for context splitting            */
++#ifndef KGRAPHMAPRBPARTNOTHREAD
++  INT                   deteval;                  /* Flag set if deterministic behavior wanted   */
++#endif /* KGRAPHMAPRBPARTNOTHREAD */
+   int                   avarval;                  /* Flag set if variable-sized                  */
+   GraphPart             partval;
+   int                   o;
+@@ -313,7 +317,9 @@ KgraphMapRbPartSplit * const  spltptr)
+   spltdat.revaptr = &o;
+ 
+ #ifndef KGRAPHMAPRBPARTNOTHREAD
+-  if (contextThreadLaunchSplit (contptr, (ContextSplitFunc) kgraphMapRbPart2, &spltdat) != 0) /* If counld not split context to run concurrently */
++  contextValuesGetInt (contptr, CONTEXTOPTIONNUMDETERMINISTIC, &deteval);
++  if ((deteval != 0) ||                           /* If deterministic behavior wanted, or if could not split context to run concurrently */
++      (contextThreadLaunchSplit (contptr, (ContextSplitFunc) kgraphMapRbPart2, &spltdat) != 0))
+ #endif /* KGRAPHMAPRBPARTNOTHREAD */
+   {
+     kgraphMapRbPart2 (contptr, 0, &spltdat);      /* Run tasks in sequence */
+diff --git a/src/libscotch/wgraph_part_rb.c b/src/libscotch/wgraph_part_rb.c
+index 21f8185..4199062 100644
+--- a/src/libscotch/wgraph_part_rb.c
++++ b/src/libscotch/wgraph_part_rb.c
+@@ -60,6 +60,7 @@
+ 
+ #include "module.h"
+ #include "common.h"
++#include "context.h"
+ #include "parser.h"
+ #include "graph.h"
+ #include "arch.h"
+@@ -281,6 +282,9 @@ const WgraphPartRbSplit * const spltptr)
+ {
+   Vgraph              actgrafdat;
+   WgraphPartRbSplit   spltdat;
++#ifndef WGRAPHPARTRBNOTHREAD
++  INT                 deteval;                    /* Flag set if deterministic behavior wanted */
++#endif /* WGRAPHPARTRBNOTHREAD */
+   int                 partval;
+   int                 o;
+ 
+@@ -380,7 +384,9 @@ const WgraphPartRbSplit * const spltptr)
+   spltdat.parttax = actgrafdat.parttax;
+ 
+ #ifndef WGRAPHPARTRBNOTHREAD
+-  if (contextThreadLaunchSplit (contptr, (ContextSplitFunc) wgraphPartRb2, &spltdat) != 0) /* If counld not split context to run concurrently */
++  contextValuesGetInt (contptr, CONTEXTOPTIONNUMDETERMINISTIC, &deteval);
++  if ((deteval != 0) ||                           /* If deterministic behavior wanted, or if could not split context to run concurrently */
++      (contextThreadLaunchSplit (contptr, (ContextSplitFunc) wgraphPartRb2, &spltdat) != 0))
+ #endif /* WGRAPHPARTRBNOTHREAD */
+   {
+     wgraphPartRb2 (contptr, 0, &spltdat);         /* Run tasks in sequence */
+-- 
+2.47.3
+

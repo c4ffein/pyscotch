@@ -1,0 +1,49 @@
+From b4ed7c121e2177cd57a383008397c6ecc5704fcf Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:07:11 +0000
+Subject: [PATCH 06/11] Bugfix: initialize minimum distance properly in `atst`
+ [report R. Perry]
+
+The initial minimum distance was computed by shifting an unsigned
+long, which yields -1 when SCOTCH_Num is a 32-bit integer on LP64
+platforms, so that the minimum distance was always reported as -1.
+Use `SCOTCH_NUMMAX`, which is defined for the actual integer size,
+and report 0 when there are fewer than two terminals, as the average
+distance already does.
+
+Refs: CLI-13
+---
+ src/scotch/atst.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/scotch/atst.c b/src/scotch/atst.c
+index 32caa0e..54a53c7 100644
+--- a/src/scotch/atst.c
++++ b/src/scotch/atst.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2010-2012,2014,2018,2019,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2010-2012,2014,2018,2019,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -56,7 +56,7 @@
+ /**                # Version 6.0  : from : 01 jan 2012     **/
+ /**                                 to   : 24 sep 2019     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 20 nov 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -158,7 +158,7 @@ char *                      argv[])
+       (termnum != termnbr))
+     errorPrint ("main: cannot enumerate terminal domains");
+ 
+-  distmin = (SCOTCH_Num) (((unsigned long) ((SCOTCH_Num) -1)) >> 1); /* Set to maximum number in Anum */
++  distmin = (termnbr > 1) ? SCOTCH_NUMMAX : 0;    /* Set to maximum number, or to zero if no pairs */
+   distmax = 0;
+   distsum = 0;
+ 
+-- 
+2.47.3
+

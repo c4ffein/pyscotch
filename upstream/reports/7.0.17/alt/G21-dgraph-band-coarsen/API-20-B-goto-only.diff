@@ -1,0 +1,24 @@
+# API-20 / PS-DGR-5 option B (NOT preferred): the review's fix as written: goto fail and message. Releases the context but not the ghost edge array that dgraphGhst2() may have attached to the clone when another process failed (leak), which option A handles with a second label.
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/library_dgraph_grow.c b/src/libscotch/library_dgraph_grow.c
+index 9ec15f1..c597076 100644
+--- a/src/libscotch/library_dgraph_grow.c
++++ b/src/libscotch/library_dgraph_grow.c
+@@ -114,7 +114,7 @@ SCOTCH_Num * const          partgsttab)
+   o = 1;                                          /* Assume an error */
+ 
+   if (CONTEXTINIT (orggrafptr)) {
+-    errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": cannot initialize context");
++    errorPrint (STRINGIFY (SCOTCH_dgraphGrow) ": cannot initialize context");
+     goto fail;
+   }
+ 
+@@ -123,7 +123,7 @@ SCOTCH_Num * const          partgsttab)
+ 
+   if (dgraphGhst (&grafdat) != 0) {               /* Compute ghost edge array if not already present */
+     errorPrint (STRINGIFY (SCOTCH_dgraphGrow) ": cannot compute ghost edge array");
+-    return (1);
++    goto fail;
+   }
+ 
+   bandpartgsttax = (partgsttab != NULL) ? (Gnum *) partgsttab - grafdat.baseval : NULL;

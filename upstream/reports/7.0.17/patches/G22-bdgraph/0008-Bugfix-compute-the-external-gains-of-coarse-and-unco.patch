@@ -1,0 +1,339 @@
+From f41addd71262de2ac851f76888df97bfb61fbff6 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 20:06:44 +0000
+Subject: [PATCH 8/8] Bugfix: compute the external gains of coarse and
+ uncoarsened vertices in `bdgraphBipartMl()` [report R. Perry and PyScotch]
+
+External gains are not computed yet for distributed active graphs, but
+the multilevel code that handles them was wrong. `bdgraphBipartMlCoarsen()`
+indexed the local external gain array of the fine graph with the global
+vertex numbers of the multinode array, which are only valid local
+indices on a single process; moreover, since the multinode array is
+redistributed along with the coarse graph when it is folded, the fine
+vertices of a multinode may be owned by any process. Compute the coarse
+external gains in a dedicated routine, called by all processes of the
+fine graph, which sums the gains of local fine vertices and requests
+those of remote fine vertices from their owner processes.
+
+`bdgraphBipartMlUncoarsen()` did not account for the external gain of
+the fine vertices assigned to part 0 that it received from other
+processes, so that the global external gain of the fine graph was
+wrong whenever a multinode spanned two processes.
+
+Refs: DMO-19, PS2-G22-3
+---
+ src/libscotch/bdgraph_bipart_ml.c | 273 ++++++++++++++++++++++++++----
+ 1 file changed, 243 insertions(+), 30 deletions(-)
+
+diff --git a/src/libscotch/bdgraph_bipart_ml.c b/src/libscotch/bdgraph_bipart_ml.c
+index 3d2314b..b6d2902 100644
+--- a/src/libscotch/bdgraph_bipart_ml.c
++++ b/src/libscotch/bdgraph_bipart_ml.c
+@@ -70,6 +70,235 @@
+ /*                                           */
+ /*********************************************/
+ 
++/* This routine returns the number of the process
++** which owns the given global vertex number of the
++** fine graph, by dichotomy on the vertex range array.
++** It returns:
++** - the process number, in all cases.
++*/
++
++static
++int
++bdgraphBipartMlProcNum (
++const Gnum * restrict const procvrttab,           /*+ Vertex range array of fine graph +*/
++const int                   procglbnbr,           /*+ Number of processes              +*/
++const Gnum                  vertglbnum)           /*+ Global vertex number             +*/
++{
++  int                 procngbnum;
++  int                 procngbmax;
++
++  procngbnum = 0;
++  procngbmax = procglbnbr;
++  while ((procngbmax - procngbnum) > 1) {         /* Find owner process by dichotomy on procvrttab */
++    int                 procngbmed;
++
++    procngbmed = (procngbmax + procngbnum) / 2;
++    if (procvrttab[procngbmed] > vertglbnum)
++      procngbmax = procngbmed;
++    else
++      procngbnum = procngbmed;
++  }
++
++  return (procngbnum);
++}
++
++/* This routine computes the external gains of the
++** vertices of the coarser graph, as the sums of the
++** external gains of the fine vertices of their
++** multinodes. Since the multinode array is
++** redistributed along with the coarse graph when it
++** is folded, the fine vertices of a multinode may be
++** owned by any process; their external gains are
++** requested from their owner processes. All processes
++** of the fine graph must call this routine, even when
++** they do not own a copy of the coarse graph.
++** It returns:
++** - 0   : if the coarse external gain array has been built.
++** - !0  : on error.
++*/
++
++static
++int
++bdgraphBipartMlCoarsenVeex (
++const Bdgraph * restrict const            finegrafptr, /*+ Finer graph                               +*/
++Bdgraph * restrict const                  coargrafptr, /*+ Coarser graph, empty if not owned         +*/
++const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Based multinode array, NULL if not owned +*/
++{
++  Gnum * restrict     coarveexloctax;
++  Gnum                coarvertlocnum;
++  Gnum                finevertlocadj;             /* Global vertex adjustment                                            */
++  int * restrict      vsndcnttab;
++  int * restrict      vsnddsptab;
++  int * restrict      vsndidxtab;
++  int * restrict      vrcvcnttab;
++  int * restrict      vrcvdsptab;
++  Gnum * restrict     vsnddattab;                 /* Global numbers of requested fine vertices, then their external gains */
++  Gnum * restrict     vsndvrttab;                 /* Coarse vertices to which requested fine vertices belong              */
++  Gnum * restrict     vrcvdattab;                 /* Global numbers of fine vertices requested by other processes         */
++  int                 vsnddspnbr;
++  int                 vrcvdspnbr;
++  int                 vsndlocnum;
++  int                 vrcvlocnum;
++  int                 procnum;
++  int                 cheklocval;
++  int                 chekglbval;
++
++  const int                   fineprocglbnbr = finegrafptr->s.procglbnbr;
++  const Gnum * restrict const fineprocvrttab = finegrafptr->s.procvrttab;
++  const Gnum * restrict const fineveexloctax = finegrafptr->veexloctax;
++  const Gnum                  finebaseval    = finegrafptr->s.baseval;
++  const Gnum                  finevertlocnnd = finegrafptr->s.vertlocnnd;
++  const Gnum                  coarbaseval    = coargrafptr->s.baseval;
++  const Gnum                  coarvertlocnbr = coargrafptr->s.vertlocnbr; /* Zero if coarse graph is not owned */
++  const Gnum                  coarvertlocnnd = coargrafptr->s.vertlocnnd;
++
++  cheklocval     = 0;
++  coarveexloctax = NULL;
++  if (memAllocGroup ((void **) (void *)
++                     &vsndcnttab, (size_t) (fineprocglbnbr * sizeof (int)),
++                     &vsnddsptab, (size_t) (fineprocglbnbr * sizeof (int)),
++                     &vsndidxtab, (size_t) (fineprocglbnbr * sizeof (int)),
++                     &vrcvcnttab, (size_t) (fineprocglbnbr * sizeof (int)),
++                     &vrcvdsptab, (size_t) (fineprocglbnbr * sizeof (int)),
++                     &vsnddattab, (size_t) (coarvertlocnbr * 2 * sizeof (Gnum)), /* At most two remote fine vertices per multinode */
++                     &vsndvrttab, (size_t) (coarvertlocnbr * 2 * sizeof (Gnum)), NULL) == NULL) {
++    errorPrint ("bdgraphBipartMlCoarsenVeex: out of memory (1)");
++    cheklocval = 1;
++  }
++  else if ((coarveexloctax = (Gnum *) memAlloc (coarvertlocnbr * sizeof (Gnum))) == NULL) {
++    errorPrint ("bdgraphBipartMlCoarsenVeex: out of memory (2)");
++    cheklocval = 1;
++  }
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, finegrafptr->s.proccomm) != MPI_SUCCESS) { /* All processes must agree before exchanging data */
++    errorPrint ("bdgraphBipartMlCoarsenVeex: communication error (1)");
++    chekglbval = 1;
++  }
++  if (chekglbval != 0) {
++    if (coarveexloctax != NULL)
++      memFree (coarveexloctax);
++    if (vsndcnttab != NULL)
++      memFree (vsndcnttab);                       /* Free group leader */
++    return (1);
++  }
++  coarveexloctax -= coarbaseval;
++
++  memSet (vsndcnttab, 0, fineprocglbnbr * sizeof (int));
++  finevertlocadj = fineprocvrttab[finegrafptr->s.proclocnum] - finebaseval;
++
++  for (coarvertlocnum = coarbaseval; coarvertlocnum < coarvertlocnnd; coarvertlocnum ++) { /* Sum local gains and count remote fine vertices per owner */
++    Gnum                finevertglbnum;
++    Gnum                coarveexval;
++    int                 i;
++
++    coarveexval = 0;
++    i = 0;
++    do {                                          /* For the two vertices of the multinode */
++      Gnum                finevertlocnum;
++
++      finevertglbnum = coarmulttax[coarvertlocnum].vertglbnum[i];
++      finevertlocnum = finevertglbnum - finevertlocadj;
++      if ((finevertlocnum >= finebaseval) &&      /* If fine multinode vertex is local */
++          (finevertlocnum <  finevertlocnnd))
++        coarveexval += fineveexloctax[finevertlocnum];
++      else                                        /* Multinode fine vertex is remote */
++        vsndcnttab[bdgraphBipartMlProcNum (fineprocvrttab, fineprocglbnbr, finevertglbnum)] ++;
++
++      i ++;                                       /* Process next multinode vertex */
++    } while (finevertglbnum != coarmulttax[coarvertlocnum].vertglbnum[1]); /* If not single node */
++
++    coarveexloctax[coarvertlocnum] = coarveexval; /* Record local part of external gain */
++  }
++
++  if (MPI_Alltoall (vsndcnttab, 1, MPI_INT, vrcvcnttab, 1, MPI_INT, finegrafptr->s.proccomm) != MPI_SUCCESS) {
++    errorPrint ("bdgraphBipartMlCoarsenVeex: communication error (2)");
++    return (1);
++  }
++
++  for (procnum = 0, vsnddspnbr = vrcvdspnbr = 0;  /* Build communication index arrays */
++       procnum < fineprocglbnbr; procnum ++) {
++    vsnddsptab[procnum] =
++    vsndidxtab[procnum] = vsnddspnbr;
++    vrcvdsptab[procnum] = vrcvdspnbr;
++    vsnddspnbr += vsndcnttab[procnum];
++    vrcvdspnbr += vrcvcnttab[procnum];
++  }
++
++  cheklocval = 0;
++  if ((vrcvdattab = (Gnum *) memAlloc (vrcvdspnbr * sizeof (Gnum))) == NULL) {
++    errorPrint ("bdgraphBipartMlCoarsenVeex: out of memory (3)");
++    cheklocval = 1;
++  }
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, finegrafptr->s.proccomm) != MPI_SUCCESS) { /* All processes must agree before exchanging data */
++    errorPrint ("bdgraphBipartMlCoarsenVeex: communication error (3)");
++    chekglbval = 1;
++  }
++  if (chekglbval != 0) {
++    if (vrcvdattab != NULL)
++      memFree (vrcvdattab);
++    memFree (coarveexloctax + coarbaseval);
++    memFree (vsndcnttab);                         /* Free group leader */
++    return (1);
++  }
++
++  for (coarvertlocnum = coarbaseval; coarvertlocnum < coarvertlocnnd; coarvertlocnum ++) { /* Pack requests for remote fine vertices */
++    Gnum                finevertglbnum;
++    int                 i;
++
++    i = 0;
++    do {                                          /* For the two vertices of the multinode */
++      Gnum                finevertlocnum;
++
++      finevertglbnum = coarmulttax[coarvertlocnum].vertglbnum[i];
++      finevertlocnum = finevertglbnum - finevertlocadj;
++      if ((finevertlocnum <  finebaseval) ||      /* If fine multinode vertex is remote */
++          (finevertlocnum >= finevertlocnnd)) {
++        int                 vsndidxnum;
++
++        vsndidxnum = vsndidxtab[bdgraphBipartMlProcNum (fineprocvrttab, fineprocglbnbr, finevertglbnum)] ++;
++        vsnddattab[vsndidxnum] = finevertglbnum;
++        vsndvrttab[vsndidxnum] = coarvertlocnum;
++      }
++
++      i ++;                                       /* Process next multinode vertex */
++    } while (finevertglbnum != coarmulttax[coarvertlocnum].vertglbnum[1]); /* If not single node */
++  }
++
++  if (MPI_Alltoallv (vsnddattab, vsndcnttab, vsnddsptab, GNUM_MPI, /* Send requests to owner processes */
++                     vrcvdattab, vrcvcnttab, vrcvdsptab, GNUM_MPI, finegrafptr->s.proccomm) != MPI_SUCCESS) {
++    errorPrint ("bdgraphBipartMlCoarsenVeex: communication error (4)");
++    return (1);
++  }
++
++  for (vrcvlocnum = 0; vrcvlocnum < vrcvdspnbr; vrcvlocnum ++) { /* Replace requested vertex numbers by their external gains */
++    Gnum                finevertlocnum;
++
++    finevertlocnum = vrcvdattab[vrcvlocnum] - finevertlocadj;
++#ifdef SCOTCH_DEBUG_BDGRAPH2
++    if ((finevertlocnum < finebaseval) || (finevertlocnum >= finevertlocnnd)) {
++      errorPrint ("bdgraphBipartMlCoarsenVeex: internal error");
++      return (1);
++    }
++#endif /* SCOTCH_DEBUG_BDGRAPH2 */
++    vrcvdattab[vrcvlocnum] = fineveexloctax[finevertlocnum];
++  }
++
++  if (MPI_Alltoallv (vrcvdattab, vrcvcnttab, vrcvdsptab, GNUM_MPI, /* Send back external gains to requesting processes */
++                     vsnddattab, vsndcnttab, vsnddsptab, GNUM_MPI, finegrafptr->s.proccomm) != MPI_SUCCESS) {
++    errorPrint ("bdgraphBipartMlCoarsenVeex: communication error (5)");
++    return (1);
++  }
++
++  for (vsndlocnum = 0; vsndlocnum < vsnddspnbr; vsndlocnum ++) /* Add external gains of remote fine vertices */
++    coarveexloctax[vsndvrttab[vsndlocnum]] += vsnddattab[vsndlocnum];
++
++  memFree (vrcvdattab);
++  memFree (vsndcnttab);                           /* Free group leader */
++
++  coargrafptr->veexloctax = coarveexloctax;
++
++  return (0);
++}
++
+ /* This routine builds a coarser graph from the
+ ** Dgraph that is given on input. The coarser
+ ** Dgraphs differ at this stage from classical
+@@ -117,40 +346,20 @@ const BdgraphBipartMlParam * const    paraptr)    /*+ Method parameters
+   coargrafptr->partgsttax = NULL;                 /* Do not allocate partition data yet */
+   coargrafptr->fronloctab = NULL;
+   coargrafptr->fronglbnbr = 0;
++  coargrafptr->veexloctax = NULL;                 /* Assume no external gains */
+ 
+-  if (coargrafptr->s.procglbnbr == 0) {           /* Not owner of graph */
+-    coargrafptr->veexloctax = NULL;
+-    return (0);
+-  }
+-
+-  if (finegrafptr->veexloctax != NULL) {          /* Merge external gains for coarsened vertices */
+-    DgraphCoarsenMulti * restrict coarmulttax;
+-    Gnum * restrict               coarveexloctax;
+-    Gnum                          coarvertlocnum;
+-
+-    if ((coarveexloctax = (Gnum *) memAlloc (coargrafptr->s.vertlocnbr * sizeof (Gnum))) == NULL) {
+-      errorPrint ("bdgraphBipartMlCoarsen: out of memory");
+-      dgraphExit (&coargrafptr->s);               /* Only free Dgraph since veexloctax not allocated */
++  if ((finegrafptr->veexloctax != NULL) &&        /* Merge external gains for coarsened vertices; all processes take part */
++      (bdgraphBipartMlCoarsenVeex (finegrafptr, coargrafptr, *coarmultptr) != 0)) {
++    errorPrint ("bdgraphBipartMlCoarsen: cannot compute external gains");
++    if (coargrafptr->s.procglbnbr != 0) {         /* Free coarse graph data if owner of graph */
++      dgraphExit (&coargrafptr->s);
+       memFree    (*coarmultptr + coargrafptr->s.baseval);
+-      return (1);
+-    }
+-    coarveexloctax -= coargrafptr->s.baseval;
+-    coargrafptr->veexloctax = coarveexloctax;
+-    coarmulttax = *coarmultptr;
+-
+-    for (coarvertlocnum = coargrafptr->s.baseval; coarvertlocnum < coargrafptr->s.vertlocnnd; coarvertlocnum++) {
+-      Gnum		finevertnum0;             /* First multinode vertex  */
+-      Gnum              finevertnum1;             /* Second multinode vertex */
+-
+-      finevertnum0 = coarmulttax[coarvertlocnum].vertglbnum[0];
+-      finevertnum1 = coarmulttax[coarvertlocnum].vertglbnum[1];
+-      coarveexloctax[coarvertlocnum] = (finevertnum0 != finevertnum1)
+-                                       ? finegrafptr->veexloctax[finevertnum0] + finegrafptr->veexloctax[finevertnum1]
+-                                       : finegrafptr->veexloctax[finevertnum0];
+     }
++    return (1);
+   }
+-  else                                            /* If fine graph does not have external gains */
+-    coargrafptr->veexloctax = NULL;               /* Coarse graph does not have external gains  */
++
++  if (coargrafptr->s.procglbnbr == 0)             /* Not owner of graph */
++    return (0);
+ 
+   coargrafptr->veexglbsum       = finegrafptr->veexglbsum;
+   coargrafptr->compglbload0min  = finegrafptr->compglbload0min; /* Only set constant partition parameters as others will be set on uncoarsening */
+@@ -610,6 +819,8 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Multinode array +*/
+       }
+ #endif /* SCOTCH_DEBUG_BDGRAPH2 */
+       finepartgsttax[finevertlocnum] = 0;
++      if (fineveexloctax != NULL)
++        finecommlocgainextn += fineveexloctax[finevertlocnum];
+     }
+ 
+     for (vrcvidxnnd = vrcvidxnum + vrcvdattab[vrcvdsptab[procnum] + 1]; /* Vertices in sub-array 1 */
+@@ -656,6 +867,8 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Multinode array +*/
+ #endif /* SCOTCH_DEBUG_BDGRAPH2 */
+       finepartgsttax[finevertlocnum] = 0;
+       finefronloctab[finefronlocnbr ++] = finevertlocnum;
++      if (fineveexloctax != NULL)
++        finecommlocgainextn += fineveexloctax[finevertlocnum];
+     }
+ 
+     for (vrcvidxnnd = vrcvdsptab[procnum] + vrcvcnttab[procnum]; /* Vertices in sub-array 3 */
+-- 
+2.47.3
+

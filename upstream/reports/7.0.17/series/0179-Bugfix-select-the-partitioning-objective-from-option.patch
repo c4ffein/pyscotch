@@ -1,0 +1,206 @@
+From 51d39816d5299650d3bfc836da6aec3b82f36e16 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:27:02 +0000
+Subject: [PATCH 179/240] Bugfix: select the partitioning objective from
+ `options[METIS_OPTION_OBJTYPE]` [report R. Perry]
+
+The MeTiS v5 graph partitioning routines chose between edge cut and
+communication volume according to whether a `vsize` array was
+provided, and ignored `options[METIS_OPTION_OBJTYPE]`. Hence, callers
+asking for `METIS_OBJTYPE_VOL` without vertex sizes received an edge
+cut, while callers providing vertex sizes with the default objective
+received a communication volume, as `METIS_PartMeshDual()` already
+honored this option.
+
+The objective is now read from the option array: edge cut uses the
+edge loads and ignores vertex sizes, communication volume uses the
+vertex sizes, unit sizes being assumed when none are provided.
+
+Refs: CLI-19
+---
+ doc/src/scotch/s_l.tex                |  7 ++-
+ src/check/test_libmetis.c             | 87 +++++++++++++++++++++++++++
+ src/libscotchmetis/metis_graph_part.c | 19 ++++--
+ 3 files changed, 105 insertions(+), 8 deletions(-)
+
+diff --git a/doc/src/scotch/s_l.tex b/doc/src/scotch/s_l.tex
+index 2b99e19..e701df1 100644
+--- a/doc/src/scotch/s_l.tex
++++ b/doc/src/scotch/s_l.tex
+@@ -9003,7 +9003,10 @@ values that are relevant to the operations of the
+ The supported options to date are \texttt{METIS\_\lbt OPTION\_\lbt
+   NUMBERING} (which allows one to set the \texttt{baseval} value of
+ \libscotch\ routines) and \texttt{METIS\_\lbt OPTION\_\lbt OBJTYPE}
+-(only for computing the partition cost, as \scotch\ does not try
+-directly to minimize communication volume).
++(which selects whether the edge cut or the communication volume is
++minimized and returned by the \metis\ v5 graph partitioning routines;
++since \scotch\ does not try directly to minimize communication
++volume, the latter is emulated by means of edge loads, as described
++for \texttt{METIS\_\lbt Part\lbt Graph\lbt VKway}).
+ 
+ \end{itemize}
+diff --git a/src/check/test_libmetis.c b/src/check/test_libmetis.c
+index c88dd9a..e587c20 100644
+--- a/src/check/test_libmetis.c
++++ b/src/check/test_libmetis.c
+@@ -189,6 +189,69 @@ const double * const        twgttab)              /* Interleaved target weights
+   free (loadtab);
+ }
+ 
++/* This routine checks that the returned
++** objective value is the edge cut or the
++** communication volume of the produced
++** partition, as requested.
++** It exits on error.
++*/
++
++static
++void
++checkObjval (
++const SCOTCH_Num            baseval,
++const SCOTCH_Num            vertnbr,
++const SCOTCH_Num * const    verttab,
++const SCOTCH_Num * const    edgetab,
++const SCOTCH_Num * const    edlotab,              /* Edge load array, or NULL   */
++const SCOTCH_Num * const    vsiztab,              /* Vertex size array, or NULL */
++const SCOTCH_Num * const    parttab,
++const SCOTCH_Num            partnbr,
++const SCOTCH_Num            objtval,              /* Requested objective type   */
++const SCOTCH_Num            objval)
++{
++  SCOTCH_Num *        nghbtab;                    /* Last vertex found in each part */
++  SCOTCH_Num          vertnum;
++  SCOTCH_Num          edgenum;
++  SCOTCH_Num          cutsum;
++  SCOTCH_Num          volsum;
++
++  if ((nghbtab = malloc (partnbr * sizeof (SCOTCH_Num))) == NULL) {
++    SCOTCH_errorPrint ("checkObjval: out of memory");
++    exit (EXIT_FAILURE);
++  }
++  memset (nghbtab, ~0, partnbr * sizeof (SCOTCH_Num));
++
++  for (vertnum = 0, edgenum = verttab[0] - baseval, cutsum = volsum = 0; /* Un-based traversal */
++       vertnum < vertnbr; vertnum ++) {
++    SCOTCH_Num          edgennd;
++    SCOTCH_Num          partval;
++
++    partval = parttab[vertnum] - baseval;
++    nghbtab[partval] = vertnum;                   /* Do not count own part */
++    for (edgennd = verttab[vertnum + 1] - baseval; edgenum < edgennd; edgenum ++) {
++      SCOTCH_Num          partend;
++
++      partend = parttab[edgetab[edgenum] - baseval] - baseval;
++      if (partend == partval)
++        continue;
++      cutsum += (edlotab != NULL) ? edlotab[edgenum] : 1;
++      if (nghbtab[partend] != vertnum) {          /* If first neighbor in this part */
++        nghbtab[partend] = vertnum;
++        volsum += (vsiztab != NULL) ? vsiztab[vertnum] : 1;
++      }
++    }
++  }
++  cutsum /= 2;                                    /* Each cut edge was seen twice */
++
++  free (nghbtab);
++
++  if (objval != ((objtval == METIS_OBJTYPE_VOL) ? volsum : cutsum)) {
++    SCOTCH_errorPrint ("checkObjval: invalid objective value");
++    exit (EXIT_FAILURE);
++  }
++}
++
+ /*********************/
+ /*                   */
+ /* The main routine. */
+@@ -382,6 +445,30 @@ char *              argv[])
+ 
+   checkOrder (baseval, vertnbr, parttab, peritab);
+ 
++  options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_VOL; /* Minimize communication volume, with unit vertex sizes */
++
++  if (SCOTCHMETISNAMEC (METIS_PartGraphKway) (&vertnbr, &nconval, verttab, edgetab, velotab, NULL, edlotab,
++                                              &partnbr, awgttab, kbaltab, options, &edgecut, parttab) != METIS_OK) {
++    SCOTCH_errorPrint ("main: error in METIS_V5_PartGraphKway (5)");
++    exit (EXIT_FAILURE);
++  }
++
++  checkPart   (baseval, vertnbr, parttab, partnbr);
++  checkObjval (baseval, vertnbr, verttab, edgetab, edlotab, NULL, parttab, partnbr, METIS_OBJTYPE_VOL, edgecut);
++
++  options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_CUT; /* Minimize edge cut; vertex sizes should be ignored */
++  for (vertnum = 0; vertnum < vertnbr; vertnum ++)
++    peritab[vertnum] = (vertnum % 7) + 1;         /* Use inverse permutation array as vertex size array */
++
++  if (SCOTCHMETISNAMEC (METIS_PartGraphRecursive) (&vertnbr, &nconval, verttab, edgetab, velotab, peritab, edlotab,
++                                                   &partnbr, awgttab, kbaltab, options, &edgecut, parttab) != METIS_OK) {
++    SCOTCH_errorPrint ("main: error in METIS_V5_PartGraphRecursive (3)");
++    exit (EXIT_FAILURE);
++  }
++
++  checkPart   (baseval, vertnbr, parttab, partnbr);
++  checkObjval (baseval, vertnbr, verttab, edgetab, edlotab, peritab, parttab, partnbr, METIS_OBJTYPE_CUT, edgecut);
++
+   for (optinum = 0; optinum < METIS_NOPTIONS; optinum ++) /* MeTiS v5 callers fill option arrays with -1 to get default values */
+     options[optinum] = -1;
+   if (baseval != 0)                               /* Default numbering is from 0 */
+diff --git a/src/libscotchmetis/metis_graph_part.c b/src/libscotchmetis/metis_graph_part.c
+index ea08615..e3e1d25 100644
+--- a/src/libscotchmetis/metis_graph_part.c
++++ b/src/libscotchmetis/metis_graph_part.c
+@@ -559,10 +559,10 @@ SCOTCH_Num * const          part)
+ /* This routine is the common entry point of the
+ ** MeTiS v5 graph partitioning routines. It turns
+ ** MeTiS v5 parameters into Scotch ones: the base
+-** value is read from the option array, and the
+-** imbalance ratio of the first constraint (e.g.
+-** 1.05) becomes a Scotch imbalance tolerance
+-** (e.g. 0.05).
++** value and the objective type are read from the
++** option array, and the imbalance ratio of the
++** first constraint (e.g. 1.05) becomes a Scotch
++** imbalance tolerance (e.g. 0.05).
+ ** It returns:
+ ** - METIS_OK      : if the partition has been successfully computed.
+ ** - METIS_ERROR*  : on error.
+@@ -587,6 +587,7 @@ SCOTCH_Num * const          part,
+ const SCOTCH_Num            flagval)
+ {
+   SCOTCH_Num          baseval;
++  SCOTCH_Num          objtval;
+   double              kbalval;
+ 
+   if (*ncon < 1) {
+@@ -594,6 +595,12 @@ const SCOTCH_Num            flagval)
+     return (METIS_ERROR_INPUT);
+   }
+ 
++  objtval = _SCOTCH_METIS_optionGet (options, xadj, METIS_OPTION_OBJTYPE, METIS_OBJTYPE_CUT); /* For the Fortran interface, null arrays are those equal to xadj */
++  if ((objtval != METIS_OBJTYPE_CUT) && (objtval != METIS_OBJTYPE_VOL)) {
++    SCOTCH_errorPrint ("_SCOTCH_METIS_V5_PartGraph: invalid objective type option");
++    return (METIS_ERROR_INPUT);
++  }
++
+   kbalval = 0.01;                                 /* Default imbalance tolerance */
+   if (ubvec != NULL) {                            /* If imbalance ratio array provided; only first constraint is used */
+     if (ubvec[0] <= 1.0) {
+@@ -603,13 +610,13 @@ const SCOTCH_Num            flagval)
+     kbalval = ubvec[0] - 1.0;                     /* Turn MeTiS imbalance ratio into Scotch imbalance tolerance */
+   }
+ 
+-  baseval = _SCOTCH_METIS_optionGet (options, xadj, METIS_OPTION_NUMBERING, 0); /* For the Fortran interface, null arrays are those equal to xadj */
++  baseval = _SCOTCH_METIS_optionGet (options, xadj, METIS_OPTION_NUMBERING, 0);
+   if ((baseval < 0) || (baseval > 1)) {
+     SCOTCH_errorPrint ("_SCOTCH_METIS_V5_PartGraph: invalid numbering option");
+     return (METIS_ERROR_INPUT);
+   }
+ 
+-  return ((vsize == NULL)
++  return ((objtval == METIS_OBJTYPE_CUT)          /* Edge cut does not use vertex sizes; communication volume does not use edge loads */
+           ? _SCOTCH_METIS_PartGraph (nvtxs, ncon, xadj, adjncy, vwgt, adjwgt,
+                                      &baseval, nparts, tpwgts, options, objval, part,
+                                      flagval, &kbalval)
+-- 
+2.47.3
+

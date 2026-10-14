@@ -1,0 +1,42 @@
+--- a/src/libscotch/dgraph_fold.c
++++ b/src/libscotch/dgraph_fold.c
+@@ -47,7 +47,7 @@
+ /**                # Version 6.1  : from : 18 jun 2021     **/
+ /**                                 to   : 19 jun 2021     **/
+ /**                # Version 7.0  : from : 14 sep 2021     **/
+-/**                                 to   : 05 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -301,7 +301,13 @@
+         memFree (fldvertidxtab);                  /* Free group leader */
+       if (fldcommdattab != NULL)
+         memFree (fldcommdattab);
+-      dgraphExit (fldgrafptr);
++      if (fldgrafptr->edgeloctax != NULL)         /* Arrays are based on original graph base value; dgraphExit() cannot be used */
++        memFree (fldgrafptr->edgeloctax + orggrafptr->baseval);
++      if (fldgrafptr->vertloctax != NULL)
++        memFree (fldgrafptr->vertloctax + orggrafptr->baseval);
++      if (fldgrafptr->procdsptab != NULL)
++        memFree (fldgrafptr->procdsptab);
++      MPI_Comm_free (&fldgrafptr->proccomm);
+     }
+     return (1);
+   }
+@@ -805,8 +811,13 @@
+   chekglbval = cheklocval;
+ #endif /* SCOTCH_DEBUG_DGRAPH1 */
+   if (chekglbval != 0) {
+-    if ((fldcommtypval & DGRAPHFOLDCOMMRECV) != 0)
+-      dgraphExit (fldgrafptr);
++    if ((fldcommtypval & DGRAPHFOLDCOMMRECV) != 0) { /* Arrays are based on original graph base value; dgraphExit() cannot be used */
++      if (fldgrafptr->edgeloctax != NULL)
++        memFree (fldgrafptr->edgeloctax + orggrafptr->baseval);
++      memFree (fldgrafptr->vertloctax + orggrafptr->baseval);
++      memFree (fldgrafptr->procdsptab);
++      MPI_Comm_free (&fldgrafptr->proccomm);
++    }
+   }
+ 
+   return (chekglbval);

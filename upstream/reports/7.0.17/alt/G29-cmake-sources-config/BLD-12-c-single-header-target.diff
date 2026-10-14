@@ -1,0 +1,24 @@
+diff --git a/src/libscotchmetis/CMakeLists.txt b/src/libscotchmetis/CMakeLists.txt
+index 49407e7..2f8bb71 100644
+--- a/src/libscotchmetis/CMakeLists.txt
++++ b/src/libscotchmetis/CMakeLists.txt
+@@ -70,6 +70,10 @@ add_custom_command(OUTPUT ${GENERATED_INCLUDE_DIR}/metisf.h
+ add_custom_target(metisf_h
+   DEPENDS "${GENERATED_INCLUDE_DIR}/metisf.h")
+ 
++# Single target generating both headers before any MeTiS library is built
++add_custom_target(metis_headers ALL
++  DEPENDS "${GENERATED_INCLUDE_DIR}/metis.h" "${GENERATED_INCLUDE_DIR}/metisf.h")
++
+ # libScotchMeTiS
+ foreach(version 3 5)
+   add_library(scotchmetisv${version}
+@@ -108,7 +112,7 @@ foreach(version 3 5)
+     target_link_libraries(scotchmetisv${version} PRIVATE ${LIBSCOTCHERR})
+   endif()
+ 
+-  add_dependencies(scotchmetisv${version} scotch_h metisf_h)
++  add_dependencies(scotchmetisv${version} scotch_h metis_headers)
+   if(INSTALL_METIS_HEADERS)
+     set_target_properties(scotchmetisv${version} PROPERTIES PUBLIC_HEADER "${GENERATED_INCLUDE_DIR}/metis.h;${GENERATED_INCLUDE_DIR}/metisf.h")
+   endif()

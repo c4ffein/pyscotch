@@ -1,0 +1,63 @@
+From cd89f89c9199175bdb884833ba60fe8d7c02be90 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:18:14 +0000
+Subject: [PATCH 3/7] Bugfix: check edge array bounds before storing in Chaco
+ loader [report R. Perry]
+
+graphGeomLoadChac() tested edgenum > edgenbr + 1, one too permissive for
+a based array, and only after the arc had already been read into
+edgetax[]/edlotax[]. A Chaco file declaring fewer edges than it lists
+overflowed the edge array. Test edgenum >= edgenbr + 1 before storing
+any arc data.
+
+Refs: GRA-08
+---
+ src/libscotch/graph_io_chac.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/src/libscotch/graph_io_chac.c b/src/libscotch/graph_io_chac.c
+index 53c97ea..be6dc0b 100644
+--- a/src/libscotch/graph_io_chac.c
++++ b/src/libscotch/graph_io_chac.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2010,2013,2016,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2010,2013,2016,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -53,7 +53,7 @@
+ /**                # Version 6.0  : from : 10 oct 2013     **/
+ /**                                 to   : 03 aug 2016     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 19 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -212,6 +212,11 @@ const char * const          dataptr)              /* No use           */
+ 
+       ungetc (chabuffcar, filesrcptr);            /* Else put character back to stream */
+ 
++      if (edgenum >= (grafptr->edgenbr + 1)) {    /* Test edge array overflow before storing (edge array is based at 1) */
++        errorPrint ("graphGeomLoadChac: bad input (5)");
++        graphFree  (grafptr);
++        return     (1);
++      }
+       if ((intLoad (filesrcptr, &chavertnum) != 1) ||
+           (chavertnum < 1)                         ||
+           (chavertnum > chavertnbr)                ||
+@@ -222,11 +227,6 @@ const char * const          dataptr)              /* No use           */
+         graphFree  (grafptr);
+         return     (1);
+       }
+-      if (edgenum > (grafptr->edgenbr + 1)) { /* Test edge array overflow */
+-        errorPrint ("graphGeomLoadChac: bad input (5)");
+-        graphFree  (grafptr);
+-        return     (1);
+-      }
+       grafptr->edgetax[edgenum ++] = chavertnum;
+     }
+ 
+-- 
+2.47.3
+

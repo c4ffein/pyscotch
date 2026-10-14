@@ -1,0 +1,4 @@
+GRA-08  Chaco loader edge-array overflow (off-by-one, checked too late)
+  <build>/bin/gcv -ic over.chac /dev/null       (declares 1 edge, lists 3)
+PRISTINE: AddressSanitizer heap-buffer-overflow WRITE in graphGeomLoadChac graph_io_chac.c:230.
+PATCHED : "graphGeomLoadChac: bad input (5)". Valid Chaco files still load.

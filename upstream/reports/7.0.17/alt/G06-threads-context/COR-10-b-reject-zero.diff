@@ -1,0 +1,13 @@
+--- a/src/libscotch/common_thread.c
++++ b/src/libscotch/common_thread.c
+@@ -113,6 +113,10 @@
+   corenbr = threadProcessCoreNbr (contptr);       /* Get number of assigned cores     */
+   if (thrdnbr < 0)                                /* If unspecified number of threads */
+     thrdnbr = corenbr;                            /* Take as many as available        */
++  else if (thrdnbr == 0) {                        /* A null number of threads is invalid */
++    errorPrint ("threadContextInit: invalid number of threads");
++    return (1);
++  }
+ 
+   contptr->barrnbr = 0;
+   contptr->bainnum = 0;

@@ -1,0 +1,93 @@
+From c09daf8d2dc60e56dadec6461fe4fca74889d99a Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:18:54 +0000
+Subject: [PATCH 174/240] Document the target architectures supported by
+ parallel mapping [report R. Perry]
+
+The PT-Scotch user's manual stated that the restriction of parallel
+mapping to complete graph target architectures was that of version
+6.0 and would be removed in the next release, and the `dgmap` manual
+page named a 'wcmplt' architecture which does not exist. Name the
+version and the four architecture types that are actually supported,
+and state that other ones lead to an error.
+
+Refs: DMO-17
+---
+ doc/src/ptscotch/p_l.tex | 12 ++++++++----
+ man/man1/dgmap.1         |  6 +++---
+ man/man1/dgmap.1.txt     |  6 +++---
+ 3 files changed, 14 insertions(+), 10 deletions(-)
+
+diff --git a/doc/src/ptscotch/p_l.tex b/doc/src/ptscotch/p_l.tex
+index f425db9..4cb15ec 100644
+--- a/doc/src/ptscotch/p_l.tex
++++ b/doc/src/ptscotch/p_l.tex
+@@ -2930,9 +2930,11 @@ target vertex to which the corresponding source vertex is mapped.
+ The numbering of target values is {\em not\/} based: target vertices
+ are numbered from $0$ to the number of target vertices minus $1$.
+ 
+-{\bf Attention}: version {\sc 6.0} of \scotch\ does not allow yet to
++{\bf Attention}: version {\sc 7.0} of \scotch\ does not allow yet to
+ map distributed graphs onto target architectures which are not
+-complete graphs. This restriction will be removed in the next release.
++complete graphs, that is, which are not of the {\tt cmplt}, {\tt
++cmpltw}, {\tt cmpltws} or {\tt varcmplt} types. Calling this routine
++with any other target architecture results in an error.
+ 
+ \progret
+ 
+@@ -2973,9 +2975,11 @@ vertex to which the corresponding source vertex is mapped. The
+ numbering of target values is {\em not\/} based: target vertices are
+ numbered from $0$ to the number of target vertices, minus $1$.
+ 
+-{\bf Attention}: version {\sc 6.0} of \scotch\ does not allow yet to
++{\bf Attention}: version {\sc 7.0} of \scotch\ does not allow yet to
+ map distributed graphs onto target architectures which are not
+-complete graphs. This restriction will be removed in the next release.
++complete graphs, that is, which are not of the {\tt cmplt}, {\tt
++cmpltw}, {\tt cmpltws} or {\tt varcmplt} types. Calling this routine
++with any other target architecture results in an error.
+ 
+ \progret
+ 
+diff --git a/man/man1/dgmap.1 b/man/man1/dgmap.1
+index 39eddab..83c9eea 100644
+--- a/man/man1/dgmap.1
++++ b/man/man1/dgmap.1
+@@ -146,11 +146,11 @@ strategy information.
+ t
+ timing information.
+ .SH NOTE
+-At the time being (version 5.1), \fBdgmap\fP cannot compute full static
++At the time being (version 7.0), \fBdgmap\fP cannot compute full static
+ mappings as \fBgmap\fP(1) does, but only partitions (that is, mappings
+ onto unweighted or weighted complete graphs). Target architectures
+-other than the 'cmplt' and 'wcmplt' ones will lead to an error
+-message.
++other than the 'cmplt', 'cmpltw', 'cmpltws' and 'varcmplt' ones will
++lead to an error message.
+ .SH EXAMPLES
+ Run \fBdgpart\fP on 5 processing elements to compute a partition into 7
+ parts of graph brol.grf and save the resulting ordering to file brol.map.
+diff --git a/man/man1/dgmap.1.txt b/man/man1/dgmap.1.txt
+index 1d2a452..e35d2c9 100644
+--- a/man/man1/dgmap.1.txt
++++ b/man/man1/dgmap.1.txt
+@@ -90,11 +90,11 @@ OPTIONS
+               t  timing information.
+ 
+ NOTE
+-  At the time being (version 5.1), dgmap cannot compute full static
++  At the time being (version 7.0), dgmap cannot compute full static
+   mappings as gmap(1) does, but only partitions (that is, mappings
+   onto unweighted or weighted complete graphs). Target architectures
+-  other than the 'cmplt' and 'wcmplt' ones will lead to an error
+-  message.
++  other than the 'cmplt', 'cmpltw', 'cmpltws' and 'varcmplt' ones will
++  lead to an error message.
+ 
+ EXAMPLES
+   Run dgpart on 5 processing elements to compute a partition into 7
+-- 
+2.47.3
+

@@ -1,0 +1,138 @@
+From cdf75d5281c4dd1cc30f259ebed0855168e5119f Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:44:31 +0000
+Subject: [PATCH 8/8] Bugfix: check that all vertices and fixed vertices are
+ properly mapped in test_scotch_graph_map [report R. Perry]
+
+`checkMap()' skipped unmapped vertices, so that a mapping leaving all
+vertices unmapped passed the test, did not bound part numbers for
+variable-sized architectures, and never checked that fixed vertices
+had kept their terminal domains. Check that every vertex is mapped
+onto a valid terminal domain of the target architecture, by means of
+`SCOTCH_archDomTerm()', and compare the parts of fixed vertices with
+the ones that were set before the mapping was computed, for the
+fixed and remapping-with-fixed-vertices cases, as well as for the
+zero-load fixed vertex case.
+
+Refs: BLD-16
+---
+ src/check/test_scotch_graph_map.c | 33 +++++++++++++++++++++----------
+ 1 file changed, 23 insertions(+), 10 deletions(-)
+
+diff --git a/src/check/test_scotch_graph_map.c b/src/check/test_scotch_graph_map.c
+index 572c397..e79d095 100644
+--- a/src/check/test_scotch_graph_map.c
++++ b/src/check/test_scotch_graph_map.c
+@@ -74,36 +74,44 @@
+ /*************************************/
+ 
+ /* This routine checks that the produced
+-** mapping is valid.
++** mapping is valid: all vertices must be
++** mapped onto terminal domains of the target
++** architecture, and fixed vertices, if any,
++** must have kept their terminal domains.
+ ** It exits on error.
+ */
+ 
+ static
+ void
+ checkMap (
++SCOTCH_Arch * const         archptr,
+ const SCOTCH_Num            vertnbr,
+ const SCOTCH_Num * const    parttab,
+-const SCOTCH_Num            partnbr,
+-const int                   flagval)              /* If true, fixed vertices may have larger indices */
++const SCOTCH_Num * const    parftab)              /* Fixed vertex part array, or NULL */
+ {
++  SCOTCH_ArchDom      domndat;
+   SCOTCH_Num          vertnum;
+ 
+   for (vertnum = 0; vertnum < vertnbr; vertnum ++) { /* Un-based traversal */
+     SCOTCH_Num          partval;
+ 
+     partval = parttab[vertnum];
+-    if (partval == -1)                            /* Unmapped vertex */
+-      continue;
+-    if (partval < 0) {                            /* Other negative values are invalid */
++    if (partval < 0) {                            /* All vertices must have been mapped */
+       SCOTCH_errorPrint ("checkMap: invalid mapping (1)");
+       exit (EXIT_FAILURE);
+     }
+ 
+-    if ((flagval == 0) &&
+-        (partval >= partnbr)) {                   /* For fixed mappings, check against partnbr */
++    if (SCOTCH_archDomTerm (archptr, &domndat, partval) != 0) { /* Part must be a terminal domain of the architecture */
+       SCOTCH_errorPrint ("checkMap: invalid mapping (2)");
+       exit (EXIT_FAILURE);
+     }
++
++    if ((parftab != NULL) &&                      /* Fixed vertices must have kept their parts */
++        (parftab[vertnum] != -1) &&
++        (parftab[vertnum] != partval)) {
++      SCOTCH_errorPrint ("checkMap: invalid mapping (3)");
++      exit (EXIT_FAILURE);
++    }
+   }
+ }
+ 
+@@ -139,6 +147,7 @@ char *              argv[])
+   SCOTCH_Num          edgenbr;
+   SCOTCH_Num *        edgetab;
+   SCOTCH_Num *        parttab;
++  SCOTCH_Num *        parftab;                    /* Fixed vertex part array                */
+   SCOTCH_Num *        parotab;
+   SCOTCH_Num *        vmlotab;
+   SCOTCH_Num *        vmloptr;                    /* vmlotab or NULL                        */
+@@ -178,6 +187,7 @@ char *              argv[])
+   }
+ 
+   if (((parttab = malloc (vertnbr * sizeof (SCOTCH_Num))) == NULL) ||
++      ((parftab = malloc (vertnbr * sizeof (SCOTCH_Num))) == NULL) ||
+       ((parotab = malloc (vertnbr * sizeof (SCOTCH_Num))) == NULL) ||
+       ((vmlotab = malloc (vertnbr * sizeof (SCOTCH_Num))) == NULL) ||
+       ((velotab = malloc (vertnbr * sizeof (SCOTCH_Num))) == NULL)) {
+@@ -252,6 +262,7 @@ char *              argv[])
+             parttab[COORD (i, xdimsiz - 1)] = vertnbr + 1;
+           }
+         }
++        memcpy (parftab, parttab, vertnbr * sizeof (SCOTCH_Num)); /* Keep fixed vertex parts for checking */
+ 
+         printf ("Strat %d, arch %d, type %d\n", stranum, archnum, typenum);
+ 
+@@ -285,7 +296,7 @@ char *              argv[])
+           exit (EXIT_FAILURE);
+         }
+ 
+-        checkMap (vertnbr, parttab, archsiz, (archnum == (ARCHNBR - 1)) ? 1 : 0);
++        checkMap (&archtab[archnum], vertnbr, parttab, ((typenum == 1) || (typenum >= 5)) ? parftab : NULL); /* Fixed vertices only for fixed mappings */
+       }
+ 
+       if (SCOTCH_graphMapSave (&grafdat, &mappdat, fileptr) != 0) {
+@@ -322,13 +333,14 @@ char *              argv[])
+     for (vertnum = 0; vertnum < vertnbr; vertnum ++) /* Fix all vertices but the one with a non-zero load */
+       parttab[vertnum] = vertnum;                 /* Each fixed vertex belongs to a distinct terminal domain */
+     parttab[vertnbr / 2] = -1;
++    memcpy (parftab, parttab, vertnbr * sizeof (SCOTCH_Num)); /* Keep fixed vertex parts for checking */
+ 
+     if (SCOTCH_graphMapFixed (&fixgrafdat, &fixarchdat, &stratab[stranum], parttab) != 0) {
+       SCOTCH_errorPrint ("main: cannot compute mapping with zero-load fixed vertices");
+       exit (EXIT_FAILURE);
+     }
+ 
+-    checkMap (vertnbr, parttab, vertnbr, 0);
++    checkMap (&fixarchdat, vertnbr, parttab, parftab);
+   }
+ 
+   SCOTCH_archExit  (&fixarchdat);
+@@ -343,6 +355,7 @@ char *              argv[])
+   free (velotab);
+   free (vmlotab);
+   free (parotab);
++  free (parftab);
+   free (parttab);
+   SCOTCH_graphExit (&grafdat);
+ 
+-- 
+2.47.3
+

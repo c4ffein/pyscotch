@@ -1,0 +1,177 @@
+From 895f63a942e27839c478fc46cdc9e050f7861cd6 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:36:20 +0000
+Subject: [PATCH 3/5] Bugfix: allocate and own the original architecture when
+ loading a "dist" architecture [report R. Perry]
+
+`archDistArchLoad()` passed the never-allocated original architecture
+pointer of the distance multiplicator pseudo-architecture to
+`archLoad()`, so that loading any "dist" target file, even a well-formed
+one, dereferenced a NULL pointer. The original architecture is now
+allocated and belongs to the pseudo-architecture body, which is freed by
+the new `archDistArchFree()` routine, following the same ownership rule
+as sub-architectures. `archDistArchBuild()` clears the `ARCHFREE` flag it
+inherits so that borrowed original architectures are never freed, and
+the loader rejects non-positive multiplicator values, as `kgraphInit()`
+does in debug mode.
+
+Refs: COR-05
+---
+ src/libscotch/arch_dist.c | 54 +++++++++++++++++++++++++++++++++++----
+ src/libscotch/arch_dist.h |  6 ++---
+ src/libscotch/module.h    |  3 ++-
+ 3 files changed, 54 insertions(+), 9 deletions(-)
+
+diff --git a/src/libscotch/arch_dist.c b/src/libscotch/arch_dist.c
+index 0012a8d..f66880e 100644
+--- a/src/libscotch/arch_dist.c
++++ b/src/libscotch/arch_dist.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2011,2014,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2011,2014,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -43,7 +43,7 @@
+ /**   DATES      : # Version 6.0  : from : 14 feb 2011     **/
+ /**                                 to   : 30 jun 2014     **/
+ /**                # Version 7.0  : from : 18 feb 2018     **/
+-/**                                 to   : 17 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # This pseudo-architecture is used by   **/
+ /**                  graph repartitioning routines to      **/
+@@ -84,6 +84,8 @@ archDistArchLoad (
+ ArchDist * restrict const   archptr,
+ FILE * restrict const       stream)
+ {
++  Arch *              orgarchptr;
++
+ #ifdef SCOTCH_DEBUG_ARCH1
+   if (sizeof (ArchDist) > sizeof (ArchDummy)) {
+     errorPrint ("archDistArchLoad: invalid type specification");
+@@ -91,12 +93,27 @@ FILE * restrict const       stream)
+   }
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+-  if (intLoad (stream, &archptr->crloval) != 1) {
++  archptr->archptr = NULL;                        /* Assume nothing allocated yet */
++
++  if ((intLoad (stream, &archptr->crloval) != 1) ||
++      (archptr->crloval < 1)) {
+     errorPrint ("archDistArchLoad: bad input");
+     return (1);
+   }
+ 
+-  return (archLoad (archptr->archptr, stream));   /* Load sub-architecture */
++  if ((orgarchptr = memAlloc (sizeof (Arch))) == NULL) {
++    errorPrint ("archDistArchLoad: out of memory");
++    return (1);
++  }
++  archInit (orgarchptr);                          /* Original architecture can always be freed, even if not loaded */
++  archptr->archptr = orgarchptr;                  /* From now on, it will be freed by archDistArchFree()            */
++
++  if (archLoad (orgarchptr, stream) != 0)         /* On error, caller will clean up by calling archDistArchFree() */
++    return (1);
++
++  archArch (archptr)->flagval |= orgarchptr->flagval; /* Inherit flags of original architecture, as archDistArchBuild() does */
++
++  return (0);
+ }
+ 
+ /* This routine saves the
+@@ -127,6 +144,33 @@ FILE * restrict const       stream)
+   return (archSave (archptr->archptr, stream));   /* Save sub-architecture */
+ }
+ 
++/* This routine frees the distance graph
++** architecture structures.
++** It returns:
++** - 0   : if the architecture has been successfully freed.
++** - !0  : on error.
++*/
++
++int
++archDistArchFree (
++ArchDist * const            archptr)
++{
++#ifdef SCOTCH_DEBUG_ARCH1
++  if (sizeof (ArchDist) > sizeof (ArchDummy)) {
++    errorPrint ("archDistArchFree: invalid type specification");
++    return (1);
++  }
++#endif /* SCOTCH_DEBUG_ARCH1 */
++
++  if (((archArch (archptr)->flagval & ARCHFREE) != 0) && /* If original architecture needs to be freed too */
++      (archptr->archptr != NULL)) {               /* And if it was allocated                               */
++    archFree (archptr->archptr);
++    memFree  (archptr->archptr);
++  }
++
++  return (0);
++}
++
+ /* This routine builds the distance graph
+ ** architecture of an original architecture.
+ ** It returns:
+@@ -144,7 +188,7 @@ const Anum                  crloval)
+ 
+   archInit (archptr);                             /* Initialize architecture body */
+   archptr->clasptr = archClass ("dist");          /* Set architecture class       */
+-  archptr->flagval = orgarchptr->flagval;         /* Set architecture flag        */
++  archptr->flagval = orgarchptr->flagval & ~ARCHFREE; /* Set architecture flag; original architecture is not owned */
+   archdataptr = (ArchDist *) (void *) &archptr->data;
+   archdataptr->archptr = orgarchptr;
+   archdataptr->crloval = crloval;
+diff --git a/src/libscotch/arch_dist.h b/src/libscotch/arch_dist.h
+index eb08060..9342c6c 100644
+--- a/src/libscotch/arch_dist.h
++++ b/src/libscotch/arch_dist.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2011,2012,2014,2018 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2011,2012,2014,2018,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**   DATES      : # Version 6.0  : from : 14 feb 2011     **/
+ /**                                 to   : 28 may 2018     **/
+ /**                # Version 7.0  : from : 19 feb 2018     **/
+-/**                                 to   : 19 feb 2018     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -78,7 +78,7 @@ typedef struct ArchDist_ {
+ 
+ int                         archDistArchLoad    (ArchDist * restrict const, FILE * restrict const);
+ int                         archDistArchSave    (const ArchDist * const, FILE * restrict const);
+-#define archDistArchFree            NULL
++int                         archDistArchFree    (ArchDist * const);
+ 
+ #define archDistMatchInit           NULL
+ #define archDistMatchExit           NULL
+diff --git a/src/libscotch/module.h b/src/libscotch/module.h
+index eaf528f..944aa00 100644
+--- a/src/libscotch/module.h
++++ b/src/libscotch/module.h
+@@ -55,7 +55,7 @@
+ /**                # Version 6.1  : from : 24 aug 2020     **/
+ /**                                 to   : 30 dec 2021     **/
+ /**                # Version 7.0  : from : 19 feb 2018     **/
+-/**                                 to   : 13 jul 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -507,6 +507,7 @@
+ #define archDeco2MatchInit          SCOTCH_NAME_INTERN (archDeco2MatchInit)
+ #define archDistArchLoad            SCOTCH_NAME_INTERN (archDistArchLoad)
+ #define archDistArchSave            SCOTCH_NAME_INTERN (archDistArchSave)
++#define archDistArchFree            SCOTCH_NAME_INTERN (archDistArchFree)
+ #define archDistArchBuild           SCOTCH_NAME_INTERN (archDistArchBuild)
+ #define archDistDomNum              SCOTCH_NAME_INTERN (archDistDomNum)
+ #define archDistDomTerm             SCOTCH_NAME_INTERN (archDistDomTerm)
+-- 
+2.47.3
+

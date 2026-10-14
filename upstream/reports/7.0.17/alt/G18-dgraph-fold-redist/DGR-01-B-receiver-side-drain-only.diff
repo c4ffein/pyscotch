@@ -1,0 +1,51 @@
+--- a/src/libscotch/dgraph_fold.c
++++ b/src/libscotch/dgraph_fold.c
+@@ -47,7 +47,7 @@
+ /**                # Version 6.1  : from : 18 jun 2021     **/
+ /**                                 to   : 19 jun 2021     **/
+ /**                # Version 7.0  : from : 14 sep 2021     **/
+-/**                                 to   : 05 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -193,6 +193,7 @@
+ 
+     memSet (fldgrafptr, 0, sizeof (Dgraph));      /* Pre-initialize graph fields */
+ 
++    fldgrafptr->baseval    = orggrafptr->baseval; /* Base value is needed for premature freeing of based arrays */
+     fldgrafptr->proccomm   = fldproccomm;
+     fldgrafptr->procglbnbr = fldprocglbnbr;
+     fldgrafptr->proclocnum = fldproclocnum;
+@@ -287,14 +288,10 @@
+ 
+   cheklocval = 0;                                 /* Everything went well */
+ fail1:
+-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication cannot be merged with a useful one */
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, orggrafptr->proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, orggrafptr->proccomm) != MPI_SUCCESS) { /* No process must post communications if some process cannot */
+     errorPrint ("dgraphFold2: communication error (1)");
+     chekglbval = 1;
+   }
+-#else /* SCOTCH_DEBUG_DGRAPH1 */
+-  chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+   if (chekglbval != 0) {
+     if ((fldcommtypval & DGRAPHFOLDCOMMRECV) != 0) {
+       if (fldvertidxtab != NULL)
+@@ -769,8 +766,14 @@
+     chekglbval = cheklocval;
+ #endif /* SCOTCH_DEBUG_DGRAPH1 */
+     cheklocval = 1;                               /* Assume an error for receivers            */
+-    if (chekglbval != 0)                          /* All receivers fail before checking graph */
++    if (chekglbval != 0) {                        /* All receivers fail before checking graph */
++      MPI_Waitall (commmax * DGRAPHFOLDTAGNBR, requtab, MPI_STATUSES_IGNORE); /* Complete own pending receives before freeing their buffers; senders' edge data sends to this process stay unmatched */
++      memFree (fldvertidxtab);                    /* Free group leader including request array */
++      memFree (fldcommdattab);
++      if (orgvertloctax != orggrafptr->vertloctax)
++        memFree (orgvertloctax + orggrafptr->baseval);
+       goto fail4;
++    }
+ 
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+     if (dgraphCheck (fldgrafptr) != 0) {          /* Check graph consistency; vnumloctab is not checked so no need to wait for it */

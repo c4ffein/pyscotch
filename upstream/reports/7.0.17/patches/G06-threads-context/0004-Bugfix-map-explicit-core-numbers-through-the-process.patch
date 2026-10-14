@@ -1,0 +1,97 @@
+From 93b3a4d980083fb7eb8cb45f74b80bc23fad47cf Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:55:01 +0000
+Subject: [PATCH 4/5] Bugfix: map explicit core numbers through the process
+ affinity mask [report R. Perry]
+
+The core numbers provided to `threadContextInit()` were reduced modulo
+the number of cores assigned to the process, and used as physical core
+numbers, while automatic placement maps thread numbers onto the cores
+of the process affinity mask. With a process restricted to cores 4 to
+7, explicit core numbers 4 to 7 bound threads to cores 0 to 3, outside
+of the process mask. Explicit core numbers are now logical core
+numbers, mapped onto the process affinity mask like thread numbers
+are, as documented for `SCOTCH_contextThreadSpawn()`. A negative core
+number still leaves the thread unbound.
+
+Refs: COR-24
+---
+ src/libscotch/common_thread.c | 29 ++++++++++++++++++-----------
+ 1 file changed, 18 insertions(+), 11 deletions(-)
+
+diff --git a/src/libscotch/common_thread.c b/src/libscotch/common_thread.c
+index d93ce35..3768397 100644
+--- a/src/libscotch/common_thread.c
++++ b/src/libscotch/common_thread.c
+@@ -137,7 +137,7 @@ const int * const           coretab)
+   for (thrdnum = 1; thrdnum < thrdnbr; thrdnum ++) { /* Launch threads from 1 to (thrdnbr - 1) */
+     desctab[thrdnum].contptr = contptr;
+     desctab[thrdnum].thrdnum = thrdnum;
+-    corenum = (coretab != NULL) ? (coretab[thrdnum] % corenbr) : threadProcessCoreNum (contptr, thrdnum);
++    corenum = threadProcessCoreNum (contptr, (coretab != NULL) ? coretab[thrdnum] : thrdnum);
+ 
+     if (threadCreate (&desctab[thrdnum], thrdnum, corenum) != 0) {
+       errorPrint ("threadContextInit: cannot create thread (%d)", thrdnum);
+@@ -156,7 +156,7 @@ const int * const           coretab)
+   }
+   desctab[0].contptr = contptr;
+   desctab[0].thrdnum = 0;
+-  corenum = (coretab != NULL) ? (coretab[0] % corenbr) : threadProcessCoreNum (contptr, 0);
++  corenum = threadProcessCoreNum (contptr, (coretab != NULL) ? coretab[0] : 0);
+   threadCreate (&desctab[0], 0, corenum);         /* Set affinity of local thread (slaves use saved main thread mask) */
+ 
+   threadContextBarrier (contptr);                 /* Ensure all slave threads have started before cleaning-up resources */
+@@ -830,34 +830,41 @@ ThreadContext * const       contptr)
+   return (corenbr);
+ }
+ 
+-/* This routine returns the number of the core to be
+-** associated with the given thread number.
++/* This routine returns the number of the physical
++** core to be associated with the given logical core
++** number, with respect to the set of cores assigned
++** to the process. Logical core numbers are subject
++** to modulus reduction.
+ ** It returns:
+-** - x  : number of the core associated with the thread.
++** - >=0  : number of the core associated with the logical core number.
++** - -1   : if the thread is not to be bound to a core.
+ */
+ 
+ static
+ int
+ threadProcessCoreNum (
+ ThreadContext * const       contptr,
+-int                         thrdnum)
++int                         corelog)              /* Logical core number */
+ {
+   int                 corenum;
+ #ifdef COMMON_PTHREAD_AFFINITY_LINUX
+   int                 corenbr;
+ 
++  if (corelog < 0)                                /* If thread is not to be bound */
++    return (-1);
++
+   corenbr  = CPU_COUNT (&contptr->savedat.cpusdat);
+-  thrdnum %= corenbr;                             /* Round-robin on thread allocation */
++  corelog %= corenbr;                             /* Round-robin on core allocation */
+ 
+-  for (corenum = 0; thrdnum >= 0; corenum ++) {   /* For all potential cores       */
++  for (corenum = 0; corelog >= 0; corenum ++) {   /* For all potential cores       */
+     if (CPU_ISSET (corenum, &contptr->savedat.cpusdat)) { /* If core is available  */
+-      if (thrdnum <= 0)                           /* And it is the one we want     */
++      if (corelog <= 0)                           /* And it is the one we want     */
+         break;                                    /* We have found our core number */
+-      thrdnum --;                                 /* One less available core       */
++      corelog --;                                 /* One less available core       */
+     }
+   }
+ #else /* COMMON_PTHREAD_AFFINITY_LINUX */
+-  corenum = thrdnum;
++  corenum = corelog;
+ #endif /* COMMON_PTHREAD_AFFINITY_LINUX */
+ 
+   return (corenum);
+-- 
+2.47.3
+

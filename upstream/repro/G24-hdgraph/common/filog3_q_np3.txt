@@ -1,0 +1,34 @@
+fishim: rank 1: alloc #0 from _SCOTCHcontextValuesInit
+fishim: rank 1: alloc #1 from _SCOTCHcontextThreadInit2
+fishim: rank 1: alloc #2 from _SCOTCHthreadContextInit
+fishim: rank 0: alloc #0 from _SCOTCHcontextValuesInit
+fishim: rank 2: alloc #0 from _SCOTCHcontextValuesInit
+fishim: rank 0: alloc #1 from _SCOTCHcontextThreadInit2
+fishim: rank 0: alloc #2 from _SCOTCHthreadContextInit
+fishim: rank 2: alloc #1 from _SCOTCHcontextThreadInit2
+fishim: rank 2: alloc #2 from _SCOTCHthreadContextInit
+fishim: rank 1: alloc #3 from _SCOTCHdorderNew
+fishim: rank 2: alloc #3 from _SCOTCHdorderNew
+fishim: rank 0: alloc #3 from _SCOTCHdorderNew
+fishim: rank 1: alloc #4 from _SCOTCHdgraphGhst2
+fishim: rank 1: alloc #5 from _SCOTCHdgraphGhst2
+fishim: rank 0: alloc #4 from _SCOTCHdgraphGhst2
+fishim: rank 0: alloc #5 from _SCOTCHdgraphGhst2
+fishim: rank 2: alloc #4 from _SCOTCHdgraphGhst2
+fishim: rank 2: alloc #5 from _SCOTCHdgraphGhst2
+fishim: rank 1: alloc #6 from _SCOTCHdgraphGhst2
+fishim: rank 0: alloc #6 from _SCOTCHdgraphGhst2
+fishim: rank 2: alloc #6 from _SCOTCHdgraphGhst2
+fishim: rank 1: alloc #7 from _SCOTCHhdgraphGather
+fishim: rank 2: alloc #7 from _SCOTCHhdgraphGather
+fishim: rank 0: alloc #7 from _SCOTCHhdgraphGather
+fishim: rank 0: alloc #8 from _SCOTCHhdgraphGather
+fishim: rank 0: alloc #9 from _SCOTCHhdgraphGather
+fishim: rank 0: alloc #10 from _SCOTCHhdgraphGather
+rank 1: order rc=0 seen=8
+rank 2: order rc=0 seen=8
+fishim: rank 0: alloc #11 from _SCOTCHorderInit
+rank 0: order rc=0 seen=12
+fishim: rank 2: live scotch blocks 0 (max 10)
+fishim: rank 1: live scotch blocks 0 (max 10)
+fishim: rank 0: live scotch blocks 0 (max 13)

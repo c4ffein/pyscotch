@@ -1,0 +1,13 @@
+--- a/src/libscotch/library_error_exit.c
++++ b/src/libscotch/library_error_exit.c
+@@ -139,6 +139,10 @@
+   sleep (SCOTCH_ERROR_SLEEP);                     /* Wait for messages to be propagated */
+ #endif /* SCOTCH_ERROR_SLEEP */
+ 
++#if defined (SCOTCH_PTSCOTCH) && defined (SCOTCH_ERROR_ABORT)
++  MPI_Abort (MPI_COMM_WORLD, EXIT_FAILURE);       /* Abort all processes of the job */
++#endif /* defined (SCOTCH_PTSCOTCH) && defined (SCOTCH_ERROR_ABORT) */
++
+   exit (EXIT_FAILURE);
+ }
+ 

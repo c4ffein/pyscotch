@@ -1,0 +1,35 @@
+--- a/src/libscotch/dgraph_fold.c
++++ b/src/libscotch/dgraph_fold.c
+@@ -47,7 +47,7 @@
+ /**                # Version 6.1  : from : 18 jun 2021     **/
+ /**                                 to   : 19 jun 2021     **/
+ /**                # Version 7.0  : from : 14 sep 2021     **/
+-/**                                 to   : 05 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -326,6 +326,11 @@
+       fldedgeidxtab[commnum] = orgvertloctax[vertsndbas];
+       fldedgecnptab[commnum] =                    /* Save fldedgecnttab in temporary array to read it while MPI communication in progress */
+       fldedgecnttab[commnum] = orgvertloctax[vertsndbas + vertsndnbr] - orgvertloctax[vertsndbas]; /* Graph is compact                    */
++      if (((Gnum) (int) vertsndnbr != vertsndnbr) || /* Message sizes are passed to MPI as int's */
++          ((Gnum) (int) fldedgecnttab[commnum] != fldedgecnttab[commnum])) {
++        errorPrint ("dgraphFold2: communication size out of range");
++        goto fail2;                               /* Not collective: receivers will wait forever for the data */
++      }
+       if (MPI_Isend (&fldedgecnptab[commnum], 1, GNUM_MPI, fldcommdattab[commnum].procnum,
+                      TAGFOLD + TAGVLBLLOCTAB, orggrafptr->proccomm, &requtab[requnbr ++]) != MPI_SUCCESS) {
+         errorPrint ("dgraphFold2: communication error (2)");
+@@ -449,7 +454,10 @@
+         }
+       }
+ 
+-      MPI_Waitall (commnbr, &requtab[DGRAPHFOLDTAGESIZ * commmax], MPI_STATUSES_IGNORE); /* Wait until all edge counts received */
++      if (MPI_Waitall (commnbr, &requtab[DGRAPHFOLDTAGESIZ * commmax], MPI_STATUSES_IGNORE) != MPI_SUCCESS) { /* Wait until all edge counts received */
++        errorPrint ("dgraphFold2: communication error (23)");
++        goto fail3;
++      }
+ 
+       for (commnum = 0, fldedgelocbas = orgvertloctax[orggrafptr->vertlocnnd]; commnum < commnbr; commnum ++) {
+         fldedgeidxtab[commnum] = fldedgelocbas;

@@ -1,0 +1,16 @@
+COR-11: imported thread context restores an affinity mask that was never saved
+------------------------------------------------------------------------------
+imp.c: pins the calling thread to CPU 1 (sched_setaffinity), SCOTCH_contextThreadImport1 (ctx, 2), a second pthread
+calls SCOTCH_contextThreadImport2 (ctx, 1), main calls Import2 (ctx, 0), then SCOTCH_contextExit; prints the mask
+of the calling thread before/after. Exit code 0 iff the mask is still {1}.
+
+  gcc -O0 -g -fsanitize=address,undefined -I$B/include -o imp imp.c -L$B/lib -lscotch -lscotcherr -lz -lm -lpthread
+  LD_LIBRARY_PATH=$B/lib ./imp
+
+Pristine 7.0.17 (ASan build, malloc fill byte 0xbe):
+  before import: count=1 cpus: 1
+  after import : count=1 cpus: 1
+  after exit   : count=6 cpus: 1 2 3 4 5 7        <- mask set from uninitialized savedat.cpusdat; rc=1
+  (with ASAN_OPTIONS=malloc_fill_byte=0 the restore uses an empty mask, pthread_setaffinity_np fails with EINVAL and
+  the mask is unchanged: the symptom depends on heap contents)
+Patched (patches/0003): after exit: count=1 cpus: 1, rc=0 (32-bit and 64-bit trees; 0 TSan warnings with imp_tsan).

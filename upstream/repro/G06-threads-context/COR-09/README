@@ -1,0 +1,20 @@
+COR-09: pthread_create() failure in threadContextInit() hangs / leaks
+--------------------------------------------------------------------
+shim.c  : LD_PRELOAD shim; the FAIL_AT-th call to pthread_create() returns EAGAIN.
+spawn.c : SCOTCH_contextAlloc/Init, SCOTCH_contextThreadSpawn (ctx, argv[1], NULL), SCOTCH_contextExit.
+
+Build (against a build tree $B with lib/ and include/):
+  gcc -O0 -g -fPIC -shared -o shim.so shim.c -ldl
+  gcc -O0 -g -fsanitize=address,undefined -I$B/include -o spawn spawn.c -L$B/lib -lscotch -lscotcherr -lz -lm -lpthread
+Run:
+  export LD_LIBRARY_PATH=$B/lib
+  for n in 1 2 3; do FAIL_AT=$n LD_PRELOAD="$(gcc -print-file-name=libasan.so):./shim.so" timeout 20 ./spawn 4; echo rc=$?; done
+
+Pristine 7.0.17 (ASan build):
+  FAIL_AT=1 : "threadContextInit: cannot create thread (1)", spawn returns 1, then
+              "LeakSanitizer: Direct leak of 72 byte(s) ... _SCOTCHthreadContextInit common_thread.c:128" (desctab), rc=1
+  FAIL_AT=2 : error printed, then hangs (timeout, rc=124): slave thread 1 is blocked in the
+              start-up barrier (count 4), main spins in threadContextExit2() for barrnbr == 2
+  FAIL_AT=3 : same, hangs (rc=124)
+Patched (patches/0002): FAIL_AT=1,2,3 all print the error, "spawn (4) returned 1", "exit done", rc=0, no leak.
+Also run under ThreadSanitizer (-O1 -fsanitize=thread tree, spawn_tsan): 0 ThreadSanitizer warnings for FAIL_AT=1,2,3.

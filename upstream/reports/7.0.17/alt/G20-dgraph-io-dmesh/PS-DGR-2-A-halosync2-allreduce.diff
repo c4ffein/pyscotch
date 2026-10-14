@@ -1,0 +1,51 @@
+diff --git a/src/libscotch/dgraph_halo.c b/src/libscotch/dgraph_halo.c
+index 9b7c53c..c2a57b1 100644
+--- a/src/libscotch/dgraph_halo.c
++++ b/src/libscotch/dgraph_halo.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2009,2011,2014,2020,2021,2023-2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2009,2011,2014,2020,2021,2023-2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -56,7 +56,7 @@
+ /**                # Version 6.1  : from : 05 apr 2021     **/
+ /**                                 to   : 18 dec 2021     **/
+ /**                # Version 7.0  : from : 03 sep 2020     **/
+-/**                                 to   : 29 aug 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -205,6 +205,8 @@ MPI_Request ** const          requptr)            /* Pointer to local request ar
+   int                   procngbnum;
+   int * restrict        recvdsptab;
+   const int * restrict  procrcvtab;
++  int                   cheklocval;
++  int                   chekglbval;
+ 
+   if (dgraphGhst (grafptr) != 0) {                /* Compute ghost edge array if not already present */
+     errorPrint ("dgraphHaloSync2: cannot compute ghost edge array");
+@@ -218,12 +220,22 @@ MPI_Request ** const          requptr)            /* Pointer to local request ar
+ #else /* ((defined MPI_VERSION) && (MPI_VERSION >= 3)) */
+   MPI_Type_extent (attrglbtype, &attrglbsiz);     /* Get type extent */
+ #endif /* ((defined MPI_VERSION) && (MPI_VERSION >= 3)) */
++  cheklocval = 0;
+   if (memAllocGroup ((void **) (void *)
+                      attrsndptr, (size_t) (grafptr->procsndnbr * attrglbsiz),
+                      senddspptr, (size_t) (grafptr->procglbnbr * MAX (sizeof (int), sizeof (byte *))), /* TRICK: use senddsptab (int *) as attrdsptab (byte **) */
+                      recvdspptr, (size_t) (grafptr->procglbnbr * sizeof (int)),
+                      requptr,    (size_t) (procngbsiz * 2      * sizeof (MPI_Request)), NULL) == NULL) {
+     errorPrint ("dgraphHaloSync2: out of memory");
++    cheklocval = 1;
++  }
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) { /* Agree so that a local failure does not leave peers in the collective */
++    errorPrint ("dgraphHaloSync2: communication error");
++    chekglbval = 1;
++  }
++  if (chekglbval != 0) {
++    if (cheklocval == 0)                           /* Free the send arrays where they were allocated */
++      memFree (*attrsndptr);
+     return (1);
+   }
+ 

@@ -1,0 +1,17 @@
+Alternative for GRA-10: make graphLoad() run graphCheck() unconditionally
+(today only under SCOTCH_DEBUG_GRAPH2). Catches asymmetric adjacency and
+duplicate arcs as well, but costs a full O(E) (hashed) check on every
+load and rejects slightly-malformed-but-previously-usable files.
+
+--- a/src/libscotch/graph_io.c
++++ b/src/libscotch/graph_io.c
+@@ -273,12 +273,10 @@
+-#ifdef SCOTCH_DEBUG_GRAPH2
+   if (graphCheck (grafptr) != 0) {                /* Check graph consistency */
+     errorPrint ("graphLoad: inconsistent graph data");
+     graphFree  (grafptr);
+     return (1);
+   }
+-#endif /* SCOTCH_DEBUG_GRAPH2 */
+ 
+   return (0);

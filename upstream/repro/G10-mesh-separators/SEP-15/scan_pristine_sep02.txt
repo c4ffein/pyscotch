@@ -1,0 +1,186 @@
+total allocations: 617
+N=90 rc=1: ASAN :: SEP-02/../common/meshgrid.h:39:52: runtime error: store to null pointer of type 'Num'
+N=91 rc=1: ASAN :: SEP-02/../common/meshgrid.h:38:199: runtime error: load of null pointer of type 'Num'
+N=92 rc=1: ASAN :: SEP-02/../common/meshgrid.h:44:56: runtime error: store to null pointer of type 'Num'
+N=93 rc=1: ASAN :: SEP-02/../common/meshgrid.h:44:114: runtime error: load of null pointer of type 'Num'
+N=94 rc=1: ASAN :: SEP-02/../common/meshgrid.h:46:88: runtime error: store to null pointer of type 'Num'
+N=95 rc=1: ASAN :: ==1307719==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000ad8 (pc 0x56377460e5d6 bp 0x7ffe6f2656d0 sp 0x7ff
+N=96 rc=1: ASAN :: SEP-02/sep02.c:18:69: runtime error: load of null pointer of type 'Num'
+N=98 rc=1: LEAK :: ERROR: contextThreadInit2: out of memory
+N=103 rc=1: LEAK :: ==1308008==ERROR: LeakSanitizer: detected memory leaks
+N=105 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=106 rc=1: LEAK :: ERROR: stratParserParse: out of memory (15)
+N=107 rc=1: LEAK :: ERROR: stratParserParse: out of memory (14)
+N=108 rc=1: LEAK :: ERROR: stratParserParse: out of memory (9)
+N=109 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=110 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=111 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=112 rc=1: LEAK :: ERROR: stratParserParse: out of memory (2)
+N=113 rc=1: LEAK :: ERROR: stratParserParse: out of memory (4)
+N=114 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=115 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=116 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=117 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=118 rc=1: LEAK :: ERROR: stratParserParse: out of memory (15)
+N=119 rc=1: LEAK :: ERROR: stratParserParse: out of memory (14)
+N=120 rc=1: LEAK :: ERROR: stratParserParse: out of memory (9)
+N=121 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=122 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=123 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=124 rc=1: LEAK :: ERROR: stratParserParse: out of memory (2)
+N=125 rc=1: LEAK :: ERROR: stratParserParse: out of memory (4)
+N=126 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=127 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=128 rc=1: LEAK :: ERROR: stratParserParse: out of memory (5)
+N=133 rc=1: ASAN :: ==1309398==ERROR: AddressSanitizer: SEGV on unknown address 0x52a000061fb8 (pc 0x7fbd102b6166 bp 0x7ffcd6a34950 sp 0x7ff
+N=134 rc=1: ASAN :: ==1309423==ERROR: AddressSanitizer: SEGV on unknown address 0x000000001618 (pc 0x7fe78ee1e627 bp 0x7ffcae321ec0 sp 0x7ff
+N=137 rc=1: ASAN :: ==1309477==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51900000057f at pc 0x7f58ead2722c bp 0x7ffca213791
+N=138 rc=1: ASAN :: ==1309515==ERROR: AddressSanitizer: SEGV on unknown address 0x000000001298 (pc 0x7f030c800627 bp 0x7ffcb99e4f90 sp 0x7ff
+N=141 rc=1: ASAN :: ==1309668==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51500000007f at pc 0x7f1f4a61722c bp 0x7fffd6895fd
+N=142 rc=1: ASAN :: ==1309706==ERROR: AddressSanitizer: SEGV on unknown address 0x000000001010 (pc 0x7f4cb3df1627 bp 0x7fff51483010 sp 0x7ff
+N=145 rc=1: ASAN :: ==1309820==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x5110000002bf at pc 0x7f62eed5822c bp 0x7fff192e73a
+N=146 rc=1: ASAN :: ==1309857==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000c08 (pc 0x7f041f507627 bp 0x7ffea5141170 sp 0x7ff
+N=149 rc=1: ASAN :: ==1309923==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51f000001bf8 at pc 0x7efe90dcd166 bp 0x7ffdf8c045c
+N=150 rc=1: ASAN :: ==1309941==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000006a8 (pc 0x7f331dbe0627 bp 0x7ffcd64f9480 sp 0x7ff
+N=153 rc=1: ASAN :: ==1309992==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51c000001378 at pc 0x7f10b497e166 bp 0x7ffcd83d827
+N=154 rc=1: ASAN :: vmesh_separate_gg.c:158:20: runtime error: load of null pointer of type 'Gnum'
+N=176 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (1)
+N=177 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=178 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=179 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (3)
+N=183 rc=1: ASAN :: mesh_coarsen.c:549:21: runtime error: load of null pointer of type 'Gnum'
+N=185 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=188 rc=1: ASAN :: ==1310448==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x5150000002ff at pc 0x7fa8b110022c bp 0x7ffc4e1481b
+N=189 rc=1: ASAN :: ==1310462==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000bd0 (pc 0x7fd36f424627 bp 0x7fff06fa2660 sp 0x7ff
+N=192 rc=1: ASAN :: ==1310525==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x526000009f38 at pc 0x7fdfb14d9166 bp 0x7ffcd1cad3b
+N=193 rc=1: ASAN :: ==1310538==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000009e0 (pc 0x7fbaaff80627 bp 0x7fff52ee8220 sp 0x7ff
+N=196 rc=1: ASAN :: ==1310609==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51f000005258 at pc 0x7fe79dff3166 bp 0x7fff7e55fbf
+N=197 rc=1: ASAN :: ==1310623==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000008a8 (pc 0x7f1d4d683627 bp 0x7ffcf90793b0 sp 0x7ff
+N=200 rc=1: ASAN :: vmesh_separate_gg.c:340:15: runtime error: member access within misaligned address 0xfffffffdfffffffd for type 'struct G
+N=201 rc=1: ASAN :: ==1310714==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000648 (pc 0x7fca1e55e627 bp 0x7ffdbc53eca0 sp 0x7ff
+N=204 rc=1: ASAN :: ==1310783==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51d0000020f8 at pc 0x7f1a0eea5166 bp 0x7fff3a50993
+N=205 rc=1: ASAN :: ==1310800==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000003a0 (pc 0x7fe556bdd627 bp 0x7ffd983cb940 sp 0x7ff
+N=208 rc=1: ASAN :: vmesh_separate_gg.c:340:15: runtime error: member access within misaligned address 0xffffffedffffffed for type 'struct G
+N=209 rc=1: ASAN :: vmesh_separate_gg.c:158:20: runtime error: load of null pointer of type 'Gnum'
+N=231 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (1)
+N=232 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=233 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=234 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (3)
+N=238 rc=1: ASAN :: mesh_coarsen.c:549:21: runtime error: load of null pointer of type 'Gnum'
+N=240 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=243 rc=1: ASAN :: ==1311613==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51100000053f at pc 0x7f07304e022c bp 0x7ffd5cd3de7
+N=244 rc=1: ASAN :: ==1311642==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000005c8 (pc 0x7ff03cbb6627 bp 0x7ffd755ffdc0 sp 0x7ff
+N=247 rc=1: ASAN :: ==1311857==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x50d00000010f at pc 0x7f6da6bb622c bp 0x7fff6469715
+N=248 rc=1: ASAN :: ==1311939==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000004d0 (pc 0x7fe8420bf627 bp 0x7fff3d298d50 sp 0x7ff
+N=251 rc=1: ASAN :: ==1312045==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51e000002318 at pc 0x7fbfda907166 bp 0x7ffe3487b8b
+N=252 rc=1: ASAN :: ==1312077==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000420 (pc 0x7f456530a627 bp 0x7ffe4b2f5150 sp 0x7ff
+N=255 rc=1: ASAN :: ==1312170==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51b000001598 at pc 0x7f0aa9c26166 bp 0x7ffe29bd5ec
+N=256 rc=1: ASAN :: vmesh_separate_gg.c:158:20: runtime error: load of null pointer of type 'Gnum'
+N=272 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (1)
+N=273 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=274 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=275 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (3)
+N=279 rc=1: ASAN :: mesh_coarsen.c:549:21: runtime error: load of null pointer of type 'Gnum'
+N=281 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=284 rc=1: ASAN :: ==1313102==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x50d00000010f at pc 0x7f8ed7c1822c bp 0x7ffe5975640
+N=285 rc=1: ASAN :: ==1313181==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000308 (pc 0x7f8ee85b9627 bp 0x7ffc5d9599f0 sp 0x7ff
+N=288 rc=1: ASAN :: vmesh_separate_gg.c:340:15: runtime error: member access within misaligned address 0x004600000002 for type 'struct GainL
+N=289 rc=1: ASAN :: ==1313395==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000280 (pc 0x7f5233b8a627 bp 0x7ffed4357390 sp 0x7ff
+N=292 rc=1: ASAN :: vmesh_separate_gg.c:340:15: runtime error: member access within misaligned address 0xfffffffdfffffffd for type 'struct G
+N=293 rc=1: ASAN :: vmesh_separate_gg.c:158:20: runtime error: load of null pointer of type 'Gnum'
+N=306 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (1)
+N=307 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=308 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=309 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (3)
+N=313 rc=1: ASAN :: ==1314475==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000470 (pc 0x7faefe132924 bp 0x7ffe790dc2c0 sp 0x7ff
+N=315 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=323 rc=1: ASAN :: ==1314696==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000440 (pc 0x7f2c9067f924 bp 0x7fffbcdcaf00 sp 0x7ff
+N=325 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=333 rc=1: ASAN :: ==1314919==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000006f0 (pc 0x7f41c60c8924 bp 0x7fffffda6490 sp 0x7ff
+N=335 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=343 rc=1: ASAN :: mesh_coarsen.c:549:21: runtime error: load of null pointer of type 'Gnum'
+N=345 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=348 rc=1: ASAN :: ==1315255==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x511000000a3f at pc 0x7ff95ebd322c bp 0x7ffcf6163a7
+N=349 rc=1: ASAN :: ==1315272==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000005c8 (pc 0x7f748901b627 bp 0x7ffc941e2450 sp 0x7ff
+N=352 rc=1: ASAN :: ==1315325==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x52200000dd78 at pc 0x7faed9294166 bp 0x7fffed63d1e
+N=353 rc=1: ASAN :: ==1315349==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000004d8 (pc 0x7f6f11981627 bp 0x7ffd8d0cd500 sp 0x7ff
+N=356 rc=1: ASAN :: ==1315413==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51f000007e78 at pc 0x7f8bb7abb166 bp 0x7ffc5f025f5
+N=357 rc=1: ASAN :: ==1315452==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000420 (pc 0x7f1add224627 bp 0x7ffcf7d6f8d0 sp 0x7ff
+N=360 rc=1: ASAN :: vmesh_separate_gg.c:340:15: runtime error: member access within misaligned address 0xfffffff9fffffff9 for type 'struct G
+N=361 rc=1: ASAN :: vmesh_separate_gg.c:158:20: runtime error: load of null pointer of type 'Gnum'
+N=377 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (1)
+N=378 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=379 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=380 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (3)
+N=384 rc=1: ASAN :: ==1316079==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000006e0 (pc 0x7fb02f545924 bp 0x7ffc18b37460 sp 0x7ff
+N=386 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=394 rc=1: ASAN :: mesh_coarsen.c:549:21: runtime error: load of null pointer of type 'Gnum'
+N=396 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=399 rc=1: ASAN :: ==1316725==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x50d00000010f at pc 0x7fc1c053522c bp 0x7ffe2c1f00f
+N=400 rc=1: ASAN :: ==1316767==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000002f8 (pc 0x7fb47afcc627 bp 0x7ffdbf05b180 sp 0x7ff
+N=403 rc=1: ASAN :: ==1316814==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51e0000079f8 at pc 0x7f97c0972166 bp 0x7ffc63f8fc6
+N=404 rc=1: ASAN :: ==1316829==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000278 (pc 0x7fc0e3d3b627 bp 0x7ffcd345bcb0 sp 0x7ff
+N=407 rc=1: ASAN :: vmesh_separate_gg.c:340:15: runtime error: member access within misaligned address 0x001300000013 for type 'struct GainL
+N=408 rc=1: ASAN :: vmesh_separate_gg.c:158:20: runtime error: load of null pointer of type 'Gnum'
+N=421 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (1)
+N=422 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=423 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=424 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (3)
+N=428 rc=1: ASAN :: ==1317424==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000004b0 (pc 0x7fb3b5711924 bp 0x7ffee0e96380 sp 0x7ff
+N=430 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=438 rc=1: ASAN :: ==1317645==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000003c0 (pc 0x7fab483b0924 bp 0x7ffcfa31d740 sp 0x7ff
+N=440 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=448 rc=1: ASAN :: mesh_coarsen.c:549:21: runtime error: load of null pointer of type 'Gnum'
+N=450 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=453 rc=1: ASAN :: ==1318055==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x518000002c7f at pc 0x7f7792c5722c bp 0x7ffe5721ffd
+N=454 rc=1: ASAN :: ==1318101==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000009b8 (pc 0x7f0446ec4627 bp 0x7ffe1a083e80 sp 0x7ff
+N=457 rc=1: ASAN :: ==1318178==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51400000083f at pc 0x7ffa939bc22c bp 0x7ffcfa8df0d
+N=458 rc=1: ASAN :: ==1318212==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000820 (pc 0x7f0ea6619627 bp 0x7ffcb181c3c0 sp 0x7ff
+N=461 rc=1: ASAN :: ==1318328==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x511000000cbf at pc 0x7f917e47522c bp 0x7ffcd9cfc12
+N=462 rc=1: ASAN :: ==1318367==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000006b8 (pc 0x7fe50da4a627 bp 0x7ffd5a924930 sp 0x7ff
+N=465 rc=1: ASAN :: ==1318433==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51d00000a1b8 at pc 0x7fae1da1b166 bp 0x7ffe2504082
+N=466 rc=1: ASAN :: ==1318455==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000458 (pc 0x7f817e43a627 bp 0x7fff8bd2a630 sp 0x7ff
+N=469 rc=1: ASAN :: vmesh_separate_gg.c:340:15: runtime error: member access within misaligned address 0x001c00000002 for type 'struct GainL
+N=470 rc=1: ASAN :: vmesh_separate_gg.c:158:20: runtime error: load of null pointer of type 'Gnum'
+N=489 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (1)
+N=490 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=491 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=492 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (3)
+N=496 rc=1: ASAN :: mesh_coarsen.c:549:21: runtime error: load of null pointer of type 'Gnum'
+N=498 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=501 rc=1: ASAN :: ==1319851==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x52400006e038 at pc 0x7fd7b73f9166 bp 0x7fff9e07dff
+N=502 rc=1: ASAN :: ==1319903==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000488 (pc 0x7f37e139c627 bp 0x7ffc748244c0 sp 0x7ff
+N=505 rc=1: ASAN :: ==1320005==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x52200000c098 at pc 0x7ffa070f6166 bp 0x7ffc72f0950
+N=506 rc=1: ASAN :: ==1320022==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000003c8 (pc 0x7fa620f78627 bp 0x7ffc576c22a0 sp 0x7ff
+N=509 rc=1: ASAN :: ==1320074==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51e000009cb8 at pc 0x7fe935188166 bp 0x7ffecb243c7
+N=510 rc=1: ASAN :: ==1320099==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000348 (pc 0x7f43f5a2a627 bp 0x7fffc6d77070 sp 0x7ff
+N=513 rc=1: ASAN :: ==1320181==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51b000003ef8 at pc 0x7fd54ddfc166 bp 0x7fff96b7614
+N=514 rc=1: ASAN :: vmesh_separate_gg.c:158:20: runtime error: load of null pointer of type 'Gnum'
+N=530 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (1)
+N=531 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=532 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=533 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (3)
+N=537 rc=1: ASAN :: ==1320839==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000005e0 (pc 0x7f6de5dec924 bp 0x7ffdcf067c90 sp 0x7ff
+N=539 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=547 rc=1: ASAN :: ==1321260==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000630 (pc 0x7f7714d0e924 bp 0x7ffe9345f7c0 sp 0x7ff
+N=549 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=557 rc=1: ASAN :: mesh_coarsen.c:549:21: runtime error: load of null pointer of type 'Gnum'
+N=559 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=562 rc=1: ASAN :: ==1321639==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x51e00000a698 at pc 0x7fb43c3de20c bp 0x7fff9acbccd
+N=563 rc=1: ASAN :: ==1321656==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000508 (pc 0x7fc703668627 bp 0x7ffc70457040 sp 0x7ff
+N=566 rc=1: ASAN :: ==1321732==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x5110000011bf at pc 0x7f428cb6622c bp 0x7fff67293c1
+N=567 rc=1: ASAN :: ==1321754==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000438 (pc 0x7f8f53ce4627 bp 0x7ffdd3e4ea50 sp 0x7ff
+N=570 rc=1: ASAN :: vmesh_separate_gg.c:340:15: runtime error: member access within misaligned address 0x00000000003a for type 'struct GainL
+N=571 rc=1: ASAN :: ==1321842==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000003a8 (pc 0x7f7c1c1cf627 bp 0x7ffc379138e0 sp 0x7ff
+N=574 rc=1: ASAN :: vmesh_separate_gg.c:340:15: runtime error: member access within misaligned address 0xfffffffdfffffffd for type 'struct G
+N=575 rc=1: ASAN :: vmesh_separate_gg.c:158:20: runtime error: load of null pointer of type 'Gnum'
+N=591 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (1)
+N=592 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=593 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (2)
+N=594 rc=1: ASAN :: ERROR: meshInduceSepa: out of memory (3)
+N=598 rc=1: ASAN :: ==1322750==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000670 (pc 0x7f2f7ccab924 bp 0x7fff8be26af0 sp 0x7ff
+N=600 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=608 rc=1: ASAN :: ==1323002==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000006d0 (pc 0x7f33d72a1924 bp 0x7ffec9e8b300 sp 0x7ff
+N=610 rc=1: LEAK :: ERROR: hmeshOrderNd: out of memory (1)
+N=617 rc=1: ASAN :: ==1323282==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000002b6 (pc 0x558919ccc238 bp 0x7ffc97eeea80 sp 0x7ff
+runs with sanitizer findings: 184 / 617

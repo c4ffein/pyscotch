@@ -1,0 +1,5 @@
+PS-COR-3: archSubArchBuild() leaked its termtab/domntab group (and, on the "(2)" path, the chain of coarse tree blocks) when it failed late.
+Case: SCOTCH_archSub(cmplt 4, 2, {0,0}) (release build: duplicates are not rejected before building, Build3 count mismatch -> return 2).
+Pristine: "archSubArchBuild: cannot create sub-architecture (2)" then LeakSanitizer: direct leak from archSubArchBuild (memAllocGroup) -- plus
+          the tree block chain (indirect). The file path ("sub 2 0 0 cmplt 4") shows the same leak only as a use-after-free (COR-04).
+Patched (0001, then 0002 rejects the duplicate earlier): ret=2 (API) / ret=1 (file), no leak report.

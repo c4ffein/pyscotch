@@ -1,0 +1,53 @@
+=== case ok
+sizeof (Gnum) = 8, sizeof (int) = 4, case ok
+1 ret=0
+0 ret=0
+2 ret=0
+rc=0
+=== case g1
+sizeof (Gnum) = 8, sizeof (int) = 4, case g1
+(0): ERROR: commGatherv: communication indices out of range (2)
+0 ret=13
+1 ret=13
+2 ret=13
+rc=0
+=== case g2
+sizeof (Gnum) = 8, sizeof (int) = 4, case g2
+(1): ERROR: commGatherv: communication indices out of range (1)
+1 ret=13
+0 ret=13
+2 ret=13
+rc=0
+=== case s1
+sizeof (Gnum) = 8, sizeof (int) = 4, case s1
+(0): ERROR: commScatterv: communication indices out of range (2)
+1 ret=13
+0 ret=13
+2 ret=13
+rc=0
+=== case s2
+sizeof (Gnum) = 8, sizeof (int) = 4, case s2
+(1): ERROR: commScatterv: communication indices out of range (1)
+0 ret=13
+2 ret=13
+1 ret=13
+rc=0
+=== case a1
+sizeof (Gnum) = 8, sizeof (int) = 4, case a1
+(1): ERROR: commAllgatherv: communication indices out of range (1)
+0 ret=13
+1 ret=13
+2 ret=13
+rc=0
+=== case s0
+sizeof (Gnum) = 8, sizeof (int) = 4, case s0
+1 ret=0
+0 ret=0
+2 ret=0
+rc=0
+=== case a0
+sizeof (Gnum) = 8, sizeof (int) = 4, case a0
+1 ret=0
+0 ret=0
+2 ret=0
+rc=0

@@ -1,0 +1,2 @@
+HEADER printed before fileBlockOpen
+TRAILER

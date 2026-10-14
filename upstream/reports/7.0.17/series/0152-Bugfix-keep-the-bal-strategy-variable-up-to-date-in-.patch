@@ -1,0 +1,113 @@
+From 58057a76ac6a7a8b741d71e92b7c57b2091261be Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:16:44 +0000
+Subject: [PATCH 152/240] Bugfix: keep the `bal` strategy variable up to date
+ in distributed bipartitioning [report R. Perry]
+
+The `bbalglbval` field of the distributed active graph, which is the
+`bal` variable of bipartitioning strategy conditions, was not updated
+by `bdgraphBipartSq()` nor by `bdgraphZero()`, and never set for
+coarsened graphs. `bdgraphBipartMlUncoarsen()` copied it from the
+coarse graph of the local process, which, with duplicated folding, is
+not necessarily the one whose partition was selected, so that processes
+of different folded halves held different values for the same
+partition. The `bbalval` field of the centralized graph built by
+`bdgraphGatherAll()` was never set when the distributed graph already
+had a part array. A strategy condition on `bal` could thus take
+different branches on different processes, and run different
+collective operations.
+
+Compute the imbalance ratio from the global partition data, which is
+identical on all processes, wherever the partition is changed, as the
+other methods do.
+
+Refs: DMO-09
+---
+ src/libscotch/bdgraph.c            | 7 +++++--
+ src/libscotch/bdgraph_bipart_ml.c  | 6 +++---
+ src/libscotch/bdgraph_bipart_sq.c  | 1 +
+ src/libscotch/bdgraph_gather_all.c | 1 +
+ 4 files changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/src/libscotch/bdgraph.c b/src/libscotch/bdgraph.c
+index 1bc0816..e285b07 100644
+--- a/src/libscotch/bdgraph.c
++++ b/src/libscotch/bdgraph.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2011,2014,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2011,2014,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 11 sep 2011     **/
+ /**                                 to   : 31 aug 2014     **/
+ /**                # Version 7.0  : from : 11 sep 2011     **/
+-/**                                 to   : 02 aug 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -190,4 +190,7 @@ Bdgraph * const             grafptr)
+   grafptr->compglbsize0    = grafptr->s.vertglbnbr;
+   grafptr->commglbload     = grafptr->commglbloadextn0;
+   grafptr->commglbgainextn = grafptr->commglbgainextn0;
++  grafptr->bbalglbval      = (grafptr->compglbload0avg != 0)
++                             ? ((double) grafptr->compglbload0dlt / (double) grafptr->compglbload0avg)
++                             : 0;
+ }
+diff --git a/src/libscotch/bdgraph_bipart_ml.c b/src/libscotch/bdgraph_bipart_ml.c
+index b04ce38..1e79452 100644
+--- a/src/libscotch/bdgraph_bipart_ml.c
++++ b/src/libscotch/bdgraph_bipart_ml.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2014,2018-2020,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2014,2018-2020,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**              : # Version 6.0  : from : 11 sep 2011     **/
+ /**                                 to   : 31 aug 2019     **/
+ /**              : # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 14 aug 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -750,7 +750,7 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Multinode array +*/
+   finegrafptr->fronglbnbr      = reduglbtab[2];
+   finegrafptr->commglbload     = ((reduglbtab[3] / 2) * finegrafptr->domndist + reduglbtab[4] + finegrafptr->commglbloadextn0);
+   finegrafptr->commglbgainextn = reduglbtab[5];
+-  finegrafptr->bbalglbval      = coargrafptr->bbalglbval;
++  finegrafptr->bbalglbval      = (double) ((finegrafptr->compglbload0dlt < 0) ? (- finegrafptr->compglbload0dlt) : finegrafptr->compglbload0dlt) / (double) finegrafptr->compglbload0avg;
+ 
+ #ifdef SCOTCH_DEBUG_BDGRAPH2
+   if (bdgraphCheck (finegrafptr) != 0) {
+diff --git a/src/libscotch/bdgraph_bipart_sq.c b/src/libscotch/bdgraph_bipart_sq.c
+index 553a117..54d8c16 100644
+--- a/src/libscotch/bdgraph_bipart_sq.c
++++ b/src/libscotch/bdgraph_bipart_sq.c
+@@ -243,6 +243,7 @@ const BdgraphBipartSqParam * const  paraptr)      /*+ Method parameters +*/
+   dgrfptr->commglbload     = reduloctab[2];
+   dgrfptr->commglbgainextn = reduloctab[3];
+   dgrfptr->fronglbnbr      = reduloctab[4];
++  dgrfptr->bbalglbval      = (double) ((dgrfptr->compglbload0dlt < 0) ? (- dgrfptr->compglbload0dlt) : dgrfptr->compglbload0dlt) / (double) dgrfptr->compglbload0avg;
+ 
+   if (commScatterv (cgrfdat.parttax, dgrfptr->s.proccnttab, dgrfptr->s.procdsptab, GRAPHPART_MPI, /* No base for sending as procdsptab holds based values */
+                     dgrfptr->partgsttax + dgrfptr->s.baseval, dgrfptr->s.vertlocnbr, GRAPHPART_MPI,
+diff --git a/src/libscotch/bdgraph_gather_all.c b/src/libscotch/bdgraph_gather_all.c
+index 5a94fd9..1ff1520 100644
+--- a/src/libscotch/bdgraph_gather_all.c
++++ b/src/libscotch/bdgraph_gather_all.c
+@@ -220,6 +220,7 @@ fail:
+ 
+   cgrfptr->compload0     = dgrfptr->compglbload0; /* Update other fields */
+   cgrfptr->compload0dlt  = dgrfptr->compglbload0dlt;
++  cgrfptr->bbalval       = (double) ((cgrfptr->compload0dlt < 0) ? (- cgrfptr->compload0dlt) : cgrfptr->compload0dlt) / (double) cgrfptr->compload0avg;
+   cgrfptr->compsize0     = dgrfptr->compglbsize0;
+   cgrfptr->commload      = dgrfptr->commglbload;
+   cgrfptr->commgainextn  = dgrfptr->commglbgainextn;
+-- 
+2.47.3
+

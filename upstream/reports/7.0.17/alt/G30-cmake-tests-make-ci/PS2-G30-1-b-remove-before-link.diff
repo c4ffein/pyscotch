@@ -1,0 +1,52 @@
+--- a/src/libscotch/Makefile
++++ b/src/libscotch/Makefile
+@@ -3581,25 +3581,31 @@
+ 					./ptdummysizes$(EXE) -s$(SCOTCH_NAME_SUFFIX) library_pt_f.h ptscotchf.h
+ 
+ libscotch$(LIB)			:	$(LIBSCOTCHDEPS)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					-$(RM) $(@)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ libscotcherr$(LIB)		:	library_error$(OBJ)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					-$(RM) $(@)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ libscotcherrexit$(LIB)		:	library_error_exit$(OBJ)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					-$(RM) $(@)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ libptscotch$(LIB)		:	$(LIBPTSCOTCHDEPS)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					-$(RM) $(@)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ libptscotcherr$(LIB)		:	library_error_pt$(OBJ)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					-$(RM) $(@)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ libptscotcherrexit$(LIB)	:	library_error_exit_pt$(OBJ)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					-$(RM) $(@)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+--- a/src/esmumps/Makefile
++++ b/src/esmumps/Makefile
+@@ -203,7 +203,8 @@
+ 					fax.h
+ 
+ libesmumps$(LIB)		:	$(LIBESMUMPSDEPS)
+-					$(AR) $(ARFLAGS) $(@) $(?)
++					-$(RM) $(@)
++					$(AR) $(ARFLAGS) $(@) $(^)
+ 					-$(RANLIB) $(@)
+ 
+ test_esmumps$(EXE)		:	test_esmumps.c				\

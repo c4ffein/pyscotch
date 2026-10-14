@@ -1,0 +1,19 @@
+# API-15 option B (NOT preferred): the review's fix as written (skip the copy when the local coarse vertex count is zero). Silences the UBSan report of the sender processes but still copies from a NULL pointer, with a non-zero size, when dgraphCoarsen() returned 1 after the count exchange (coarsening ratio not met: vertlocnbr is set, no folded array exists), which crashes (repro/API-15, case "ratio").
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/library_dgraph_coarsen.c b/src/libscotch/library_dgraph_coarsen.c
+index af3ae42..d244b60 100644
+--- a/src/libscotch/library_dgraph_coarsen.c
++++ b/src/libscotch/library_dgraph_coarsen.c
+@@ -160,8 +160,10 @@ SCOTCH_Num * const          multloctab)           /* Pointer to multinode array
+         o = 2;
+       }                                           /* Go on copying anyway as the user may have reserved more */
+ #endif /* SCOTCH_DEBUG_LIBRARY2 */
+-      memCpy  (multloctab, multlocptr, coargrafptr->vertlocnbr * sizeof (DgraphCoarsenMulti)); /* Update array with folded multinode data */
+-      memFree (multlocptr);                       /* Free allocated folded multinode array */
++      if (coargrafptr->vertlocnbr > 0)            /* If process holds folded vertices */
++        memCpy (multloctab, multlocptr, coargrafptr->vertlocnbr * sizeof (DgraphCoarsenMulti)); /* Update array with folded multinode data */
++      if (multlocptr != NULL)
++        memFree (multlocptr);                     /* Free allocated folded multinode array */
+     }
+   }
+ 

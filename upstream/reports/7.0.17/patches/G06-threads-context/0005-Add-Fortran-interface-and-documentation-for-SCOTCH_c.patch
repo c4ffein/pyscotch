@@ -1,0 +1,140 @@
+From 74864aad55eb771e1955537e4f56fc86299135df Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:07:54 +0000
+Subject: [PATCH 5/5] Add Fortran interface and documentation for
+ `SCOTCH_contextOptionParse()`
+
+`SCOTCH_contextOptionParse()` is a public routine of the libScotch
+API, used by the Scotch programs to process their "-C" option, but it
+had no Fortran counterpart and was not documented in the user manual.
+Also, the user manual referred to the option index
+`SCOTCH_OPTIONNUMRANDOMFIXEDSEED` as `SCOTCH_OPTIONNUMFIXEDSEED`.
+
+Refs: API-02
+---
+ doc/src/scotch/s_l.tex            | 48 ++++++++++++++++++++++++++++++-
+ src/libscotch/library_context_f.c | 31 ++++++++++++++++++--
+ 2 files changed, 76 insertions(+), 3 deletions(-)
+
+diff --git a/doc/src/scotch/s_l.tex b/doc/src/scotch/s_l.tex
+index 31ddfd5..5393649 100644
+--- a/doc/src/scotch/s_l.tex
++++ b/doc/src/scotch/s_l.tex
+@@ -7870,6 +7870,52 @@ properly retrieved, and $1$ in case of an invalid \texttt{optinum}
+ index.
+ \end{itemize}
+ 
++\subsubsection{\texttt{SCOTCH\_contextOptionParse}}
++\label{sec-lib-context-option-parse}
++
++\begin{itemize}
++\progsyn
++
++{\tt\begin{tabular}{l@{}ll}
++int SCOTCH\_contextOptionParse ( & SCOTCH\_Context * & contptr, \\
++                                 & const char *      & string)
++\end{tabular}}
++
++{\tt\begin{tabular}{l@{}ll}
++scotchfcontextoptionparse ( & doubleprecision (*) & contdat, \\
++                            & character (*)       & string,  \\
++                            & integer             & ierr)
++\end{tabular}}
++
++\progdes
++
++The \texttt{SCOTCH\_contextOptionParse} function sets integer context
++option values according to the option \texttt{string}. The string is
++made of single-character option selectors, possibly separated by
++commas and/or white space characters, which are processed in order of
++appearance. Available selectors are the following:
++\begin{itemize}
++\item \texttt{d}: deterministic behavior; sets
++  \texttt{SCOTCH\_\lbt OPTIONNUMDETERMINISTIC} to \texttt{1}, which also
++  sets \texttt{SCOTCH\_\lbt OPTIONNUMRANDOMFIXEDSEED} to \texttt{1}.
++\item \texttt{u}: non-deterministic behavior; sets
++  \texttt{SCOTCH\_\lbt OPTIONNUMDETERMINISTIC} to \texttt{0}.
++\item \texttt{f}: fixed random seed; sets
++  \texttt{SCOTCH\_\lbt OPTIONNUMRANDOMFIXEDSEED} to \texttt{1}.
++\item \texttt{r}: variable random seed; sets
++  \texttt{SCOTCH\_\lbt OPTIONNUMRANDOMFIXEDSEED} to \texttt{0}.
++\end{itemize}
++See Section~\ref{sec-lib-context-option-set-num} for the meaning of
++these option values. This routine is the one used by the \scotch\
++programs to process their ``\texttt{-C}'' option.
++
++\progret
++
++\texttt{SCOTCH\_contextOptionParse} returns $0$ if the string has
++been properly parsed and all option values have been set, and $1$ on
++error.
++\end{itemize}
++
+ \subsubsection{\texttt{SCOTCH\_contextOptionSetNum}}
+ \label{sec-lib-context-option-set-num}
+ 
+@@ -7907,7 +7953,7 @@ Available integer option values are the following:
+   by the compilation option \texttt{SCOTCH\_\lbt DETERMINISTIC} (see
+   the \scotch\ installation instructions). A deterministic behavior
+   implies the use of a fixed random seed (see below).
+-\item \texttt{SCOTCH\_\lbt OPTIONNUMFIXEDSEED}: a value of
++\item \texttt{SCOTCH\_\lbt OPTIONNUMRANDOMFIXEDSEED}: a value of
+   \texttt{0} induces that a distinct random seed be selected for each
+   launch of a program using the \libscotch\ library, while a value of
+   \texttt{1} induces that the same, fixed random seed be used at each
+diff --git a/src/libscotch/library_context_f.c b/src/libscotch/library_context_f.c
+index 77ce40a..679a72c 100644
+--- a/src/libscotch/library_context_f.c
++++ b/src/libscotch/library_context_f.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2020,2021,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2020,2021,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -40,7 +40,7 @@
+ /**                libSCOTCH library.                      **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 22 aug 2020     **/
+-/**                                 to   : 03 jun 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -196,6 +196,33 @@ int * const                 revaptr),       \
+ **
+ */
+ 
++SCOTCH_FORTRAN (                          \
++CONTEXTOPTIONPARSE, contextoptionparse, ( \
++SCOTCH_Context * const      contptr,      \
++const char * const          string,       \
++int * const                 revaptr,      \
++const int                   strnbr),      \
++(contptr, string, revaptr, strnbr))
++{
++  char * restrict     strtab;                     /* Pointer to null-terminated string */
++
++  if ((strtab = (char *) memAlloc (strnbr + 1)) == NULL) { /* Allocate temporary space */
++    errorPrint (STRINGIFY (SCOTCH_NAME_PUBLICFU (CONTEXTOPTIONPARSE)) ": out of memory");
++    *revaptr = 1;
++    return;
++  }
++  memCpy (strtab, string, strnbr);                /* Copy string contents */
++  strtab[strnbr] = '\0';                          /* Terminate string     */
++
++  *revaptr = SCOTCH_contextOptionParse (contptr, strtab); /* Call original routine */
++
++  memFree (strtab);
++}
++
++/*
++**
++*/
++
+ SCOTCH_FORTRAN (                            \
+ CONTEXTOPTIONSETNUM, contextoptionsetnum, ( \
+ SCOTCH_Context * const      contptr,        \
+-- 
+2.47.3
+

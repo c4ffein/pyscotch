@@ -1,0 +1,6 @@
+CLI-14: gcv (and mcv, same copy-paste) accept any unknown output format letter (src/scotch/gcv.c, src/scotch/mcv.c).
+Run:  B=$TREE/bin; export LD_LIBRARY_PATH=$TREE/lib
+  $B/gcv -is -oZ g44.grf /dev/null /dev/null; echo rc=$?;  $B/gcv -is -oc g44.grf /dev/null /dev/null; echo rc=$?
+  $B/mcv -is -oZ m33.msh /dev/null /dev/null; echo rc=$?;  $B/mcv -is -os m33.msh /dev/null /dev/null; echo rc=$?
+Pristine: -oZ accepted silently (rc=0, default format written) for both tools.
+Patched: "ERROR: main: unprocessed option '-oZ'" rc=1 for both; valid codes unchanged (rc=0).

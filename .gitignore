@@ -95,3 +95,11 @@ dmypy.json
 .Python
 pip-log.txt
 pip-delete-this-directory.txt
+
+# Third-party material we may cite but not redistribute (see upstream/README.md)
+upstream/_private/
+# per-version upstream report data is committed in full, reproducer outputs (*.map, *.ord, logs) included;
+# only the rendered report (HTML/PDF/email) is not
+!upstream/reports/**
+!upstream/repro/**
+upstream/reports/*/out/

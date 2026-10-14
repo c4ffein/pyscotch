@@ -1,0 +1,52 @@
+[8f72f7c979a7:1119833:0:1119833] Caught signal 11 (Segmentation fault: address not mapped to object at address 0xffffffffffffff60)
+==== backtrace (tid:1119833) ====
+ 0  /lib/x86_64-linux-gnu/libucs.so.0(ucs_handle_error+0x2bc) [0x7f396ac0064c]
+ 1  /lib/x86_64-linux-gnu/libucs.so.0(+0x3182f) [0x7f396ac0082f]
+ 2  /lib/x86_64-linux-gnu/libucs.so.0(+0x319fa) [0x7f396ac009fa]
+ 3  /lib/x86_64-linux-gnu/libc.so.6(+0x3fd70) [0x7f396b048d70]
+ 4  /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/repro/common/fishim.so(+0x13e4) [0x7f396c4f53e4]
+ 5  /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/repro/common/fishim.so(malloc+0x29) [0x7f396c4f5652]
+ 6  /lib/x86_64-linux-gnu/libc.so.6(+0x8eab1) [0x7f396b097ab1]
+ 7  /lib/x86_64-linux-gnu/libc.so.6(dlsym+0x85) [0x7f396b0980f5]
+ 8  /lib/x86_64-linux-gnu/libucs.so.0(+0x3d58a) [0x7f396ac0c58a]
+ 9  /lib/x86_64-linux-gnu/libucs.so.0(ucs_load_modules+0x32c) [0x7f396ac0cbec]
+10  /lib64/ld-linux-x86-64.so.2(+0x5dce) [0x7f396c516dce]
+11  /lib64/ld-linux-x86-64.so.2(+0x5e9c) [0x7f396c516e9c]
+12  /lib64/ld-linux-x86-64.so.2(+0x1d2f0) [0x7f396c52e2f0]
+=================================
+[8f72f7c979a7:1119834:0:1119834] Caught signal 11 (Segmentation fault: address not mapped to object at address 0xffffffffffffff60)
+[8f72f7c979a7:1119835:0:1119835] Caught signal 11 (Segmentation fault: address not mapped to object at address 0xffffffffffffff60)
+==== backtrace (tid:1119835) ====
+ 0  /lib/x86_64-linux-gnu/libucs.so.0(ucs_handle_error+0x2bc) [0x7fb94789b64c]
+ 1  /lib/x86_64-linux-gnu/libucs.so.0(+0x3182f) [0x7fb94789b82f]
+ 2  /lib/x86_64-linux-gnu/libucs.so.0(+0x319fa) [0x7fb94789b9fa]
+ 3  /lib/x86_64-linux-gnu/libc.so.6(+0x3fd70) [0x7fb947ce3d70]
+ 4  /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/repro/common/fishim.so(+0x13e4) [0x7fb9491903e4]
+ 5  /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/repro/common/fishim.so(malloc+0x29) [0x7fb949190652]
+ 6  /lib/x86_64-linux-gnu/libc.so.6(+0x8eab1) [0x7fb947d32ab1]
+ 7  /lib/x86_64-linux-gnu/libc.so.6(dlsym+0x85) [0x7fb947d330f5]
+ 8  /lib/x86_64-linux-gnu/libucs.so.0(+0x3d58a) [0x7fb9478a758a]
+ 9  /lib/x86_64-linux-gnu/libucs.so.0(ucs_load_modules+0x32c) [0x7fb9478a7bec]
+10  /lib64/ld-linux-x86-64.so.2(+0x5dce) [0x7fb9491b1dce]
+11  /lib64/ld-linux-x86-64.so.2(+0x5e9c) [0x7fb9491b1e9c]
+12  /lib64/ld-linux-x86-64.so.2(+0x1d2f0) [0x7fb9491c92f0]
+=================================
+==== backtrace (tid:1119834) ====
+ 0  /lib/x86_64-linux-gnu/libucs.so.0(ucs_handle_error+0x2bc) [0x7f1d9605464c]
+ 1  /lib/x86_64-linux-gnu/libucs.so.0(+0x3182f) [0x7f1d9605482f]
+ 2  /lib/x86_64-linux-gnu/libucs.so.0(+0x319fa) [0x7f1d960549fa]
+ 3  /lib/x86_64-linux-gnu/libc.so.6(+0x3fd70) [0x7f1d9649cd70]
+ 4  /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/repro/common/fishim.so(+0x13e4) [0x7f1d979493e4]
+ 5  /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/repro/common/fishim.so(malloc+0x29) [0x7f1d97949652]
+ 6  /lib/x86_64-linux-gnu/libc.so.6(+0x8eab1) [0x7f1d964ebab1]
+ 7  /lib/x86_64-linux-gnu/libc.so.6(dlsym+0x85) [0x7f1d964ec0f5]
+ 8  /lib/x86_64-linux-gnu/libucs.so.0(+0x3d58a) [0x7f1d9606058a]
+ 9  /lib/x86_64-linux-gnu/libucs.so.0(ucs_load_modules+0x32c) [0x7f1d96060bec]
+10  /lib64/ld-linux-x86-64.so.2(+0x5dce) [0x7f1d9796adce]
+11  /lib64/ld-linux-x86-64.so.2(+0x5e9c) [0x7f1d9796ae9c]
+12  /lib64/ld-linux-x86-64.so.2(+0x1d2f0) [0x7f1d979822f0]
+=================================
+--------------------------------------------------------------------------
+prterun noticed that process rank 0 with PID 1119833 on node 8f72f7c979a7 exited on
+signal 11 (Segmentation fault).
+--------------------------------------------------------------------------

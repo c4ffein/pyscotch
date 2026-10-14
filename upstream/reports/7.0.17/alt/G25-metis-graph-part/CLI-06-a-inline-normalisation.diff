@@ -1,0 +1,61 @@
+--- a/src/libscotchmetis/metis_graph_part.c
++++ b/src/libscotchmetis/metis_graph_part.c
+@@ -551,7 +551,11 @@
+   double              kbalval;
+ 
+   kbalval = 0.01;
+-  baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;
++  baseval = ((options != NULL) && (options != xadj) && (options[METIS_OPTION_NUMBERING] != -1)) ? options[METIS_OPTION_NUMBERING] : 0; /* Option value -1 means "default" */
++  if ((baseval < 0) || (baseval > 1)) {
++    SCOTCH_errorPrint ("SCOTCH_METIS_V5_PartGraphKway: invalid numbering option");
++    return (METIS_ERROR_INPUT);
++  }
+ 
+   return ((vsize == NULL)
+           ? _SCOTCH_METIS_PartGraph (nvtxs, ncon, xadj, adjncy, vwgt, adjwgt,
+@@ -584,7 +588,11 @@
+ {
+   SCOTCH_Num          baseval;
+ 
+-  baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;
++  baseval = ((options != NULL) && (options != xadj) && (options[METIS_OPTION_NUMBERING] != -1)) ? options[METIS_OPTION_NUMBERING] : 0; /* Option value -1 means "default" */
++  if ((baseval < 0) || (baseval > 1)) {
++    SCOTCH_errorPrint ("SCOTCH_METIS_V5_PartGraphRecursive: invalid numbering option");
++    return (METIS_ERROR_INPUT);
++  }
+ 
+   return ((vsize == NULL)
+           ? _SCOTCH_METIS_PartGraph (nvtxs, ncon, xadj, adjncy, vwgt, adjwgt,
+--- a/src/libscotchmetis/metis_graph_order.c
++++ b/src/libscotchmetis/metis_graph_order.c
+@@ -180,7 +180,11 @@
+ {
+   SCOTCH_Num          baseval;
+ 
+-  baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;
++  baseval = ((options != NULL) && (options != xadj) && (options[METIS_OPTION_NUMBERING] != -1)) ? options[METIS_OPTION_NUMBERING] : 0; /* Option value -1 means "default" */
++  if ((baseval < 0) || (baseval > 1)) {
++    SCOTCH_errorPrint ("SCOTCH_METIS_V5_NodeND: invalid numbering option");
++    return (METIS_ERROR_INPUT);
++  }
+ 
+   return (_SCOTCH_METIS_Node (nvtxs, xadj, adjncy, vwgt, &baseval, options, perm, iperm));
+ }
+--- a/src/libscotchmetis/metis_graph_part_dual.c
++++ b/src/libscotchmetis/metis_graph_part_dual.c
+@@ -105,8 +105,14 @@
+ 
+   baseval = 0;                                    /* Assume base value is 0 */
+ 
+-  if ((options != NULL) && (options != ne))       /* For the Fortran interface, null arrays are those equal to ne */
++  if ((options != NULL) && (options != ne) &&     /* For the Fortran interface, null arrays are those equal to ne */
++      (options[METIS_OPTION_NUMBERING] != -1))    /* Option value -1 means "default"                              */
+     baseval = options[METIS_OPTION_NUMBERING];    /* Get base value                                               */
++  if ((baseval < 0) || (baseval > 1)) {
++    SCOTCH_errorPrint ("SCOTCH_METIS_PartMeshDual: invalid numbering option");
++    *objval = METIS_ERROR_INPUT;
++    return (METIS_ERROR_INPUT);
++  }
+ 
+   if ((tpwgts != NULL) && ((const SCOTCH_Num * const) tpwgts != ne)) {
+     SCOTCH_Num * restrict wtgttab;                /* Array of integer loads            */

@@ -1,0 +1,46 @@
+--- a/src/libscotchmetis/metis_graph_dual.c
++++ b/src/libscotchmetis/metis_graph_dual.c
+@@ -87,9 +87,12 @@
+   SCOTCH_Num *        vendtab;
+   SCOTCH_Num          edgenbr;
+   SCOTCH_Num *        edgetab;
++  SCOTCH_Num *        xadjtab;                    /* User-managed copies of graph arrays */
++  SCOTCH_Num *        adjntab;
+   int                 o;
+ 
+-  *xadj = NULL;                                   /* Assume something will go wrong */
++  *xadj   =                                       /* Assume something will go wrong: callers test for null pointers */
++  *adjncy = NULL;
+ 
+   SCOTCH_meshInit  (&meshdat);
+   SCOTCH_graphInit (&grafdat);
+@@ -109,19 +112,22 @@
+ 
+   SCOTCH_graphData (&grafdat, &baseval, &vertnbr, &verttab, &vendtab, NULL, NULL, &edgenbr, &edgetab, NULL);
+ 
+-  if (((*xadj   = malloc ((vertnbr + 1) * sizeof (SCOTCH_Num))) == NULL) || /* Do not use libScotch memory allocation as freed by user */
+-      ((*adjncy = malloc (edgenbr       * sizeof(SCOTCH_Num)))  == NULL)) {
++  if (((xadjtab = malloc ((vertnbr + 1) * sizeof (SCOTCH_Num))) == NULL) || /* Do not use libScotch memory allocation as freed by user */
++      ((adjntab = malloc (edgenbr       * sizeof (SCOTCH_Num))) == NULL)) {
+     SCOTCH_errorPrint ("SCOTCH_METIS_MeshToDual: out of memory");
+-    if (*xadj != NULL)
+-      free (*xadj);
++    if (xadjtab != NULL)
++      free (xadjtab);
+     SCOTCH_graphExit (&grafdat);
+-    return           (METIS_ERROR_MEMORY);
++    return (METIS_ERROR_MEMORY);
+   }
+ 
+-  memCpy (*xadj,   verttab, (vertnbr + 1) * sizeof (SCOTCH_Num));
+-  memCpy (*adjncy, edgetab,  edgenbr      * sizeof (SCOTCH_Num));
++  memCpy (xadjtab, verttab, (vertnbr + 1) * sizeof (SCOTCH_Num));
++  memCpy (adjntab, edgetab,  edgenbr      * sizeof (SCOTCH_Num));
+   SCOTCH_graphExit (&grafdat);
+ 
++  *xadj   = xadjtab;                              /* Output arrays are set only on success */
++  *adjncy = adjntab;
++
+   return (METIS_OK);
+ }
+ 

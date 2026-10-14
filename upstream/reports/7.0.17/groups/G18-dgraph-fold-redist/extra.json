@@ -1,0 +1,114 @@
+[
+ {
+  "local_id": "PS2-G18-1",
+  "our_title": "hdgraphInduceList assigns an unchecked memRealloc result; NULL edge array read by hdgraphFold2",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "cd $WORK/repro/common; ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/orderfi 4 2 89 89 -- $INFRA/v7.0.17/src/check/data/m16x16.grf -> nth=89 exit=139 :: fishim: rank 2: failing allocation #89 (FI_LOG: 'alloc #89 from _SCOTCHhdgraphInduceList', the memRealloc at hdgraph_induce.c:302); hdgraph_fold.c:533:25: runtime error: load of null pointer of type 'const Gnum'; signal 11; ranks 0,1 return 0. Same on the patched tree (hdgraph_fold.c:559).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/hdgraph_induce.c:302-304; consumer src/libscotch/hdgraph_fold.c:533 (orgedgeloctax[fldedgelocnum])",
+  "evidence": "hdgraph_induce.c:302-304: `indgrafptr->s.edgeloctax = memRealloc (indgrafptr->s.edgeloctax + orggrafptr->s.baseval, (size_t) (indedgelocsiz * sizeof (Gnum))); indgrafptr->s.edgeloctax -= orggrafptr->s.baseval;` (a NULL result is based and stored; the original block leaks and every later reader of the induced graph dereferences NULL - baseval). dgraphRedist2 guards the same shrink in debug mode: dgraph_redist.c:476-481 `if (dstedgeloctax == NULL) { /* Shrinking should never fail */`; dgraph_induce.c:239,244 have the same unchecked pattern.",
+  "related_ids": [
+   "DGR-01",
+   "PS-DGR-4"
+  ],
+  "fix_options": [
+   {
+    "label": "A: check the realloc result into a temporary and fail through fail2 (hdgraphExit frees the still-valid original block)",
+    "summary": "if ((indedgeloctax = memRealloc (...)) == NULL) { errorPrint (\"hdgraphInduceList: out of memory (4)\"); goto fail2; } indgrafptr->s.edgeloctax = indedgeloctax - baseval; (reuses the existing local indedgeloctax, dead at that point). Same change wanted in dgraph_induce.c:239,244 (other group's file).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/alt/PS2-G18-1-A-check-realloc-result.diff",
+    "tested": "applies to v7.0.17 (git apply --check), compiles with 0 warnings in 32-bit and 64-bit flags; not run (file outside this group's patch scope, not included in the series)",
+    "tradeoffs": "The failure happens after the halo exchange and before dgraphBuild4 (collective), so with release-only agreements the other processes still enter dgraphBuild4 alone: the same class as PS-DGR-4, to be solved in hdgraphInduceList with its own agreement (the induce group).",
+    "preferred": true,
+    "maintainer_fit": "His own debug-mode guard of the same shrink in dgraphRedist2 ('Shrinking should never fail'); the maintainer may prefer a SCOTCH_DEBUG_HDGRAPH2-only check since a shrinking realloc does not fail with glibc."
+   },
+   {
+    "label": "B: debug-only check, as in dgraphRedist2",
+    "summary": "Same test under #ifdef SCOTCH_DEBUG_HDGRAPH2 with 'internal error' wording.",
+    "diff_file": "",
+    "tested": "untested: design only",
+    "tradeoffs": "Release builds keep dereferencing NULL if a shrink ever fails (custom allocators, memory-limited environments).",
+    "preferred": false,
+    "maintainer_fit": "Matches dgraph_redist.c:476-481 exactly."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G18-2",
+  "our_title": "dgraphFoldComm debug checks free the communication array already returned to the caller (double free)",
+  "severity": "low",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "the whole of dgraph_fold_comm.c:540-597 and the callers' fail1 paths (dgraph_fold.c:298-307, hdgraph_fold.c:285-296)",
+  "why_not_run": "only reachable in SCOTCH_DEBUG_DGRAPH2 builds when the computed scheme is inconsistent ('internal error (4)/(5)') or the debug Allgather fails; no input known to trigger it.",
+  "location_7_0_17": "src/libscotch/dgraph_fold_comm.c:540-542 (outputs set), :584-587 (fail: memFree (commdattab); return (1)); callers dgraph_fold.c:302-303, hdgraph_fold.c:291-292",
+  "evidence": "dgraph_fold_comm.c:540-542: `*commdattabptr = commdattab; /* Set group leader */ *commvrttabptr = commvrttab; *commmaxptr = commmax;` then :584-587: `fail: memFree (commdattab); /* Free group leader */ return (1);` and dgraph_fold.c:302-303: `if (fldcommdattab != NULL) memFree (fldcommdattab);`",
+  "related_ids": [
+   "DGR-01"
+  ],
+  "fix_options": [
+   {
+    "label": "A: set the output pointers only after the debug checks (recommended)",
+    "summary": "Move the three assignments after the #endif of the debug block.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0005-Bugfix-do-not-return-freed-communication-array-on-er.patch",
+    "tested": "Debug build (ASan -DSCOTCH_DEBUG_ALL) passes check_scotch_dgraph_{check,coarsen,order,redist,induce} and check_prog_dgord; the fold success matrix passes on it; the error path itself was not triggered.",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "Outputs set once everything is validated, as in his reworked dgraphInduce2 (procdsptab built only after the Allgather succeeded)."
+   },
+   {
+    "label": "B: clear the caller's pointer at fail",
+    "summary": "*commdattabptr = NULL; before memFree at fail.",
+    "diff_file": "",
+    "tested": "untested: design only",
+    "tradeoffs": "Leaves the routine returning partial outputs on error; two places to keep in sync.",
+    "preferred": false,
+    "maintainer_fit": "Weaker contract than option A."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/patches/0005-Bugfix-do-not-return-freed-communication-array-on-er.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G18-3",
+  "our_title": "hdgraphOrderNd2 halves disagree on failure in release builds after a fold",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/orderfi 4 0 123 123 -- data/m16x16.grf (hdgraphGather out of memory (2) on rank 0, inside the folded half {0,1}): pristine: rank 0 SEGV, rank 1 rc=1, ranks 2,3 rc=0; patched (commit 0004): ranks 0,1 rc=1, ranks 2,3 rc=0: the two halves of the nested dissection never agree.",
+  "read_only": "hdgraph_order_nd.c:290-310 and :360-430 (recursion)",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/hdgraph_order_nd.c:301-307 (release-only agreement on the half's communicator); no agreement between halves before dorderDispose/return",
+  "evidence": "hdgraph_order_nd.c:301-307: `#ifdef SCOTCH_DEBUG_HDGRAPH1 /* Communication cannot be merged with a useful one */ if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->s.proccomm) != MPI_SUCCESS) { ... } #else /* SCOTCH_DEBUG_HDGRAPH1 */ chekglbval = cheklocval; #endif`",
+  "related_ids": [
+   "PS-DGR-4",
+   "DGR-13"
+  ],
+  "fix_options": [
+   {
+    "label": "A: agree on the return value on the original communicator at the end of hdgraphOrderNd (other group's file)",
+    "summary": "One MPI_Allreduce MAX of the local status after the two halves return, so that SCOTCH_dgraphOrderCompute returns the same value everywhere.",
+    "diff_file": "",
+    "tested": "untested: not written (hdgraph_order_nd.c belongs to the ordering group)",
+    "tradeoffs": "One Allreduce per nested-dissection level.",
+    "preferred": true,
+    "maintainer_fit": "Same policy as the collective agreements of this series."
+   },
+   {
+    "label": "B: leave as is, document that callers must agree themselves",
+    "summary": "No code change.",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "Callers (dgord, dgraphOrderCompute users) hang or misbehave on the next collective.",
+    "preferred": false,
+    "maintainer_fit": "Not his direction in 7.0.17."
+   }
+  ],
+  "patch_files": []
+ }
+]

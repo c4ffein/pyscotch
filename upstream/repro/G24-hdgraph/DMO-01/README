@@ -1,0 +1,15 @@
+DMO-01 (fixed in 7.0.17 by 4ebcc6f): vertex-load slice sent to the wrong receiver in hdgraphFold2()
+=====================================================================================================
+WORK=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph
+C=$WORK/repro/common      # orderfi.c: SCOTCH_dgraphOrderCompute(), mode "check" = gather graph + ordering on rank 0 and
+                          # run SCOTCH_graphOrderCheck(); 4elt_w.grf = vertex-weighted 4elt (from the first pass)
+
+Positive (7.0.17 + combined series, ASan 32-bit and 64-bit trees, np 1..5):
+  LD_LIBRARY_PATH=$WORK/build/lib ASAN_OPTIONS=detect_leaks=0 mpirun --oversubscribe -np 3 $C/bin_build/orderfi $C/4elt_w.grf "" check
+  -> rank 0: ordering check rc=0   (same for np 1,2,4,5, for m16x16.grf, and on build64; no sanitizer report)
+Negative control ($WORK/buildrev = pristine INFRA/asan 7.0.17 with 4ebcc6f reverted in hdgraph_fold.c, i.e. the 7.0.16 send):
+  LD_LIBRARY_PATH=$WORK/buildrev/lib mpirun --oversubscribe -np 3 $C/bin_build/orderfi $C/4elt_w.grf "" check
+  -> ERROR: AddressSanitizer: heap-buffer-overflow ... vgraph_separate_fm.c:129 in vgraphSeparateFmTablGet (wrong vertex loads downstream)
+  np 5 -> MPI_ERR_TRUNCATE: message truncated (MPI_ERRORS_ARE_FATAL)
+Completeness: every other send in hdgraphFold2() (edges :423, loads :436, numbers :446, vertex indices :333/:339 via inner-scope
+vertsndbas/vertsndnbr) uses the per-communication offset and count; dgraph_fold.c twin was already correct.

@@ -1,0 +1,33 @@
+--- a/src/libscotch/mesh_io.c	2026-10-13 08:40:02.911404262 +0000
++++ b/src/libscotch/mesh_io.c	2026-10-13 13:25:19.182825460 +0000
+@@ -346,7 +346,7 @@
+     return (1);
+   }
+ 
+-  vertbastab[0] = meshptr->baseval;
++  vertbastab[0] = meshptr->baseval;               /* Labels were shifted by their kind base on loading: undo it when writing */
+   vertnndtab[1] = meshptr->velmnbr + meshptr->vnodnbr + meshptr->baseval;
+   if (meshptr->velmbas <= meshptr->vnodbas) {     /* If elements first */
+     vertnndtab[0] = meshptr->velmnnd;
+@@ -379,8 +379,8 @@
+     for (vertnum = vertbas, o = 0; (vertnum < vertnnd) && (o == 0); vertnum ++) {
+       Gnum                edgenum;
+ 
+-      if (meshptr->vlbltax != NULL)               /* Write vertex label if necessary */
+-        o  = (fprintf (stream, GNUMSTRING "\t", (Gnum) meshptr->vlbltax[vertnum]) == EOF);
++      if (meshptr->vlbltax != NULL)               /* Write vertex label if necessary, shifted back to file numbering */
++        o  = (fprintf (stream, GNUMSTRING "\t", (Gnum) (meshptr->vlbltax[vertnum] - vertbas)) == EOF);
+       if (propstr[2] != '0')                      /* Write vertex load if necessary */
+         o |= (fprintf (stream, GNUMSTRING "\t", (Gnum) ((velotax != NULL) ? velotax[vertnum] : 1)) == EOF);
+       o |= (fprintf (stream, GNUMSTRING, (Gnum) (meshptr->vendtax[vertnum] - meshptr->verttax[vertnum])) == EOF); /* Write vertex degree */
+@@ -388,8 +388,8 @@
+       for (edgenum = meshptr->verttax[vertnum];
+            (edgenum < meshptr->vendtax[vertnum]) && (o == 0); edgenum ++) {
+         o |= (putc ('\t', stream) == EOF);
+-        o |= (intSave (stream,                    /* Write edge end */
+-                       (meshptr->vlbltax != NULL) ? meshptr->vlbltax[meshptr->edgetax[edgenum]] : meshptr->edgetax[edgenum] - edgeadj) != 1);
++        o |= (intSave (stream,                    /* Write edge end: labels of ends are shifted by the other kind base */
++                       (meshptr->vlbltax != NULL) ? (meshptr->vlbltax[meshptr->edgetax[edgenum]] - edgeadj - meshptr->baseval) : meshptr->edgetax[edgenum] - edgeadj) != 1);
+       }
+       o |= (putc ('\n', stream) == EOF);
+     }

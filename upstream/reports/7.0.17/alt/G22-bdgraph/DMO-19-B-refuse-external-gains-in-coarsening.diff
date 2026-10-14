@@ -1,0 +1,50 @@
+--- a/src/libscotch/bdgraph_bipart_ml.c
++++ b/src/libscotch/bdgraph_bipart_ml.c
+@@ -90,6 +90,11 @@
+ {
+   int                 foldval;
+ 
++  if (finegrafptr->veexloctax != NULL) {          /* TODO: external gains of coarse vertices are not computed yet */
++    errorPrint ("bdgraphBipartMlCoarsen: external gains not supported"); /* Same on all processes: low strategy applied instead */
++    return (1);
++  }
++
+   switch (paraptr->foldval) {
+     case 0 :
+       foldval = DGRAPHCOARSENNONE;
+@@ -125,34 +130,7 @@
+     return (0);
+   }
+ 
+-  if (finegrafptr->veexloctax != NULL) {          /* Merge external gains for coarsened vertices */
+-    DgraphCoarsenMulti * restrict coarmulttax;
+-    Gnum * restrict               coarveexloctax;
+-    Gnum                          coarvertlocnum;
+-
+-    if ((coarveexloctax = (Gnum *) memAlloc (coargrafptr->s.vertlocnbr * sizeof (Gnum))) == NULL) {
+-      errorPrint ("bdgraphBipartMlCoarsen: out of memory");
+-      dgraphExit (&coargrafptr->s);               /* Only free Dgraph since veexloctax not allocated */
+-      memFree    (*coarmultptr + coargrafptr->s.baseval);
+-      return (1);
+-    }
+-    coarveexloctax -= coargrafptr->s.baseval;
+-    coargrafptr->veexloctax = coarveexloctax;
+-    coarmulttax = *coarmultptr;
+-
+-    for (coarvertlocnum = coargrafptr->s.baseval; coarvertlocnum < coargrafptr->s.vertlocnnd; coarvertlocnum++) {
+-      Gnum		finevertnum0;             /* First multinode vertex  */
+-      Gnum              finevertnum1;             /* Second multinode vertex */
+-
+-      finevertnum0 = coarmulttax[coarvertlocnum].vertglbnum[0];
+-      finevertnum1 = coarmulttax[coarvertlocnum].vertglbnum[1];
+-      coarveexloctax[coarvertlocnum] = (finevertnum0 != finevertnum1)
+-                                       ? finegrafptr->veexloctax[finevertnum0] + finegrafptr->veexloctax[finevertnum1]
+-                                       : finegrafptr->veexloctax[finevertnum0];
+-    }
+-  }
+-  else                                            /* If fine graph does not have external gains */
+-    coargrafptr->veexloctax = NULL;               /* Coarse graph does not have external gains  */
++  coargrafptr->veexloctax = NULL;                 /* Coarse graph does not have external gains */
+ 
+   coargrafptr->veexglbsum       = finegrafptr->veexglbsum;
+   coargrafptr->compglbload0min  = finegrafptr->compglbload0min; /* Only set constant partition parameters as others will be set on uncoarsening */

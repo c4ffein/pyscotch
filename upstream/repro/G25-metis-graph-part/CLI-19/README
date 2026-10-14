@@ -1,0 +1,9 @@
+CLI-19  objective chosen from vsize instead of options[METIS_OPTION_OBJTYPE]
+  ./cli19     (40x40 grid, 4 parts; prints objval and the independently computed cut and volume)
+pristine (32-bit):
+  Kway      OBJTYPE=VOL vsize=NULL : objval=80  | true cut=80  true volume(unit)=160     (a cut is returned)
+  Kway      OBJTYPE=CUT vsize=set  : objval=558 | true cut=104 true volume(vsize)=558    (a volume is returned)
+patched (0005):
+  Kway      OBJTYPE=VOL vsize=NULL : objval=160 | true volume(unit)=160
+  Kway      OBJTYPE=CUT vsize=set  : objval=80  | true cut=80
+  Kway      OBJTYPE=VOL vsize=set  : objval=555 | true volume(vsize)=555      (Recursive: same)

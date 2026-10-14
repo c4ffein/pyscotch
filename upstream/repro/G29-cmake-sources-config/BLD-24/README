@@ -1,0 +1,24 @@
+BLD-24: internal compile definitions exported to CMake consumers.
+
+Pristine install ($WORK/cm/inst-base32):
+  grep INTERFACE_COMPILE_DEFINITIONS $WORK/cm/inst-base32/lib/cmake/scotch/scotchTargets.cmake
+    INTERFACE_COMPILE_DEFINITIONS "COMMON_RANDOM_FIXED_SEED"
+  consumer project (../BLD-02/consumer): cmake -S consumer -B b-base -DCMAKE_PREFIX_PATH=$WORK/cm/inst-base32 && make -C b-base && ./b-base/consumer
+    -- SCOTCH::scotch INTERFACE_COMPILE_DEFINITIONS=[COMMON_RANDOM_FIXED_SEED]
+    COMMON_RANDOM_FIXED_SEED leaked into consumer
+Patched install ($WORK/cm/inst-patched32):
+  grep INTERFACE_COMPILE_DEFINITIONS .../scotchTargets.cmake -> nothing
+  consumer: INTERFACE_COMPILE_DEFINITIONS=[defs-NOTFOUND] ; prints "no scotch-internal macros in consumer"
+In-tree targets keep the definition (BUILD_INTERFACE):
+  grep -o COMMON_RANDOM_FIXED_SEED $WORK/cm/patched32/src/check/CMakeFiles/test_common_random.dir/flags.make -> found
+  grep -o COMMON_RANDOM_FIXED_SEED $WORK/cm/patched32/src/scotch/CMakeFiles/gmap.dir/flags.make -> found
+
+Why plain PRIVATE (alt b) is wrong: test_common_random.c:162 flips its expectation when the macro
+is defined. Compiled here without the macro against the FIXED_SEED library (flags taken from
+base32's flags.make minus -DCOMMON_RANDOM_FIXED_SEED):
+  ./test_common_random_nomacro rand.dat 0; ./test_common_random_nomacro rand.dat 1
+    ERROR: main: two consecutive runs yield same values.   rc=1
+  ./test_common_random_macro   rand.dat 0; ./test_common_random_macro rand.dat 1
+    Two consecutive runs yield same values.                rc=0
+FreeBSD definitions (cpu_set_t=cpuset_t, __BSD_VISIBLE): not run (no FreeBSD host); in-tree users
+found by grep: src/check/test_scotch_context.c:205,330,361 (cpu_set_t) and common_thread.h:84 via common.h.

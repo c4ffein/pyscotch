@@ -1,0 +1,6 @@
+SEP-16 (+ mesh twin of GRA-09): meshGeomLoadScot() reads node labels from [baseval, ...) instead of [vnodbas, ...), never stores dimnnbr.
+m16u.msh: 2 elements (labels 0,1) then 4 nodes (labels 2..5), base 0; m16u.xyz: coordinates keyed by the node labels 2..5.
+  ./geoload m16u.msh m16u.xyz   pristine -> "ERROR: meshGeomLoadScot: vertex geometry data not found (0)" load=1  (element labels were looked up)
+                                patched  -> load=0 check=0, dimnnbr=2, coordinates of nodes 0..3 printed, geometry saved back with labels 2..5
+(With pristine, the saved geometry of any mesh loaded this way is empty since dimnnbr stays 0.)
+Fixed by patches/0008 (and 0011 for the labelled round trip); regression test: test_scotch_mesh_geom with data/small2.{msh,xyz} and small2_lbl.{msh,xyz}.

@@ -1,0 +1,15 @@
+COR-10: a thread count of 0 writes past an empty descriptor array / hangs
+-------------------------------------------------------------------------
+spawn.c (copy of COR-09/spawn.c): SCOTCH_contextThreadSpawn (ctx, 0, NULL).
+Also: SCOTCH_PTHREAD_NUMBER=0 gpart 4 data/bump.grf /dev/null
+
+Pristine 7.0.17 (ASan build):
+  ./spawn 0                              -> AddressSanitizer: heap-buffer-overflow WRITE of size 4
+                                            #0 _SCOTCHthreadContextInit common_thread.c:150 (desctab[0].contptr = ..., desctab has 0 bytes)
+  SCOTCH_PTHREAD_NUMBER=0 gpart 4 ...    -> same report through contextCommit/SCOTCH_contextBindGraph
+  (in a non-sanitized build the write corrupts the heap and the start-up barrier waits for 0 threads: hang)
+  SCOTCH_PTHREAD_NUMBER= (empty) or =abc -> envGetInt() returns the default; no defect (rc=0)
+Patched (patches/0001): "spawn (0) returned 0" (as many threads as cores), gpart rc=0.
+Regression test: src/check/test_scotch_context.c now spawns a context with 0 threads;
+  test_scotch_context_pristine = patched test linked against the pristine library -> ASan heap-buffer-overflow at
+  test_scotch_context.c:272; against the patched library -> rc=0.

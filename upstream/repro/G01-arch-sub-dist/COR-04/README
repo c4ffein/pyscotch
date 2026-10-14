@@ -1,0 +1,6 @@
+COR-04: failed "sub" loads freed the inner Arch twice, or freed a NULL / uninitialized inner Arch, through archSubArchFree().
+Cases: sub_badtype "sub 2 0 1 foo" (inner type invalid: 0xbebebebe class pointer), sub_badinner "sub 2 0 1 cmplt abc" (NULL deref),
+       sub_short "sub 3 0 1 cmplt 4" (NULL deref), sub_var "sub 2 0 1 varcmplt" (NULL deref), sub_dup (use-after-free + double free),
+       v_subtleaf "sub 2 0 1 tleaf 2 4 1 x" (NULL deref).
+Pristine: UBSan/ASan reports in archFree <- archSubArchFree <- archLoad (arch.c:216) or in archExit <- archSubArchLoad (arch_sub.c:119).
+Patched (0001): every case returns 1 with no sanitizer or leak report; valid files (sub_ok, sub_hcub, sub_mesh, sub_tleaf, sub_ltleaf, sub_sub, sub_cmpltw) round-trip.

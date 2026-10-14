@@ -1,0 +1,27 @@
+--- a/src/libscotch/parser.c
++++ b/src/libscotch/parser.c
+@@ -54,7 +54,7 @@
+ /**                # Version 6.0  : from : 01 jun 2012     **/
+ /**                                 to   : 30 dec 2016     **/
+ /**                # Version 7.0  : from : 02 mar 2018     **/
+-/**                                 to   : 07 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -424,8 +424,14 @@
+         break;
+       if (testtab[0].nodeval == STRATPARAMDOUBLE)
+         evalptr->data.val.valdbl = fmod (testtab[0].data.val.valdbl, testtab[1].data.val.valdbl);
+-      else
++      else {
++        if (testtab[1].data.val.valint == 0) {    /* Integer modulus by zero is undefined */
++          errorPrint ("stratTestEval: modulus by zero");
++          o = 1;
++          break;
++        }
+         evalptr->data.val.valint = testtab[0].data.val.valint % testtab[1].data.val.valint;
++      }
+       evalptr->nodeval = testtab[0].nodeval;
+       break;
+     case STRATTESTVAL :                           /* Constant value */

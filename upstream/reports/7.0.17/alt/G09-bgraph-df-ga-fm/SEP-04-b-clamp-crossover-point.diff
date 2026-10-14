@@ -1,0 +1,13 @@
+diff --git a/src/libscotch/bgraph_bipart_ga.c b/src/libscotch/bgraph_bipart_ga.c
+index c681f1e..caa0789 100644
+--- a/src/libscotch/bgraph_bipart_ga.c
++++ b/src/libscotch/bgraph_bipart_ga.c
+@@ -236,7 +236,7 @@ BgraphBipartGaData * restrict const loopptr)
+       Gnum                vecridx;                /* Crossover point for individuals to be mated          */
+       Gnum                vemuidx;                /* Mutation point for individuals                       */
+ 
+-      vecridx = 1 + contextIntRandVal (grafptr->contptr, vertnbr - 2); /* Crossing-over preserves at least one vertex in each segment */
++      vecridx = (vertnbr > 2) ? (1 + contextIntRandVal (grafptr->contptr, vertnbr - 2)) : 1; /* Crossing-over preserves at least one vertex in each segment */
+ 
+       memCpy (parttab, sorttab[matetab[sortnum]].parttab, vecridx);
+       memCpy (parttab + vecridx, sorttab[matetab[sortnum + 1]].parttab + vecridx, vertnbr - vecridx);

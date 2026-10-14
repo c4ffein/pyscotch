@@ -1,0 +1,19 @@
+{
+ "date": "2026-10-13",
+ "base": "v7.0.17",
+ "series": {"groups": 30, "patches": 242, "duplicates": 2, "distinct": 240, "plain_git_am": true},
+ "builds": [
+  {"tree": "32-bit Gnum, ASan+UBSan -O0", "warnings": 0},
+  {"tree": "64-bit Gnum, ASan+UBSan -O0", "warnings": 0}
+ ],
+ "suites": [
+  {"suite": "make check (sequential)", "pristine32": "FAIL check_scotch_arch_build (leak); Fortran tests not run", "patched32": "PASS, 0 sanitizer reports", "pristine64": "FAIL check_scotch_arch_build (leak); 26 UBSan reports", "patched64": "PASS, 0 sanitizer reports"},
+  {"suite": "make ptcheck (PT-Scotch)", "pristine32": "PASS, 3 UBSan reports", "patched32": "PASS, 0 sanitizer reports", "pristine64": "PASS, 10 UBSan reports", "patched64": "PASS, 0 sanitizer reports"},
+  {"suite": "make escheck (esMUMPS)", "pristine32": "PASS", "patched32": "PASS", "pristine64": "PASS", "patched64": "PASS"}
+ ],
+ "notes": [
+  "Suites run one tree at a time: the shipped check recipe writes to a shared /tmp, so concurrent runs race (false failures of gotst/gout).",
+  "Incremental rebuild after touching one source file keeps all 1361 exported library symbols (link-rule fix); pristine leaves 3.",
+  "The patched series makes `make check` run the Fortran tests for the first time (check-list fix), which exposed and fixed a leak in a Fortran test program."
+ ]
+}

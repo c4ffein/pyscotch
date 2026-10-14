@@ -1,0 +1,9 @@
+PS2-G04-strategy-parser-3: strategy parameters with a NULL default (org of b in bgraph/bdgraph, osq of n in hdgraph) crash when unset.
+  G=$WORK/scotch/src/check/data/bump.grf; cd ../common
+  LD_LIBRARY_PATH=$INFRA/asan/lib $WORK/build/bin/gmap $G c4.tgt /dev/null -Mr'{sep=m{asc=b,low=b}}'
+     pristine: 'WARNING: stratParserParse: strategy parameter "org" of method "b" not set' x2, then
+               'AddressSanitizer: SEGV ... #0 _SCOTCHbgraphBipartSt bgraph_bipart_st.c:299  #1 _SCOTCHbgraphBipartBd bgraph_bipart_bd.c:117'
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'r{sep=m{asc=b,low=b}}'  -> SEGV in stratSave (parser.c:195 via :254) on the NULL slot
+  LD_LIBRARY_PATH=$WORK/build/lib $WORK/build/bin/gmap $G c4.tgt /dev/null -vs -Mr'{sep=m{asc=b,low=b}}'
+     patched : mapping completes; 'S Strat=r{...sep=m{asc=b{bnd=,org=,width=3},low=b{bnd=,org=,width=3},...}}'
+  Table audit: python3 -I $WORK/scratch/audit_defaults.py $WORK/scotch  (counts &stratdummy per default vs. STRATPARAMSTRAT parameters; 3 mismatches on pristine, 0 patched)

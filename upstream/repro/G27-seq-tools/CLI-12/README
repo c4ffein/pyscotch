@@ -1,0 +1,9 @@
+CLI-12: gout Inventor (-Oi) and VTK (-Ov) outputs wrong for base-1 graphs (src/scotch/gout_o.c).
+Files: g0.grf/g0.xyz (gmk_m2 3 3 -b0 -g), g1.grf/g1.xyz (gmk_m2 3 3 -b1 -g): same grid, bases 0 and 1.
+Run:  B=$TREE/bin; export LD_LIBRARY_PATH=$TREE/lib
+  for o in i v t p; do for b in 0 1; do $B/gout g$b.grf g$b.xyz /dev/null o$b.$o -mn -O$o; done; \
+    diff <(grep -v 'Title\|CreationDate\|Created by\|comment' o0.$o) <(grep -v 'Title\|CreationDate\|Created by\|comment' o1.$o) && echo "-O$o identical"; done
+Pristine: -Oi differs (path terminators written as -2 for base 1); -Ov differs (CELLS indices 1..9 while POINTS are 0..8:
+  index 9 out of range); -Op identical; -Ot differs by node ids only (ids are the based vertex numbers; self-consistent).
+Patched: -Oi and -Ov identical between bases (-Ot still differs by ids: unchanged, see audit notes).
+Also: src/check check_prog_gout runs the Inventor/VTK writers on data/bump_b100000.grf (base 100000); return codes only.

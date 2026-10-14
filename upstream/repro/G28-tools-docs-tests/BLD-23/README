@@ -1,0 +1,14 @@
+BLD-23: gscat usage shows a bare -i while the parser requires -i<nbr>
+
+Pristine 7.0.17:
+  $ gscat -h
+    -i  : Create an imbalanced distribution
+  $ gscat 3 m4x4.grf out-%r.grf -i
+  gscat: ERROR: main: invalid number of vertices in graph parts ''        (rc 1)
+  $ gscat 3 m4x4.grf out-%r.grf -i2                                       (rc 0)
+  The dgscat(1) man page (which documents gscat) already says "-inbr ... For gscat only" and the
+  PT-Scotch user's manual (p_p.tex) too, so the usage string is the odd one out.
+
+Patched (patches/0001):
+  $ gscat -h
+    -i<nbr>  : Create an imbalanced distribution of <nbr> vertices per part (save for the last one)

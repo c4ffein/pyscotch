@@ -1,0 +1,14 @@
+CLI-15: METIS_MeshToDual() leaves the freed *xadj in the caller's variable on OOM; ParMETIS_V3_Mesh2Dual()
+frees malloc()ed arrays with memFree() and leaks on its SCOTCH_DEBUG_ALL return.
+Files: m2d_fail.c (test_libmetis_dual.c's mesh; caller detects failure with xadj == NULL as the test and
+the Fortran interface do), pm2d_fail.c (distributed twin, 2 quads per process), bump.chac (for PS2-G26-1).
+Non-sanitized tree $P = $WORK/plain, tools/failmalloc.so.
+  gcc -g -O0 -I$P/include m2d_fail.c -o m2d_fail -L$P/lib -lscotchmetisv5 -lscotch -lscotcherr -lz -lm -lrt -pthread
+  LD_LIBRARY_PATH=$P/lib FAILMALLOC_FUNC=SCOTCH_METIS_MeshToDual FAILMALLOC_NTH=2 LD_PRELOAD=../tools/failmalloc.so ./m2d_fail
+  pristine: "ERROR: SCOTCH_METIS_MeshToDual: out of memory" then "free(): double free detected in tcache 2" (abort)
+  patched : "... returned -3 ...; xadj=(nil) adjncy=(nil)" / "caller: error detected through xadj == NULL"
+  mpicc -g -O0 -I$P/include pm2d_fail.c -o pm2d_fail -L$P/lib -lptscotchparmetisv3 -lptscotch -lscotch -lptscotcherr -lz -lm -lrt -pthread
+  mpirun --oversubscribe -np 2 -x FAILMALLOC_FUNC=SCOTCH_ParMETIS_V3_Mesh2Dual -x FAILMALLOC_NTH=2 -x LD_PRELOAD=.../failmalloc.so ./pm2d_fail
+  pristine: returned -3, xadj=0x1 adjncy=0x1 (output pointers untouched); patched: xadj=(nil) adjncy=(nil).
+The memFree()/free() mismatch and the SCOTCH_DEBUG_ALL leak were verified by reading only (they need a
+COMMON_MEMORY_TRACE build, resp. a failing MPI_Allreduce).

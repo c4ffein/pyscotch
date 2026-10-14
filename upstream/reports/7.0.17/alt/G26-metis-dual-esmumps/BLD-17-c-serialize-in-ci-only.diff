@@ -1,0 +1,9 @@
+--- a/ci/build_makefile.sh
++++ b/ci/build_makefile.sh
+@@ -16,4 +16,5 @@
+   SCAN="scan-build -plist --intercept-first --analyze-headers -o ../analyzer_reports "
+   COVERAGE="--coverage"
+ fi
+-eval '${SCAN}make -j scotch ptscotch esmumps ptesmumps COVERAGE=$COVERAGE 2>&1 | tee ../scotch-build-${JOBNAME}.log' || fatal
++eval '${SCAN}make -j scotch ptscotch esmumps COVERAGE=$COVERAGE 2>&1 | tee ../scotch-build-${JOBNAME}.log' || fatal
++eval '${SCAN}make ptesmumps COVERAGE=$COVERAGE 2>&1 | tee -a ../scotch-build-${JOBNAME}.log' || fatal

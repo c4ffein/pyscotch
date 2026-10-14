@@ -1,0 +1,20 @@
+--- a/src/libscotch/kgraph_map_rb.c
++++ b/src/libscotch/kgraph_map_rb.c
+@@ -160,12 +160,17 @@
+     memFree (vflotab);                            /* Not used any longer */
+ 
+     graphExit (&indgrafdat);
++    if (o != 0)                                   /* If bipartitioning failed, mapping is not valid */
++      return (1);
+     if (kgraphMapRbVfloMerge (&grafptr->m, grafptr->vfixnbr, grafptr->pfixtax, vflonbr) != 0) {
+       errorPrint ("kgraphMapRb: cannot merge fixed vertex domains");
+       return (1);
+     }
+   }
+ 
++  if (o != 0)                                     /* If bipartitioning failed, mapping is not valid */
++    return (1);
++
+   if (memReallocGroup (grafptr->comploadavg,      /* Reallocate cost array according to potential new size                                        */
+                        &grafptr->comploadavg, (size_t) (grafptr->m.domnmax * sizeof (Gnum)), /* TRICK: can send both compload arrays in one piece */
+                        &grafptr->comploaddlt, (size_t) (grafptr->m.domnmax * sizeof (Gnum)), NULL) == NULL) {

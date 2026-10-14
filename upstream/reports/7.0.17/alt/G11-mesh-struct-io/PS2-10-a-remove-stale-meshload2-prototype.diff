@@ -1,0 +1,12 @@
+--- a/src/libscotch/mesh_io.h	2026-10-13 08:40:02.911404262 +0000
++++ b/src/libscotch/mesh_io.h	2026-10-13 13:25:19.366828754 +0000
+@@ -45,9 +45,3 @@
+ /**                                 to   : 06 jun 2018     **/
+ /**                                                        **/
+ /************************************************************/
+-
+-/*
+-**  The function prototypes.
+-*/
+-
+-int                         meshLoad2           (const Gnum, const Gnum, const Gnum * const, const Gnum * const, Gnum * const, const Gnum, const Gnum * const);

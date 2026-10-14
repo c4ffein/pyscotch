@@ -1,0 +1,41 @@
+From ca2bd279b137e1c60d2368a87a819324150d7b6e Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:41:06 +0000
+Subject: [PATCH 230/240] Bugfix: include renaming headers in
+ `test_scotch_arch_build.c` [report PyScotch]
+
+Unlike all other test programs, "test_scotch_arch_build.c" did not
+include "module.h" and "common.h" before "scotch.h", so that, when
+SCOTCH_NAME_SUFFIX is set, the suffixed type names of the generated
+"scotch.h" were not mapped back to their plain names and the program
+did not compile, with both the Makefile and CMake build chains.
+---
+ src/check/test_scotch_arch_build.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/check/test_scotch_arch_build.c b/src/check/test_scotch_arch_build.c
+index 8801ef2..610c194 100644
+--- a/src/check/test_scotch_arch_build.c
++++ b/src/check/test_scotch_arch_build.c
+@@ -42,7 +42,7 @@
+ /**                SCOTCH_archBuild0().                    **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 04 jul 2026     **/
+-/**                                 to   : 21 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # This test builds a "deco 0"           **/
+ /**                  architecture a from weighted path     **/
+@@ -87,6 +87,9 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
++#include "../libscotch/module.h"
++#include "../libscotch/common.h"
++
+ #include "scotch.h"
+ 
+ #define PATHMAX                     16            /* Maximum path graph size            */
+-- 
+2.47.3
+

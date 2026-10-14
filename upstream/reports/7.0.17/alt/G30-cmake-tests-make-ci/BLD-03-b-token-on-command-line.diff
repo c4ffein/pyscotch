@@ -1,0 +1,28 @@
+--- a/ci/analysis.sh
++++ b/ci/analysis.sh
+@@ -25,7 +25,6 @@
+ # "sonar.lang.patterns.c++=**/*.cpp,**/*.hpp" : needed so that C files are not considered as C++ files
+ cat > sonar-project.properties << EOF
+ sonar.host.url=https://sonarqube.inria.fr/sonarqube
+-sonar.login=$SONARQUBE_LOGIN
+ 
+ sonar.links.homepage=$CI_PROJECT_URL
+ sonar.links.scm=$CI_REPOSITORY_URL
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -126,14 +126,12 @@
+   tags: ['sonar']
+   script:
+     - ci/analysis.sh
+-    - sonar-scanner -X > sonar.log
++    - sonar-scanner -Dsonar.token="$SONARQUBE_LOGIN"
+   allow_failure: true
+   coverage: /^\s*lines:\s*\d+.\d+\%/
+   artifacts:
+     paths:
+       - analyzer_reports
+-      - sonar-project.properties
+-      - ./*.log
+       - ./*.cov
+       - ./*.xml
+     reports:

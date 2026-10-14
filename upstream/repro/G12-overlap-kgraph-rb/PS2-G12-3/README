@@ -1,0 +1,7 @@
+PS2-G12-3 (related: SEP-13, PS2-G08-2): with SCOTCH_DETERMINISTIC=1, results depend on the number of threads because
+kgraphMapRbPart2()/wgraphPartRb2() split the context (second random stream) whenever >= 2 threads are available.
+run.sh <lib> <bin> <check-dir>  (diff line counts between map files; each run is itself reproducible: same run twice -> 0)
+Pristine-equivalent (G08 tree = 7.0.17 + G08's bgraphBipartGg fixes, RB split unfixed):  ovl: t1-vs-t2=16606 t2-vs-t4=7132 ; rb: 4732 / 428
+G08 tree + this fix (kgraph_map_rb_part.c, wgraph_part_rb.c):                                ovl: 0 / 0 ; rb: 0 / 0
+This series alone (../build, GG fixes absent):                                                ovl: 0 / 0 ; rb: t1-vs-t2=0 t2-vs-t4=4304 (bgraphBipartGg, G08's item)
+Documentation (doc/src/scotch/s_l.tex, SCOTCH_OPTIONNUMDETERMINISTIC): "a deterministic behavior across multiple runs, for any number of threads".

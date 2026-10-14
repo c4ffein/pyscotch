@@ -1,0 +1,13 @@
+SEP-19: debug consistency check result discarded (fixed upstream in 2a6fd07). Verified at run time with
+-DSCOTCH_DEBUG_ALL builds and an injected fault (grafptr->commload ++ just before the check in bgraphBipartGg()):
+   /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg_s19a : 7.0.17 code + injected fault
+   /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg_s19b : same + 2a6fd07 reverted (o = 0 after the #ifdef block, as in 7.0.16)
+gpart cannot show the difference because it is linked with the exiting error handler (first errorPrint exits),
+so sep19.c calls SCOTCH_graphPart (strategy r{sep=h{pass=20}}) through -lscotcherr and prints the return value:
+   gcc -O0 -g -fsanitize=address,undefined -I<include> sep19.c -o sep19 -L<lib> -lscotch -lscotcherr -lz -lm -lpthread
+   SCOTCH_DETERMINISTIC=1 SCOTCH_PTHREAD_NUMBER=1 LD_LIBRARY_PATH=<lib> ./sep19 m16x16_b100000_v.grf
+Results (sep19_driver_results.txt):
+   s19a (fix present):   ERROR: bgraphCheck: invalid communication loads / ERROR: bgraphBipartGg: inconsistent graph data /
+                         ERROR: kgraphMapRbPart2: cannot bipartition graph ... SCOTCH_graphPart returned 1
+   s19b (fix reverted):  same two first messages, then SCOTCH_graphPart returned 0  (error swallowed)
+   control (no fault, /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/builddbg): SCOTCH_graphPart returned 0

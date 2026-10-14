@@ -1,0 +1,7 @@
+PS2-G17-1 (forwarded from G17): SCOTCH_dgraphBuildGrid3D() checks its parameters only under SCOTCH_DEBUG_DGRAPH1.
+gridparm.c dimx dimy dimz incr : public API call with the given parameters (base 0, flags 0), then SCOTCH_dgraphCheck.
+  export LD_LIBRARY_PATH=<lib> ASAN_OPTIONS=detect_leaks=0; mpirun --oversubscribe -np 2 bin_<build>/gridparm 4 4 2 0
+  pristine (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/asan): "4 4 2 0" and "4 0 2 3" -> dgraph_build_grid3d.c:387:13: runtime error: division by zero, SIGFPE on every rank;
+     "0 4 2 1" -> dgraph_build_grid3d.c:438:26: division by zero, SIGFPE; "4 4 2 -1" -> rc=0 and an invalid graph (dgraphCheck: arc data do not match);
+     "4 4 0 1" -> rc=0, empty graph.
+  patched (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/build, np=1,2,3): all five -> "dgraphBuildGrid3D: invalid parameters", rc=1 on every rank; "4 4 2 3" and "4 4 2 1" -> rc=0, check rc=0.

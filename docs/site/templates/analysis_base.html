@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#fcfcfc">
+    <link rel="icon" type="image/svg+xml" href="{{ root }}static/favicon.svg">
+    <title>{{ title }} &mdash; PyScotch AI analysis</title>
+    <link rel="stylesheet" href="{{ root }}static/style.css">
+    <style>
+    html,body{height:auto!important;min-height:100vh;overflow:visible!important;display:block!important}
+    .sidebar,.burger,.menu-toggle,.article-logo{display:none!important}
+    .content{display:block!important;margin:0!important;padding:0!important;width:auto!important;max-width:none!important;height:auto!important;overflow:visible!important;position:static!important}
+    .content>article{max-width:{{ width or '72rem' }}!important;margin:0 auto;padding:1rem 1.25rem 3rem}
+    .an-top{position:sticky;top:0;z-index:5;background:#fcfcfc;border-bottom:1px solid #e6e6e6;font-size:.85rem}
+    .an-top .in{max-width:72rem;margin:0 auto;padding:.55rem 1.25rem;display:flex;gap:1.4rem;flex-wrap:wrap;align-items:center}
+    .an-top a{color:#555;text-decoration:none}.an-top a:hover{color:#000}.an-top a.cur{color:#000;font-weight:600}
+    .an-top .sp{flex:1}.an-top .muted{color:#999}
+    .an-tiles{display:flex;flex-wrap:wrap;gap:.8rem;margin:1rem 0}
+    .an-tile{flex:1 1 9rem;border:1px solid #e3e3e3;border-radius:8px;padding:.7rem .9rem;background:#fafafa}
+    .an-tile b{display:block;font-size:1.6rem;line-height:1.2}
+    .an-tile span{font-size:.8rem;color:#666}
+    table.an{border-collapse:collapse;width:100%;font-size:.85rem}
+    table.an th,table.an td{border-bottom:1px solid #eee;padding:.3rem .45rem;text-align:left;vertical-align:top}
+    table.an th{cursor:pointer;white-space:nowrap;background:#f6f6f6}
+    .an-controls{display:flex;flex-wrap:wrap;gap:.5rem;margin:.6rem 0;align-items:center}
+    .an-controls input,.an-controls select{padding:.3rem .4rem;font-size:.85rem}
+    .st{display:inline-block;padding:.05rem .4rem;border-radius:4px;font-size:.78rem;white-space:nowrap}
+    .st-still-present{background:#fde8e8;color:#8a1f1f}.st-fixed{background:#e3f6e3;color:#1f6b1f}
+    .st-partially-fixed{background:#fff3d6;color:#7a5200}.st-not-a-bug{background:#eee;color:#555}.st-inconclusive{background:#eef;color:#335}
+    .sev-high{color:#b00020;font-weight:600}.sev-medium{color:#a05a00}.sev-low{color:#555}.sev-info{color:#888}
+    .an-kv{display:grid;grid-template-columns:11rem 1fr;gap:.25rem .8rem;font-size:.9rem}
+    .an-kv dt{color:#666}.an-kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+    .an-kv code,article code{overflow-wrap:anywhere;word-break:break-word}
+    @media (max-width:640px){.an-kv{grid-template-columns:1fr}.an-kv dt{margin-top:.5rem;font-size:.8rem}.an-top .muted{display:none}}
+    pre.an-pre{white-space:pre-wrap;word-break:break-word;font-size:.78rem;background:#f8f8f8;border:1px solid #eee;padding:.6rem;max-height:28rem;overflow:auto}
+    details.an-diff summary{cursor:pointer;font-weight:600}
+    .an-opt{border-left:3px solid #ddd;padding:.3rem .8rem;margin:.6rem 0}
+    .an-opt.pref{border-left-color:#2a7}
+    .muted{color:#777;font-size:.85rem}
+    table.an a.t{color:inherit;text-decoration:none}table.an a.t:hover{text-decoration:underline}
+    .an-quote{font-size:.9rem;line-height:1.55;background:#fafafa;border-left:3px solid #e6e6e6;padding:.5rem .8rem}
+    .an-quote code{font-size:.8rem;background:#f0f0f0;padding:0 .2rem;border-radius:3px}
+    </style>
+</head>
+<body>
+    <div class="an-top"><div class="in">
+        <a href="{{ root }}index.html">&larr; PyScotch documentation</a>
+        <a href="{{ base }}index.html" class="{{ 'cur' if current == 'index' else '' }}">Dashboard</a>
+        <a href="{{ base }}series.html" class="{{ 'cur' if current == 'series' else '' }}">Patch series</a>
+        <a href="{{ base }}about.html" class="{{ 'cur' if current == 'about' else '' }}">What is this?</a>
+        <span class="sp"></span><span class="muted">Scotch {{ ver }} &middot; AI analysis</span>
+    </div></div>
+    <main class="content"><article>{{ content }}</article></main>
+</body>
+</html>

@@ -1,0 +1,427 @@
+From 38bb63e900a967a57161a98c1eb8c8b174a111af Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:15:24 +0000
+Subject: [PATCH 2/5] Bugfix: avoid deadlocks and duplicate output of forked
+ (de)compression tasks [report R. Perry]
+
+When threads are not available (COMMON_PTHREAD_FILE undefined), each
+(de)compressed stream is handled by a forked child process. A child
+inherits the pipe ends that its father holds for the tasks launched
+before it: the write end of every earlier compression pipe and the
+read end of every earlier decompression pipe. Hence, an earlier
+compression task never sees the end of its stream until the later
+child exits, while the father waits for the earlier child first in
+`fileBlockClose()`: a program with two compressed output files hangs.
+Moreover, children left with `exit()`, which flushes the stdio buffers
+inherited from the father: any data pending in e.g. stdout at fork
+time was written once more by each child.
+
+Make `fileCompress()` and `fileDecompress()` receive the array of file
+descriptors and the index of the stream to process, so that the child
+closes the pipe ends of all the (de)compression tasks launched before
+it, and leave the child with `_exit()`. The thread implementation is
+not affected.
+
+Extend test_common_file_compress with an optional second output file,
+and run it with two compressed outputs in the check rules.
+---
+ src/check/CMakeLists.txt               |  3 ++
+ src/check/Makefile                     |  9 +++++
+ src/check/test_common_file_compress.c  | 25 ++++++++-----
+ src/libscotch/common_file.c            |  6 ++--
+ src/libscotch/common_file_compress.c   | 50 ++++++++++++++++----------
+ src/libscotch/common_file_compress.h   |  6 ++--
+ src/libscotch/common_file_decompress.c | 46 ++++++++++++++----------
+ 7 files changed, 94 insertions(+), 51 deletions(-)
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index acd1cdb..bcac137 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -123,6 +123,9 @@ foreach(ext "bz2" "gz" "lzma")
+     add_test(NAME test_common_file_compress_${ext} COMMAND ${BASH} -c
+       "'$<TARGET_FILE:test_common_file_compress>' ${dat}/bump_b1.grf ${cur}/bump_b1.grf.${ext} && \
+       '$<TARGET_FILE:test_common_file_compress>' ${cur}/bump_b1.grf.${ext} ${cur}/bump_b1_from_${ext}.grf && \
++      '${CMAKE_COMMAND}' -E compare_files ${cur}/bump_b1_from_${ext}.grf ${dat}/bump_b1.grf && \
++      '$<TARGET_FILE:test_common_file_compress>' ${dat}/bump_b1.grf ${cur}/bump_b1_1.grf.${ext} ${cur}/bump_b1_2.grf.${ext} && \
++      '$<TARGET_FILE:test_common_file_compress>' ${cur}/bump_b1_1.grf.${ext} ${cur}/bump_b1_from_${ext}.grf && \
+       '${CMAKE_COMMAND}' -E compare_files ${cur}/bump_b1_from_${ext}.grf ${dat}/bump_b1.grf")
+   endif(${_map_${ext}}_FOUND)
+ endforeach()
+diff --git a/src/check/Makefile b/src/check/Makefile
+index b411f5d..8be0092 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -278,14 +278,23 @@ check_common_file_compress	:	test_common_file_compress
+ 					$(EXECS) ./test_common_file_compress "data/bump_b1.grf" "$(TMPDIR)/bump_b1.grf.gz"
+ 					$(EXECS) ./test_common_file_compress "$(TMPDIR)/bump_b1.grf.gz" "$(TMPDIR)/bump_b1.grf"
+ 					$(PROGDIFF) "data/bump_b1.grf" "$(TMPDIR)/bump_b1.grf"
++					$(EXECS) ./test_common_file_compress "data/bump_b1.grf" "$(TMPDIR)/bump_b1_1.grf.gz" "$(TMPDIR)/bump_b1_2.grf.gz"
++					$(EXECS) ./test_common_file_compress "$(TMPDIR)/bump_b1_1.grf.gz" "$(TMPDIR)/bump_b1.grf"
++					$(PROGDIFF) "data/bump_b1.grf" "$(TMPDIR)/bump_b1.grf"
+ 					-cp "data/bump_b1.grf" "$(TMPDIR)/bump_b1.grf"
+ 					$(EXECS) ./test_common_file_compress "data/bump_b1.grf" "$(TMPDIR)/bump_b1.grf.bz2"
+ 					$(EXECS) ./test_common_file_compress "$(TMPDIR)/bump_b1.grf.bz2" "$(TMPDIR)/bump_b1.grf"
+ 					$(PROGDIFF) "data/bump_b1.grf" "$(TMPDIR)/bump_b1.grf"
++					$(EXECS) ./test_common_file_compress "data/bump_b1.grf" "$(TMPDIR)/bump_b1_1.grf.bz2" "$(TMPDIR)/bump_b1_2.grf.bz2"
++					$(EXECS) ./test_common_file_compress "$(TMPDIR)/bump_b1_1.grf.bz2" "$(TMPDIR)/bump_b1.grf"
++					$(PROGDIFF) "data/bump_b1.grf" "$(TMPDIR)/bump_b1.grf"
+ 					-cp "data/bump_b1.grf" "$(TMPDIR)/bump_b1.grf"
+ 					$(EXECS) ./test_common_file_compress "data/bump_b1.grf" "$(TMPDIR)/bump_b1.grf.lzma"
+ 					$(EXECS) ./test_common_file_compress "$(TMPDIR)/bump_b1.grf.lzma" "$(TMPDIR)/bump_b1.grf"
+ 					$(PROGDIFF) "data/bump_b1.grf" "$(TMPDIR)/bump_b1.grf"
++					$(EXECS) ./test_common_file_compress "data/bump_b1.grf" "$(TMPDIR)/bump_b1_1.grf.lzma" "$(TMPDIR)/bump_b1_2.grf.lzma"
++					$(EXECS) ./test_common_file_compress "$(TMPDIR)/bump_b1_1.grf.lzma" "$(TMPDIR)/bump_b1.grf"
++					$(PROGDIFF) "data/bump_b1.grf" "$(TMPDIR)/bump_b1.grf"
+ 
+ test_common_file_compress	:	test_common_file_compress.c	\
+ 					$(SCOTCHLIBDIR)/libscotch$(LIB)
+diff --git a/src/check/test_common_file_compress.c b/src/check/test_common_file_compress.c
+index 6048d79..4c89453 100644
+--- a/src/check/test_common_file_compress.c
++++ b/src/check/test_common_file_compress.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2018,2024,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2018,2024,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 6.0  : from : 09 jul 2018     **/
+ /**                                 to   : 10 jul 2018     **/
+ /**                # Version 7.0  : from : 04 jul 2024     **/
+-/**                                 to   : 05 jul 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -62,19 +62,21 @@
+ 
+ #include "scotch.h"
+ 
+-#define C_FILENBR                   2            /* Number of files in list */
++#define C_FILENBR                   3            /* Number of files in list */
+ 
+ #define C_BUFFSIZ                   65536
+ 
+-#define C_filepntrinp               fileBlockFile (C_fileTab, 0) /* Input file  */
+-#define C_filepntrout               fileBlockFile (C_fileTab, 1) /* Output file */
++#define C_filepntrinp               fileBlockFile (C_fileTab, 0) /* Input file         */
++#define C_filepntrout               fileBlockFile (C_fileTab, 1) /* Output file        */
++#define C_filepntrou2               fileBlockFile (C_fileTab, 2) /* Second output file */
+ 
+ /*
+ **  The static and global variables.
+ */
+ 
+-static File                 C_fileTab[2] = {      /* File array */
++static File                 C_fileTab[C_FILENBR] = { /* File array */
+                               { FILEMODER },
++                              { FILEMODEW },
+                               { FILEMODEW } };
+ 
+ /*********************/
+@@ -92,8 +94,8 @@ char *              argv[])
+ 
+   errorProg (argv[0]);
+ 
+-  if (argc != 3) {
+-    errorPrint ("usage: %s infile outfile", argv[0]);
++  if ((argc < 3) || (argc > 4)) {
++    errorPrint ("usage: %s infile outfile [outfile2]", argv[0]);
+     exit       (EXIT_FAILURE);
+   }
+ 
+@@ -105,6 +107,10 @@ char *              argv[])
+   fileBlockInit (C_fileTab, C_FILENBR);           /* Set default stream pointers */
+   fileBlockName (C_fileTab, 0) = argv[1];
+   fileBlockName (C_fileTab, 1) = argv[2];
++  if (argc == 4)                                  /* If second output file wanted */
++    fileBlockName (C_fileTab, 2) = argv[3];
++  else
++    C_filepntrou2 = NULL;                         /* NULL file pointer means no file */
+ 
+   switch (fileBlockOpen (C_fileTab, C_FILENBR)) { /* Open all files */
+     case 2 :
+@@ -127,7 +133,8 @@ char *              argv[])
+       }
+       break;
+     }
+-    if (fwrite (bufftab, 1, bytenbr, C_filepntrout) != bytenbr) {
++    if ((fwrite (bufftab, 1, bytenbr, C_filepntrout) != bytenbr) ||
++        ((C_filepntrou2 != NULL) && (fwrite (bufftab, 1, bytenbr, C_filepntrou2) != bytenbr))) {
+       errorPrint ("main: write error");
+       exit       (EXIT_FAILURE);
+     }
+diff --git a/src/libscotch/common_file.c b/src/libscotch/common_file.c
+index 956ca77..5dec864 100644
+--- a/src/libscotch/common_file.c
++++ b/src/libscotch/common_file.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2010,2018,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2010,2018,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 10 nov 2014     **/
+ /**                                 to   : 14 jul 2018     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 08 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -222,7 +222,7 @@ const int                   filenbr)
+         errorPrint ("fileBlockOpen: (de)compression method not implemented");
+         return (2);
+       }
+-      if ((((filetab[i].flagval & FILEMODE) == FILEMODER) ? fileDecompress : fileCompress) (&filetab[i], compval) != 0) {
++      if ((((filetab[i].flagval & FILEMODE) == FILEMODER) ? fileDecompress : fileCompress) (filetab, i, compval) != 0) {
+         errorPrint ("fileBlockOpen: cannot create (de)compression subprocess");
+         return (1);
+       }
+diff --git a/src/libscotch/common_file_compress.c b/src/libscotch/common_file_compress.c
+index 63435ac..2862f85 100644
+--- a/src/libscotch/common_file_compress.c
++++ b/src/libscotch/common_file_compress.c
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 27 apr 2015     **/
+ /**                                 to   : 14 jul 2018     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 25 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -157,6 +157,10 @@ const char * const          nameptr)              /*+ Name string +*/
+ ** performed by an auxiliary thread. Else, a child process
+ ** will be fork()'ed, and after completion this process
+ ** will remain a zombie until the main process terminates.
++** In the latter case, the child process closes the pipe
++** ends of the (de)compression tasks launched before it,
++** which it inherits from its father, so that these tasks
++** can see the end of their streams.
+ ** It returns:
+ ** - !NULL  : stream holding compressed data.
+ ** - NULL   : on error.
+@@ -198,25 +202,31 @@ FileCompress * const        compptr)
+ 
+ int
+ fileCompress (
+-File * const                fileptr,              /*+ Uncompressed stream   +*/
+-const FileCompressType      typeval)              /*+ Compression algorithm +*/
++File * const                filetab,              /*+ Array of file descriptors    +*/
++const int                   filenum,              /*+ Index of uncompressed stream +*/
++const FileCompressType      typeval)              /*+ Compression algorithm        +*/
+ {
+-  int                 filetab[2];
++  int                 pipetab[2];
+   FILE *              writptr;
+   FileCompress *      compptr;
++#ifndef COMMON_PTHREAD_FILE
++  int                 i;
++#endif /* COMMON_PTHREAD_FILE */
++
++  File * const        fileptr = &filetab[filenum]; /* Uncompressed stream */
+ 
+   if (typeval <= FILECOMPRESSTYPENONE)            /* If nothing to do */
+     return (0);
+ 
+-  if (pipe (filetab) != 0) {
++  if (pipe (pipetab) != 0) {
+     errorPrint ("fileCompress: cannot create pipe");
+     return (1);
+   }
+ 
+-  if ((writptr = fdopen (filetab[1], "w")) == NULL) { /* New stream master will write to */
++  if ((writptr = fdopen (pipetab[1], "w")) == NULL) { /* New stream master will write to */
+     errorPrint ("fileCompress: cannot create stream");
+-    close  (filetab[0]);
+-    close  (filetab[1]);
++    close  (pipetab[0]);
++    close  (pipetab[1]);
+     return (1);
+   }
+ 
+@@ -225,13 +235,13 @@ const FileCompressType      typeval)              /*+ Compression algorithm +*/
+     errorPrint ("fileCompress: out of memory");
+     if (compptr != NULL)
+       memFree (compptr);
+-    close  (filetab[0]);
++    close  (pipetab[0]);
+     fclose (writptr);
+     return (1);
+   }
+ 
+   compptr->typeval = typeval;                     /* Fill structure to be passed to compression thread/process */
+-  compptr->infdnum = filetab[0];
++  compptr->infdnum = pipetab[0];
+   compptr->oustptr = fileptr->fileptr;            /* Compressed stream to write to */
+ 
+ #ifdef COMMON_PTHREAD_FILE
+@@ -239,7 +249,7 @@ const FileCompressType      typeval)              /*+ Compression algorithm +*/
+     errorPrint ("fileCompress: cannot create thread");
+     memFree (compptr->bufftab);
+     memFree (compptr);
+-    close   (filetab[0]);
++    close   (pipetab[0]);
+     fclose  (writptr);
+     return  (1);
+   }
+@@ -249,15 +259,19 @@ const FileCompressType      typeval)              /*+ Compression algorithm +*/
+       errorPrint ("fileCompress: cannot create child process");
+       memFree (compptr->bufftab);
+       memFree (compptr);
+-      close   (filetab[0]);
++      close   (pipetab[0]);
+       fclose  (writptr);
+       return  (1);
+-    case 0 :                                      /* We are the son process    */
+-      fclose (writptr);                           /* Close writer pipe stream  */
+-      fileCompress2 (compptr);                    /* Perform compression       */
+-      exit (EXIT_SUCCESS);                        /* Exit gracefully           */
+-    default :                                     /* We are the father process */
+-      close (filetab[0]);                         /* Close the reader pipe end */
++    case 0 :                                      /* We are the son process                                */
++      fclose (writptr);                           /* Close writer pipe stream                              */
++      for (i = 0; i < filenum; i ++) {            /* Close inherited pipe ends of tasks launched before    */
++        if (filetab[i].compptr != NULL)           /* So that these tasks can see the end of their streams  */
++          close (fileno (filetab[i].fileptr));
++      }
++      fileCompress2 (compptr);                    /* Perform compression                                   */
++      _exit (EXIT_SUCCESS);                       /* Exit without flushing stdio buffers inherited from father */
++    default :                                     /* We are the father process                             */
++      close (pipetab[0]);                         /* Close the reader pipe end                             */
+   }
+ #endif /* COMMON_PTHREAD_FILE */
+ 
+diff --git a/src/libscotch/common_file_compress.h b/src/libscotch/common_file_compress.h
+index 76008f7..36e6526 100644
+--- a/src/libscotch/common_file_compress.h
++++ b/src/libscotch/common_file_compress.h
+@@ -43,7 +43,7 @@
+ /**                # Version 6.0  : from : 08 jul 2018     **/
+ /**                                 to   : 14 jul 2018     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 02 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -117,8 +117,8 @@ static void                 fileDecompressLzma  (FileCompress * const  dataptr);
+ #endif /* SCOTCH_COMMON_FILE_DECOMPRESS */
+ #endif /* COMMON_FILE_COMPRESS_LZMA */
+ 
+-int                         fileCompress        (File * const, const FileCompressType);
++int                         fileCompress        (File * const, const int, const FileCompressType);
+ void                        fileCompressExit    (File * const);
+ int                         fileCompressType    (const char * const);
+-int                         fileDecompress      (File * const, const FileCompressType);
++int                         fileDecompress      (File * const, const int, const FileCompressType);
+ int                         fileDecompressType  (const char * const);
+diff --git a/src/libscotch/common_file_decompress.c b/src/libscotch/common_file_decompress.c
+index 0c147e7..cf31f83 100644
+--- a/src/libscotch/common_file_decompress.c
++++ b/src/libscotch/common_file_decompress.c
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 27 apr 2015     **/
+ /**                                 to   : 30 aug 2020     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 09 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -175,25 +175,31 @@ FileCompress * const        compptr)
+ 
+ int
+ fileDecompress (
+-File * const                fileptr,              /*+ Compressed input stream   +*/
+-const FileCompressType      typeval)              /*+ (De)compression algorithm +*/
++File * const                filetab,              /*+ Array of file descriptors       +*/
++const int                   filenum,              /*+ Index of compressed input stream +*/
++const FileCompressType      typeval)              /*+ (De)compression algorithm        +*/
+ {
+-  int                 filetab[2];
++  int                 pipetab[2];
+   FILE *              readptr;
+   FileCompress *      compptr;
++#ifndef COMMON_PTHREAD_FILE
++  int                 i;
++#endif /* COMMON_PTHREAD_FILE */
++
++  File * const        fileptr = &filetab[filenum]; /* Compressed input stream */
+ 
+   if (typeval <= FILECOMPRESSTYPENONE)            /* If nothing to do */
+     return (0);
+ 
+-  if (pipe (filetab) != 0) {
++  if (pipe (pipetab) != 0) {
+     errorPrint ("fileDecompress: cannot create pipe");
+     return (1);
+   }
+ 
+-  if ((readptr = fdopen (filetab[0], "r")) == NULL) { /* New stream master will read from */
++  if ((readptr = fdopen (pipetab[0], "r")) == NULL) { /* New stream master will read from */
+     errorPrint ("fileDecompress: cannot create stream");
+-    close  (filetab[0]);
+-    close  (filetab[1]);
++    close  (pipetab[0]);
++    close  (pipetab[1]);
+     return (1);
+   }
+ 
+@@ -203,12 +209,12 @@ const FileCompressType      typeval)              /*+ (De)compression algorithm
+     if (compptr != NULL)
+       memFree (compptr);
+     fclose (readptr);
+-    close  (filetab[1]);
++    close  (pipetab[1]);
+     return (1);
+   }
+ 
+   compptr->typeval = typeval;                     /* Fill structure to be passed to decompression thread/process */
+-  compptr->infdnum = filetab[1];
++  compptr->infdnum = pipetab[1];
+   compptr->oustptr = fileptr->fileptr;            /* Compressed stream to read from */
+ 
+ #ifdef COMMON_PTHREAD_FILE
+@@ -217,7 +223,7 @@ const FileCompressType      typeval)              /*+ (De)compression algorithm
+     memFree (compptr->bufftab);
+     memFree (compptr);
+     fclose  (readptr);
+-    close   (filetab[1]);
++    close   (pipetab[1]);
+     return  (1);
+   }
+ #else /* COMMON_PTHREAD_FILE */
+@@ -227,14 +233,18 @@ const FileCompressType      typeval)              /*+ (De)compression algorithm
+       memFree (compptr->bufftab);
+       memFree (compptr);
+       fclose  (readptr);
+-      close   (filetab[1]);
++      close   (pipetab[1]);
+       return  (1);
+-    case 0 :                                      /* We are the son process    */
+-      fclose (readptr);                           /* Close reader pipe stream  */
+-      fileDecompress2 (compptr);                  /* Perform decompression     */
+-      exit (EXIT_SUCCESS);                        /* Exit gracefully           */
+-    default :                                     /* We are the father process */
+-      close (filetab[1]);                         /* Close the writer pipe end */
++    case 0 :                                      /* We are the son process                                */
++      fclose (readptr);                           /* Close reader pipe stream                              */
++      for (i = 0; i < filenum; i ++) {            /* Close inherited pipe ends of tasks launched before    */
++        if (filetab[i].compptr != NULL)           /* So that these tasks can see the end of their streams  */
++          close (fileno (filetab[i].fileptr));
++      }
++      fileDecompress2 (compptr);                  /* Perform decompression                                 */
++      _exit (EXIT_SUCCESS);                       /* Exit without flushing stdio buffers inherited from father */
++    default :                                     /* We are the father process                             */
++      close (pipetab[1]);                         /* Close the writer pipe end                             */
+   }
+ #endif /* COMMON_PTHREAD_FILE */
+ 
+-- 
+2.47.3
+

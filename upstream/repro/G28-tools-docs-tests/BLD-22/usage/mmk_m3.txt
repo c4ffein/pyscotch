@@ -1,0 +1,5 @@
+Usage is:
+  mmk_m3 <dimX> [<dimY> [<dimZ> [<output mesh file>]]] <options>
+    -g<file>  : Output mesh geometry to <file>
+    -h        : Display this help
+    -V        : Print program version and copyright

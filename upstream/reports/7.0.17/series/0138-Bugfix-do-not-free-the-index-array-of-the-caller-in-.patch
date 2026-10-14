@@ -1,0 +1,79 @@
+From 87f6231c23c204a870bc7a9de3861c8408174fad Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:03:19 +0000
+Subject: [PATCH 138/240] Bugfix: do not free the index array of the caller in
+ `dgraphBand2Ptop()` and `dgraphGrow2Ptop()` [report R. Perry]
+
+On allocation error, the point-to-point variant of the band and grow
+routines freed the index array passed by the caller, from its based
+address: `dgraphBand()` and `SCOTCH_dgraphBand()` then freed their
+array a second time, and `SCOTCH_dgraphGrow()` had the user's part
+array freed under its feet. Also, unlike the collective variant, the
+point-to-point variant did not consider a missing index array as an
+error, and dereferenced it.
+
+Make the point-to-point variant behave like the collective one: the
+index array belongs to the caller, and its absence is an error.
+
+Refs: DGR-07
+---
+ src/libscotch/dgraph_band_grow.c | 29 ++++++++++++++---------------
+ 1 file changed, 14 insertions(+), 15 deletions(-)
+
+diff --git a/src/libscotch/dgraph_band_grow.c b/src/libscotch/dgraph_band_grow.c
+index 05840dd..2aaf924 100644
+--- a/src/libscotch/dgraph_band_grow.c
++++ b/src/libscotch/dgraph_band_grow.c
+@@ -46,7 +46,7 @@
+ /**                # Version 6.0  : from : 03 apr 2012     **/
+ /**                                 to   : 21 may 2018     **/
+ /**                # Version 7.0  : from : 01 oct 2021     **/
+-/**                                 to   : 03 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # This code derives from the code of    **/
+ /**                  vdgraph_separate_bd.c in version      **/
+@@ -366,15 +366,17 @@ Context *                         contptr)        /*+ Execution context
+ 
+   vrcvdatsiz = DGRAPHBANDGROWSMUL (grafptr->procsndnbr); /* Senders and receivers inverted because we send local, not halo vertices */
+   vsnddatsiz = DGRAPHBANDGROWSMUL (grafptr->vertgstnbr - grafptr->vertlocnbr);
+-  if (memAllocGroup ((void **) (void *)
+-                     &procvgbtab, (size_t) ((procngbnbr + 1) * sizeof (Gnum)),
+-                     &nrcvdsptab, (size_t) ((procngbnbr + 1) * sizeof (Gnum)), /* +1 to check against end of array */
+-                     &nsnddsptab, (size_t) ((procngbnbr + 1) * sizeof (Gnum)), /* +1 to check against end of array */
+-                     &nsndidxtab, (size_t) (procngbnbr       * sizeof (Gnum)), /* Here Gnum's since point-to-point */
+-                     &nrcvreqtab, (size_t) (procngbnbr       * sizeof (MPI_Request)),
+-                     &nsndreqtab, (size_t) (procngbnbr       * sizeof (MPI_Request)),
+-                     &vrcvdattab, (size_t) (vrcvdatsiz       * sizeof (Gnum)),
+-                     &vsnddattab, (size_t) (vsnddatsiz       * sizeof (Gnum)), NULL) == NULL) {
++  procvgbtab = NULL;                              /* In case of error */
++  if ((vnumgsttax == NULL) ||
++      (memAllocGroup ((void **) (void *)
++                      &procvgbtab, (size_t) ((procngbnbr + 1) * sizeof (Gnum)),
++                      &nrcvdsptab, (size_t) ((procngbnbr + 1) * sizeof (Gnum)), /* +1 to check against end of array */
++                      &nsnddsptab, (size_t) ((procngbnbr + 1) * sizeof (Gnum)), /* +1 to check against end of array */
++                      &nsndidxtab, (size_t) (procngbnbr       * sizeof (Gnum)), /* Here Gnum's since point-to-point */
++                      &nrcvreqtab, (size_t) (procngbnbr       * sizeof (MPI_Request)),
++                      &nsndreqtab, (size_t) (procngbnbr       * sizeof (MPI_Request)),
++                      &vrcvdattab, (size_t) (vrcvdatsiz       * sizeof (Gnum)),
++                      &vsnddattab, (size_t) (vsnddatsiz       * sizeof (Gnum)), NULL) == NULL)) {
+     errorPrint (DGRAPHBANDGROWNSTR "Ptop: out of memory (1)");
+     reduglbtab[0] = 1;
+   }
+@@ -392,11 +394,8 @@ Context *                         contptr)        /*+ Execution context
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH1 */
+   if (reduglbtab[0] != 0) {
+-    if (vnumgsttax != NULL) {
+-      if (procvgbtab != NULL)
+-        memFree (procvgbtab);                     /* Free group leader */
+-      memFree (vnumgsttax);
+-    }
++    if (procvgbtab != NULL)
++      memFree (procvgbtab);                       /* Free group leader */
+     return (1);
+   }
+ 
+-- 
+2.47.3
+

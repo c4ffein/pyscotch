@@ -1,0 +1,58 @@
+[
+ {
+  "local_id": "PS2-G20-dgraph-io-dmesh-1",
+  "our_title": "Distributed graph loaders accept negative vertex/edge counts: huge allocation and multi-process hang",
+  "severity": "high",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "mpirun --oversubscribe -np 1 bin_pristine/dgload negvert.grf (header '-4 8'): 'AddressSanitizer: allocation-size-too-big'; -np 2 negvert.grf: one rank aborts, the other HANGS (timeout). Same for negedge.grf ('4 -8'). PATCHED (bin_build, patch 0001/0002): rc=1 on all ranks, no alloc, no hang.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/dgraph_io_load.c dgraphLoadCent header block (reduglbtab[1]/[2]) and dgraphLoadDist header block (reduloctab[3]/[5]/[10]/[11])",
+  "evidence": "The header checks validated only the property field (0..111); a negative vertglbnbr/edgeglbnbr (or vertlocnbr/edgelocnbr) flowed into memAlloc((vertglbmax + 2 + ...) * sizeof(Gnum)) producing a near-SIZE_MAX request, and on np>=2 the aborting rank left its peers blocked in the following MPI collective. graphLoad rejects these ('invalid number of vertices/edges'); the distributed loaders did not.",
+  "related_ids": [
+   "DGR-03"
+  ],
+  "fix_options": [
+   {
+    "label": "Reject negative counts in both loaders",
+    "summary": "Add vertglbnbr/edgeglbnbr (and local-count) negativity checks to the header validation of dgraphLoadCent and dgraphLoadDist.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G20-dgraph-io-dmesh/patches/0001-Bugfix-propagate-header-errors-and-reject-negative-c.patch",
+    "tested": "32/64-bit: negvert/negedge rc=1 on all ranks, no ASan/hang; valid files unaffected.",
+    "tradeoffs": "None; mirrors graphLoad.",
+    "preferred": true,
+    "maintainer_fit": "Same rejection graphLoad already performs for the centralized format."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G20-dgraph-io-dmesh/patches/0001-Bugfix-propagate-header-errors-and-reject-negative-c.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G20-dgraph-io-dmesh-2",
+  "our_title": "dgraphSave allocation failure is local-only; peers hang in the label halo exchange",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "timeout 12 mpirun -np 2 -x LD_PRELOAD=fishim.so -x FI_RANK=1 -x FI_NTH=3 bin_pristinefi/halofi lblring.grf : rank1 'dgraphSave: out of memory' then rank0 HANGS (it proceeds into dgraphHaloSync/MPI_Alltoallv). exit 124.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/dgraph_io_save.c:~72 (dgraphGhst) and :~75 (vlblgsttax memAlloc), both return 1 locally before dgraphHaloSync",
+  "evidence": "For a labeled or holey graph, dgraphSave allocates vlblgsttax and calls dgraphHaloSync (collective). If the allocation fails on one rank, that rank returns 1 before the halo exchange while peers enter it and block. Same collective-safety class as PS-DGR-2.",
+  "related_ids": [
+   "PS-DGR-2"
+  ],
+  "fix_options": [
+   {
+    "label": "Agree on the allocation status before the halo exchange",
+    "summary": "Reduce the local allocation flag across the communicator in dgraphSave before calling dgraphHaloSync, returning on every rank if any failed.",
+    "diff_file": "",
+    "tested": "untested: part of the same halo collective-safety decision as PS-DGR-2 (alt A/B); not committed.",
+    "tradeoffs": "One small collective in the save path (not a hot loop, so cheaper than the halo-core case).",
+    "preferred": true,
+    "maintainer_fit": "Matches his 7.0.17 reworks that make a local allocation failure join the following collective (e.g. dgraphInduce2, hdgraphGather)."
+   }
+  ],
+  "patch_files": []
+ }
+]

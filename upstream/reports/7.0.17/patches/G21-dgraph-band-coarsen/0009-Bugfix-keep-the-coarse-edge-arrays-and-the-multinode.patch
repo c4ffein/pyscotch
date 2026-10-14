@@ -1,0 +1,64 @@
+From 95ecdebdd4f67861943b226730959200e9265aff Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:20:25 +0000
+Subject: [PATCH 09/11] Bugfix: keep the coarse edge arrays and the multinode
+ array when shrinking them fails in `dgraphCoarsen()` [report PyScotch]
+
+The results of the reallocations that shrink the multinode array and
+the coarse edge and edge load arrays to their final sizes were not
+checked: when one of them failed, the array was lost and replaced by
+a NULL pointer, which crashed the subsequent coarse graph build, or
+produced a coarse graph without edge loads on one process, which the
+routine returned as valid.
+
+Keep the arrays as they are when shrinking fails, as in
+`dgraphGhst2()`.
+---
+ src/libscotch/dgraph_coarsen.c | 17 +++++++++++------
+ 1 file changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/src/libscotch/dgraph_coarsen.c b/src/libscotch/dgraph_coarsen.c
+index 355187f..103909c 100644
+--- a/src/libscotch/dgraph_coarsen.c
++++ b/src/libscotch/dgraph_coarsen.c
+@@ -830,6 +830,7 @@ DgraphCoarsenData * restrict const  coarptr)
+   int                           esnddatsiz;       /* Size of adjacency send data array       */
+   Gnum * restrict               ercvdattab;       /* Adjacency receive data array            */
+   Gnum * restrict               esnddattab;       /* Adjacency send data array               */
++  Gnum *                        edgeloctmp;       /* Pointer to shrunk edge array, if any    */
+   int * restrict                ercvcnttab;       /* Adjacency receive count array           */
+   int * restrict                esndcnttab;       /* Adjacency send count array              */
+   int * restrict                ercvdsptab;       /* Adjacency receive displacement array    */
+@@ -1278,10 +1279,10 @@ DgraphCoarsenData * restrict const  coarptr)
+     return (1);
+   }
+ 
+-  coargrafptr->edgeloctax  = memRealloc (coargrafptr->edgeloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum));
+-  coargrafptr->edgeloctax -= coargrafptr->baseval;
+-  coargrafptr->edloloctax  = memRealloc (coargrafptr->edloloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum));
+-  coargrafptr->edloloctax -= coargrafptr->baseval;
++  if ((edgeloctmp = memRealloc (coargrafptr->edgeloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum))) != NULL) /* Shrink edge arrays; keep them as they are if shrinking fails */
++    coargrafptr->edgeloctax = edgeloctmp - coargrafptr->baseval;
++  if ((edgeloctmp = memRealloc (coargrafptr->edloloctax + coargrafptr->baseval, coargrafptr->edgelocsiz * sizeof (Gnum))) != NULL)
++    coargrafptr->edloloctax = edgeloctmp - coargrafptr->baseval;
+ 
+   coargrafptr->vertglbmax = reduglbtab[1];
+   coargrafptr->edgeglbmax = reduglbtab[2];
+@@ -1432,8 +1433,12 @@ Context * restrict const              contptr)    /*+ Execution context
+   }
+ 
+   if (matedat.c.multloctmp != NULL) {             /* If we allocated the multinode array */
+-    matedat.c.multloctmp =
+-    matedat.c.multloctab = memRealloc (matedat.c.multloctab, matedat.c.multlocnbr * sizeof (DgraphCoarsenMulti)); /* Resize multinode array */
++    DgraphCoarsenMulti *  multloctmp;
++
++    if ((multloctmp = memRealloc (matedat.c.multloctab, matedat.c.multlocnbr * sizeof (DgraphCoarsenMulti))) != NULL) { /* Shrink multinode array; keep it as is if shrinking fails */
++      matedat.c.multloctmp =
++      matedat.c.multloctab = multloctmp;
++    }
+   }
+ 
+   if (dgraphCoarsenBuild (&matedat.c) != 0) {     /* Build coarse graph */
+-- 
+2.47.3
+

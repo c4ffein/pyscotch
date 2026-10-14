@@ -1,0 +1,37 @@
+--- a/src/libscotch/common_context.c
++++ b/src/libscotch/common_context.c
+@@ -52,6 +52,7 @@
+ #include "common_thread.h"
+ #include "common_thread_system.h"
+ #include "common_values.h"
++#include "context.h"
+ 
+ /*
+ **  The static and global variables.
+@@ -238,7 +239,8 @@
+ ** user-provided function within its sub-context.
+ ** It returns:
+ ** - 0  : if sub-contexts could be created.
+-** - 1  : if initial context is too small.
++** - 1  : if initial context is too small, or if
++**        deterministic behavior is wanted.
+ */
+ 
+ static
+@@ -278,11 +280,16 @@
+   ContextSplit              spltdat;              /* Data structure for passing arguments         */
+   ThreadContext             thrdtab[2];           /* Thread contexts for both sub-contexts        */
+   IntRandContext            randdat;              /* Pseudo-random context for second sub-context */
++  INT                       deteval;              /* Flag set if deterministic behavior wanted     */
+   const int                 thrdnbr = contextThreadNbr (contptr);
+ 
+   if (thrdnbr <= 1)                               /* If current context too small or inactive, nothing to do */
+     return (1);
+ 
++  contextValuesGetInt (contptr, CONTEXTOPTIONNUMDETERMINISTIC, &deteval);
++  if (deteval != 0)                               /* If deterministic behavior wanted, do not create a second random stream */
++    return (1);
++
+   spltdat.conttab[0].thrdptr = &thrdtab[0];
+   spltdat.conttab[0].randptr = contptr->randptr;  /* Re-use pseudo-random generator of initial context in sub-context 0 */
+   spltdat.conttab[0].valuptr = contptr->valuptr;

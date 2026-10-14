@@ -1,0 +1,20 @@
+--- a/src/libscotch/parser.c
++++ b/src/libscotch/parser.c
+@@ -54,7 +54,7 @@
+ /**                # Version 6.0  : from : 01 jun 2012     **/
+ /**                                 to   : 30 dec 2016     **/
+ /**                # Version 7.0  : from : 02 mar 2018     **/
+-/**                                 to   : 07 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -549,7 +549,7 @@
+ */
+ 
+ static char                 strattestsaveop[STRATTESTNBR] = "|&!=><+-*%##";
+-static char *               strattestsavepa[2][2] = { { "(", ")" }, { "", "" } };
++static char *               strattestsavepa[2][2] = { { "", "" }, { "(", ")" } };
+ 
+ int
+ stratTestSave (

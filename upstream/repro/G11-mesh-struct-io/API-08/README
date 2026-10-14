@@ -1,0 +1,4 @@
+API-08: Fortran wrapper SCOTCHFMESHGEOMLOADHABO passes NULL as tag string, meshGeomLoadHabo() calls atol() on it.
+  ./fhabo ../SEP-08/hb_ok.mtx   pristine -> "mesh_io_habo.c:94:21: runtime error: null pointer passed as argument 1 ..." then SEGV in atol
+                                patched  -> ierr=0 check=0
+Fixed by patches/0006 (NULL means matrix 0, as in graphGeomLoadHabo()). Alternative honouring the documented rank string: alt/API-08-b-fortran-rank-string.diff.

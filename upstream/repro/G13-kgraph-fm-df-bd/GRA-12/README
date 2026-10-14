@@ -1,0 +1,30 @@
+GRA-12 -- diffusion band mapping threads wait on different barriers -> deadlock
+===============================================================================
+In kgraphMapDfLoop a thread that finds a zero-degree (isolated) anchor sets
+abrtval and `goto fail' -- but fail: is inside the pass loop, AFTER the two setup
+barriers (threadBarrier at the "Make sure all of velstax is written" point and the
+one after the anchor-loading loop). The aborting thread therefore skips both setup
+barriers while the others wait at the first one forever (hang), or the pairing
+slips and the master frees loopdat while a slave still runs (heap-use-after-free).
+The sorttab allocation-failure path has the same skip. bgraph_bipart_df.c routes
+its setup failure through the barrier with a `skip:' label.
+
+This loop is reachable from the default mapping strategy (asc=b{bnd=d{pass=40}...}).
+Only empty parts expose it: kgraphMapBd already bails to the original-graph strategy
+when an isolated anchor belongs to a non-empty part.
+
+Fix: on a setup failure set loopptr->abrtval and fall through to the barriers (no
+goto); all threads then leave together at the existing `abrtval == 1' test after the
+second barrier. That test's unconditional memFree(sorttab) is guarded, since a
+thread that aborted before allocating has sorttab == NULL (memFreeRecord() is not
+NULL-safe). The two SCOTCH_DEBUG_KGRAPH2 internal-error checks that also jumped to
+fail: before the barriers are made to break and abort after the barriers too.
+
+Reproducer gra12.c: two disjoint grids (14x14 + 7x14) mapped onto cmplt(4) with
+parts 2 and 3 empty, so their anchors are isolated; kgraphMapBd(width 3,bnd=d{pass=10}).
+The argument selects contextThreadSpawn(N) for N>1, else contextCommit (default
+thread count); both run multithreaded diffusion.
+  cc.sh <build> GRA-12/gra12 GRA-12/gra12.c ; LD_LIBRARY_PATH=<build>/lib timeout 12 ./GRA-12/gra12 <N>
+  pristine 7.0.17 (16 runs each): thr=2 -> 4/16 hang; thr=3 -> 6/16 hang; thr=4 -> 5/16 hang (rc=124);
+                                  also observed heap-use-after-free (ASan, thread T6)
+  patched (16 runs each)        : thr=2,3,4 -> 0 hangs, 0 sanitizer reports, all rc=0

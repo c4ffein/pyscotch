@@ -1,0 +1,7 @@
+G12 reproducers. All paths below are relative to this directory.
+Common: common/mk.h (graph builders), common/failmalloc.c (LD_PRELOAD malloc fault injector),
+common/build.sh <build-tree> <suffix> (builds every reproducer against a build tree: the ASan
+pristine tree INFRA/asan or the patched trees ../build and ../build64).
+  gcc -O0 -shared -fPIC -o common/failmalloc.so common/failmalloc.c -ldl
+Environment for every run: LD_LIBRARY_PATH=<tree>/lib, UBSAN_OPTIONS=print_stacktrace=1,
+ASAN_OPTIONS=detect_leaks=0 unless the item is about a leak.

@@ -18,6 +18,27 @@ ship inside the package); a fix can be both a proposal and a shipped
 behavioral patch — the shipped copy is the source of truth, this directory
 only lists it.
 
+## Per-version reports
+
+`scripts/gen_upstream_report.py` turns our verification data into one report per Scotch version (one HTML page, the
+same content as a PDF, and a plain-text email draft that is never sent), with an index of every finding at the top: every finding with its status in that version, how it was
+verified (ran it, or source read only, and why not run), the 7.0.x location, and two or more fix options. `make
+upstream-report SCOTCH=7.0.17` builds it; `make docs-serve` serves it locally next to the docs.
+
+- **Third-party leads are cited, not copied.** A finding keeps its original identifier (`COR-01`) and the
+  author's name; its title, description and fix text are never reproduced, only re-stated in our own words.
+  `ingest` drops the original titles on purpose.
+- **One id per finding, across versions.** `upstream/reports/<version>/` holds only what depends on that release:
+  `findings.json` (status, location, evidence, fix options in that version), the per-group patches and
+  alternatives against that base, the combined `series/`, the group summaries and raw audits under `groups/`,
+  and the build-and-test matrix `qa.json`. The reproducer kits do not depend on the release and live once in
+  `upstream/repro/<group>/` (each finding points at `<group>/<id>`); a later version adds or updates kits, it
+  does not copy them. A finding recorded by several groups is one entry with the other groups' views under
+  `also`. Only the rendered report (`out/`) is gitignored. The docs site renders all of it as the Tracker
+  (`docs/site/gen_analysis.py`, linked from the docs footer).
+- **A report is a column, not a restart.** Each finding carries its history across versions, so the next
+  report (including release candidates, `7.0.18rc1`) is "what changed since the last one".
+
 ## The loop
 
 1. A lead appears — a flaky test, a differential mismatch, a fuzzer crash, a

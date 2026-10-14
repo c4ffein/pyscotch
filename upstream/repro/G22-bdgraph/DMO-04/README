@@ -1,0 +1,12 @@
+DMO-04 (bdgraph half) : bdgraphBipartDf() encodes its allocation failure as -1 in a summed anchor degree
+======================================================================================================
+cd $WORK/repro/common
+Strategy: q{strat=f} (to get a frontier) then b{width=3,bnd=d{pass=40},org=q{strat=f}} (band graph +
+diffusion); allocation #39 on rank 1 is the memAllocGroup() of bdgraphBipartDf().
+Pristine:  ./scan.sh ../../basefi/lib ./bin_basefi/bipartfi 3 1 36 39 -- 4elt.grf 0 'q{strat=f}b{width=3,bnd=d{pass=40},org=q{strat=f}}' 0 1 > ../DMO-04/scan_base_np3_rank1.txt
+  nth=39  "(1): ERROR: bdgraphBipartDf: out of memory" then "bdgraph_bipart_df.c:198:30: runtime error:
+          store to null pointer of type 'float'", SIGSEGV: the -1 was swallowed by the positive degrees
+          of ranks 0 and 2
+Patched:   ./scan.sh ../../buildfi/lib ./bin_buildfi/bipartfi 3 1 36 39 -- ... > ../DMO-04/scan_patched_np3_rank1.txt
+  nth=39  all ranks: "bdgraphBipartBd: cannot separate band graph", ret=1 on all three ranks, no signal
+  (also run with np=2, rank 0 failing: same clean result; nth=40.. are dgraphHaloSync2 failures, other group)

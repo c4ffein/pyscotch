@@ -1,0 +1,18 @@
+DMO-16: error-path leaks  (patches/0003 nested dissection, 0004 recursive bipartitioning; fold part covered by G18's 7018b17)
+=============================================================================================================================
+Leak detector: fishim2.so counts the blocks allocated by the Scotch libraries that are still allocated at exit (baseline 0).
+Nested dissection (orderfi, np 3, m16x16.grf, mode rc), base -> patched:
+  #125 rank 0 (hdgraphInduceList of the second part fails after the first part was folded): rank 0 LEAK=2 -> 0
+  #130 rank 0 (dorderNewSequ fails after the fold):                                           rank 0 LEAK=2 -> 0
+  #94  rank 2 (dorderNewSequ fails after the fold of part {2}):                               rank 2 LEAK=2 -> 0
+  #127 rank 1 (hdgraphGather of part {1} fails after part {0} was gathered on rank 0):        rank 0 LEAK=2 -> 0
+  (2 blocks = the vertex array group and the edge array of the folded/centralized graph.) Lines in $C/targeted_leaks_np3.txt.
+Recursive bipartitioning (mapfi cmplt:5, np 3): scans/map_basefi_np3_r*.txt vs scans/map_buildfi_np3_r*.txt (see audit.json).
+hdgraphFold2 part of the review: every fold allocation (#83-#88 of ranks 0/1) returns 1 on every rank with 0 live blocks on the
+base (G18's 7018b17 frees fldcommdattab, the request group and the halo index array at fail2 after completing the communications).
+
+Recursive bipartitioning, deterministic per-routine injection (FI_FUNC): $C/onef.sh $WORK/basefi/lib $C/bin_basefi/mapfi 3 0 dgraphInduce2 4 $D/m16x16.grf cmplt:5
+  base    -> "(0): ERROR: dgraphInduce2: out of memory (1)", rc=1 on every rank, "rank 0: live scotch blocks 3", "rank 1: live scotch blocks 3"
+  patched -> same message and statuses, 0 live blocks on every rank.  Same for #5, #6 of rank 0 and #4-#6 of rank 2 ($C/targeted_map.txt).
+  (#0-#2 = first-part induction: no leak on either tree; #3 and #7 are tolerated allocations.)
+  kgraphInit#0/#1, kdgraphMapRbAdd2#0/#1 (leaf failures): HANG on the base (PS2-G24-5), see targeted_map2.txt after patches/0008.

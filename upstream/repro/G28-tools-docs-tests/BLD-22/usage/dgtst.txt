@@ -1,0 +1,30 @@
+Usage is:
+  dgtst [<input graph file> [<output data file>]] <options>
+    -h       : Display this help
+    -r<num>  : Set root process for centralized files (default is 0)
+    -V       : Print program version and copyright
+--------------------------------------------------------------------------
+prterun has exited due to process rank 0 with PID 994180 on node 8f72f7c979a7 exiting
+improperly. There are three reasons this could occur:
+
+1. this process did not call "init" before exiting, but others in the
+job did. This can cause a job to hang indefinitely while it waits for
+all processes to call "init". By rule, if one process calls "init",
+then ALL processes must call "init" prior to termination.
+
+2. this process called "init", but exited without calling "finalize".
+By rule, all processes that call "init" MUST call "finalize" prior to
+exiting or it will be considered an "abnormal termination"
+
+3. this process called "MPI_Abort" or "prte_abort" and the mca
+parameter prte_create_session_dirs is set to false. In this case, the
+run-time cannot detect that the abort call was an abnormal
+termination. Hence, the only error message you will receive is this
+one.
+
+This may have caused other processes in the application to be
+terminated by signals sent by prterun (as reported here).
+
+You can avoid this message by specifying -quiet on the prterun command
+line.
+--------------------------------------------------------------------------

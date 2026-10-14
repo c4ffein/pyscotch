@@ -1,0 +1,50 @@
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -67,22 +67,6 @@
+ 
+ function(suffix_fortran_file src)
+   get_filename_component(file_we ${src} NAME_WLE)
+-  add_custom_command(OUTPUT
+-    ${CMAKE_CURRENT_BINARY_DIR}/${file_we}.tmp
+-    COMMAND
+-    $<TARGET_FILE:dummysizes> "-s${SCOTCH_NAME_SUFFIX}"
+-    ${CMAKE_CURRENT_SOURCE_DIR}/${file_we}.in
+-    ${CMAKE_CURRENT_BINARY_DIR}/${file_we}.tmp
+-    DEPENDS
+-    dummysizes
+-    DEPENDS
+-    ${CMAKE_CURRENT_SOURCE_DIR}/${file}
+-    COMMENT "Generate ${file}.f90")
+-
+-  add_custom_target(${file_we}_tmp ALL
+-    DEPENDS
+-    "${CMAKE_CURRENT_BINARY_DIR}/${file_we}.tmp")
+-
+   file(WRITE
+     "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/cmake_sed_${file_we}.cmake"
+ "
+@@ -92,14 +76,18 @@
+ "
+ )
+ 
+-  add_custom_command(
+-    OUTPUT
+-      ${CMAKE_CURRENT_BINARY_DIR}/${file_we}
++  add_custom_command(OUTPUT
++    ${CMAKE_CURRENT_BINARY_DIR}/${file_we}
+     COMMAND
+-      ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/cmake_sed_${file_we}.cmake
++    $<TARGET_FILE:dummysizes> "-s${SCOTCH_NAME_SUFFIX}"
++    ${CMAKE_CURRENT_SOURCE_DIR}/${src}
++    ${CMAKE_CURRENT_BINARY_DIR}/${file_we}.tmp
++    COMMAND
++    ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/cmake_sed_${file_we}.cmake
+     DEPENDS
+-      ${file_we}_tmp
+-  )
++    dummysizes
++    ${CMAKE_CURRENT_SOURCE_DIR}/${src}
++    COMMENT "Generate ${file_we}")
+   add_custom_target(${file_we}_src ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${file_we})
+ endfunction(suffix_fortran_file)
+ 

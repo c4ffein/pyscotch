@@ -1,0 +1,11 @@
+PS2-G30-4: Fortran test template calls scotchfmeshinit()/scotchfmeshbuild() by their plain names, so
+with SCOTCH_NAME_SUFFIX the test cannot link (found by the new CMake CI job of BLD-14).
+  cmake ... -DINTSIZE=64 -DIDXSIZE=64 -DSCOTCH_NAME_SUFFIX=_64 -DSCOTCH_DETERMINISTIC=FULL; make
+  -> test_scotch_mesh_build_f.f90:71: undefined reference to `scotchfmeshinit_'   (verify-cm64-build.log)
+  nm -D lib/libscotch.so | grep meshinit -> scotchfmeshinit_64_ ...
+dummysizes already substitutes the "##SCOTCH_NAME_SUFFIX" placeholder (dummysizes.c:282, since 2018):
+  printf 'call scotchfmeshinit##SCOTCH_NAME_SUFFIX(meshdat, ierr)\n' | dummysizes -s_64 -> scotchfmeshinit_64(...)
+  with -s (empty) -> scotchfmeshinit(...)
+Patch 0011. After it: generated test_scotch_mesh_build_f.f90:71 "call scotchfmeshinit_64(meshdat, ierr)";
+default build (no suffix) Fortran tests: 3/3 pass (verify-cm.status); Makefile chain: check_scotch_mesh_build_f
+passes (verify-cm64.status, "Makefile chain").

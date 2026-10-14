@@ -1,0 +1,11 @@
+COR-20 -- dummysizes dereferences unset file names; broken debug block and line-length test.
+Tool: $WORK/build/src/libscotch/dummysizes (ASan+UBSan).
+PRISTINE (fails):
+  ./dummysizes < /dev/null            -> dummysizes.c:229 load of null pointer (nameptr NULL) then SEGV
+  ./dummysizes library.h              -> same (second slot nameptr NULL)
+  ./dummysizes <2046-char line>.h /dev/null -> wrongly reports "line too long" (tests chartab[CHARMAX-1], a slot fgets never fills)
+  compiling with -DSCOTCH_DEBUG_MAIN1 -> does not compile (C_fileTab[i].name/.pntr do not exist)
+PATCHED:
+  ./dummysizes < /dev/null and one-arg form exit 0; the 2046-char line is accepted; builds with -DSCOTCH_DEBUG_MAIN1.
+  The Makefile/CMake build (two file names always given) is unaffected: the full library still builds (scotch.h regenerated).
+Fixed by patch 0005.

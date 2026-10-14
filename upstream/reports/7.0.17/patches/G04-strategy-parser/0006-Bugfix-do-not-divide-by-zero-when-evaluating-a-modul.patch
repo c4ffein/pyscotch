@@ -1,0 +1,42 @@
+From 0baae1bf9081bae96b5f27c601934b2c050db617 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:31:13 +0000
+Subject: [PATCH 06/10] Bugfix: do not divide by zero when evaluating a modulus
+ in strategy conditions [report R. Perry]
+
+The integer modulus of a strategy test expression was computed without
+checking its divisor, so that a condition such as `/(vert%0>1)?...`
+raised SIGFPE. Report an error instead, and avoid the overflow trap of
+`INTVALMIN % -1`.
+
+Refs: COR-26
+---
+ src/libscotch/parser.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/parser.c b/src/libscotch/parser.c
+index 33520db..3e22453 100644
+--- a/src/libscotch/parser.c
++++ b/src/libscotch/parser.c
+@@ -424,8 +424,16 @@ const void * restrict const       dataptr)        /*+ Pointer to data structure
+         break;
+       if (testtab[0].nodeval == STRATPARAMDOUBLE)
+         evalptr->data.val.valdbl = fmod (testtab[0].data.val.valdbl, testtab[1].data.val.valdbl);
+-      else
+-        evalptr->data.val.valint = testtab[0].data.val.valint % testtab[1].data.val.valint;
++      else {
++        if (testtab[1].data.val.valint == 0) {    /* Integer modulus by zero is undefined */
++          errorPrint ("stratTestEval: modulus by zero");
++          o = 1;
++          break;
++        }
++        evalptr->data.val.valint = (testtab[1].data.val.valint == -1) /* Avoid overflow trap for INTVALMIN % -1 */
++                                   ? 0
++                                   : (testtab[0].data.val.valint % testtab[1].data.val.valint);
++      }
+       evalptr->nodeval = testtab[0].nodeval;
+       break;
+     case STRATTESTVAL :                           /* Constant value */
+-- 
+2.47.3
+

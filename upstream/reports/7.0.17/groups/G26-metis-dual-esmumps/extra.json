@@ -1,0 +1,77 @@
+[
+ {
+  "local_id": "PS2-G26-1",
+  "our_title": "Graph builders free the vertex array on OOM but keep it in a GRAPHFREETABS graph: double free on graphExit",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Plain build of base-combined, LD_PRELOAD injector ($WORK/repro/tools), drivers in $WORK/repro/PS2-G26-1 linked with -lscotcherr (non-exiting):\n  FAILMALLOC_FUNC=_SCOTCHmemAllocGroup FAILMALLOC_NTH=2 ./gload_fail s data/bump.grf -> ERROR: graphLoad: out of memory / double free or corruption (top) [abort 134]\n  ... ./gload_fail c bump.chac (SCOTCH_graphGeomLoadChac + SCOTCH_graphExit) -> ERROR: graphGeomLoadChac: out of memory / free(): invalid pointer [134]\n  FAILMALLOC_FUNC=_SCOTCHmeshGraphDual FAILMALLOC_NTH=2 ../CLI-05/pm_plain 1 (METIS_PartMeshDual) -> ERROR: meshGraphDual: out of memory (1) / ERROR: SCOTCH_METIS_PartMeshDual: cannot build dual graph / free(): double free detected in tcache 2 [134]\n  FAILMALLOC_FUNC=_SCOTCHmeshGraphNodal FAILMALLOC_NTH=2 ./mnodal_pristine (SCOTCH_meshGraph + graphExit, base-combined mesh_graph.o interposed) -> free(): double free detected [134]\n  patched library: all four return 1 and graphExit() completes ('done', exit 0). The shipped tools (gtst, gcv) hide it because they link -lscotcherrexit. check_libmetis_*, check_libesmumps, check_libparmetis_v3, check_prog_dgord pass in both trees with the patch.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/mesh_graph.c:261-266 (meshGraphDual) and :116-121 (meshGraphNodal); src/libscotch/graph_io.c:165-172 (graphLoad, which even calls graphFree() itself right after the memFree); src/libscotch/graph_io_chac.c:143-149 (graphGeomLoadChac)",
+  "evidence": "mesh_graph.c:252 `grafptr->flagval = GRAPHFREETABS | GRAPHVERTGROUP | GRAPHEDGEGROUP;` then :263-266 `errorPrint (\"meshGraphDual: out of memory (1)\"); if (grafptr->verttax != NULL) memFree (grafptr->verttax); return (1);` -- verttax kept; graph.c:125-131 graphFree: `if ((grafptr->flagval & GRAPHFREEVERT) != 0) { ... if (grafptr->verttax != NULL) memFree (grafptr->verttax + grafptr->baseval);`\ngraph_io.c:168-171 `if (grafptr->verttax != NULL) memFree (grafptr->verttax); errorPrint (\"graphLoad: out of memory\"); graphFree (grafptr);`\nPrecedent of the correct pattern in the same tree: graph_io_habo.c:193-196 and mesh_io_habo.c:176-179 `memFree (grafptr->verttax); grafptr->verttax = NULL;`",
+  "related_ids": [
+   "CLI-15",
+   "CLI-05"
+  ],
+  "fix_options": [
+   {
+    "label": "Reset the freed pointer to NULL (chosen)",
+    "summary": "Four sites: `memFree (verttax); grafptr->verttax = NULL;` and, in graphLoad, drop the now double `graphFree()` call (nothing else is allocated at that point).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G26-metis-dual-esmumps/patches/0004-Bugfix-reset-freed-vertex-array-in-graph-builders-on.patch",
+    "tested": "see ran; full check subsets in both trees.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Exactly what he did in graphGeomLoadHabo()/meshGeomLoadHabo() (combined series 04aeb13/275398c keep that form)."
+   },
+   {
+    "label": "Set the free flags only after the arrays are allocated",
+    "summary": "Initialize flagval to GRAPHNONE and set GRAPHFREETABS|... after both allocations succeed (mesh_graph.c only).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G26-metis-dual-esmumps/alt/PS2-G26-1-b-set-flags-after-allocation.diff",
+    "tested": "untested: not built.",
+    "tradeoffs": "Touches the field assignment order of two routines and does not fit the loaders (graphLoad frees through graphFree on later errors).",
+    "preferred": false,
+    "maintainer_fit": "Less uniform than the habo precedent."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G26-metis-dual-esmumps/patches/0004-Bugfix-reset-freed-vertex-array-in-graph-builders-on.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G26-2",
+  "our_title": "Strategy parser: flex buffer allocation failure calls exit(2) from inside the library",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Seen while sweeping CLI-10 (plain build, $WORK/repro/CLI-10/es_fail with FAILMALLOC_AT=12..15): 'out of dynamic memory in yy_scan_bytes()' / 'yy_scan_buffer()' / 'yyensure_buffer_stack()', process exit code 2 without any errorPrint; same with the shipped test_esmumps (FAILMALLOC_AT=14..17, exit=2). Not patched.",
+  "read_only": "The flex-generated src/libscotch/parser_ll.c calls YY_FATAL_ERROR -> yy_fatal_error -> exit(2) on allocation failure (standard flex skeleton); other libscotch OOM paths return an error through errorPrint.",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/parser_ll.c (generated from parser_ll.l; yy_scan_bytes / yy_scan_buffer / yyensure_buffer_stack), reached from stratParserParse() for any strategy string",
+  "evidence": "Program output: 'out of dynamic memory in yy_scan_bytes()' then exit status 2 (flex's yy_fatal_error).",
+  "related_ids": [
+   "CLI-10"
+  ],
+  "fix_options": [
+   {
+    "label": "Override YY_FATAL_ERROR in parser_ll.l to errorPrint + longjmp/return",
+    "summary": "Define YY_FATAL_ERROR(msg) in the lexer prologue so that the parser returns an error instead of exiting; needs a design decision on how to unwind from inside yylex.",
+    "diff_file": "",
+    "tested": "untested: not written (design decision for the maintainer: flex offers no non-exiting path from yy_scan_bytes without a custom YY_FATAL_ERROR).",
+    "tradeoffs": "Behaviour change only under OOM; libraries should not exit.",
+    "preferred": true,
+    "maintainer_fit": "Consistent with his errorPrint-and-return convention; left as a note."
+   },
+   {
+    "label": "Leave as is",
+    "summary": "Accept exit on OOM inside the strategy lexer.",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "Library calls exit(2) on OOM.",
+    "preferred": false,
+    "maintainer_fit": "Not his convention."
+   }
+  ],
+  "patch_files": []
+ }
+]

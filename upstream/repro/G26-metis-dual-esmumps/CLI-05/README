@@ -1,0 +1,16 @@
+CLI-05: METIS_PartMeshDual() reads *ne as a vertex weight array (vwgt == ne, the Fortran null convention
+applied to options/tpwgts/vsize but not to vwgt), rebases a NULL vsize, and ignores SCOTCH_graphBuild().
+Files: pm_firstpass.c (first-pass driver, 6x6 quad mesh; modes 0/1: OBJTYPE=VOL vsize=NULL base 1/0;
+modes 2/3: vwgt=&ne base 1/0), test_libmetis_dual.c (the patched src/check test, run against the
+pristine library).
+Build (ASan tree $B = $WORK/build or $INFRA/asan):
+  gcc -g -O0 -fsanitize=address,undefined -I$B/include pm_firstpass.c -o pm -L$B/lib -lscotchmetisv5 \
+      -lscotch -lscotcherr -fsanitize=address,undefined -lz -lm -lrt -pthread
+  LD_LIBRARY_PATH=$B/lib ./pm 0   # pristine: metis_graph_part_dual.c:222 "applying non-zero offset ... to null pointer"
+                                  #           then metis_graph_part.c:172 ... produced null pointer (SEGV in OutputVol)
+  LD_LIBRARY_PATH=$B/lib ./pm 2   # pristine: AddressSanitizer: stack-buffer-overflow in SCOTCH_graphBuild (library_graph.c:262)
+  patched: modes 0..3 print "ret=1 objval=20 / 20 / 10 / 10"
+Regression test: src/check/test_libmetis_dual.c (patched) compiled against the pristine 7.0.17 library:
+  base 0 -> stack-buffer-overflow (vwgt == &ne call); base 1 -> UBSan null-pointer offset then crash;
+  with patch 0001 only -> "checkObjval: invalid objective value" (vsize given + default objective
+  returned a volume); with 0001+0002 -> passes (check_libmetis_dual_v3/v5, _f_v3/_f_v5, 32- and 64-bit).

@@ -1,0 +1,24 @@
+CLI-11: amk_grf passes un-based vertex numbers for labelled graphs; vertex lists never range-checked
+(tool: src/scotch/amk_grf.c; library: graphInduceList() reached by SCOTCH_archBuild0() and SCOTCH_graphInduceList()).
+
+Files: lab_b0.grf / lab_b1.grf (4-vertex labelled path, labels 10..40, base 0 / base 1), lab.lst (labels 10 40);
+       unl_b0.grf / unl_b1.grf (gmk_m2 4 1 -b0 / -b1, unlabelled), ok_b0.lst (1 3), ok_b1.lst (2 4), bad.lst (3 90);
+       m4x4_b1_elv.grf + m4x4_vertlist.txt (copies of src/check/data; labelled, base 1), m4x4_b0_elv.grf (gbase 0 of it);
+       api_list.c (SCOTCH_archBuild0 / SCOTCH_graphInduceList with an out-of-range list 'b'/'i' or a duplicate list 'd').
+Run (TREE = $INFRA/asan for pristine 7.0.17, $WORK/build or $WORK/build64 for patched):
+  export LD_LIBRARY_PATH=$TREE/lib ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1; B=$TREE/bin
+  $B/amk_grf -llab.lst lab_b0.grf lp0.tgt; $B/amk_grf -llab.lst lab_b1.grf lp1.tgt; diff lp0.tgt lp1.tgt
+  $B/amk_grf -lm4x4_vertlist.txt m4x4_b0_elv.grf p0.tgt; $B/amk_grf -lm4x4_vertlist.txt m4x4_b1_elv.grf p1.tgt; diff p0.tgt p1.tgt
+  $B/amk_grf unl_b1.grf /dev/null -lbad.lst; echo rc=$?
+  $B/amk_grf unl_b0.grf q0.tgt -lok_b0.lst; $B/amk_grf unl_b1.grf q1.tgt -lok_b1.lst; diff q0.tgt q1.tgt
+  gcc -O0 -g -fsanitize=address,undefined -I$TREE/include api_list.c -o api_list -L$TREE/lib -lscotch -lscotcherr -lz -lm -lrt -pthread
+  for m in b d i; do ./api_list $m; done
+Pristine: lab_b1 -> ASan heap-buffer-overflow READ in graphInduceList (graph_induce.c:138) <- archDecoArchBuild <- SCOTCH_archBuild0;
+  m4x4_b1_elv -> no sanitizer report (reads inside the same allocation group) but p1.tgt is garbage (rows "-1 0 0", zero
+  distances) while p0.tgt is a valid deco 0 file; unl_b1 + bad.lst -> ASan heap-buffer-overflow WRITE (graph_induce.c:137);
+  api b/i -> same overflow from SCOTCH_archBuild0 / SCOTCH_graphInduceList; api d -> "archDecoArchBuild2: bad terminal count"
+  printed but SCOTCH_archBuild0 returns 0 and saves "deco 1 / 0 0" (PS2-G27-1).
+Patched: lp0/lp1 and p0/p1 differ only in the terminal label column (+1 = graph base), all sizes/weights/distances identical;
+  unl_b1 + bad.lst -> "amk_grf: ERROR: main: list vertex number out of range", rc=1; q0/q1 differ only in labels (+1);
+  api b/i -> "ERROR: graphInduceList: invalid vertex list" and return 1; api d -> same error, return 1.
+Regression test added: src/check/Makefile check_prog_amk_grf + CMake: amk_grf -ldata/m4x4_vertlist.txt data/m4x4_b1_elv.grf | atst.

@@ -1,0 +1,12 @@
+--- a/src/libscotch/library_graph_map_view.c (v7.0.16)
++++ b/src/libscotch/library_graph_map_view.c
+@@ -598,6 +598,9 @@
+     fprintf (stream, "\n");
+   }
+ 
++  for (vertidx = 0; domntab[vertidx].labl != ARCHDOMNOTTERM; vertidx ++) /* Restore original part numbers of user array */
++    parttax[domntab[vertidx].peri] = domntab[vertidx].labl;
++
+   memFree (domntab);                              /* Free group leader */
+ 
+   return (0);

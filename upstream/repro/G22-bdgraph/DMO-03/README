@@ -1,0 +1,25 @@
+DMO-03 : bdgraphBipartSq() tests the local failure count and never tests the allocation flag
+=============================================================================================
+cd $WORK/repro/common
+Pristine (base-combined, UBSan tree):
+  ./scan.sh ../../basefi/lib ./bin_basefi/bipartfi 3 1 0 30 -- 4elt.grf 0 'q{strat=f}' 0 1   > ../DMO-03/scan_base_np3_rank1.txt
+Patched:
+  ./scan.sh ../../buildfi/lib ./bin_buildfi/bipartfi 3 1 0 30 -- 4elt.grf 0 'q{strat=f}' 0 1  > ../DMO-03/scan_patched_np3_rank1.txt
+(injected allocation #n on rank 1 of 3, strategy q{strat=f} = the Sq method with the sequential FM)
+
+Pristine results (scan_base_np3_rank1.txt):
+  nth=3,4,5  bdgraphGatherAll out of memory (1)/(2)/(4) on rank 1: rank 1 returns alone, the other two
+             abort in MPI (exit 15, "MPI_ERRORS_ARE_FATAL")                      -> PS2-G22-1
+  nth=6,23,24 bgraphBipartGg/Fm fail on rank 1 only: rank 1 prints "bdgraphBipartSq: internal error" and
+             returns 1, ranks 0 and 2 wait forever in MPI_Bcast (HANG)           -> DMO-03 (local count tested)
+  nth=25     bdgraphBipartSq out of memory (1) (part array): reduglbtab[5] ignored, commScatterv into
+             NULL, SIGSEGV on rank 1                                              -> DMO-03 (flag never tested)
+  nth=26     out of memory (2) (frontier array): "bdgraph_bipart_sq.c:282:42: runtime error: store to
+             null pointer", SIGSEGV                                               -> DMO-03
+  nth=27     dgraphHaloSync2 out of memory: HANG (dgraph_halo.c, other group; known from G18)
+Patched results (scan_patched_np3_rank1.txt):
+  nth=3,4,5  all three ranks return ret=1 ("cannot build centralized graph")
+  nth=6,23,24 all three ranks return ret=0 with the same valid partition (check=0): the process whose
+             sequential bipartitioning failed receives the best partition of another process
+  nth=25,26  all three ranks return ret=1, no signal, no sanitizer report
+  nth=27     still HANG (dgraphHaloSync2, not in this group's files)

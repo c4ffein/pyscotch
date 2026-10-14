@@ -1,0 +1,18 @@
+BLD-22 (+ CLI-20, BLD-23 documentation side): man pages and user's manuals vs the tools' usage texts
+
+dump_usage: for every binary of the build tree: <tool> -h > usage/<tool>.txt (dg* through mpirun -np 1;
+ASAN_OPTIONS=detect_leaks=0 because gmap -h leaks its context, see PS2-G28-2).
+usage_vs_man.py <scotch tree> usage/ : extracts the option table of each usage text, of each
+man/man1/*.1.txt OPTIONS section (tools sharing a page are merged: gpart->gmap, dgpart->dgmap,
+dggath/gscat->dgscat, amk_*->amk_ccc, gmk_m2/gmk_m3->gmk_m2 and gmk_hy, gmk_ub2->gmk_hy,
+mmk_m3->mmk_m2) and of each program subsubsection of doc/src/scotch/s_p.tex and
+doc/src/ptscotch/p_p.tex, and prints every option present on one side only.
+
+  $ python3 -I usage_vs_man.py $INFRA/v7.0.17 usage      > report_before.txt   (27 mismatches)
+  $ python3 -I usage_vs_man.py $WORK/scotch   usage      > report_after.txt    (2: gbase and gdump have
+                                                            no section in the user's manual at all)
+The sub-flag drift (gmap -c 'r', dgmap/dgord -v 'a') was compared by hand from usage/*.txt.
+The .1 pages were regenerated with `make -C man/man1 TXT2MAN=... <page>.1` (txt2man 1.7.1 from
+github mvertes/txt2man with gawk 5.3.2); regenerating the 24 pristine pages this way reproduces the
+committed files byte for byte except the .TH date, save gout.1 (16 lines: the committed one was made
+by an older txt2man that mis-rendered a line ending in "'-':").

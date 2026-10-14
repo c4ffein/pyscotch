@@ -1,0 +1,198 @@
+From 9ff8b6209f1a231038d24ae22106e4be011e45cf Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:13:46 +0000
+Subject: [PATCH 176/240] Bugfix: bound the renormalization factor when
+ converting target part weights to integers [report R. Perry]
+
+`_SCOTCH_METIS_doubleToInt()` and `_SCOTCH_ParMETIS_floatToInt()` look
+for a common denominator of the floating-point target part weights.
+For arbitrary weights, the renormalization factor grows beyond the
+integer range within a few steps, so that the integer conversions
+overflow and the resulting target weights are negative or null, which
+makes `SCOTCH_archCmpltw()` fail.
+
+The search now stops as soon as the factor would exceed 1e6, in which
+case weights are rounded at that fixed resolution. Exact small ratios
+are preserved as before.
+
+Refs: CLI-08
+---
+ src/check/test_libmetis.c                 | 13 +++++++++++--
+ src/check/test_libparmetis.c              | 11 ++++++++++-
+ src/libscotchmetis/metis_graph_part.c     | 21 ++++++++++++++-------
+ src/libscotchmetis/parmetis_dgraph_part.c | 13 ++++++++++---
+ 4 files changed, 45 insertions(+), 13 deletions(-)
+
+diff --git a/src/check/test_libmetis.c b/src/check/test_libmetis.c
+index 0257f83..797ed96 100644
+--- a/src/check/test_libmetis.c
++++ b/src/check/test_libmetis.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2019,2021,2024,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2019,2021,2024-2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 6.1  : from : 22 jun 2021     **/
+ /**                                 to   : 30 dec 2021     **/
+ /**                # Version 7.0  : from : 08 aug 2024     **/
+-/**                                 to   : 12 apr 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -172,6 +172,7 @@ char *              argv[])
+   const SCOTCH_Num    partnbr = 9;
+ #if (SCOTCH_METIS_VERSION == 5)
+   const double        awgttab[9] = { 0.10, 0.10, 0.05, 0.10, 0.20, 0.30, 0.05, 0.05, 0.05 };
++  const double        bwgttab[9] = { 0.123457, 0.098765, 0.111111, 0.087654, 0.145678, 0.133333, 0.100001, 0.099999, 0.100002 }; /* Part weights without a small common denominator */
+   const SCOTCH_Num    nconval = 1;
+   const double        kbaltab[1] = { 0.05 };
+   SCOTCH_Num          options[METIS_NOPTIONS];
+@@ -280,6 +281,14 @@ char *              argv[])
+ 
+   checkPart (baseval, vertnbr, parttab, partnbr);
+ 
++  if (SCOTCHMETISNAMEC (METIS_PartGraphKway) (&vertnbr, &nconval, verttab, edgetab, velotab, NULL, edlotab,
++                                              &partnbr, bwgttab, kbaltab, options, &edgecut, parttab) != METIS_OK) {
++    SCOTCH_errorPrint ("main: error in METIS_V5_PartGraphKway (2)");
++    exit (EXIT_FAILURE);
++  }
++
++  checkPart (baseval, vertnbr, parttab, partnbr);
++
+   if (SCOTCHMETISNAMEC (METIS_NodeND) (&vertnbr, verttab, edgetab, velotab, options, peritab, parttab) != METIS_OK) {
+     SCOTCH_errorPrint ("main: error in METIS_V5_NodeND");
+     exit (EXIT_FAILURE);
+diff --git a/src/check/test_libparmetis.c b/src/check/test_libparmetis.c
+index 79bd8d5..52c2a66 100644
+--- a/src/check/test_libparmetis.c
++++ b/src/check/test_libparmetis.c
+@@ -40,7 +40,7 @@
+ /**                the libscotchmetis routines.            **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 17 aug 2026     **/
+-/**                                 to   : 11 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -227,6 +227,8 @@ char *              argv[])
+ #if (SCOTCH_METIS_VERSION == 3)
+   SCOTCH_Num          fwgtval;
+   float *             tpwgtab;
++
++  const float         bwgttab[9] = { 0.123457F, 0.098765F, 0.111111F, 0.087654F, 0.145678F, 0.133333F, 0.100001F, 0.099999F, 0.100002F }; /* Part weights without a small common denominator */
+ #endif /* (SCOTCH_METIS_VERSION == 3) */
+ #ifdef SCOTCH_PTHREAD
+   int                 thrdreqlvl;
+@@ -324,6 +326,13 @@ char *              argv[])
+ 
+   checkPart (baseval, vertlocnbr, parttab, partnbr);
+ 
++  if (SCOTCHMETISNAMES (ParMETIS_V3_PartKway) (vtxdist, vertloctab, edgeloctab, veloloctab, edloloctab, &fwgtval, &baseval, NULL, &partnbr, bwgttab, NULL, NULL, &edgecutval, parttab, &proccomm) != METIS_OK) {
++    SCOTCH_errorPrint ("main: error in ParMETIS_V3_PartKway (2)");
++    exit (EXIT_FAILURE);
++  }
++
++  checkPart (baseval, vertlocnbr, parttab, partnbr);
++
+   if (SCOTCHMETISNAMES (ParMETIS_V3_NodeND) (vtxdist, vertloctab, edgeloctab, &baseval, NULL, parttab, sizetab, &proccomm) != METIS_OK) {
+     SCOTCH_errorPrint ("main: error in ParMETIS_V3_NodeND");
+     exit (EXIT_FAILURE);
+diff --git a/src/libscotchmetis/metis_graph_part.c b/src/libscotchmetis/metis_graph_part.c
+index 3559d5a..52d3773 100644
+--- a/src/libscotchmetis/metis_graph_part.c
++++ b/src/libscotchmetis/metis_graph_part.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2012,2018,2019,2021,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2012,2018,2019,2021,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -49,7 +49,7 @@
+ /**                # Version 6.1  : from : 20 jun 2021     **/
+ /**                                 to   : 30 dec 2021     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 11 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -203,6 +203,7 @@ SCOTCH_Num * const          cvolptr)
+ */
+ 
+ #define EPSILON 1e-6
++#define DOUBADJMAX 1e6                            /* Largest renormalization factor, so that weights fit in integers */
+ 
+ void
+ _SCOTCH_METIS_doubleToInt (
+@@ -218,11 +219,17 @@ SCOTCH_Num * const          intetab)
+     double              doubtmp;
+ 
+     doubval  = doubtab[i];
+-    doubval *= doubadj;                         /* See if renormalization factor works        */
+-    doubtmp  = doubval - floor (doubval + EPSILON); /* Determine its possible fractional part */
+-    if (fabs (doubtmp) >= EPSILON) {            /* If a residual fractional part exists       */
+-      doubtmp = doubadj / doubtmp;              /* Incorporate it in renormalization factor   */
+-      doubadj = (doubadj * doubtmp) / (double) intGcd ((int) round (doubadj), (int) round (doubtmp));
++    doubval *= doubadj;                           /* See if renormalization factor works        */
++    doubtmp  = doubval - floor (doubval + EPSILON); /* Determine its possible fractional part   */
++    if (fabs (doubtmp) >= EPSILON) {              /* If a residual fractional part exists       */
++      doubtmp = doubadj / doubtmp;                /* Incorporate it in renormalization factor   */
++      if (doubtmp <= DOUBADJMAX)                  /* If factor fits in an integer, reduce it    */
++        doubtmp = (doubadj * doubtmp) / (double) intGcd ((SCOTCH_Num) round (doubadj), (SCOTCH_Num) round (doubtmp));
++      if (doubtmp > DOUBADJMAX) {                 /* If renormalization factor grows too large  */
++        doubadj = DOUBADJMAX;                     /* Settle for a fixed resolution              */
++        break;
++      }
++      doubadj = doubtmp;
+     }
+   }
+   for (i = 0; i < valunbr; i ++)
+diff --git a/src/libscotchmetis/parmetis_dgraph_part.c b/src/libscotchmetis/parmetis_dgraph_part.c
+index 8cbbf58..b429b39 100644
+--- a/src/libscotchmetis/parmetis_dgraph_part.c
++++ b/src/libscotchmetis/parmetis_dgraph_part.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2008-2010,2012,2018,2019,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2008-2010,2012,2018,2019,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -45,7 +45,7 @@
+ /**                # Version 6.0  : from : 13 sep 2012     **/
+ /**                                 to   : 18 may 2019     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 13 dec 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -73,6 +73,7 @@
+ */
+ 
+ #define EPSILON 1e-6F
++#define FLOTADJMAX 1e6F                           /* Largest renormalization factor, so that weights fit in integers */
+ 
+ static
+ void
+@@ -100,7 +101,13 @@ SCOTCH_Num * const          intetab)
+     flottmp  = flotval - floorf (flotval + EPSILON); /* Determine its possible fractional part */
+     if (fabs (flottmp) >= EPSILON) {              /* If a residual fractional part exists      */
+       flottmp = flotadj / flottmp;                /* Incorporate it in renormalization factor  */
+-      flotadj = (flotadj * flottmp) / (float) intGcd ((SCOTCH_Num) round (flotadj), (SCOTCH_Num) round (flottmp));
++      if (flottmp <= FLOTADJMAX)                  /* If factor fits in an integer, reduce it   */
++        flottmp = (flotadj * flottmp) / (float) intGcd ((SCOTCH_Num) round (flotadj), (SCOTCH_Num) round (flottmp));
++      if (flottmp > FLOTADJMAX) {                 /* If renormalization factor grows too large */
++        flotadj = FLOTADJMAX;                     /* Settle for a fixed resolution             */
++        break;
++      }
++      flotadj = flottmp;
+     }
+   }
+ 
+-- 
+2.47.3
+

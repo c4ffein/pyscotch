@@ -1,0 +1,8 @@
+CLI-06  option array filled with -1 (what real METIS_SetDefaultOptions() does)
+  ./cli06 kway | rec | nodend      (0-based 40x40 grid, options[0..39] = -1)
+  ./cli06 num2                     (NUMBERING = 2 with 0-based arrays: must be rejected)
+pristine (32-bit and 64-bit):
+  kway:   never returns (killed by timeout 20 s)       rec: crash (CLI-02 path, NULL ubvec)   nodend: never returns
+  num2:   AddressSanitizer: heap-buffer-overflow ... kgraph_map_ml.c  (Scotch builds a base-2 graph from 0-based arrays)
+patched (0004):
+  kway: ret=1 objval=80 part[0]=1 | rec: ret=1 objval=80 | nodend: ret=1 | num2: ERROR: _SCOTCH_METIS_V5_PartGraph: invalid numbering option, ret=-2

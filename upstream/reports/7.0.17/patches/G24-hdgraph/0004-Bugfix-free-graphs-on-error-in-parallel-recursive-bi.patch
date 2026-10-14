@@ -1,0 +1,116 @@
+From 1d990b9d95d518951671b61bca66c9f4c132a25d Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:17:20 +0000
+Subject: [PATCH 4/8] Bugfix: free graphs on error in parallel recursive
+ bipartitioning [report R. Perry]
+
+`kdgraphMapRbPart2()` returned from three failure points without
+freeing the folded graph it owns, `kdgraphMapRbPartSequ()` leaked
+the centralized graph when the mapping graph could not be
+initialized, and, as in distributed nested dissection, the processes
+of a part whose folding succeeded never freed their folded graph
+when the folding of the other part failed.
+
+Route the failures of `kdgraphMapRbPart2()` through a common label,
+free the centralized graph, and record the status of each part so
+that processes free their folded graph when the other part fails.
+
+Refs: DMO-16
+---
+ src/libscotch/kdgraph_map_rb_part.c | 37 +++++++++++++++++++++--------
+ 1 file changed, 27 insertions(+), 10 deletions(-)
+
+diff --git a/src/libscotch/kdgraph_map_rb_part.c b/src/libscotch/kdgraph_map_rb_part.c
+index bbb05768..d13bcb9f 100644
+--- a/src/libscotch/kdgraph_map_rb_part.c
++++ b/src/libscotch/kdgraph_map_rb_part.c
+@@ -108,6 +108,7 @@ const KdgraphMapRbPartData * restrict const dataptr)
+   cgrfptr = &grafptr->data.cgrfdat;
+   if (kgraphInit (&kgrfdat, cgrfptr, &mappptr->archdat, &grafptr->domnorg, 0, NULL, 1, 1, NULL) != 0) {
+     errorPrint ("kdgraphMapRbPartSequ: cannot initialize centralized graph");
++    graphExit  (cgrfptr);
+     return (1);
+   }
+   kgrfdat.s.flagval   = (kgrfdat.s.flagval & ~GRAPHBITSUSED) | cgrfptr->flagval; /* Free sequential graph along with mapping data */
+@@ -239,7 +240,6 @@ KdgraphMapRbPartGraph * restrict const  fldgrafptr)
+   Gnum                    indvertlocmax;          /* Local number of vertices in biggest subgraph */
+   Gnum                    indflagtab[2];          /* Array of subjob continuation flags           */
+   GraphPart               indpartmax;             /* Induced part having most vertices            */
+-  int                       o;
+ 
+   indflagtab[0] =                                 /* Assume both jobs will not continue */
+   indflagtab[1] = 0;
+@@ -333,16 +333,29 @@ KdgraphMapRbPartGraph * restrict const  fldgrafptr)
+     contextThreadLaunch (actgrafptr->contptr, (ThreadFunc) kdgraphMapRbPartFold3, (void *) fldthrdtab); /* Only threads 0 and 1 will work */
+ 
+     MPI_Comm_free (&orggrafdat.proccomm);
+-
+-    o = ((fldthrdtab[0].orggrafptr == NULL) ||    /* See if an error occured */
+-         (fldthrdtab[1].orggrafptr == NULL));
+   }
+   else
+ #endif /* SCOTCH_PTHREAD_MPI */
+-    o = kdgraphMapRbPartFold2 (&fldthrdtab[0]) || /* Perform inductions in sequence */
+-        kdgraphMapRbPartFold2 (&fldthrdtab[1]);
++  {
++    if (kdgraphMapRbPartFold2 (&fldthrdtab[0]) != 0) /* Perform inductions in sequence */
++      fldthrdtab[0].orggrafptr =                  /* Indicate an error                 */
++      fldthrdtab[1].orggrafptr = NULL;            /* Second induction is not performed */
++    else if (kdgraphMapRbPartFold2 (&fldthrdtab[1]) != 0)
++      fldthrdtab[1].orggrafptr = NULL;
++  }
+ 
+-  return (o);
++  if ((fldthrdtab[0].orggrafptr == NULL) ||       /* If an error occured in some part */
++      (fldthrdtab[1].orggrafptr == NULL)) {
++    if (fldthrdtab[fldpartval].orggrafptr != NULL) { /* If our folded graph had been built, free it */
++      if (fldgrafptr->procnbr == 1)
++        graphExit (&fldgrafptr->data.cgrfdat);
++      else if (fldgrafptr->procnbr > 1)
++        dgraphExit (&fldgrafptr->data.dgrfdat);
++    }
++    return (1);
++  }
++
++  return (0);
+ }
+ 
+ /* This routine performs the Dual Recursive
+@@ -379,12 +392,12 @@ const KdgraphMapRbPartData * restrict const dataptr)
+       return (o);
+     case 2 :                                      /* On error */
+       errorPrint ("kdgraphMapRbPart2: cannot bipartition domain");
+-      return (1);
++      goto fail;
+   }
+ 
+   if (dgraphGhst (&grafptr->data.dgrfdat) != 0) { /* Compute ghost edge array if not already present, to have vertgstnbr (and procsidtab) */
+     errorPrint ("kdgraphMapRbPart2: cannot compute ghost edge array");
+-    return (1);
++    goto fail;
+   }
+ 
+   o = bdgraphInit (&actgrafdat, &grafptr->data.dgrfdat, NULL, &mappptr->archdat, domnsubtab); /* Create active graph */
+@@ -401,7 +414,7 @@ const KdgraphMapRbPartData * restrict const dataptr)
+ 
+   if ((o != 0) || (bdgraphBipartSt (&actgrafdat, dataptr->paraptr->stratsep) != 0)) { /* Bipartition edge-separation graph   */
+     bdgraphExit (&actgrafdat);
+-    return (1);
++    goto fail;
+   }
+ 
+   o = kdgraphMapRbPartFold (&actgrafdat, mappptr, domnsubtab, &indgrafdat);
+@@ -416,6 +429,10 @@ const KdgraphMapRbPartData * restrict const dataptr)
+       o = kdgraphMapRbPart2 (&indgrafdat, dataptr);
+   }
+   return (o);
++
++fail:
++  dgraphExit (&grafptr->data.dgrfdat);            /* Free graph before returning */
++  return (1);
+ }
+ 
+ int
+-- 
+2.47.3
+

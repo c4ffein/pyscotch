@@ -1,0 +1,40 @@
+--- a/src/libscotchmetis/metis_graph_part.c
++++ b/src/libscotchmetis/metis_graph_part.c
+@@ -550,6 +550,11 @@
+   SCOTCH_Num          baseval;
+   double              kbalval;
+ 
++  if (*ncon != 1) {                               /* Scotch does not handle multiple constraints */
++    SCOTCH_errorPrint ("SCOTCH_METIS_V5_PartGraphKway: multi-constraint partitioning not supported");
++    return (METIS_ERROR_INPUT);
++  }
++
+   kbalval = 0.01;
+   baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;
+ 
+@@ -584,6 +589,11 @@
+ {
+   SCOTCH_Num          baseval;
+ 
++  if (*ncon != 1) {                               /* Scotch does not handle multiple constraints */
++    SCOTCH_errorPrint ("SCOTCH_METIS_V5_PartGraphRecursive: multi-constraint partitioning not supported");
++    return (METIS_ERROR_INPUT);
++  }
++
+   baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;
+ 
+   return ((vsize == NULL)
+--- a/src/libscotchmetis/parmetis_dgraph_part.c
++++ b/src/libscotchmetis/parmetis_dgraph_part.c
+@@ -151,6 +151,11 @@
+   SCOTCH_Num *        twintab;                    /* Integer array of target weights                               */
+   int                 o;
+ 
++  if ((ncon != NULL) && (*ncon != 1)) {           /* Scotch does not handle multiple constraints */
++    SCOTCH_errorPrint ("SCOTCH_ParMETIS_V3_PartKway: multi-constraint partitioning not supported");
++    return (METIS_ERROR_INPUT);
++  }
++
+   if ((twintab = malloc (*nparts * sizeof (SCOTCH_Num))) == NULL)
+     return (METIS_ERROR_MEMORY);
+   _SCOTCH_ParMETIS_floatToInt (*nparts, tpwgts, twintab);

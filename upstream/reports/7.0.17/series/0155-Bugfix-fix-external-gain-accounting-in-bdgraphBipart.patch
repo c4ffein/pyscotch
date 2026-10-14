@@ -1,0 +1,100 @@
+From 43fab845a259b3875a0e028d988734a714f8495e Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:17:45 +0000
+Subject: [PATCH 155/240] Bugfix: fix external gain accounting in
+ `bdgraphBipartEx()` and gather external gains in `bdgraphGatherAll()` [report
+ R. Perry and PyScotch]
+
+External gains are not computed yet for distributed active graphs
+(`veexloctax` is always NULL), but the code that handles them must be
+right for when they are. In `bdgraphBipartEx()`, the local sum of
+external load differences was sent twice and then added in full to the
+global communication load, which thus received twice the external load
+change; send it once, add it once to the communication load, and
+subtract it twice from the external gain. In `bdgraphGatherAll()`, the
+external gain array of the centralized graph was allocated but not
+gathered when the distributed graph had no part array yet, so that the
+sequential methods read uninitialized data; gather it before testing
+for the part array.
+
+Refs: DMO-19, PS2-G22-2
+---
+ src/libscotch/bdgraph_bipart_ex.c  |  8 ++++----
+ src/libscotch/bdgraph_gather_all.c | 18 +++++++++---------
+ 2 files changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/src/libscotch/bdgraph_bipart_ex.c b/src/libscotch/bdgraph_bipart_ex.c
+index 36fafe1..b5e4b26 100644
+--- a/src/libscotch/bdgraph_bipart_ex.c
++++ b/src/libscotch/bdgraph_bipart_ex.c
+@@ -462,7 +462,7 @@ loop_exit : ;
+     }
+ 
+     if (veexloctax != NULL)
+-      commlocgainextn += (partval - (partval ^ flagval)) * veexloctax[vertlocnum]; /* Compute half of difference in external load */
++      commlocgainextn += (partval - (partval ^ flagval)) * veexloctax[vertlocnum]; /* Compute difference in external load */
+ 
+     if (commcut == 0) {                           /* If vertex no longer belongs to frontier */
+       fronloctab[fronlocnum] = fronloctab[-- fronlocnbr]; /* Replace it by another one       */
+@@ -478,8 +478,8 @@ loop_exit : ;
+   reduloctab[0] = grafptr->fronlocnbr;
+   reduloctab[1] = grafptr->complocload0;
+   reduloctab[2] = grafptr->complocsize0;
+-  reduloctab[3] = commlocgain * domndist;         /* Send internal gain */
+-  reduloctab[4] = commlocgainextn * 2;            /* Send external gain */
++  reduloctab[3] = commlocgain * domndist;         /* Send internal gain                  */
++  reduloctab[4] = commlocgainextn;                /* Send difference in external load    */
+   if (MPI_Allreduce (reduloctab, reduglbtab, 5, GNUM_MPI, MPI_SUM, grafptr->s.proccomm) != MPI_SUCCESS) {
+     errorPrint ("bdgraphBipartEx: communication error (5)");
+     return     (1);
+@@ -489,7 +489,7 @@ loop_exit : ;
+   grafptr->compglbload0dlt  = reduglbtab[1] - grafptr->compglbload0avg;
+   grafptr->compglbsize0     = reduglbtab[2];
+   grafptr->commglbload     += reduglbtab[3] / 2 + reduglbtab[4]; /* Add modifications, counted twice for internal gain */
+-  grafptr->commglbgainextn -= reduglbtab[4];      /* Account for modifications in external gain                        */
++  grafptr->commglbgainextn -= 2 * reduglbtab[4];  /* Account for modifications in external gain                        */
+   grafptr->bbalglbval       = (double) ((grafptr->compglbload0dlt < 0) ? (- grafptr->compglbload0dlt) : grafptr->compglbload0dlt) / (double) grafptr->compglbload0avg;
+ 
+ #ifdef SCOTCH_DEBUG_BDGRAPH2
+diff --git a/src/libscotch/bdgraph_gather_all.c b/src/libscotch/bdgraph_gather_all.c
+index 1ff1520..06d3cdc 100644
+--- a/src/libscotch/bdgraph_gather_all.c
++++ b/src/libscotch/bdgraph_gather_all.c
+@@ -167,6 +167,14 @@ fail:
+   cgrfptr->levlnum       = dgrfptr->levlnum;
+   cgrfptr->contptr       = dgrfptr->contptr;
+ 
++  if (dgrfptr->veexloctax != NULL) {
++    if (commAllgatherv (dgrfptr->veexloctax + dgrfptr->s.baseval, dgrfptr->s.vertlocnbr, GNUM_MPI, /* Get veextax of distributed graph */
++                        cgrfptr->veextax, dgrfptr->s.proccnttab, dgrfptr->s.procdsptab, GNUM_MPI, dgrfptr->s.proccomm) != MPI_SUCCESS) {
++      errorPrint ("bdgraphGatherAll: communication error (4)");
++      return     (1);
++    }
++  }
++
+   if (dgrfptr->partgsttax == NULL) {              /* If distributed graph does not have a part array yet */
+     bgraphZero (cgrfptr);
+     memFree    (froncnttab);                      /* Free group leader */
+@@ -175,18 +183,10 @@ fail:
+ 
+   if (commAllgatherv (dgrfptr->partgsttax + dgrfptr->s.baseval, dgrfptr->s.vertlocnbr, GRAPHPART_MPI, /* Get parttax of distributed graph */
+                       cgrfptr->parttax, dgrfptr->s.proccnttab, dgrfptr->s.procdsptab, GRAPHPART_MPI, dgrfptr->s.proccomm) != MPI_SUCCESS) {
+-    errorPrint ("bdgraphGatherAll: communication error (4)");
++    errorPrint ("bdgraphGatherAll: communication error (5)");
+     return     (1);
+   }
+ 
+-  if (dgrfptr->veexloctax != NULL) {
+-    if (commAllgatherv (dgrfptr->veexloctax + dgrfptr->s.baseval, dgrfptr->s.vertlocnbr, GNUM_MPI, /* Get veextax of distributed graph */
+-                        cgrfptr->veextax, dgrfptr->s.proccnttab, dgrfptr->s.procdsptab, GNUM_MPI, dgrfptr->s.proccomm) != MPI_SUCCESS) {
+-      errorPrint ("bdgraphGatherAll: communication error (5)");
+-      return     (1);
+-    }
+-  }
+-
+   fronlocnbr = (int) dgrfptr->fronlocnbr;
+   if (MPI_Allgather (&fronlocnbr, 1, MPI_INT,     /* Compute how frontiers are distributed */
+                      froncnttab, 1, MPI_INT, dgrfptr->s.proccomm) != MPI_SUCCESS) {
+-- 
+2.47.3
+

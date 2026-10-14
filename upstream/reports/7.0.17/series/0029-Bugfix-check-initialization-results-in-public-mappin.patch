@@ -1,0 +1,165 @@
+From 0dc83a836ffaf98a4df9a2e4d426e0ec4ef1130f Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:12:30 +0000
+Subject: [PATCH 029/240] Bugfix: check initialization results in public
+ mapping and ordering wrappers [report R. Perry]
+
+`SCOTCH_graphMap()' and its fixed/remap variants, `SCOTCH_graphOrderList()',
+`SCOTCH_meshOrder()', `SCOTCH_meshOrderList()' and the distributed
+`SCOTCH_dgraphMap()' ignored the result of their own `*Init()' call and
+proceeded to `*Compute()' even when the initialization failed. When `*MapInit()'
+had to allocate the part array and that allocation failed, the mapping was
+computed against an unallocated part array (segmentation fault confirmed by
+failing the allocation under a malloc interposer). `SCOTCH_archBuild0()'
+likewise dereferenced the result of `stratInit()' without checking it for NULL.
+
+Return the error value when the initialization fails, as `SCOTCH_graphOrder()'
+already does, and report a failed default-strategy initialization in
+`SCOTCH_archBuild0()'.
+
+Refs: API-23
+---
+ src/libscotch/library_arch_build.c  | 10 +++++++---
+ src/libscotch/library_dgraph_map.c  |  3 ++-
+ src/libscotch/library_graph_map.c   | 22 ++++++++++++++++------
+ src/libscotch/library_graph_order.c |  3 ++-
+ src/libscotch/library_mesh_order.c  |  6 ++++--
+ 5 files changed, 31 insertions(+), 13 deletions(-)
+
+diff --git a/src/libscotch/library_arch_build.c b/src/libscotch/library_arch_build.c
+index 831da3e..d33dc44 100644
+--- a/src/libscotch/library_arch_build.c
++++ b/src/libscotch/library_arch_build.c
+@@ -48,7 +48,7 @@
+ /**                # Version 6.0  : from : 16 mar 2016     **/
+ /**                                 to   : 31 may 2018     **/
+ /**                # Version 7.0  : from : 21 aug 2019     **/
+-/**                                 to   : 25 aug 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -128,8 +128,12 @@ const SCOTCH_Strat * const  stratptr)             /*+ Bipartitoning strategy
+     return (1);
+   }
+ 
+-  if (*((Strat **) stratptr) == NULL)             /* Set default mapping strategy if necessary */
+-    *((Strat **) stratptr) = stratInit (&bgraphbipartststratab, "(m{vert=50,low=h{pass=10},asc=f{move=100,bal=0.1}}f{move=100,bal=0.05})(/((load0=load)|(load0=0))?x;)");
++  if (*((Strat **) stratptr) == NULL) {           /* Set default mapping strategy if necessary */
++    if ((*((Strat **) stratptr) = stratInit (&bgraphbipartststratab, "(m{vert=50,low=h{pass=10},asc=f{move=100,bal=0.1}}f{move=100,bal=0.05})(/((load0=load)|(load0=0))?x;)")) == NULL) {
++      errorPrint (STRINGIFY (SCOTCH_archBuild0) ": cannot initialize bipartitioning strategy");
++      return (1);
++    }
++  }
+   bipstratptr = *((Strat **) stratptr);
+   if (bipstratptr->tablptr != &bgraphbipartststratab) {
+     errorPrint (STRINGIFY (SCOTCH_archBuild0) ": not a bipartitioning strategy");
+diff --git a/src/libscotch/library_dgraph_map.c b/src/libscotch/library_dgraph_map.c
+index 5c5a03b..4fcce08 100644
+--- a/src/libscotch/library_dgraph_map.c
++++ b/src/libscotch/library_dgraph_map.c
+@@ -222,7 +222,8 @@ SCOTCH_Num * const          termloctab)           /*+ Mapping array       +*/
+   SCOTCH_Dmapping     mappdat;
+   int                 o;
+ 
+-  SCOTCH_dgraphMapInit (grafptr, &mappdat, archptr, termloctab);
++  if (SCOTCH_dgraphMapInit (grafptr, &mappdat, archptr, termloctab) != 0)
++    return (1);
+   o = SCOTCH_dgraphMapCompute (grafptr, &mappdat, straptr);
+   SCOTCH_dgraphMapExit (grafptr, &mappdat);
+ 
+diff --git a/src/libscotch/library_graph_map.c b/src/libscotch/library_graph_map.c
+index a7dd59d..5bbb903 100644
+--- a/src/libscotch/library_graph_map.c
++++ b/src/libscotch/library_graph_map.c
+@@ -408,7 +408,8 @@ SCOTCH_Num * const          parttab)              /*+ Partition array     +*/
+   SCOTCH_Mapping      mappdat;
+   int                 o;
+ 
+-  SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab);
++  if (SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab) != 0)
++    return (1);
+   o = SCOTCH_graphMapCompute (grafptr, &mappdat, straptr);
+   SCOTCH_graphMapExit (grafptr, &mappdat);
+ 
+@@ -435,7 +436,8 @@ SCOTCH_Num * const          parttab)              /*+ Partition array     +*/
+   SCOTCH_Mapping      mappdat;
+   int                 o;
+ 
+-  SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab);
++  if (SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab) != 0)
++    return (1);
+   o = SCOTCH_graphMapFixedCompute (grafptr, &mappdat, straptr);
+   SCOTCH_graphMapExit (grafptr, &mappdat);
+ 
+@@ -465,8 +467,12 @@ SCOTCH_Num * const          parttab)              /*+ Partition array
+   SCOTCH_Mapping      mapodat;
+   int                 o;
+ 
+-  SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab);
+-  SCOTCH_graphMapInit (grafptr, &mapodat, archptr, parotab);
++  if (SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab) != 0)
++    return (1);
++  if (SCOTCH_graphMapInit (grafptr, &mapodat, archptr, parotab) != 0) {
++    SCOTCH_graphMapExit (grafptr, &mappdat);
++    return (1);
++  }
+   o = SCOTCH_graphRemapCompute (grafptr, &mappdat, &mapodat, emraval, vmlotab, straptr);
+   SCOTCH_graphMapExit (grafptr, &mapodat);
+   SCOTCH_graphMapExit (grafptr, &mappdat);
+@@ -498,8 +504,12 @@ SCOTCH_Num * const          parttab)              /*+ Partition array
+   SCOTCH_Mapping      mapodat;
+   int                 o;
+ 
+-  SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab);
+-  SCOTCH_graphMapInit (grafptr, &mapodat, archptr, parotab);
++  if (SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab) != 0)
++    return (1);
++  if (SCOTCH_graphMapInit (grafptr, &mapodat, archptr, parotab) != 0) {
++    SCOTCH_graphMapExit (grafptr, &mappdat);
++    return (1);
++  }
+   o = SCOTCH_graphRemapFixedCompute (grafptr, &mappdat, &mapodat, emraval, vmlotab, straptr);
+   SCOTCH_graphMapExit (grafptr, &mapodat);
+   SCOTCH_graphMapExit (grafptr, &mappdat);
+diff --git a/src/libscotch/library_graph_order.c b/src/libscotch/library_graph_order.c
+index cb7a108..5cd18e2 100644
+--- a/src/libscotch/library_graph_order.c
++++ b/src/libscotch/library_graph_order.c
+@@ -444,7 +444,8 @@ SCOTCH_Num * const          treetab)              /*+ Column block range array
+   SCOTCH_Ordering     ordedat;
+   int                 o;
+ 
+-  SCOTCH_graphOrderInit (grafptr, &ordedat, permtab, peritab, cblkptr, rangtab, treetab);
++  if (SCOTCH_graphOrderInit (grafptr, &ordedat, permtab, peritab, cblkptr, rangtab, treetab) != 0)
++    return (1);
+   o = SCOTCH_graphOrderComputeList (grafptr, &ordedat, listnbr, listtab, straptr);
+   SCOTCH_graphOrderExit (grafptr, &ordedat);
+ 
+diff --git a/src/libscotch/library_mesh_order.c b/src/libscotch/library_mesh_order.c
+index be40146..6a3e04b 100644
+--- a/src/libscotch/library_mesh_order.c
++++ b/src/libscotch/library_mesh_order.c
+@@ -316,7 +316,8 @@ SCOTCH_Num * const          treetab)              /*+ Separator tree array
+   SCOTCH_Ordering     ordedat;
+   int                 o;
+ 
+-  SCOTCH_meshOrderInit (meshptr, &ordedat, permtab, peritab, cblkptr, rangtab, treetab);
++  if (SCOTCH_meshOrderInit (meshptr, &ordedat, permtab, peritab, cblkptr, rangtab, treetab) != 0)
++    return (1);
+   o = SCOTCH_meshOrderCompute (meshptr, &ordedat, stratptr);
+   SCOTCH_meshOrderExit (meshptr, &ordedat);
+ 
+@@ -348,7 +349,8 @@ SCOTCH_Num * const          treetab)              /*+ Column block range array
+   SCOTCH_Ordering     ordedat;
+   int                 o;
+ 
+-  SCOTCH_meshOrderInit (meshptr, &ordedat, permtab, peritab, cblkptr, rangtab, treetab);
++  if (SCOTCH_meshOrderInit (meshptr, &ordedat, permtab, peritab, cblkptr, rangtab, treetab) != 0)
++    return (1);
+   o = SCOTCH_meshOrderComputeList (meshptr, &ordedat, listnbr, listtab, stratptr);
+   SCOTCH_meshOrderExit (meshptr, &ordedat);
+ 
+-- 
+2.47.3
+

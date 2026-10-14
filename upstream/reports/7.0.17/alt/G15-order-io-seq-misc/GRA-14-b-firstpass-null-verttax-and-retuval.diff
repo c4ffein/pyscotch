@@ -1,0 +1,26 @@
+--- a/src/libscotch/graph_coarsen.c
++++ b/src/libscotch/graph_coarsen.c
+@@ -253,8 +253,10 @@
+                         &coarmulttab,          (size_t) (coarmultsiz * sizeof (GraphCoarsenMulti)), NULL) == NULL) ||
+         ((coargrafptr->edgetax = memAlloc (finegrafptr->edgenbr * 2 * sizeof (Gnum))) == NULL)) { /* "* 2" for edlotab */
+       errorPrint ("graphCoarsen3: out of memory (1)");
+-      if (coargrafptr->verttax != NULL)
++      if (coargrafptr->verttax != NULL) {
+         memFree (coargrafptr->verttax);
++        coargrafptr->verttax = NULL;               /* Prevent graphCoarsen2() and callers from using freed graph */
++      }
+       coarptr->retuval = 2;
+ #ifdef GRAPHCOARSENNOTHREAD
+ #ifdef SCOTCH_PTHREAD
+@@ -555,6 +557,11 @@
+   if (coargrafptr->verttax == NULL)               /* If graph could not be created */
+     return (coarptr->retuval);
+ 
++  if (coarptr->retuval != 0) {                    /* If an error occurred after graph creation (e.g. thread memory allocation) */
++    graphFree (coargrafptr);                      /* Do not leave a partially built graph behind                              */
++    return    (coarptr->retuval);
++  }
++
+ #ifdef SCOTCH_DEBUG_GRAPH2
+   if (graphCheck (coargrafptr) != 0) {            /* Check graph consistency */
+     errorPrint ("graphCoarsen2: inconsistent graph data");

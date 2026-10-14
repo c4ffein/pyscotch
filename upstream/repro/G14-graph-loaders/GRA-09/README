@@ -1,0 +1,6 @@
+GRA-09  Scotch geometry loader never stores the dimension
+  gcc -I<build>/include gra09.c -L<build>/lib -lscotch -lscotcherr -lz -lpthread -lm -o gra09
+  LD_LIBRARY_PATH=<build>/lib ./gra09
+Loads p4s.grf + p4.xyz (2-D), then SCOTCH_geomData + SCOTCH_graphGeomSaveScot.
+PRISTINE: "dim=0 ...", saved geometry file begins "0\n4" (no coordinates).
+PATCHED : "dim=2 ...", saved file lists all coordinates ("2\n4\n0\t0.0\t0.0 ...").

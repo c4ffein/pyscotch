@@ -1,0 +1,52 @@
+# DGR-13 option C (NOT preferred): the first pass's hoisting of the matching work array into dgraphMatchInit() through a new DgraphMatchData field. Correct (the first pass verified it) but adds 4 * P ints to the matching structure and a field, where the coarse graph private arrays and the coarsening count arrays already provide exactly those four arrays and are used that way by dgraphCoarsenBuildColl() (option A). Covers only the matching site.
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/dgraph_match.c b/src/libscotch/dgraph_match.c
+index 2740377..904b7d2 100644
+--- a/src/libscotch/dgraph_match.c
++++ b/src/libscotch/dgraph_match.c
+@@ -98,7 +98,8 @@ const float                         probval)
+ 
+   if (memAllocGroup ((void **) (void *)
+                      &mateptr->procvgbtab, (size_t) ((grafptr->procngbnbr + 1) * sizeof (Gnum)),
+-                     &mateptr->queuloctab, (size_t) (vertlocnbr * sizeof (Gnum)), NULL) == NULL) {
++                     &mateptr->queuloctab, (size_t) (vertlocnbr * sizeof (Gnum)),
++                     &mateptr->syncdsptab, (size_t) (4 * grafptr->procglbnbr * sizeof (int)), NULL) == NULL) {
+     errorPrint ("dgraphMatchInit: out of memory");
+     return     (1);
+   }
+diff --git a/src/libscotch/dgraph_match.h b/src/libscotch/dgraph_match.h
+index 3ef1ccd..1e1d143 100644
+--- a/src/libscotch/dgraph_match.h
++++ b/src/libscotch/dgraph_match.h
+@@ -64,6 +64,7 @@ typedef struct DgraphMatchData_ {
+   Gnum *                    queuloctab;           /*+ Queue of unmated local vertex                               +*/
+   Gnum                      queulocnbr;           /*+ Number of enqueued unmated vertices                         +*/
+   Gnum *                    procvgbtab;           /*+ Global vertex number bounds for neighboring processors [+1] +*/
++  int *                     syncdsptab;           /*+ Work array of dgraphMatchSyncColl() (4 * procglbnbr)       +*/
+   float                     probval;              /*+ Vertex mating probability (1.0 is certain)                  +*/
+ } DgraphMatchData;
+ 
+diff --git a/src/libscotch/dgraph_match_sync_coll.c b/src/libscotch/dgraph_match_sync_coll.c
+index 088383a..c5baf8b 100644
+--- a/src/libscotch/dgraph_match_sync_coll.c
++++ b/src/libscotch/dgraph_match_sync_coll.c
+@@ -118,10 +118,7 @@ DgraphMatchData * restrict  mateptr)              /* [norestrict:async] */
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
+-  if ((vsnddsptab = memAlloc (4 * grafptr->procglbnbr * sizeof (int))) == NULL) {
+-    errorPrint ("dgraphMatchSyncColl: out of memory");
+-    return (1);
+-  }
++  vsnddsptab = mateptr->syncdsptab;               /* Work array allocated by dgraphMatchInit(), whose errors are agreed upon by all processes */
+   vsndcnttab = vsnddsptab + grafptr->procglbnbr;  /* TRICK: put vsnddsptab, vsndcnttab, vrcvdsptab in order for memSet() */
+   vrcvdsptab = vsndcnttab + grafptr->procglbnbr;
+   vrcvcnttab = vrcvdsptab + grafptr->procglbnbr;
+@@ -429,7 +426,5 @@ DgraphMatchData * restrict  mateptr)              /* [norestrict:async] */
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
+-  memFree (vsnddsptab);
+-
+   return (0);
+ }

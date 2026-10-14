@@ -1,0 +1,22 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 50a488e..bbf1c0e 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -64,7 +64,7 @@ if(MSVC)
+ endif(MSVC)
+ 
+ # Detect FreeBSD
+-if(${CMAKE_HOST_SYSTEM_NAME}} MATCHES "^.*FreeBSD.*$")
++if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+   set(OS_IS_FREEBSD ON)
+   message(STATUS "OS is FreeBSD")
+ endif()
+@@ -128,7 +128,7 @@ if(NOT IDXSIZE STREQUAL "")
+     message(STATUS "Index size is 64 bits")
+     add_definitions(-DIDXSIZE64)
+   else()
+-    message(FATAL_ERROR "Invalid integer size value")
++    message(FATAL_ERROR "Invalid index size value")
+   endif()
+ endif()
+ 

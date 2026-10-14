@@ -1,0 +1,64 @@
+From a3aae398109093a1bdbead1ffc3db24848e53ab6 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:37:43 +0000
+Subject: [PATCH 3/9] Bugfix: do not account for unmapped vertices in
+ `SCOTCH_graphMapView()` [report PyScotch]
+
+Unmapped vertices have a part value of `-1`, which is also that of
+`ARCHDOMNOTTERM`; after sorting, they came first and ended the
+traversal of the domain label array immediately, so that the number
+of processors, target loads, neighbor counts and part diameters
+were all reported as zero whenever a single vertex was unmapped.
+Unmapped vertices now belong to no part and are not counted as
+neighbors, as in `SCOTCH_dgraphMapStat()`.
+
+Refs: PS2-G16-1
+---
+ src/libscotch/library_graph_map_view.c | 22 +++++++++++++++-------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/src/libscotch/library_graph_map_view.c b/src/libscotch/library_graph_map_view.c
+index 4e6a0b3..8639ed2 100644
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -300,14 +300,22 @@ FILE * const                  stream)             /*+ Output stream
+   }
+   pidxtax -= grafptr->baseval;
+ 
+-  for (vertnum = 0; vertnum < grafptr->vertnbr; vertnum ++) {
+-    domntab[vertnum].labl = parttax[vertnum];     /* Un-based array at this stage    */
+-    domntab[vertnum].peri = vertnum + grafptr->baseval; /* Build inverse permutation */
++  for (vertnum = 0, vertidx = 0; vertnum < grafptr->vertnbr; vertnum ++) {
++    Anum                partval;
++
++    partval = parttax[vertnum];                   /* Un-based array at this stage */
++    if (partval == ~0) {                          /* If vertex is not mapped      */
++      pidxtax[vertnum + grafptr->baseval] = ~0;   /* It belongs to no part        */
++      continue;
++    }
++    domntab[vertidx].labl = partval;
++    domntab[vertidx].peri = vertnum + grafptr->baseval; /* Build inverse permutation */
++    vertidx ++;
+   }
+-  domntab[grafptr->vertnbr].labl = ARCHDOMNOTTERM; /* TRICK: avoid testing (i+1)   */
+-  domntab[grafptr->vertnbr].peri = ~0;            /* Prevent Valgrind from yelling */
++  domntab[vertidx].labl = ARCHDOMNOTTERM;         /* TRICK: avoid testing (i+1)   */
++  domntab[vertidx].peri = ~0;                     /* Prevent Valgrind from yelling */
+ 
+-  intSort2asc2 (domntab, grafptr->vertnbr);       /* Sort domain label array by increasing target labels */
++  intSort2asc2 (domntab, vertidx);                /* Sort domain label array of mapped vertices by increasing target labels */
+ 
+   archDomFrst (archptr, &domnfrst);               /* Get architecture domain */
+   tgtnbr = archDomSize (archptr, &domnfrst);      /* Get architecture size   */
+@@ -381,7 +389,7 @@ FILE * const                  stream)             /*+ Output stream
+   nghbnbr = 0;
+   nghbmax = 0;
+   nghbsum = 0;
+-  nghbtab[0] = -2;
++  nghbtab[0] = ~0;                                /* TRICK: unmapped end vertices always match this sentinel */
+   if (mapnbr > 0) {
+     nghbmin = ANUMMAX;
+ 
+-- 
+2.47.3
+

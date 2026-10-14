@@ -1,0 +1,53 @@
+From 8b67043c7bb5619cf0177580e73e6d3db4739b1a Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:50:07 +0000
+Subject: [PATCH 5/7] Bugfix: do not return freed communication array on error
+ in `dgraphFoldComm()` [report PyScotch]
+
+In debug mode, the consistency checks at the end of `dgraphFoldComm()`
+free the communication data array on error, after its address has
+already been stored into the caller's pointer. The callers, which
+free this array when it is not NULL, then freed it a second time.
+
+Set the output pointers only once all checks have passed.
+---
+ src/libscotch/dgraph_fold_comm.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/libscotch/dgraph_fold_comm.c b/src/libscotch/dgraph_fold_comm.c
+index f8d0435..3dc4d67 100644
+--- a/src/libscotch/dgraph_fold_comm.c
++++ b/src/libscotch/dgraph_fold_comm.c
+@@ -44,7 +44,7 @@
+ /**                # Version 5.1  : from : 18 jan 2009     **/
+ /**                                 to   : 10 sep 2011     **/
+ /**                # Version 7.0  : from : 18 jun 2023     **/
+-/**                                 to   : 07 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -538,10 +538,6 @@ done:                                             /* A valid communication patte
+     *vertadjtabptr = vertadjtab;
+     *vertdlttabptr = vertdlttab;
+   }
+-  *commdattabptr = commdattab;                    /* Set group leader */
+-  *commvrttabptr = commvrttab;
+-  *commmaxptr    = commmax;
+-
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+   if (fldproccnttab == NULL) {                    /* If we are a sender process       */
+     Gnum                vertsndnbr;               /* Number of vertices actually sent */
+@@ -590,5 +586,9 @@ fail:
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
++  *commdattabptr = commdattab;                    /* Set group leader */
++  *commvrttabptr = commvrttab;
++  *commmaxptr    = commmax;
++
+   return (0);
+ }
+-- 
+2.47.3
+

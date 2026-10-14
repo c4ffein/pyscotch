@@ -1,0 +1,78 @@
+From 29f8bcbfd656ebcf39fe54adeb0f89df8cd37608 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:11:24 +0000
+Subject: [PATCH 01/11] Bugfix: free the exchange buffers of
+ `vdgraphSeparateMlUncoarsen()` when all coarse separators are invalid [report
+ R. Perry]
+
+The buffer group used to exchange fine part data was allocated before
+the reduction that selects the best coarse separator, and the routine
+returned without freeing it when every coarse separator had an empty
+part. This is a normal fallback path, after which the low strategy is
+applied at the upper level, so the leak repeated at every level of
+nested dissection where it occurred.
+
+Also compile the debug code of this routine under the Vdgraph debug
+flags rather than the Bdgraph ones, which had been copied from the
+twin routine.
+
+Refs: DMO-05
+---
+ src/libscotch/vdgraph_separate_ml.c | 17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/src/libscotch/vdgraph_separate_ml.c b/src/libscotch/vdgraph_separate_ml.c
+index bafed9c..5bcdd38 100644
+--- a/src/libscotch/vdgraph_separate_ml.c
++++ b/src/libscotch/vdgraph_separate_ml.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2010,2012,2014,2019,2020,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2010,2012,2014,2019,2020,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**                # Version 6.0  : from : 11 sep 2012     **/
+ /**                                 to   : 28 sep 2014     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 14 aug 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -380,14 +380,14 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Based multinode array
+   }
+ 
+   if (coargrafptr == NULL) {                      /* If coarser graph not provided                      */
+-#ifdef SCOTCH_DEBUG_BDGRAPH1                      /* Communication cannot be overlapped by a useful one */
++#ifdef SCOTCH_DEBUG_VDGRAPH1                      /* Communication cannot be overlapped by a useful one */
+     if (MPI_Allreduce (&reduloctab[5], &reduglbtab[5], 1, GNUM_MPI, MPI_SUM, finegrafptr->s.proccomm) != MPI_SUCCESS) {
+       errorPrint ("vdgraphSeparateMlUncoarsen: communication error (1)");
+       return (1);
+     }
+-#else /* SCOTCH_DEBUG_BDGRAPH1 */
++#else /* SCOTCH_DEBUG_VDGRAPH1 */
+     reduglbtab[5] = reduloctab[5];
+-#endif /* SCOTCH_DEBUG_BDGRAPH1 */
++#endif /* SCOTCH_DEBUG_VDGRAPH1 */
+     if (reduglbtab[5] != 0)
+       return (1);
+ 
+@@ -447,10 +447,11 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Based multinode array
+   }
+ 
+   if (reduglbtab[0] == 1) {                       /* If all possible partitions are invalid */
+-#ifdef SCOTCH_DEBUG_BDGRAPH2
++#ifdef SCOTCH_DEBUG_VDGRAPH2
+     errorPrintW ("vdgraphSeparateMlUncoarsen: no valid partition");
+-#endif /* SCOTCH_DEBUG_BDGRAPH2 */
+-    return (1);                                   /* All invalid partitions will lead to low method be applied at upper level */
++#endif /* SCOTCH_DEBUG_VDGRAPH2 */
++    memFree (vsndcnttab);                         /* Free group leader                                                        */
++    return  (1);                                  /* All invalid partitions will lead to low method be applied at upper level */
+   }
+ 
+   finevertlocadj = finegrafptr->s.procvrttab[finegrafptr->s.proclocnum] - finegrafptr->s.baseval;
+-- 
+2.47.3
+

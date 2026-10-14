@@ -1,0 +1,19 @@
+diff --git a/src/libscotch/hdgraph_gather.c b/src/libscotch/hdgraph_gather.c
+index ae378fb..10fe71a 100644
+--- a/src/libscotch/hdgraph_gather.c
++++ b/src/libscotch/hdgraph_gather.c
+@@ -142,7 +142,14 @@ Hgraph * restrict const     cgrfptr)              /*+ Centralized halo graph +*/
+ 
+     cgrfptr->s.flagval = GRAPHFREEEDGE | GRAPHEDGEGROUP | GRAPHFREEVERT | GRAPHVERTGROUP; /* In case of premature freeing on error */
+     cgrfptr->s.baseval = dgrfptr->s.baseval;      /* Base value is needed for premature freeing of based arrays */
++    cgrfptr->s.verttax = NULL;                    /* Set all fields read by hgraphExit() in case of premature freeing on error */
++    cgrfptr->s.vendtax = NULL;
++    cgrfptr->s.velotax = NULL;
++    cgrfptr->s.vnumtax = NULL;
++    cgrfptr->s.vlbltax = NULL;
+     cgrfptr->s.edgetax = NULL;
++    cgrfptr->s.edlotax = NULL;
++    cgrfptr->vnhdtax   = NULL;
+     recvcnttab = NULL;
+     if (memAllocGroup ((void **) (void *)
+                        &cgrfptr->s.verttax, (size_t) ((vertnbr + 1) * sizeof (Gnum)), /* Compact vertex array */

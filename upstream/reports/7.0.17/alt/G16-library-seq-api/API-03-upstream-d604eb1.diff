@@ -1,0 +1,252 @@
+# upstream d604eb1 Bugfix: preserve parttax array by using auxiliary part index array [report R. Perry]
+
+diff --git a/src/libscotch/library_graph_map_view.c b/src/libscotch/library_graph_map_view.c
+index 31fca24..4fd3df8 100644
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2011,2015,2018,2019,2021,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2011,2015,2018,2019,2021,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -56,7 +56,7 @@
+ /**                # Version 6.1  : from : 01 jul 2021     **/
+ /**                                 to   : 01 jul 2021     **/
+ /**                # Version 7.0  : from : 07 may 2019     **/
+-/**                                 to   : 30 nov 2024     **/
++/**                                 to   : 08 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -93,17 +93,17 @@
+ static
+ Gnum
+ graphMapView3 (
+-const Graph * const         grafptr,              /*+ Graph      +*/
+-const Anum * const          parttax,              /*+ Part array +*/
+-const Anum                  partval)              /*+ Part value +*/
++const Graph * const         grafptr,              /*+ Graph              +*/
++const Anum * const          parttax,              /*+ Part (index) array +*/
++const Anum                  partval)              /*+ Part (index) value +*/
+ {
+   GraphMapViewQueue             queudat;          /* Neighbor queue                         */
+   GraphMapViewVertex * restrict vexxtax;          /* Based access to vexxtab                */
+   Gnum                          rootnum;          /* Number of current root vertex          */
+-  Gnum                          vertdist;         /* Vertex distance                        */
+-  int                           diamflag;         /* Flag set if diameter changed           */
+-  Gnum                          diambase;         /* Base distance for connected components */
+-  Gnum                          diamdist;         /* Current diameter distance              */
++  Gnum                          distval;          /* Vertex distance                        */
++  Gnum                          distmax;          /* Current diameter distance              */
++  int                           flagval;          /* Flag set if diameter changed           */
++  Gnum                          connval;          /* Base distance for connected components */
+   Gnum                          passnum;          /* Pass number                            */
+   const Gnum * restrict         verttax;          /* Based access to vertex array           */
+   const Gnum * restrict         vendtax;          /* Based access to vertex end array       */
+@@ -122,7 +122,7 @@ const Anum                  partval)              /*+ Part value +*/
+   vendtax  = grafptr->vendtax;
+   vexxtax -= grafptr->baseval;
+ 
+-  diamdist = 0;                                   /* Start distances from zero                  */
++  distmax = 0;                                    /* Start distances from zero                  */
+   for (passnum = 1, rootnum = grafptr->baseval; ; passnum ++) { /* For all connected components */
+     Gnum                diamnum;                  /* Vertex which achieves diameter             */
+ 
+@@ -133,32 +133,32 @@ const Anum                  partval)              /*+ Part value +*/
+     if (rootnum >= grafptr->vertnbr)              /* Exit if all of graph processed */
+       break;
+ 
+-    diambase = ++ diamdist;                       /* Start from previous distance */
+-    diamnum  = rootnum;                           /* Start from found root        */
++    connval = ++ distmax;                         /* Start from previous distance */
++    diamnum = rootnum;                            /* Start from found root        */
+ 
+-    for (diamflag = 1; diamflag -- != 0; passnum ++) { /* Loop if modifications */
++    for (flagval = 1; flagval -- != 0; passnum ++) { /* Loop if modifications   */
+       graphMapViewQueueFlush (&queudat);          /* Flush vertex queue         */
+       graphMapViewQueuePut   (&queudat, diamnum); /* Start from diameter vertex */
+-      vexxtax[diamnum].passnum  = passnum;        /* It has been enqueued       */
+-      vexxtax[diamnum].vertdist = diambase;       /* It is at base distance     */
++      vexxtax[diamnum].passnum = passnum;         /* It has been enqueued       */
++      vexxtax[diamnum].distval = connval;         /* It is at base distance     */
+ 
+       do {                                        /* Loop on vertices in queue */
+         Gnum                vertnum;
+         Gnum                edgenum;
+ 
+-        vertnum  = graphMapViewQueueGet (&queudat); /* Get vertex from queue */
+-        vertdist = vexxtax[vertnum].vertdist;     /* Get vertex distance     */
++        vertnum = graphMapViewQueueGet (&queudat); /* Get vertex from queue */
++        distval = vexxtax[vertnum].distval;       /* Get vertex distance    */
+ 
+-        if ((vertdist > diamdist) ||              /* If vertex increases diameter */
+-            ((vertdist == diamdist) &&            /* Or is at diameter distance   */
+-             ((vendtax[vertnum] - verttax[vertnum]) < /* With smaller degree  */
++        if ((distval > distmax) ||                /* If vertex increases diameter */
++            ((distval == distmax) &&              /* Or is at diameter distance   */
++             ((vendtax[vertnum] - verttax[vertnum]) < /* With smaller degree      */
+               (vendtax[diamnum] - verttax[diamnum])))) {
+-          diamnum  = vertnum;                     /* Set it as new diameter vertex */
+-          diamdist = vertdist;
+-          diamflag = 1;
++          diamnum = vertnum;                      /* Set it as new diameter vertex */
++          distmax = distval;
++          flagval = 1;
+         }
+ 
+-        vertdist ++;                              /* Set neighbor distance */
++        distval ++;                               /* Set neighbor distance */
+         for (edgenum = verttax[vertnum]; edgenum < vendtax[vertnum]; edgenum ++) {
+           Gnum                vertend;
+ 
+@@ -166,8 +166,8 @@ const Anum                  partval)              /*+ Part value +*/
+           if ((vexxtax[vertend].passnum < passnum) && /* If vertex not queued yet */
+               (parttax[vertend] == partval)) {    /* And of proper part           */
+             graphMapViewQueuePut (&queudat, vertend); /* Enqueue neighbor vertex  */
+-            vexxtax[vertend].passnum  = passnum;
+-            vexxtax[vertend].vertdist = vertdist;
++            vexxtax[vertend].passnum = passnum;
++            vexxtax[vertend].distval = distval;
+           }
+         }
+       } while (! graphMapViewQueueEmpty (&queudat)); /* As long as queue is not empty */
+@@ -176,7 +176,7 @@ const Anum                  partval)              /*+ Part value +*/
+ 
+   memFree (queudat.qtab);                         /* Free group leader */
+ 
+-  return (diamdist);
++  return (distmax);
+ }
+ 
+ /* This routine writes standard or raw
+@@ -202,6 +202,7 @@ FILE * const                  stream)             /*+ Output stream
+   LibMapping * restrict     lmaoptr;
+   Anum * restrict           parttax;              /* Part array                                   */
+   Anum * restrict           parotax;              /* Old part array                               */
++  Anum * restrict           pidxtax;              /* Part index array                             */
+   MappingSort * restrict    domntab;              /* Pointer to domain sort array                 */
+   ArchDom                   domnfrst;             /* Largest domain in architecture               */
+   ArchDom                   domnorg;              /* Vertex domain                                */
+@@ -287,20 +288,21 @@ FILE * const                  stream)             /*+ Output stream
+   }
+ #endif /* SCOTCH_DEBUG_LIBRARY1 */
+   archptr = lmapptr->archptr;
+-  parttax = lmapptr->parttab;
++  parttax = lmapptr->parttab;                     /* Use un-based array */
+ 
+   if (memAllocGroup ((void **) (void *)
+                      &domntab, (size_t) ((grafptr->vertnbr + 1) * sizeof (MappingSort)),
+-                     &nghbtab, (size_t) ((grafptr->vertnbr + 2) * sizeof (Anum)), NULL) == NULL) {
++                     &nghbtab, (size_t) ((grafptr->vertnbr + 2) * sizeof (Anum)),
++                     &pidxtax, (size_t) ( grafptr->vertnbr      * sizeof (Anum)), NULL) == NULL) {
+     errorPrint (STRINGIFY (SCOTCH_graphMapView) ": out of memory");
+     return (1);
+   }
++  pidxtax -= grafptr->baseval;
+ 
+   for (vertnum = 0; vertnum < grafptr->vertnbr; vertnum ++) {
+     domntab[vertnum].labl = parttax[vertnum];     /* Un-based array at this stage    */
+     domntab[vertnum].peri = vertnum + grafptr->baseval; /* Build inverse permutation */
+   }
+-  parttax -= grafptr->baseval;
+   domntab[grafptr->vertnbr].labl = ARCHDOMNOTTERM; /* TRICK: avoid testing (i+1)   */
+   domntab[grafptr->vertnbr].peri = ~0;            /* Prevent Valgrind from yelling */
+ 
+@@ -313,9 +315,9 @@ FILE * const                  stream)             /*+ Output stream
+   mapsum  = 0;
+   veloval = 1;                                    /* Assume unweighted vertices */
+   for (vertidx = 0; domntab[vertidx].labl != ARCHDOMNOTTERM; vertidx ++) {
+-    parttax[domntab[vertidx].peri] = mapnbr;      /* Build map of partition parts starting from 0  */
++    pidxtax[domntab[vertidx].peri] = mapnbr;      /* Build map of partition parts starting from 0  */
+     if (domntab[vertidx].labl != domntab[vertidx + 1].labl) /* TRICK: if new (or end) domain label */
+-      mapnbr ++;
++      mapnbr ++;                                  /* Create new terminal part index                */
+     if (velotax != NULL)
+       veloval = velotax[domntab[vertidx].peri];
+     mapsum += veloval;
+@@ -385,32 +387,32 @@ FILE * const                  stream)             /*+ Output stream
+     for (vertidx = 0; domntab[vertidx].labl != ARCHDOMNOTTERM; vertidx ++) {
+       Gnum                edgenum;
+       Gnum                edgennd;
+-      Anum                partnum;
++      Anum                pidxnum;
+ 
+-      partnum = parttax[domntab[vertidx].peri];
++      pidxnum = pidxtax[domntab[vertidx].peri];
+       for (edgenum = verttax[domntab[vertidx].peri],
+            edgennd = vendtax[domntab[vertidx].peri];
+            edgenum < edgennd; edgenum ++) {
+-        Anum                partend;
+-
+-        partend = parttax[edgetax[edgenum]];
+-        if ((partend != partnum) &&               /* If edge is not internal                                      */
+-            (partend != nghbtab[nghbnbr])) {      /* And neighbor is not sole neighbor or has not just been found */
+-          Anum                partmin;
+-          Anum                partmax;
+-
+-          partmin = 0;
+-          partmax = nghbnbr;
+-          while ((partmax - partmin) > 1) {
+-            Anum                partmed;
+-
+-            partmed = (partmax + partmin) >> 1;
+-            if (nghbtab[partmed] > partend)
+-              partmax = partmed;
++        Anum                pidxend;
++
++        pidxend = pidxtax[edgetax[edgenum]];
++        if ((pidxend != pidxnum) &&               /* If edge is not internal                                      */
++            (pidxend != nghbtab[nghbnbr])) {      /* And neighbor is not sole neighbor or has not just been found */
++          Anum                pidxmin;
++          Anum                pidxmax;
++
++          pidxmin = 0;
++          pidxmax = nghbnbr;
++          while ((pidxmax - pidxmin) > 1) {
++            Anum                pidxmed;
++
++            pidxmed = (pidxmax + pidxmin) >> 1;
++            if (nghbtab[pidxmed] > pidxend)
++              pidxmax = pidxmed;
+             else
+-              partmin = partmed;
++              pidxmin = pidxmed;
+           }
+-          if (nghbtab[partmin] == partend)        /* If neighboring part found, skip to next neighbor */
++          if (nghbtab[pidxmin] == pidxend)        /* If neighboring part found, skip to next neighbor */
+             continue;
+ 
+ #ifdef SCOTCH_DEBUG_MAP2
+@@ -421,9 +423,9 @@ FILE * const                  stream)             /*+ Output stream
+ #endif /* SCOTCH_DEBUG_MAP2 */
+ 
+           nghbnbr ++;
+-          for (partmax = nghbnbr; partmax > (partmin + 1); partmax --)
+-            nghbtab[partmax] = nghbtab[partmax - 1];
+-          nghbtab[partmin + 1] = partend;         /* Add new neighbor part in the right place */
++          for (pidxmax = nghbnbr; pidxmax > (pidxmin + 1); pidxmax --)
++            nghbtab[pidxmax] = nghbtab[pidxmax - 1];
++          nghbtab[pidxmin + 1] = pidxend;         /* Add new neighbor part in the right place */
+         }
+       }
+       if (domntab[vertidx].labl != domntab[vertidx + 1].labl) { /* TRICK: if new (or end) domain label */
+@@ -452,7 +454,8 @@ FILE * const                  stream)             /*+ Output stream
+   commdilat =
+   commexpan = 0;
+ 
+-  edloval = 1;
++  parttax -= grafptr->baseval;
++  edloval  = 1;
+   for (vertnum = grafptr->baseval; vertnum < grafptr->vertnnd; vertnum ++) {
+     Gnum                edgenum;
+ 
+@@ -535,7 +538,7 @@ FILE * const                  stream)             /*+ Output stream
+     do {
+       Gnum                diamval;
+ 
+-      diamval  = graphMapView3 (grafptr, parttax, mapnum);
++      diamval  = graphMapView3 (grafptr, pidxtax, mapnum);
+       diamsum += diamval;
+       if (diamval < diammin)
+         diammin = diamval;

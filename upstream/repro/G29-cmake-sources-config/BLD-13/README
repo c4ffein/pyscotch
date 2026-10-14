@@ -1,0 +1,20 @@
+BLD-13: declared CMake minimum 3.10 below the constructs used.
+
+No CMake older than 4.4.4 is available here, so the "versionadded" facts come from the
+built-in documentation of the cmake binary itself (not from memory):
+  cmake --help-command get_filename_component | grep -A1 'versionadded:: 3.14'
+    -> "Added the LAST_EXT and NAME_WLE modes."            (src/check/CMakeLists.txt:69)
+  cmake --help-module FindLibLZMA   -> "LibLZMA::LibLZMA  .. versionadded:: 3.14"  (src/libscotch/CMakeLists.txt:570)
+  cmake --help-module FindBZip2     -> "BZip2::BZip2      .. versionadded:: 3.12"  (src/libscotch/CMakeLists.txt:565)
+  cmake --help-module FindZLIB      -> "ZLIB::ZLIB        .. versionadded:: 3.1"
+  cmake --help-module FindThreads   -> "Threads::Threads  .. versionadded:: 3.1"
+  cmake --help-module FindMPI       -> "versionadded:: 3.10 Major overhaul" (MPI::MPI_C, MPI_C_LIBRARY_VERSION_STRING)
+  cmake --help-property FIXTURES_SETUP -> versionadded:: 3.7
+  cmake --help-command if | grep -A2 'GREATER_EQUAL' -> versionadded:: 3.7
+  `cmake -E cat`: the 4.4.4 manual no longer carries a versionadded note for it; CMake 3.18
+  release notes introduced it (assumption from memory, consistent with the review).
+  ctest --output-junit (ci/test_cmake.sh): 3.21, CI only.
+Highest requirement: 3.18 (tests), 3.14 (library alone, through LibLZMA::LibLZMA when liblzma is found).
+
+Patched: cmake_minimum_required(VERSION 3.18); full configure/build/ctest of src-patched with
+CMake 4.4.4 shows no policy warning and 181/181 tests pass (32-bit and INTSIZE=64 builds).

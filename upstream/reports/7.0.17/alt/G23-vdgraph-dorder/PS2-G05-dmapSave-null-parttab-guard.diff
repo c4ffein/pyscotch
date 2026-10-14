@@ -1,0 +1,43 @@
+diff --git a/src/libscotch/dmapping_io.c b/src/libscotch/dmapping_io.c
+index 717381e..a8e4573 100644
+--- a/src/libscotch/dmapping_io.c
++++ b/src/libscotch/dmapping_io.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2008,2010,2014,2021,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2008,2010,2014,2021,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -45,7 +45,7 @@
+ /**                # Version 6.1  : from : 05 apr 2021     **/
+ /**                                 to   : 05 apr 2021     **/
+ /**                # Version 7.0  : from : 18 jan 2023     **/
+-/**                                 to   : 09 oct 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -180,6 +180,11 @@ FILE * restrict const           stream)
+     Gnum                vertrcvnbr;
+ 
+     for (fragptr = dmapptr->fragptr; fragptr != NULL; fragptr = fragptr->nextptr) { /* Output local fragments */
++        if (fragptr->parttab == NULL) {           /* If fragment mapping was never computed (e.g. incomplete strategy) */
++          errorPrint ("dmapSave: invalid mapping (4)");
++          reduloctab[0] = 1;
++          break;
++        }
+       Gnum                fraglocnum;
+ 
+       for (fraglocnum = 0; fraglocnum < fragptr->vertnbr; fraglocnum ++) {
+@@ -241,6 +246,11 @@ FILE * restrict const           stream)
+     MPI_Datatype        typedat;
+ 
+     for (fragptr = dmapptr->fragptr; fragptr != NULL; fragptr = fragptr->nextptr) { /* Output local fragments */
++        if (fragptr->parttab == NULL) {           /* If fragment mapping was never computed (e.g. incomplete strategy) */
++          errorPrint ("dmapSave: invalid mapping (4)");
++          reduloctab[0] = 1;
++          break;
++        }
+       Gnum                fraglocnum;
+ 
+       for (fraglocnum = 0; fraglocnum < fragptr->vertnbr; fraglocnum ++) {

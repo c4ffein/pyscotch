@@ -1,0 +1,25 @@
+--- a/src/check/test_scotch_mesh_graph.c
++++ b/src/check/test_scotch_mesh_graph.c
+@@ -75,6 +75,7 @@
+   FILE *              fileptr;
+   SCOTCH_Mesh         meshdat;
+   SCOTCH_Graph        grafdat;
++  int                 o;
+ 
+   SCOTCH_errorProg (argv[0]);
+ 
+@@ -110,11 +111,12 @@
+     exit (EXIT_FAILURE);
+   }
+ 
+-  if (SCOTCH_graphCheck (&grafdat) != 0)
++  o = SCOTCH_graphCheck (&grafdat);
++  if (o != 0)
+     SCOTCH_errorPrint ("main: invalid graph converted from mesh");
+ 
+   SCOTCH_graphExit (&grafdat);
+   SCOTCH_meshExit  (&meshdat);
+ 
+-  exit (EXIT_SUCCESS);
++  exit ((o != 0) ? EXIT_FAILURE : EXIT_SUCCESS);
+ }

@@ -1,0 +1,259 @@
+From 43e588e9a06687c25254d7ecabeef014907169d5 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:01:12 +0000
+Subject: [PATCH] Bugfix: synchronize threads on allocation failure and
+ overflow, and report errors in `bgraphBipartDf()` [report R. Perry]
+
+When a thread could not allocate its local arrays, it jumped over the
+reduction of external gain sums, so that threads went out of step with
+respect to barriers: `bgraphBipartDf()` returned with thread data that
+were never computed, and some worker thread could re-run the loop on
+the freed data. When the diffusion process overflowed, the vertex index
+was set to the end of the vertex run before the last value was stored,
+which read past the thread-local array and wrote into the first vertex
+of the next thread (or past the diffusion arrays), and the loop index
+then skipped the reduction of anchor contributions, with the same loss
+of synchronization. Moreover, the shared abort flag could be set by a
+fast thread while slower threads were still testing it for the previous
+pass or for the allocation phase, which made them leave early.
+Synchronize threads right after the local allocation, as in
+`bgraphBipartGa()`, and return an error when some thread could not do
+its work. On overflow, store the last value of the run in place, and
+record the pass number in the thread data block, so that all threads
+halt at the end of the same pass and keep the last valid state.
+
+Refs: SEP-14
+---
+ src/libscotch/bgraph_bipart_df.c | 78 ++++++++++++++++++++------------
+ src/libscotch/bgraph_bipart_df.h |  7 +--
+ 2 files changed, 53 insertions(+), 32 deletions(-)
+
+diff --git a/src/libscotch/bgraph_bipart_df.c b/src/libscotch/bgraph_bipart_df.c
+index 6f16fd5..ebf1008 100644
+--- a/src/libscotch/bgraph_bipart_df.c
++++ b/src/libscotch/bgraph_bipart_df.c
+@@ -53,7 +53,7 @@
+ /**                # Version 6.0  : from : 07 nov 2011     **/
+ /**                                 to   : 08 aug 2013     **/
+ /**                # Version 7.0  : from : 08 jun 2018     **/
+-/**                                 to   : 07 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -133,10 +133,12 @@ const void * const                    globptr)    /* Unused                  */
+ 
+ /* This routine computes the diffusion of two
+ ** liquids on the given part of the bipartition
+-** graph.
++** graph. If the diffusion process overflows,
++** the last valid state is kept. On error,
++** loopptr->abrtval is set and thread data are
++** not valid.
+ ** It returns:
+-** - 0   : if algorithm went up to last pass.
+-** - !0  : on error.
++** - void  : in all cases.
+ */
+ 
+ static
+@@ -168,6 +170,7 @@ BgraphBipartDfData * restrict const loopptr)
+   Gnum                  veloval;
+   float                 velfval;
+   INT                   passnum;
++  int                   thrdtmp;
+   Anum                  distval;
+ 
+ #ifndef BGRAPHBIPARTDFNOTHREAD
+@@ -178,6 +181,7 @@ BgraphBipartDfData * restrict const loopptr)
+   const int                           thrdnum = 0;
+ #endif /* BGRAPHBIPARTDFNOTHREAD */
+   Bgraph * restrict const             grafptr = loopptr->grafptr;
++  BgraphBipartDfThread * const        thrdptr = &loopptr->thrdtab[thrdnum];
+   const Gnum * restrict const         verttax = grafptr->s.verttax;
+   const Gnum * restrict const         vendtax = grafptr->s.vendtax;
+   const Gnum * restrict const         velotax = grafptr->s.velotax;
+@@ -209,12 +213,21 @@ BgraphBipartDfData * restrict const loopptr)
+                      &frontab, (size_t) (fronsiz * sizeof (Gnum)), NULL) == NULL) {
+     errorPrint ("bgraphBipartDfLoop: out of memory");
+     loopptr->abrtval = 1;
+-    goto skip;
++  }
++
++#ifndef BGRAPHBIPARTDFNOTHREAD
++  threadBarrier (descptr);                        /* Check that local memory allocation went well */
++#endif /* BGRAPHBIPARTDFNOTHREAD */
++  if (loopptr->abrtval != 0) {                    /* If any process decided to quit */
++    if (ielstax != NULL)                          /* Free local array if necessary  */
++      memFree (ielstax);
++    return;
+   }
+   if (thrdnum == 0)                               /* Thread 0 will write directly in frontab */
+     frontab = grafptr->frontab;
+ 
+   ielstax -= vertbas;                             /* Base access to local part of edge load sum array */
++  thrdptr->abrtnum = 0;                           /* No overflow yet; pass numbers start from 1       */
+ 
+   veexval  =                                      /* Assume no external gains */
+   veexval1 = 0;
+@@ -254,13 +267,13 @@ BgraphBipartDfData * restrict const loopptr)
+     ielstax[vertnum] = 1.0F / (float) (edlosum + veexval - 2 * veexval1); /* Add absolute value of veexval */
+   }
+   if (veextax != NULL) {
+-    loopptr->thrdtab[thrdnum].veexsum  = veexsum;
+-    loopptr->thrdtab[thrdnum].veexsum1 = veexsum1;
++    thrdptr->veexsum  = veexsum;
++    thrdptr->veexsum1 = veexsum1;
+ #ifndef BGRAPHBIPARTDFNOTHREAD
+-    threadReduce (descptr, &loopptr->thrdtab[thrdnum], sizeof (BgraphBipartDfThread), (ThreadReduceFunc) bgraphBipartDfReduceVeex, thrdlst, NULL);
++    threadReduce (descptr, thrdptr, sizeof (BgraphBipartDfThread), (ThreadReduceFunc) bgraphBipartDfReduceVeex, thrdlst, NULL);
+ #endif /* BGRAPHBIPARTDFNOTHREAD */
+-    veexsum  = loopptr->thrdtab[thrdnum].veexsum; /* Will be useful for thread (thrdlst) only */
+-    veexsum1 = loopptr->thrdtab[thrdnum].veexsum1;
++    veexsum  = thrdptr->veexsum;                  /* Will be useful for thread (thrdlst) only */
++    veexsum1 = thrdptr->veexsum1;
+ 
+     if (thrdnum == thrdlst) {                     /* Last thread will handle anchors as root of reduction */
+       ielstax[vertnnd - 2] = 1.0F / (1.0F / ielstax[vertnnd - 2] + (float) (veexsum - veexsum1));
+@@ -272,14 +285,12 @@ BgraphBipartDfData * restrict const loopptr)
+     difotax[vertnnd - 1] = loopptr->vanctab[1] * ielstax[vertnnd - 1];
+   }
+ 
+-skip:
+ #ifndef BGRAPHBIPARTDFNOTHREAD
+   threadBarrier (descptr);                        /* Wait until all array values have been computed */
+ #endif /* BGRAPHBIPARTDFNOTHREAD */
+ 
+-  if (loopptr->abrtval == 1) {                    /* If any process decided to quit */
+-    if (ielstax != NULL)                          /* Free local array if necessary  */
+-      memFree (ielstax + vertbas);
++  if (loopptr->abrtval != 0) {                    /* If any process decided to quit */
++    memFree (ielstax + vertbas);                  /* Free local array               */
+     return;
+   }
+ 
+@@ -357,18 +368,18 @@ skip:
+ #ifdef SCOTCH_DEBUG_BGRAPH2
+           errorPrintW ("bgraphBipartDfLoop: overflow");
+ #endif /* SCOTCH_DEBUG_BGRAPH2 */
+-          loopptr->abrtval = 1;                   /* Threads need to halt                      */
+-          vertnum = vancnnt;                      /* Skip regular computations but synchronize */
++          thrdptr->abrtnum = passnum;             /* Threads will halt at end of pass; record pass number to tell faster threads from slower ones */
++          vertnum = vancnnt - 1;                  /* Skip remaining computations of run but synchronize; last value of run will be overwritten    */
+         }
+ 
+         difntax[vertnum] = diffval * ielstax[vertnum];
+       }
+       if (vertnum == vancnnd) {                   /* If first time we reach the end of regular vertices */
+-        loopptr->thrdtab[thrdnum].vanctab[0] = vancval0;
+-        loopptr->thrdtab[thrdnum].vanctab[1] = vancval1;
++        thrdptr->vanctab[0] = vancval0;
++        thrdptr->vanctab[1] = vancval1;
+         if (veextax != NULL) {
+ #ifndef BGRAPHBIPARTDFNOTHREAD
+-          threadReduce (descptr, &loopptr->thrdtab[thrdnum], sizeof (BgraphBipartDfThread), (ThreadReduceFunc) bgraphBipartDfReduceVanc, thrdlst, NULL);
++          threadReduce (descptr, thrdptr, sizeof (BgraphBipartDfThread), (ThreadReduceFunc) bgraphBipartDfReduceVanc, thrdlst, NULL);
+ #endif /* BGRAPHBIPARTDFNOTHREAD */
+         }
+       }
+@@ -377,7 +388,7 @@ skip:
+         break;
+ 
+       vancnnt ++;                                 /* Prepare to go only for one more run, to be done twice */
+-      vancval = loopptr->vanctab[vertnum - vancnnd] + loopptr->thrdtab[thrdnum].vanctab[vertnum - vancnnd]; /* Load variable with anchor value */
++      vancval = loopptr->vanctab[vertnum - vancnnd] + thrdptr->vanctab[vertnum - vancnnd]; /* Load variable with anchor value */
+     }
+ 
+     difttax = (float *) difntax;                  /* Swap old and new diffusion arrays          */
+@@ -388,7 +399,11 @@ skip:
+     threadBarrier (descptr);
+ #endif /* BGRAPHBIPARTDFNOTHREAD */
+ 
+-    if (loopptr->abrtval == 1) {                  /* If all threads need to abort       */
++    for (thrdtmp = 0; thrdtmp < thrdnbr; thrdtmp ++) { /* Check whether some thread overflowed during this pass */
++      if (loopptr->thrdtab[thrdtmp].abrtnum == passnum) /* Faster threads may already have overflowed in next pass */
++        break;
++    }
++    if (thrdtmp < thrdnbr) {                      /* If all threads need to abort       */
+       difotax = difntax;                          /* Roll-back to keep last valid array */
+       break;
+     }
+@@ -438,19 +453,19 @@ skip:
+     if (commload != 0)                            /* If end vertex is in the other part */
+       frontab[fronnbr ++] = vertnum;              /* Then it belongs to the frontier    */
+   }
+-  loopptr->thrdtab[thrdnum].fronnnd[0]      = fronnbr; /* Save state for scan-reduce */
+-  loopptr->thrdtab[thrdnum].compload1[0]    = compload1;
+-  loopptr->thrdtab[thrdnum].compsize1[0]    = compsize1;
+-  loopptr->thrdtab[thrdnum].commloadextn[0] = commloadextn;
+-  loopptr->thrdtab[thrdnum].commloadintn[0] = commloadintn;
+-  loopptr->thrdtab[thrdnum].commgainextn[0] = commgainextn;
++  thrdptr->fronnnd[0]      = fronnbr;             /* Save state for scan-reduce */
++  thrdptr->compload1[0]    = compload1;
++  thrdptr->compsize1[0]    = compsize1;
++  thrdptr->commloadextn[0] = commloadextn;
++  thrdptr->commloadintn[0] = commloadintn;
++  thrdptr->commgainextn[0] = commgainextn;
+ 
+ #ifndef BGRAPHBIPARTDFNOTHREAD
+-  threadScan (descptr, (void *) &loopptr->thrdtab[thrdnum], sizeof (BgraphBipartDfThread), (ThreadScanFunc) bgraphBipartDfScan, NULL);
++  threadScan (descptr, (void *) thrdptr, sizeof (BgraphBipartDfThread), (ThreadScanFunc) bgraphBipartDfScan, NULL);
+ #endif /* BGRAPHBIPARTDFNOTHREAD */
+ 
+   if (thrdnum != 0)                               /* If thread is not first one, gather frontier sub-array */
+-    memCpy (grafptr->frontab + loopptr->thrdtab[thrdnum].fronnnd[0] - fronnbr, frontab, fronnbr * sizeof (Gnum));
++    memCpy (grafptr->frontab + thrdptr->fronnnd[0] - fronnbr, frontab, fronnbr * sizeof (Gnum));
+ 
+   memFree (ielstax + vertbas);                    /* Free group leader of local arrays */
+ }
+@@ -516,6 +531,11 @@ const BgraphBipartDfParam * const paraptr)        /*+ Method parameters +*/
+   bgraphBipartDfLoop (NULL, &loopdat);
+ #endif /* BGRAPHBIPARTDFNOTHREAD */
+ 
++  if (loopdat.abrtval != 0) {                     /* If some thread could not complete its work, thread data are not valid */
++    memFree (loopdat.thrdtab);                    /* Free group leader */
++    return (1);
++  }
++
+   grafptr->fronnbr      = loopdat.thrdtab[thrdlst].fronnnd[0]; /* Get data after scan-reduction */
+   grafptr->compload0    = grafptr->s.velosum - loopdat.thrdtab[thrdlst].compload1[0];
+   grafptr->compload0dlt = grafptr->compload0 - grafptr->compload0avg;
+diff --git a/src/libscotch/bgraph_bipart_df.h b/src/libscotch/bgraph_bipart_df.h
+index ae9d34b..944cab3 100644
+--- a/src/libscotch/bgraph_bipart_df.h
++++ b/src/libscotch/bgraph_bipart_df.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2011,2012,2018,2019,2021,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2011,2012,2018,2019,2021,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**                # Version 6.0  : from : 08 nov 2011     **/
+ /**                                 to   : 05 apr 2018     **/
+ /**                # Version 7.0  : from : 08 jun 2018     **/
+-/**                                 to   : 09 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -92,6 +92,7 @@ typedef struct BgraphBipartDfThread_ {
+   float                     vanctab[2];           /*+ Area for (reducing) contributions to anchors   +*/
+   Gnum                      veexsum;              /*+ Area for reducing sums of external gains       +*/
+   Gnum                      veexsum1;
++  INT                       abrtnum;              /*+ Number of pass at which overflow occurred      +*/
+ } BgraphBipartDfThread;
+ 
+ /*+ The loop routine parameter
+@@ -105,7 +106,7 @@ typedef struct BgraphBipartDfData_ {
+   BgraphBipartDfThread *    thrdtab;              /*+ Array of thread-specific data +*/
+   INT                       passnbr;              /*+ Number of passes              +*/
+   float                     vanctab[2];           /*+ Anchor load arrays            +*/
+-  int                       abrtval;              /*+ Abort value                   +*/
++  int                       abrtval;              /*+ Abort value, set on error     +*/
+ } BgraphBipartDfData;
+ 
+ /*
+-- 
+2.47.3
+

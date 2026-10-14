@@ -1,0 +1,78 @@
+From 78a295bdd0982b695b2eeafa0430e8c5e26837eb Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:02:40 +0000
+Subject: [PATCH 06/11] Bugfix: accept a null tag string in
+ `meshGeomLoadHabo()` [report R. Perry]
+
+`meshGeomLoadHabo()` called `atol()` on its tag string without testing
+it. The Fortran wrapper `SCOTCHFMESHGEOMLOADHABO` always passes NULL,
+so the routine could not be used from Fortran (null pointer
+dereference). Default to the first matrix when no tag is provided, as
+`graphGeomLoadHabo()` does, and document the parameter as the tag value
+instead of "no use".
+
+Refs: API-08
+---
+ src/libscotch/library_mesh_io_habo.c |  2 +-
+ src/libscotch/mesh_io_habo.c         | 14 +++++++++-----
+ 2 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/src/libscotch/library_mesh_io_habo.c b/src/libscotch/library_mesh_io_habo.c
+index c754ab9..417c0c5 100644
+--- a/src/libscotch/library_mesh_io_habo.c
++++ b/src/libscotch/library_mesh_io_habo.c
+@@ -78,7 +78,7 @@ SCOTCH_Mesh * restrict const  meshptr,
+ SCOTCH_Geom * restrict const  geomptr,
+ FILE * const                  filesrcptr,
+ FILE * const                  filegeoptr,
+-const char * const            dataptr)            /* No use */
++const char * const            dataptr)            /* Tag value */
+ {
+   return (meshGeomLoadHabo ((Mesh *) CONTEXTOBJECT (meshptr), (Geom *) geomptr, filesrcptr, filegeoptr, dataptr));
+ }
+diff --git a/src/libscotch/mesh_io_habo.c b/src/libscotch/mesh_io_habo.c
+index 30f35d5..0846d4e 100644
+--- a/src/libscotch/mesh_io_habo.c
++++ b/src/libscotch/mesh_io_habo.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 15 may 2018     **/
+ /**                                 to   : 15 may 2018     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 20 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -71,7 +71,7 @@ Mesh * restrict const       meshptr,              /* Mesh to load     */
+ Geom * restrict const       geomptr,              /* Geometry to load */
+ FILE * const                filesrcptr,           /* Topological data */
+ FILE * const                filegeoptr,           /* No use           */
+-const char * const          dataptr)              /* No use           */
++const char * const          dataptr)              /* Tag value        */
+ {
+   long              habmattag;                    /* Matrix tag number in file                 */
+   long              habmatnum;                    /* Current matrix number                     */
+@@ -91,8 +91,12 @@ const char * const          dataptr)              /* No use           */
+   Gnum              degrmax;                      /* Maximum degree                            */
+   int               c;
+ 
+-  if (((habmattag = atol (dataptr)) == 0) &&      /* Get tag value */
+-      (dataptr[0] != '0') && (dataptr[0] != '\0')) {
++  habmattag = 0;                                  /* Read first matrix by default */
++
++  if ((dataptr != NULL)                   &&      /* If tag value provided */
++      (dataptr[0] != '\0')                &&
++      ((habmattag = atol (dataptr)) == 0) &&      /* Get tag value */
++      (dataptr[0] != '0')) {
+     errorPrint ("meshGeomLoadHabo: bad input (1)");
+     return (1);
+   }
+-- 
+2.47.3
+

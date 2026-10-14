@@ -1,0 +1,5 @@
+Usage is:
+  adm2dgr <input msh file> <out dgr file>
+    -c  : Set the minimum number of shared nodes to define adjacency
+    -h  : Display this help
+    -V  : Print program version and copyright

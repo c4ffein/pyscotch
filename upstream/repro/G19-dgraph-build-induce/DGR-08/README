@@ -1,0 +1,8 @@
+DGR-08: dgraphGhst2() performs the error reduction after a local allocation failure but does not return.
+ghstfi.c: ring, SCOTCH_dgraphGhst() with the fault injector failing its nth allocation on FAILRANK, then SCOTCH_dgraphExit().
+  R=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/repro; S=$R/common/scan.sh
+  pristine: $S /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/pristinefi/lib $R/DGR-08/bin_pristinefi/ghstfi 3 2 0 2 -- 1 4
+     nth=0 exit=139 :: (2): ERROR: dgraphGhst: out of memory (1); fishim: rank 2: signal 11 (memSet on NULL vertsidtab, dgraph_ghst.c:164); r0/r1 ghst rc=1
+     nth=1 exit=139 :: (2): ERROR: dgraphGhst: out of memory (2); signal 11
+  patched:  $S /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/buildfi/lib $R/DGR-08/bin_buildfi/ghstfi 3 2 0 2 -- 1 4 -> nth=0,1: r0,r1,r2 ghst rc=1, exit done (no crash, no double free)
+            $S ... ghstfi 4 0 0 2 -- 0 4 -> same with four ranks. nth=2: ghst rc=0, check rc=0 everywhere.

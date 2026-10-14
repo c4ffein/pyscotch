@@ -1,0 +1,15 @@
+DMO-17 (not a bug; documentation updated): parallel mapping onto non-complete targets reaches a stub
+======================================================================================================
+WORK=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G24-hdgraph
+C=$WORK/repro/common      # mapfi.c: every rank loads the target file itself, then SCOTCH_dgraphMap()
+INFRA=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra
+
+  LD_LIBRARY_PATH=$WORK/build/lib mpirun --oversubscribe -np 2 $C/bin_build/mapfi $WORK/scotch/src/check/data/m16x16.grf $INFRA/asan/tgt/h3.tgt
+  -> (0): ERROR: kdgraphMapRbMap: not implemented yet / rank 0: arch hcub map rc=1 (both ranks, no hang)
+  same with $INFRA/asan/tgt/T3D_64.tgt (torus3D) and with $C/sub.tgt (a 'sub' of a cmplt: 'sub' is ARCHNONE, so it is rejected too)
+  cmplt:5 -> rc=0 on every rank.
+Documentation found stale: doc/src/ptscotch/p_l.tex:2933-2935 and :2977-2979 ("version 6.0 ... will be removed in the next release"),
+man/man1/dgmap.1(.txt) NOTE ("version 5.1", 'wcmplt' is not an architecture name). Fixed by patches/0007 (text only).
+Side finding (PS2-G24-2, tools, not patched): `dgmap graph.grf h3.tgt out.map` with np >= 2 fails with
+"dgmap(1): ERROR: main: target architecture file not provided" because fileBlockOpenDist() removes the centralized target stream on
+non-root processes; there is no check_prog_dgmap target in src/check/Makefile.

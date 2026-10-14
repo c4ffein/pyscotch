@@ -1,0 +1,52 @@
+From d6bcf9c803e2f0030d025ac636e1a4ad1d5233ea Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:20:25 +0000
+Subject: [PATCH 10/11] Bugfix: do not copy a folded multinode array that does
+ not exist in `SCOTCH_dgraphCoarsen()` [report R. Perry]
+
+When folding was requested along with a user-provided multinode array,
+`SCOTCH_dgraphCoarsen()` copied the folded multinode array into the
+user array even when no such array existed: on the processes that sent
+their vertices away, which copied zero bytes from a NULL pointer, and
+when the graph could not be coarsened or an error occurred, which
+copied a non-zero number of bytes from a NULL pointer and crashed.
+
+Refs: API-15
+---
+ src/libscotch/library_dgraph_coarsen.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/src/libscotch/library_dgraph_coarsen.c b/src/libscotch/library_dgraph_coarsen.c
+index af3ae42..5f006f4 100644
+--- a/src/libscotch/library_dgraph_coarsen.c
++++ b/src/libscotch/library_dgraph_coarsen.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2011,2012,2014,2018-2020,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2011,2012,2014,2018-2020,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 11 sep 2012     **/
+ /**                                 to   : 25 apr 2018     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 12 aug 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -149,8 +149,9 @@ SCOTCH_Num * const          multloctab)           /* Pointer to multinode array
+     if (multlocptr != NULL)                       /* If coarsening (and folding) went well          */
+       memFree (multlocptr);                       /* Free allocated multinode array (folded or not) */
+   }
+-  else {                                          /* User provided a multinode array                */
+-    if (foldval != DGRAPHCOARSENNONE) {           /* If folding took place, user array was not used */
++  else {                                          /* User provided a multinode array                                 */
++    if ((foldval != DGRAPHCOARSENNONE) &&         /* If folding took place, user array was not used                  */
++        (multlocptr != NULL)) {                   /* If folded multinode array exists: not on error nor on senders   */
+ #ifdef SCOTCH_DEBUG_LIBRARY2
+       SCOTCH_Num          multlocsiz;             /* Size that the user may have reserved for the multinode folded array */
+ 
+-- 
+2.47.3
+

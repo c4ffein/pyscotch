@@ -1,0 +1,11 @@
+COR-01: NULL dereference in the PARAMVAL error action after a syntax error inside a nested strategy.
+  cd ../common; export UBSAN_OPTIONS=print_stacktrace=1
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'r{sep=m{asc=b{:width=3}}}'
+    pristine: 'ERROR: stratParserParse: invalid strategy string, line 1, column 15, at ":width=3}}}"' then
+              'parser_yy.y:485:45: runtime error: member access within null pointer of type const struct StratParamTab' + ASan SEGV
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'r{sep=m{asc=(b{width=3}|'      -> SEGV at parser_yy.y:485:72 (straptr NULL)
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'r{sep=m{asc=b{bnd=f,org=f},low=h{:}}}'  -> SEGV (paraptr NULL)
+  LD_LIBRARY_PATH=$WORK/build/lib ./st_pristine 'r{sep=m{asc=b{:width=3}}}'
+    patched: 'invalid strategy string, line 1, column 15, at ":width=3}}}"' then
+             'invalid value for parameter "asc" of method "m", line 1, column 13, before "b{:width=3}}}"', ret=1, no sanitizer output
+  Regression test: src/check/test_strat_seq.c (stratbadtab[0]); fuzz: see ../common/README (185 NULL-deref hits on pristine, 0 patched).

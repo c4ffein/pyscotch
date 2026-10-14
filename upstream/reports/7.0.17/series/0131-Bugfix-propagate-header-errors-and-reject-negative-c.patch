@@ -1,0 +1,82 @@
+From 8864742fb0ef2715c6d04c523d019ac130df5b0d Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:48:41 +0000
+Subject: [PATCH 131/240] Bugfix: propagate header errors and reject negative
+ counts in distributed graph loaders [report R. Perry]
+
+`dgraphLoadCent()` set the local flag `cheklocval` on a header error but
+broadcast `reduglbtab[0]`, which stayed zero, so every process went on
+with garbage header values; a property value outside 0..111 then reached
+`sprintf (proptab, "%3.3d", ...)` and overflowed the four-byte `proptab`
+on every process. Set `reduglbtab[0]`, the field that is actually
+broadcast, so the error is seen by all processes before the format.
+
+Neither loader checked the file-controlled vertex and edge counts for
+negativity, so a negative count led to a huge `memAlloc()` (and, when one
+process aborted and the others did not, to a deadlock). Reject negative
+global and local counts in both `dgraphLoadCent()` and `dgraphLoadDist()`,
+as `graphLoad()` does for the centralized format.
+
+Refs: DGR-03
+---
+ src/libscotch/dgraph_io_load.c | 20 +++++++++++++-------
+ 1 file changed, 13 insertions(+), 7 deletions(-)
+
+diff --git a/src/libscotch/dgraph_io_load.c b/src/libscotch/dgraph_io_load.c
+index dd4540c..32abbfc 100644
+--- a/src/libscotch/dgraph_io_load.c
++++ b/src/libscotch/dgraph_io_load.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2009,2012,2023-2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2009,2012,2023-2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -47,7 +47,7 @@
+ /**                # Version 6.0  : from : 25 aug 2012     **/
+ /**                                 to   : 18 nov 2012     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 07 oct 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -217,14 +217,16 @@ const int                   protnum)              /* Root process number
+ 
+   reduglbtab[0] = 0;                              /* Assume everything will be fine */
+   if (fileptr != NULL) {
+-    if ((intLoad (fileptr, &reduglbtab[1]) != 1) || /* Read rest of header */
++    if ((intLoad (fileptr, &reduglbtab[1]) != 1) || /* Read rest of header               */
+         (intLoad (fileptr, &reduglbtab[2]) != 1) ||
+         (intLoad (fileptr, &reduglbtab[3]) != 1) ||
+         (intLoad (fileptr, &reduglbtab[4]) != 1) ||
++        (reduglbtab[1] < 0)                     || /* Neither vertex nor edge counts can be negative */
++        (reduglbtab[2] < 0)                     ||
+         (reduglbtab[4] < 0)                     ||
+         (reduglbtab[4] > 111)) {
+       errorPrint ("dgraphLoadCent: bad input (1)");
+-      cheklocval = 1;
++      reduglbtab[0] = 1;                          /* Propagate error to all processes through broadcast */
+     }
+   }
+ 
+@@ -689,9 +691,13 @@ const GraphLoadFlag         flagval)              /* Graph loading flags
+   o += intLoad (fileptr, &reduloctab[11]);
+   o += intLoad (fileptr, &reduloctab[7]);
+   o += intLoad (fileptr, &reduloctab[9]);
+-  if ((o != 8)            ||
+-      (reduloctab[9] < 0) ||
+-      (reduloctab[9] > 111)) {
++  if ((o != 8)             ||
++      (reduloctab[3]  < 0) ||                     /* Neither vertex nor edge counts can be negative */
++      (reduloctab[5]  < 0) ||
++      (reduloctab[10] < 0) ||
++      (reduloctab[11] < 0) ||
++      (reduloctab[9]  < 0) ||
++      (reduloctab[9]  > 111)) {
+     errorPrint ("dgraphLoadDist: bad input (1)");
+     reduloctab[0] = 2;                            /* Immediate abort has maximum value so as to be propagated by MAX reduce */
+   }
+-- 
+2.47.3
+

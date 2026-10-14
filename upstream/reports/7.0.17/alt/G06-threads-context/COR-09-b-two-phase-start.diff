@@ -1,0 +1,80 @@
+--- a/src/libscotch/common_thread.h
++++ b/src/libscotch/common_thread.h
+@@ -75,6 +75,7 @@
+ #ifdef COMMON_PTHREAD
+   volatile ThreadFunc           funcptr;          /*+ Function to call at run time        +*/
+   volatile int                  barrnbr;          /*+ Number of threads currently blocked +*/
++  volatile int                  strtval;          /*+ Start flag: 0 wait, 1 go, -1 abort  +*/
+   volatile unsigned int         bainnum;          /*+ Number of barrier instance          +*/
+   pthread_mutex_t               lockdat;          /*+ Lock for updating status            +*/
+   pthread_cond_t                conddat;          /*+ Wakeup condition for slave threads  +*/
+--- a/src/libscotch/common_thread.c
++++ b/src/libscotch/common_thread.c
+@@ -116,6 +116,7 @@
+ 
+   contptr->barrnbr = 0;
+   contptr->bainnum = 0;
++  contptr->strtval = 0;                           /* Slave threads wait for start flag */
+   contptr->funcptr = NULL;
+   contptr->paraptr = NULL;
+   contptr->thrdnbr = thrdnbr;
+@@ -141,8 +142,20 @@
+ 
+     if (threadCreate (&desctab[thrdnum], thrdnum, corenum) != 0) {
+       errorPrint ("threadContextInit: cannot create thread (%d)", thrdnum);
+-      contptr->thrdnbr = thrdnum;                 /* Terminate all threads that have been launched to date */
+-      threadContextExit (contptr);
++      pthread_mutex_lock (&contptr->lockdat);
++      contptr->thrdnbr = thrdnum;                 /* Only threads launched to date will acknowledge termination */
++      contptr->strtval = -1;                      /* Tell launched threads to abort                              */
++      pthread_cond_broadcast (&contptr->conddat);
++      pthread_mutex_unlock (&contptr->lockdat);
++      thrdnum --;                                 /* Number of slave threads to wait for */
++      do {                                        /* Spin-lock until all launched slave threads have exited */
++        pthread_mutex_lock (&contptr->lockdat);
++        corenum = contptr->barrnbr;
++        pthread_mutex_unlock (&contptr->lockdat);
++      } while (corenum != thrdnum);
++      pthread_cond_destroy  (&contptr->conddat);
++      pthread_mutex_destroy (&contptr->lockdat);
++      memFree (desctab);
+       return (1);
+     }
+   }
+@@ -151,6 +164,11 @@
+   corenum = (coretab != NULL) ? (coretab[0] % corenbr) : threadProcessCoreNum (contptr, 0);
+   threadCreate (&desctab[0], 0, corenum);         /* Set affinity of local thread (slaves use saved main thread mask) */
+ 
++  pthread_mutex_lock (&contptr->lockdat);
++  contptr->strtval = 1;                           /* All threads created: let them go */
++  pthread_cond_broadcast (&contptr->conddat);
++  pthread_mutex_unlock (&contptr->lockdat);
++
+   threadContextBarrier (contptr);                 /* Ensure all slave threads have started before cleaning-up resources */
+ 
+   memFree (desctab);
+@@ -313,6 +331,16 @@
+ 
+   thrddat = *thrdptr;                             /* Make local copy of thread descriptor before barrier */
+ 
++  pthread_mutex_lock (&thrddat.contptr->lockdat); /* Wait for start flag */
++  while (thrddat.contptr->strtval == 0)
++    pthread_cond_wait (&thrddat.contptr->conddat, &thrddat.contptr->lockdat);
++  if (thrddat.contptr->strtval < 0) {             /* If creation aborted, acknowledge termination and exit */
++    thrddat.contptr->barrnbr ++;
++    pthread_mutex_unlock (&thrddat.contptr->lockdat);
++    return (NULL);
++  }
++  pthread_mutex_unlock (&thrddat.contptr->lockdat);
++
+   threadContextBarrier (thrddat.contptr);         /* Wait for all threads to complete initialization */
+ 
+   while (1) {
+@@ -588,6 +616,7 @@
+   contptr->funcptr = NULL;
+   contptr->barrnbr = 0;
+   contptr->bainnum = 0;
++  contptr->strtval = 1;                           /* Imported threads need not wait */
+ 
+   if (thrdnbr == 1) {                             /* If no threads wanted       */
+     contptr->statval = THREADCONTEXTSTATUSDWN;    /* Do not start thread system */

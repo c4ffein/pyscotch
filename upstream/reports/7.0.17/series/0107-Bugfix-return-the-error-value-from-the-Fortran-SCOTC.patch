@@ -1,0 +1,64 @@
+From 0b2e9b4912c7ee962eebc9fdf7a9e2e74bcb7bd8 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:35:47 +0000
+Subject: [PATCH 107/240] Bugfix: return the error value from the Fortran
+ `SCOTCHFDGRAPHMAPSTAT` wrapper [report R. Perry]
+
+The wrapper did not have the trailing "ierr" parameter documented in the
+PT-Scotch user's manual, and discarded the return value of
+`SCOTCH_dgraphMapStat()`. Fortran callers written from the manual passed
+an extra argument that was never written.
+
+Refs: API-11
+---
+ src/libscotch/library_dgraph_map_stat_f.c | 21 +++++++++++----------
+ 1 file changed, 11 insertions(+), 10 deletions(-)
+
+diff --git a/src/libscotch/library_dgraph_map_stat_f.c b/src/libscotch/library_dgraph_map_stat_f.c
+index bb844c0..fd8e8e6 100644
+--- a/src/libscotch/library_dgraph_map_stat_f.c
++++ b/src/libscotch/library_dgraph_map_stat_f.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -41,7 +41,7 @@
+ /**                of the libSCOTCH library.               **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 10 sep 2024     **/
+-/**                                 to   : 19 sep 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -81,16 +81,17 @@ SCOTCH_Num * const            cdstmaxptr,   \
+ SCOTCH_Num                    cdsttab[256], \
+ SCOTCH_Num * const            cmlosumptr,   \
+ SCOTCH_Num * const            cmdisumptr,   \
+-SCOTCH_Num * const            cmexsumptr),  \
++SCOTCH_Num * const            cmexsumptr,   \
++int * const                   revaptr),     \
+ (grafptr, mapptr, tgtnbrptr,                \
+  mapnbrptr, mapminptr, mapmaxptr,           \
+- mapavgptr, mapdltptr,		            \
++ mapavgptr, mapdltptr,                      \
+  ngbsumptr, ngbminptr, ngbmaxptr,           \
+- cdstmaxptr, cdsttab, cmlosumptr, cmdisumptr, cmexsumptr))
++ cdstmaxptr, cdsttab, cmlosumptr, cmdisumptr, cmexsumptr, revaptr))
+ {
+-  SCOTCH_dgraphMapStat (grafptr, mapptr, tgtnbrptr,
+-                        mapnbrptr, mapminptr, mapmaxptr, mapavgptr, mapdltptr,
+-                        ngbsumptr, ngbminptr, ngbmaxptr,
+-                        cdstmaxptr, cdsttab,
+-                        cmlosumptr, cmdisumptr, cmexsumptr);
++  *revaptr = SCOTCH_dgraphMapStat (grafptr, mapptr, tgtnbrptr,
++                                   mapnbrptr, mapminptr, mapmaxptr, mapavgptr, mapdltptr,
++                                   ngbsumptr, ngbminptr, ngbmaxptr,
++                                   cdstmaxptr, cdsttab,
++                                   cmlosumptr, cmdisumptr, cmexsumptr);
+ }
+-- 
+2.47.3
+

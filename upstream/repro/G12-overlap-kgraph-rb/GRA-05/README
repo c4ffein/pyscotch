@@ -1,0 +1,10 @@
+GRA-05: band graph anchors' old parts uninitialized when remapping onto more parts. usage: gra05 oldnbr newnbr [strategy]
+ST='r{sep=h{pass=10}}b{width=3,bnd=f{move=100,pass=-1,bal=0.05},org=f{move=100,pass=-1,bal=0.05}}'
+Pristine (INFRA/asan/lib):
+  ./gra05.32 2 8 "$ST" -> AddressSanitizer: SEGV ... #0 _SCOTCHarchCmpltDomIncl arch_cmplt.c #1 kgraphMapFmPartAdd kgraph_map_fm.c
+  ./gra05.32 2 3 "$ST" -> SEGV ; 8 2, 4 4, 1 16 -> ret=0 (anchor entries overwritten later or by luck)
+Patched (../build/lib): 2 8, 2 3, 4 4, 1 16 -> ret=0 ; 8 2 -> ret=1 "mapBuild3: invalid terminal array" (GRA-23: 8 old parts on cmplt(2) is invalid input)
+Note: the crash depends on memory contents (ASan fills the first 4096 bytes of a block with 0xbe); larger band graphs
+(e.g. bump_imbal_32, 9800 vertices) do not crash but use whatever is in memory as old part of the anchors.
+Regression test added to check_prog_gpart_remap (Makefile + CMake): gpart 2 m16x16 -> gpart 4 m16x16 -ro<that map> with a band strategy;
+  pristine gpart (ASan): SEGV in archCmpltDomIncl ; patched: passes.

@@ -1,0 +1,8 @@
+DGR-15  dmeshLoadAdm leaks prelvrttab (stored but only DMESHFREETABS set; freed only under DMESHFREEPRIV).
+Driver dmloadonly (load mesh only, then dmeshExit), LeakSanitizer.
+  cp first-pass good.adm here (version-3, np=1).
+PRISTINE ($WORK/pristine):
+  LD_LIBRARY_PATH=$WORK/pristine/lib ASAN_OPTIONS=detect_leaks=1 \
+    mpirun --oversubscribe -np 1 ../common/bin_pristine/dmloadonly good.adm
+  => LeakSanitizer: direct leak allocated from dmeshLoadAdm dmesh_io_load.c:271.
+PATCHED ($WORK/build): no dmeshLoadAdm leak frame.

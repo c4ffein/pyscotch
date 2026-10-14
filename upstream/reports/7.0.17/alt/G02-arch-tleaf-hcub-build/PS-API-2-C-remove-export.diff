@@ -1,0 +1,105 @@
+diff --git a/doc/src/scotch/s_l.tex b/doc/src/scotch/s_l.tex
+index 31ddfd5..ebe3f1d 100644
+--- a/doc/src/scotch/s_l.tex
++++ b/doc/src/scotch/s_l.tex
+@@ -2161,51 +2161,6 @@ hypercube graph architecture of dimension {\tt hdimval}.
+ architecture has been successfully built, and $1$ else.
+ \end{itemize}
+ 
+-\subsubsection{{\tt SCOTCH\_archLtleaf}}
+-
+-\begin{itemize}
+-\progsyn
+-
+-{\tt\begin{tabular}{l@{}ll}
+-int SCOTCH\_archLtleaf ( & SCOTCH\_Arch *      & archptr, \\
+-                         & const SCOTCH\_Num   & levlnbr, \\
+-                         & const SCOTCH\_Num * & sizetab, \\
+-                         & const SCOTCH\_Num * & linktab, \\
+-                         & const SCOTCH\_Num   & permnbr, \\
+-                         & const SCOTCH\_Num * & permtab)
+-\end{tabular}}
+-
+-{\tt\begin{tabular}{l@{}ll}
+-scotchfarchltleaf ( & doubleprecision (*)    & archdat, \\
+-                    & integer*{\it num}      & levlnbr, \\
+-                    & integer*{\it num} (*)  & sizetab, \\
+-                    & integer*{\it num} (*)  & linktab, \\
+-                    & integer*{\it num}      & permnbr, \\
+-                    & integer*{\it num} (*)  & permtab, \\
+-                    & integer                & ierr)
+-\end{tabular}}
+-
+-\progdes
+-
+-The {\tt SCOTCH\_archLtleaf} routine fills the {\tt SCOTCH\_\lbt Arch}
+-structure pointed to by {\tt archptr} with the description of a
+-labeled, tree-shaped, hierarchical graph architecture with
+-$\sum_{i=0}^{\mathtt{levlnbr}-1}\mathtt{sizetab}\mbox{\tt [}i\mbox{\tt ]}$
+-processors. Level $0$ is the root of the tree. For each level $i$,
+-with $0 \leq i < \mathtt{levlnbr}$, $\mathtt{sizetab}\mbox{\tt [}i\mbox{\tt
+-]}$ is the number of childs at level $(i+1)$ of each node at level $i$,
+-and {\tt linktab[}$i${\tt ]} is the cost of communication between
+-processors the first common ancestor of which belongs to this
+-level. See Section~\ref{sec-file-target-algo},
+-page~\pageref{sec-file-target-ltleaf}, for an example of this
+-architecture.
+-
+-\progret
+-
+-{\tt SCOTCH\_archLtleaf} returns $0$ if the labeled tree-leaf target
+-architecture has been successfully built, and $1$ else.
+-\end{itemize}
+-
+ \subsubsection{{\tt SCOTCH\_archMesh2}}
+ 
+ \begin{itemize}
+diff --git a/src/libscotch/library_arch.c b/src/libscotch/library_arch.c
+index 9c1fc3a..4393bc3 100644
+--- a/src/libscotch/library_arch.c
++++ b/src/libscotch/library_arch.c
+@@ -530,44 +530,6 @@ const SCOTCH_Num * const    linktab)              /*+ Link cost array, by increa
+ **
+ */
+ 
+-int
+-SCOTCH_archLtleaf (
+-SCOTCH_Arch * const         archptr,
+-const SCOTCH_Num            levlnbr,              /*+ Number of levels in architecture            +*/
+-const SCOTCH_Num * const    sizetab,              /*+ Size array, by increasing level number      +*/
+-const SCOTCH_Num * const    linktab,              /*+ Link cost array, by increasing level number +*/
+-const SCOTCH_Num            permnbr,              /*+ Number of permutation indices               +*/
+-const SCOTCH_Num * const    permtab)              /*+ Permutation array                           +*/
+-{
+-  Anum                permnum;
+-  Arch *              tgtarchptr;
+-  ArchTleaf *         tgtarchdatptr;
+-
+-  if (SCOTCH_archTleaf (archptr, levlnbr, sizetab, linktab) != 0) /* Build tree part */
+-    return (1);
+-  tgtarchptr          = (Arch *) archptr;
+-  tgtarchdatptr       = (ArchTleaf *) (void *) (&tgtarchptr->data);
+-  tgtarchptr->clasptr = archClass ("ltleaf");     /* Override class */
+-
+-  if ((tgtarchdatptr->permtab = memAlloc (permnbr * 2 * sizeof (Anum))) == NULL) { /* TRICK: space for peritab too */
+-    errorPrint (STRINGIFY (SCOTCH_archLtleaf) ": out of memory");
+-    return (1);
+-  }
+-  tgtarchdatptr->permnbr = (Anum) permnbr;
+-  tgtarchdatptr->peritab = tgtarchdatptr->permtab + permnbr;
+-
+-  for (permnum = 0; permnum < tgtarchdatptr->permnbr; permnum ++)
+-    tgtarchdatptr->permtab[permnum] = permtab[permnum];
+-  for (permnum = 0; permnum < tgtarchdatptr->permnbr; permnum ++) /* Build inverse permutation */
+-    tgtarchdatptr->peritab[tgtarchdatptr->permtab[permnum]] = permnum;
+-
+-  return (0);
+-}
+-
+-/*
+-**
+-*/
+-
+ int
+ SCOTCH_archTorus2 (
+ SCOTCH_Arch * const         archptr,

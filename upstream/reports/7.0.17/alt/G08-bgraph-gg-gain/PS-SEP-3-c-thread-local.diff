@@ -1,0 +1,12 @@
+diff -ru a/src/libscotch/gain.c b/src/libscotch/gain.c
+--- a/src/libscotch/gain.c	2026-10-13 09:20:18.838253611 +0000
++++ b/src/libscotch/gain.c	2026-10-13 09:20:18.838253611 +0000
+@@ -73,7 +73,7 @@
+ **  The static variables.
+ */
+ 
+-static GainLink             gainLinkDummy;        /*+ Dummy link space for fast linked list operations +*/
++static _Thread_local GainLink gainLinkDummy;      /*+ Dummy link space for fast linked list operations, one per thread +*/
+ 
+ /*************************************************/
+ /*                                               */

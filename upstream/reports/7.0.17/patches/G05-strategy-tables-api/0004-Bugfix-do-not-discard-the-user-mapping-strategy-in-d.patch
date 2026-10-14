@@ -1,0 +1,60 @@
+From 02fa9fcd4a1c66b3a6631cd7f8b2c61809851bfe Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:06:25 +0000
+Subject: [PATCH 4/7] Bugfix: do not discard the user mapping strategy in
+ `dgmap'/`dgpart' [report R. Perry]
+
+The `-m' option parsed the user strategy into `stradat' with
+`SCOTCH_stratDgraphMap()', but `SCOTCH_stratDgraphMapBuild()' (or
+`...ClusterBuild()') was then called unconditionally, and both end in
+`SCOTCH_stratDgraphMap()', which frees the current strategy before reparsing
+the default. Every `-m' strategy was thus silently replaced by the default, and
+the `-b'/`-c' versus `-m' exclusivity check had no effect on the result.
+
+Build the default strategy only when no `-m' string was given, as `gmap' and
+`dgord' already do. `dgmap.c' is shared by both `dgmap' and `dgpart'.
+
+Refs: CLI-01
+---
+ src/scotch/dgmap.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/src/scotch/dgmap.c b/src/scotch/dgmap.c
+index 46175d6..af05266 100644
+--- a/src/scotch/dgmap.c
++++ b/src/scotch/dgmap.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2008-2012,2014,2018-2021,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2008-2012,2014,2018-2021,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**                # Version 6.0  : from : 01 jan 2012     **/
+ /**                                 to   : 17 apr 2019     **/
+ /**                # Version 7.0  : from : 03 sep 2020     **/
+-/**                                 to   : 07 oct 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -388,10 +388,12 @@ char *                      argv[])
+   if (((straval != 0) || ((flagval & C_FLAGKBALVAL) != 0)) && (straptr != NULL))
+     errorPrint ("main: options '-b' / '-c' and '-m' are exclusive");
+ 
+-  if ((flagval & C_FLAGCLUSTER) != 0)             /* If clustering wanted */
+-    SCOTCH_stratDgraphClusterBuild (&stradat, straval, (SCOTCH_Num) procglbnbr, (SCOTCH_Num) C_partNbr, 1.0, kbalval);
+-  else
+-    SCOTCH_stratDgraphMapBuild (&stradat, straval, (SCOTCH_Num) procglbnbr, (SCOTCH_Num) C_partNbr, kbalval);
++  if (straptr == NULL) {                          /* If no user strategy was provided, build a default one */
++    if ((flagval & C_FLAGCLUSTER) != 0)           /* If clustering wanted */
++      SCOTCH_stratDgraphClusterBuild (&stradat, straval, (SCOTCH_Num) procglbnbr, (SCOTCH_Num) C_partNbr, 1.0, kbalval);
++    else
++      SCOTCH_stratDgraphMapBuild (&stradat, straval, (SCOTCH_Num) procglbnbr, (SCOTCH_Num) C_partNbr, kbalval);
++  }
+ 
+   SCOTCH_contextBindDgraph (&contdat, &grafdat, &cogrdat);
+ 
+-- 
+2.47.3
+

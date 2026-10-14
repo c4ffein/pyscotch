@@ -1,0 +1,14 @@
+DMO-06: leaf ordering status dropped  (patches/0002)
+=====================================================
+Rank 0's allocation #76 (np 3, m16x16.grf, default strategy) is the periloctab of hdgraphOrderSi2() for a leaf of the nested dissection.
+base, mode rc:   $C/one.sh $WORK/basefi/lib $C/bin_basefi/orderfi 3 0 76 rc
+  -> (0): ERROR: hdgraphOrderSi2: out of memory; rank 0: order rc=1 ... HANG: ranks 1 and 2 never return from
+     SCOTCH_dgraphOrderCompute() (they wait in the next collective of the nested dissection that rank 0 never enters).
+base, mode user/all: HANG likewise.
+patched, mode rc:  $C/one.sh $WORK/buildfi/lib $C/bin_buildfi/orderfi 3 0 76 rc
+  -> rank 0/1/2: order rc=1 (hdgraphOrderSi2 agrees, hdgraphOrderNd2 returns the leaf status, hdgraphOrderNd agrees), 0 live blocks.
+patched, mode all (calls Perm and Save although rc=1 on every rank): perm rc=0 on every rank (identity: no fragment), then
+  SCOTCH_dgraphOrderSave() hangs: the root waits for a fragment nobody holds (dorder_io.c, G23's file): recorded as PS2-G24-3.
+The review's own downstream claims could not be observed on the base because OrderCompute itself hangs there.
+The empty-strategy site (hdgraph_order_st.c STRATNODEEMPTY) is the same defect; it is exercised by the leaf strategy "ole=s"
+of the default strategy? No: default uses 's' as a method node, not an empty strategy. Source-read for that site.

@@ -1,0 +1,296 @@
+[
+ {
+  "local_id": "PS2-G15-6",
+  "our_title": "gotst ignores SCOTCH_graphOrderLoad() status (forwarded from G15)",
+  "severity": "info",
+  "status": "not-a-bug",
+  "method": "ran",
+  "ran": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/repro/PS2-G15-6/README: `gotst p.grf bad.ord /dev/null` (pristine and patched, 32/64) -> `gotst: ERROR: orderLoad: bad input (3)`, rc=1; nothing runs after the failed load.",
+  "read_only": "order_io.c orderLoad(): every `return (1)` is preceded by errorPrint (lines 14-47 of the routine, incl. G15's new checks); library_graph_order.c SCOTCH_graphOrderLoad() only forwards that status.",
+  "why_not_run": "",
+  "location_7_0_17": "src/scotch/gotst.c:167; src/scotch/Makefile:38 `LIBSCOTCH = -lscotch -lscotcherrexit`; src/scotch/CMakeLists.txt:74 `target_link_libraries(... scotch scotcherrexit)`",
+  "evidence": "gotst.c:167 `SCOTCH_graphOrderLoad (&grafdat, &ordedat, C_filepntrordinp);` unchecked, but all Scotch programs link libscotcherrexit whose SCOTCH_errorPrint() ends with `exit (EXIT_FAILURE);` (library_error_exit.c:142), and every failure path of orderLoad() calls errorPrint() first. No tool checks SCOTCH_graphLoad() either (amk_grf.c:172, gout_c.c:206, gbase.c:145, gotst.c:155, gmtst.c:149, gmap.c:369, gord.c:246): this is the tools' design. G15 saw the program continue because its harness was linked with libscotcherr.",
+  "related_ids": [
+   "GRA-03",
+   "PS2-G15-6"
+  ],
+  "fix_options": [
+   {
+    "label": "b. Leave as is (shipped: no patch)",
+    "summary": "Design of the programs: library errors exit through libscotcherrexit.",
+    "diff_file": "",
+    "tested": "ran (see above)",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "He relies on it everywhere in src/scotch."
+   },
+   {
+    "label": "a. Check the status (G15's diff)",
+    "summary": "`if (SCOTCH_graphOrderLoad (...) != 0) errorPrint (\"main: cannot load ordering\");`",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/PS2-G15-6-a-gotst-check-load-status.diff",
+    "tested": "untested: harmless hardening only (unreachable with libscotcherrexit).",
+    "tradeoffs": "Would only matter if a tool were relinked against libscotcherr.",
+    "preferred": false,
+    "maintainer_fit": "Harmless, inconsistent with the other load calls he leaves unchecked."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G27-1",
+  "our_title": "archDecoArchBuild() ignores archDecoArchBuild2()'s status: SCOTCH_archBuild0() returns 0 with an empty architecture",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/repro/PS2-G27-1/README: pristine api_list d (duplicate list {1,1,2}) -> `ERROR: archDecoArchBuild2: bad terminal count`, `archBuild0 dup list: 0`, archSave writes `deco\\n1\\n0\\t0`. Patched: returns 1.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/arch_deco_build.c:356",
+  "evidence": "arch_deco_build.c:356 `archDecoArchBuild2 ((ArchDeco *) (void *) &tgtarchptr->data, termdomnbr, termdommax, termverttab, termdisttab);` then `return (0);` at :362; archDecoArchBuild2() returns 1 after `bad maximum terminal`, `bad terminal count`, `terminal domain is not a leaf`, `invalid null distance` (arch_deco.c:138-203) and has freed the body with archDecoArchFree() (fields set to NULL, so a later archExit is safe).",
+  "related_ids": [
+   "CLI-11",
+   "COR-16"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Return archDecoArchBuild2()'s status (shipped)",
+    "summary": "`o = archDecoArchBuild2 (...); ... return (o);`",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0010-Bugfix-propagate-archDecoArchBuild2-status-in-archDe.patch",
+    "tested": "api_list d on 32/64; check_scotch_arch*, check_prog_amk_grf, whole check.",
+    "tradeoffs": "Callers now see the failure; the body is left as archDecoArchBuild2() leaves it (class set, NULL tables), which archExit() handles.",
+    "preferred": true,
+    "maintainer_fit": "Same as G03's `propagate archDecoArchBuild2's result` in archDecoArchLoad (804d101)."
+   },
+   {
+    "label": "b. Also reset the architecture body on failure",
+    "summary": "errorPrint + archInit (tgtarchptr) before returning 1.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/PS2-G27-1-b-reset-architecture-on-failure.diff",
+    "tested": "untested: not built.",
+    "tradeoffs": "Mirrors d555f2c's memSet after a failed load, but archDecoArchFree() already leaves a safe body.",
+    "preferred": false,
+    "maintainer_fit": "Extra lines he does not need."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0010-Bugfix-propagate-archDecoArchBuild2-status-in-archDe.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G27-2",
+  "our_title": "gout Inventor and VTK writers leak their index array when there is nothing to draw",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/repro/PS2-G27-2/README: pristine `ASAN_OPTIONS=detect_leaks=1 gout v1.grf v1.xyz /dev/null /dev/null -mn -Oi` (1 vertex, no edge) -> `LeakSanitizer: detected memory leaks` (memAllocGroup in outDrawInvMesh); same with -Ov. Patched: none.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/scotch/gout_o.c:366-367, :1153-1154",
+  "evidence": "gout_o.c:366 `if (indxnbr == 0)                               /* If nothing to write */` :367 `return (0);` before `memFree (indxtab)` at :412; same at :1153 / :1195.",
+  "related_ids": [
+   "CLI-12"
+  ],
+  "fix_options": [
+   {
+    "label": "a. memFree before the early return (shipped)",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0009-Bugfix-free-index-array-when-there-is-nothing-to-dra.patch",
+    "tested": "LSan run 32-bit; check_prog_gout 32/64.",
+    "tradeoffs": "3 lines x 2.",
+    "preferred": true,
+    "maintainer_fit": "His early-return cleanups look like this (e.g. graph_io.c error paths)."
+   },
+   {
+    "label": "b. goto skip to the single memFree",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/PS2-G27-2-b-goto-skip-inventor.diff",
+    "tested": "untested: not built.",
+    "tradeoffs": "Single exit but a label for one line of cleanup.",
+    "preferred": false,
+    "maintainer_fit": "Guide 2.1.3 reserves goto for duplicated long blocks."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0009-Bugfix-free-index-array-when-there-is-nothing-to-dra.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G27-3",
+  "our_title": "SCOTCH_graphInduceList() public API never range-checks its vertex list",
+  "severity": "high",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/repro/CLI-11/README api_list i: pristine -> `AddressSanitizer: heap-buffer-overflow WRITE ... graphInduceList graph_induce.c:137 ... SCOTCH_graphInduceList library_graph_induce.c:90`; patched -> `ERROR: graphInduceList: invalid vertex list`, return 1.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/library_graph_induce.c:90; src/libscotch/graph_induce.c:137",
+  "evidence": "library_graph_induce.c:90 `o = graphInduceList (srcorggrafptr, (const Gnum) vnumnbr, (const Gnum * restrict const) vnumtab, srcindgrafptr);` with no test of vnumtab contents; graph_induce.c:137 `orgindxtax[orgvertnum] = indvertnum;`.",
+  "related_ids": [
+   "CLI-11"
+  ],
+  "fix_options": [
+   {
+    "label": "b. Unconditional check in graphInduceList() (shipped, patch 0001)",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0001-Bugfix-check-vertex-list-contents-in-graphInduceList.patch",
+    "tested": "see CLI-11",
+    "tradeoffs": "see CLI-11",
+    "preferred": true,
+    "maintainer_fit": "see CLI-11"
+   },
+   {
+    "label": "c. SCOTCH_DEBUG_LIBRARY2 check in the wrapper",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/alt/CLI-11-c-debug-only-list-checks.diff",
+    "tested": "untested",
+    "tradeoffs": "release builds unprotected",
+    "preferred": false,
+    "maintainer_fit": "his SCOTCH_graphOrderComputeList idiom"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/patches/0001-Bugfix-check-vertex-list-contents-in-graphInduceList.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G27-4",
+  "our_title": "gout Tulip writer emits based vertex numbers as node ids (base-dependent but valid output)",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G27-seq-tools/repro/CLI-12/README: -Ot outputs for g0/g1 differ in every node/edge id by +1 (`(nodes 1 2 ...)`, `(edge 0 1 2)`), both files are valid and self-consistent.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/scotch/gout_o.c:944-947, :960-963, :973-979, :989-995, :1030-1032",
+  "evidence": "gout_o.c:944 `for (vertnum = baseval; vertnum < (vertnnd - 1); vertnum ++) fprintf (fileptr, SCOTCH_NUMSTRING \"%c\", vertnum, ...` -- ids = based numbers, unlike the Inventor/VTK writers which un-base.",
+  "related_ids": [
+   "CLI-12"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Leave (shipped: no patch)",
+    "summary": "Not a wrong result; changing it alters existing base-1 Tulip files.",
+    "diff_file": "",
+    "tested": "ran",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "Design decision for the maintainer."
+   },
+   {
+    "label": "b. Un-base ids (vertnum - baseval) in the five fprintf calls",
+    "summary": "Makes Tulip output base-independent like Inventor/VTK.",
+    "diff_file": "",
+    "tested": "untested: not written (10-token change)",
+    "tradeoffs": "Changes output of existing users with base-1 graphs.",
+    "preferred": false,
+    "maintainer_fit": "Only if he wants all writers base-independent."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G27-5",
+  "our_title": "gout man page and usage do not document the VTK output type (-Ov) (G28 owns man pages)",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "man/man1/gout.1.txt OPTIONS lists i, m, p, t only; src/check uses '-Ov{r}'/'-Ov{v}' (Makefile:756-757).",
+  "why_not_run": "documentation only",
+  "location_7_0_17": "man/man1/gout.1.txt:38-93; src/scotch/gout_o.c:92-99 O_outList (VtkMesh, codes 'v')",
+  "evidence": "gout.1.txt option list ends with `t  Tulip 3D mesh file`; gout_o.c:97 `{ \"v\", O_OUTTYPEVTKMESH }` and O_outArg entries for v {r,v}.",
+  "related_ids": [
+   "CLI-12"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Add a `v  VTK unstructured-grid file` paragraph (r/v parameters) to gout.1.txt and the usage list",
+    "summary": "",
+    "diff_file": "",
+    "tested": "untested: not written, man pages are G28's files",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "He updates docs when behaviour is documented (STYLE)."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G27-6",
+  "our_title": "CMake twin of check_prog_gmk drifted from the Makefile (missing -e cases)",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "src/check/Makefile:669-672 vs src/check/CMakeLists.txt:517-523",
+  "why_not_run": "test-list comparison only",
+  "location_7_0_17": "src/check/CMakeLists.txt:517-523",
+  "evidence": "Makefile has `gmk_m2 -b1 -e 5 4 -g/dev/null`, `gmk_m2 -b1 -e -t 5 2`, `gmk_m2 -b1 -e -t 5 1`; CMake has `gmk_m2_b1` = `-b1 5 4 -g`, `gmk_m2_b1_t` = `-b1 -t 5 1`, no `-e -t 5 2`.",
+  "related_ids": [
+   "CLI-18"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Align CMake cases with the Makefile (not done: unrelated to the defect; the four new cases were added to both)",
+    "summary": "",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "test-infra cleanup"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G27-7",
+  "our_title": "mord/mesh_induce_sepa.c: UBSan shift exponent 48 too large for 32-bit unsigned (64-bit Gnum build, seen in make check; other group's file)",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "64-bit whole `make check` log (tmp_64/check_all.log:1184,1197): `../../bin/mord data/ship001.msh | ../../bin/gotst ...` -> `mesh_induce_sepa.c:160:45: runtime error: shift exponent 48 is too large for 32-bit type 'unsigned int'` and :161:38. Not seen in the 32-bit run.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/mesh_induce_sepa.c:160-161",
+  "evidence": "shift of an `unsigned int` constant by a Gnum-sized amount (hash mask computation); file belongs to the mesh groups (G10/G11), reported only.",
+  "related_ids": [],
+  "fix_options": [
+   {
+    "label": "a. Shift a Gnum-typed value (as upstream 6a00c51 did for bit sets)",
+    "summary": "",
+    "diff_file": "",
+    "tested": "untested: other group's file",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "same pattern as 6a00c51"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G27-8",
+  "our_title": "No Scotch program checks SCOTCH_graphLoad()'s status (by design: libscotcherrexit)",
+  "severity": "info",
+  "status": "not-a-bug",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "src/scotch/*.c grep `SCOTCH_graphLoad (`: 7 unchecked calls; src/scotch/Makefile:37-38 link with lib(pt)scotcherrexit.",
+  "why_not_run": "design observation",
+  "location_7_0_17": "src/scotch/amk_grf.c:172, gout_c.c:206, gbase.c:145, gotst.c:155, gmtst.c:149, gmap.c:369, gord.c:246",
+  "evidence": "see PS2-G15-6",
+  "related_ids": [
+   "PS2-G15-6"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Leave (shipped: no patch)",
+    "summary": "",
+    "diff_file": "",
+    "tested": "",
+    "tradeoffs": "",
+    "preferred": true,
+    "maintainer_fit": "his design"
+   }
+  ],
+  "patch_files": []
+ }
+]

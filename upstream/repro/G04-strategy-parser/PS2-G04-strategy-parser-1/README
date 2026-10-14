@@ -1,0 +1,4 @@
+PS2-G04-strategy-parser-1: a strategy parameter given twice leaks the first sub-strategy.
+  cd ../common
+  LD_LIBRARY_PATH=$INFRA/asan/lib ./st_pristine 'm{asc=b{bnd=f,org=f},asc=b{bnd=f,org=f}}'  -> ret=0 + 'Direct leak of 104 byte(s) ... parser_yy.y:288' (+ indirect)
+  LD_LIBRARY_PATH=$WORK/build/lib ./st_pristine 'm{asc=b{bnd=f,org=f},asc=b{bnd=f,org=f}}'   -> ret=0, no leak

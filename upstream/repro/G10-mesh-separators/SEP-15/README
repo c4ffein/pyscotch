@@ -1,0 +1,16 @@
+SEP-15 and SEP-22 (mesh part): error paths of hmeshOrderNd / meshInduceSepa, proven with malloc fault injection
+Build (non-exiting error library): ./common/build_err.sh $INFRA/asan SEP-02/sep02.c SEP-02/sep02_errp ; ./common/build_err.sh $WORK/build SEP-02/sep02.c SEP-02/sep02_err
+Scan (single thread so that allocation indices replay):
+  export SCOTCH_PTHREAD_NUMBER=1
+  ./common/failscan.sh ./SEP-02/sep02_errp 30 2 0 > SEP-15/scan_pristine_sep02.txt   (617 allocations, 184 runs with findings)
+  ./common/failscan.sh ./SEP-02/sep02_err  30 2 0 > SEP-15/scan_patched_sep02.txt    (617 allocations, 52 runs with findings)
+Pristine replay of the two defects:
+  FAIL_NTH=206 LD_PRELOAD=common/failmalloc.so ASAN_OPTIONS=verify_asan_link_order=0 ./SEP-02/sep02_errp 30 2 0
+    ERROR: meshInduceSepa: out of memory (2) / ERROR: hmeshOrderNd: cannot build induced subgraph (1)
+    AddressSanitizer: attempting free on address which was not malloc()-ed ... #1 _SCOTCHhmeshOrderNd hmesh_order_nd.c:215
+  FAIL_NTH=214 ... ./SEP-02/sep02_errp 30 2 0
+    ERROR: hmeshOrderNd: out of memory (1) / LeakSanitizer: Direct leak of 4008 byte(s) ... #2 _SCOTCHhmeshOrderNd hmesh_order_nd.c:138 (hmeshMesh vendtab)
+  Pristine classes (first line): 18x "meshInduceSepa: out of memory (2)" (invalid free), 18x "hmeshOrderNd: out of memory (1)" (leak),
+  9x "(3)", 6x "(1)"...
+Patched: no finding mentions meshInduceSepa or hmeshOrderNd. Remaining 52: stratParserParse OOM (parser), the harness's own
+  malloc failures, and crashes after a silent NULL from hmesh_induce.c:362 (mesh base 0, so UBSan does not flag the re-basing).

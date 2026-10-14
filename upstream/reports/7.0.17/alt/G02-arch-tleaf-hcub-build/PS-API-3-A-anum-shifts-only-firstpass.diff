@@ -1,0 +1,38 @@
+--- a/src/libscotch/arch_hcub.c	2026-10-12 19:38:19.564601321 +0000
++++ b/src/libscotch/arch_hcub.c	2026-10-12 19:41:37.844112829 +0000
+@@ -155,7 +155,7 @@
+ {
+   Anum                vertnbr;
+ 
+-  vertnbr = 1 << archptr->dimnnbr;
++  vertnbr = (Anum) 1 << archptr->dimnnbr;
+   if ((matcptr->multtab = memAlloc ((vertnbr >> 1) * sizeof (ArchCoarsenMulti))) == NULL) { /* Multinodes are half the number of vertices */
+     errorPrint ("archHcubMatchInit: out of memory");
+     return (1);
+@@ -239,7 +239,7 @@
+ ArchHcubDom * const         domnptr,
+ const ArchDomNum            domnnum)
+ {
+-  if (domnnum < (1 << archptr->dimnnbr)) {        /* If valid label */
++  if (domnnum < ((Anum) 1 << archptr->dimnnbr)) {        /* If valid label */
+     domnptr->dimncur = 0;                         /* Set the domain */
+     domnptr->bitsset = domnnum;
+ 
+@@ -258,7 +258,7 @@
+ const ArchHcub * const      archptr,
+ const ArchHcubDom * const   domnptr)
+ {
+-  return (1 << domnptr->dimncur);
++  return ((Anum) 1 << domnptr->dimncur);
+ }
+ 
+ /* This function returns the average distance
+@@ -377,7 +377,7 @@
+   dom0ptr->dimncur =
+   dom1ptr->dimncur = domnptr->dimncur - 1;
+   dom0ptr->bitsset = domnptr->bitsset;
+-  dom1ptr->bitsset = domnptr->bitsset | (1 << dom1ptr->dimncur);
++  dom1ptr->bitsset = domnptr->bitsset | ((Anum) 1 << dom1ptr->dimncur);
+ 
+   return (0);
+ }

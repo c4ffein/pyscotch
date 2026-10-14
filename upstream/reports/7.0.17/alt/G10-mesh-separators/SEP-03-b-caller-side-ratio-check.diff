@@ -1,0 +1,15 @@
+--- a/src/libscotch/vmesh_separate_ml.c
++++ b/src/libscotch/vmesh_separate_ml.c
+@@ -97,6 +97,12 @@
+                         paraptr->coarrat, paraptr->coartype, finemeshptr->contptr)) != 0)
+     return (o);                                   /* Return if coarsening failed */
+ 
++  if (coarmeshptr->m.velmnbr >= (Gnum) ((double) finemeshptr->m.velmnbr * paraptr->coarrat)) { /* If coarse mesh is not small enough */
++    meshExit (&coarmeshptr->m);                   /* Discard it                                                                         */
++    memFree  (*finecoarptr + finemeshptr->m.baseval);
++    return   (1);
++  }
++
+   coarmeshptr->parttax = NULL;                    /* Do not allocate partition data yet     */
+   coarmeshptr->frontab = finemeshptr->frontab;    /* Re-use frontier array for coarser mesh */
+   coarmeshptr->levlnum = finemeshptr->levlnum + 1; /* Mesh level is coarsening level        */

@@ -1,0 +1,26 @@
+BLD-11: parmetis_dgraph_dual_f_$(V)$(OBJ) rule lacks parmetis.h (and other Makefile rules lack
+headers their sources include directly).
+
+Stale-rebuild consequence (pristine vs patched src/libscotchmetis/Makefile, in a built tree):
+  cd src/libscotchmetis; touch parmetis.h; make -n ptscotch | grep -o -- '-c parmetis[a-z_]*\.c' | sort
+  pristine: dual.c order.c order_f.c part.c part_f.c            (dual_f.c missing)
+  patched:  dual.c dual_f.c order.c order_f.c part.c part_f.c
+
+Parallel-ordering race (the review's "can compile before the header exists"):
+  for i in 1..8: make clean; make -j8 ptscotch     -> 0 failures out of 8 (ASan -O0 build)
+  Not reproduced: make starts the "parmetis.h" goal first and dummysizes finishes before the
+  preprocessor of parmetis_dgraph_dual_f.c reaches the #include. The rule is still wrong
+  (no ordering guarantee), only the stale-rebuild part was observed.
+
+Audit of every object rule of src/libscotch, src/libscotchmetis, src/esmumps, src/scotch:
+  gcc-MM-audit-all-makefiles.txt : "gcc -MM" real dependencies vs listed prerequisites (transitive,
+     1384 entries for libscotch: arch.h includes every arch_*.h, etc. -- the Makefile convention is
+     direct includes only, so those are not fixed);
+  direct-include audit (script $INFRA-independent, see SUMMARY): 65 libscotch rules miss a header their
+     .c includes directly, one rule (library_arch_dom) is based on library_arch.c; libscotchmetis:
+     parmetis_dgraph_dual_f (parmetis.h), adm2dgr (ptscotch.h listed as scotch.h); scotch: gout
+     (module.h, common.h, gout_c.h, gout_o.h); esmumps: symbol_cost (dof.h), symbol_fax and
+     symbol_fax_graph (symbol_fax.h) -- esmumps left to G26 (alt/BLD-11-c-esmumps-deps-G26-owned.diff).
+Patched Makefile checks:
+  touch hgraph_order_cc.h; make -n scotch | grep -c -- '-c hgraph_order_st.c'   -> 1 (was 0)
+  touch library_arch_dom.c; make -n scotch | grep -o -- '-c library_arch[a-z_]*\.c' -> -c library_arch_dom.c

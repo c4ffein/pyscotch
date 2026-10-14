@@ -1,0 +1,9 @@
+BLD-03: Sonar token expanded into an archived file (source-read only; no CI secret used, nothing run).
+  ci/analysis.sh:26  cat > sonar-project.properties << EOF      (unquoted delimiter: variables expand)
+  ci/analysis.sh:28  sonar.login=$SONARQUBE_LOGIN
+  .gitlab-ci.yml scotch_sonar: script "sonar-scanner -X > sonar.log"; artifacts.paths include
+  sonar-project.properties and ./*.log; expire_in 15 days; rules: schedule pipelines only; tags [sonar].
+Patch: analysis.sh no longer writes the token; the job sets SONAR_TOKEN from SONARQUBE_LOGIN
+(variables:), runs "sonar-scanner" without -X and without redirection, and archives neither the
+properties file nor logs. Validated: YAML parses (pyyaml), job keys as expected.
+The token in already-archived artifacts must be rotated by the maintainers (not a code change).

@@ -1,0 +1,11 @@
+DGR-06: dgraphInduce2() tests procdsptab[procnum] (running prefix sum) instead of proccnttab[procnum] for the -1 error marker.
+inducefi.c: ring (nl per process, edge loads), SCOTCH_dgraphGhst() precomputed, then SCOTCH_dgraphInducePart() keeping even vertices;
+  the fault injector fails the nth allocation of dgraphInduce2 on FAILRANK.
+  R=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/repro; S=$R/common/scan.sh
+  pristine: $S /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/pristinefi/lib $R/DGR-06/bin_pristinefi/inducefi 3 2 0 4 -- 1 4
+     nth=0,1,2 -> HANG; (2): ERROR: dgraphInduce2: out of memory (1)/(2)/(3); r2 induce rc=1   (ranks 0,1 wait in dgraphHaloSync)
+     nth=3 -> HANG (dgraphHaloSync2: out of memory; G20's dgraph_halo.c, not fixed here)
+     nth=4 -> memRealloc shrink failure: UBSan dgraph_induce.c:240 "applying non-zero offset ... to null pointer" (PS-DGR-3)
+            $S ... inducefi 3 0 0 2 -- 0 4 -> nth=0,1,2: all ranks rc=1 (failing rank 0 with base 0: 0 + -1 < 0 masks the bug)
+  patched:  $S /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/buildfi/lib $R/DGR-06/bin_buildfi/inducefi 3 2 0 4 -- 1 4 -> nth=0,1,2: r0,r1,r2 induce rc=1; nth=3 still HANG (halo); nth=4 rc=0, no UBSan
+            $S ... inducefi 4 3 0 2 -- 0 4 -> nth=0,1,2: all four ranks rc=1

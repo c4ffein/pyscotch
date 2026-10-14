@@ -1,0 +1,92 @@
+# PS2-G21-1 option B (NOT preferred): make only the error-flag agreement unconditional (one Gnum instead of three) and keep the distance consistency check debug-only. Saves 16 bytes per reduction at the price of two more #ifdef blocks; the distance is a user parameter of SCOTCH_dgraphGrow(), which STYLE.md says should be checked unconditionally. Not compiled.
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/dgraph_band_grow.c b/src/libscotch/dgraph_band_grow.c
+index 05840dd..d6f4b32 100644
+--- a/src/libscotch/dgraph_band_grow.c
++++ b/src/libscotch/dgraph_band_grow.c
+@@ -62,6 +62,11 @@
+ */
+ 
+ #define DGRAPHBANDGROWNSTR          STRINGIFY (DGRAPHBANDGROWNAME)
++#ifdef SCOTCH_DEBUG_DGRAPH1
++#define REDUNBR                     3             /* Error flag plus distance bounds */
++#else /* SCOTCH_DEBUG_DGRAPH1 */
++#define REDUNBR                     1             /* Error flag only                 */
++#endif /* SCOTCH_DEBUG_DGRAPH1 */
+ 
+ /**********************************/
+ /*                                */
+@@ -110,12 +115,8 @@ Context *                         contptr)        /*+ Execution context
+   Gnum                    bandvertlocnnd;
+   Gnum                    bandedgelocnbr;
+   Gnum                    distval;
+-#ifdef SCOTCH_DEBUG_DGRAPH1
+-  Gnum                    reduloctab[3];
+-  Gnum                    reduglbtab[3];
+-#else /* SCOTCH_DEBUG_DGRAPH1 */
+-  Gnum                    reduglbtab[1];
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
++  Gnum                    reduloctab[REDUNBR];
++  Gnum                    reduglbtab[REDUNBR];
+ 
+   const Gnum * restrict const vertloctax = grafptr->vertloctax;
+   const Gnum * restrict const vendloctax = grafptr->vendloctax;
+@@ -142,15 +143,17 @@ Context *                         contptr)        /*+ Execution context
+     errorPrint (DGRAPHBANDGROWNSTR "Coll: out of memory (1)");
+     reduglbtab[0] = 1;
+   }
+-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication not needed and not absorbable by the algorithm */
+   reduloctab[0] = reduglbtab[0];
++#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Parameter check not absorbable by the algorithm */
+   reduloctab[1] =   distmax;
+   reduloctab[2] = - distmax;
+-  if (MPI_Allreduce (reduloctab, reduglbtab, 3, GNUM_MPI, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) {
++#endif /* SCOTCH_DEBUG_DGRAPH1 */
++  if (MPI_Allreduce (reduloctab, reduglbtab, REDUNBR, GNUM_MPI, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
+     errorPrint (DGRAPHBANDGROWNSTR "Coll: communication error (1)");
+-    return (1);
++    reduglbtab[0] = 1;
+   }
+-  if (reduglbtab[1] != - reduglbtab[2]) {
++#ifdef SCOTCH_DEBUG_DGRAPH1
++  else if (reduglbtab[1] != - reduglbtab[2]) {
+     errorPrint (DGRAPHBANDGROWNSTR "Coll: invalid parameters");
+     reduglbtab[0] = 1;
+   }
+@@ -348,12 +351,8 @@ Context *                         contptr)        /*+ Execution context
+   Gnum                    bandedgelocnbr;
+   Gnum                    distval;
+   Gnum                    deteval;                /* Flag set if deterministic behavior    */
+-#ifdef SCOTCH_DEBUG_DGRAPH1
+-  Gnum                    reduloctab[3];
+-  Gnum                    reduglbtab[3];
+-#else /* SCOTCH_DEBUG_DGRAPH1 */
+-  Gnum                    reduglbtab[1];
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
++  Gnum                    reduloctab[REDUNBR];
++  Gnum                    reduglbtab[REDUNBR];
+ 
+   const Gnum * restrict const vertloctax = grafptr->vertloctax;
+   const Gnum * restrict const vendloctax = grafptr->vendloctax;
+@@ -378,15 +377,17 @@ Context *                         contptr)        /*+ Execution context
+     errorPrint (DGRAPHBANDGROWNSTR "Ptop: out of memory (1)");
+     reduglbtab[0] = 1;
+   }
+-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication not needed and not absorbable by the algorithm */
+   reduloctab[0] = reduglbtab[0];
++#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Parameter check not absorbable by the algorithm */
+   reduloctab[1] =   distmax;
+   reduloctab[2] = - distmax;
+-  if (MPI_Allreduce (reduloctab, reduglbtab, 3, GNUM_MPI, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) {
++#endif /* SCOTCH_DEBUG_DGRAPH1 */
++  if (MPI_Allreduce (reduloctab, reduglbtab, REDUNBR, GNUM_MPI, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) { /* All processes must agree before performing collective operations */
+     errorPrint (DGRAPHBANDGROWNSTR "Ptop: communication error (1)");
+-    return (1);
++    reduglbtab[0] = 1;
+   }
+-  if (reduglbtab[1] != - reduglbtab[2]) {
++#ifdef SCOTCH_DEBUG_DGRAPH1
++  else if (reduglbtab[1] != - reduglbtab[2]) {
+     errorPrint (DGRAPHBANDGROWNSTR "Ptop: invalid parameters");
+     reduglbtab[0] = 1;
+   }

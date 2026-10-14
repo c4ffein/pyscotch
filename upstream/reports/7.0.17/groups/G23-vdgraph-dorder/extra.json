@@ -1,0 +1,196 @@
+[
+ {
+  "local_id": "PS2-G23-1",
+  "our_title": "dmapSave applies a non-zero offset to the null label pointer of non-root processes",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "'mpirun --oversubscribe -np 3 buildp/bin/dgpart 2 lbl.grf map.out' (base 1, labels): 'dmapping_io.c:170:13: runtime error: applying non-zero offset 18446744073709551612 to null pointer' on both non-root ranks (UBSan); output correct. Patched: no report, same output.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/dmapping_io.c:149 (vlbltax = NULL on non-root) and :170 (vlbltax -= grafptr->baseval; introduced by 4290e22)",
+  "evidence": "dmapping_io.c:169-170: 'if (grafptr->vlblloctax != NULL) { vlbltax -= grafptr->baseval;' with vlbltax NULL on every non-root process (:149).",
+  "related_ids": [
+   "DMO-02"
+  ],
+  "fix_options": [
+   {
+    "label": "A: base only when non-NULL",
+    "summary": "if (vlbltax != NULL) vlbltax -= grafptr->baseval; (same guard as the DMO-02 fix).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0009-Bugfix-do-not-base-the-null-label-array-of-non-root-.patch",
+    "tested": "run above, ptcheck",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "Same shape as the ordering writers after DMO-02."
+   },
+   {
+    "label": "B: base in the root branch right after the allocation",
+    "summary": "else branch after the header write.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/PS2-G23-1-B-base-label-array-in-root-branch.diff",
+    "tested": "untested: applies cleanly",
+    "tradeoffs": "Moves the basing away from the gather it serves.",
+    "preferred": false,
+    "maintainer_fit": "Less readable."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0009-Bugfix-do-not-base-the-null-label-array-of-non-root-.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G23-2",
+  "our_title": "Sequential leaf of distributed mapping produces fragments without part array for strategies that compute none",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "'./dtest_buildp 4elt.grf -1 map \"r{sep=q{strat=f}}\" 4 n -' (SCOTCH_dgraphMap, np=3): 'dmapping.c:224:47: runtime error: load of null pointer of type Anum' + SEGV in dmapTerm; dgpart -m with the same strategy crashes in dmapSave (:256). Patched: Map rc=0 on all ranks; dgpart writes a 15607-line mapping with parts 0,1,2.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/kdgraph_map_rb_part.c:109-136 (kdgraphMapRbPartSequ)",
+  "evidence": "kdgraph_map_rb_part.c:133: 'fragptr->parttab = kgrfdat.m.parttax + kgrfdat.s.baseval;' after 'kgraphMapSt (&kgrfdat, dataptr->paraptr->stratseq)' whose default (kdgraph_map_st.c:78 '{ &stratdummy, &stratdummy, 0.05 }') computes nothing; kgraphInit only declares the part array (mapInit2 sets parttax = NULL).",
+  "related_ids": [
+   "PS2-G05-strategy-tables-api-1",
+   "PS2-G12-2",
+   "CLI-01",
+   "DMO-15"
+  ],
+  "fix_options": [
+   {
+    "label": "A: mapAlloc + kgraphFrst after kgraphInit",
+    "summary": "Initial single-domain mapping before the sequential strategy, as graphMapCompute2 (8e06be2) and kgraphMapMlUncoarsen do.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0010-Bugfix-assign-all-vertices-to-the-initial-domain-bef.patch",
+    "tested": "run above; dgpart/dgmap check targets, ptcheck 32/64",
+    "tradeoffs": "One Anum array per leaf (freed with the fragment); file owned by G24 (its DMO-16 hunks are at :373-398, no overlap).",
+    "preferred": true,
+    "maintainer_fit": "Twin of PyScotch's 8e06be2 for the sequential API, and of the maintainer's kgraphMapMlUncoarsen idiom."
+   },
+   {
+    "label": "B: lazy allocation after kgraphMapSt when parttax is NULL",
+    "summary": "Same two calls guarded by 'if (kgrfdat.m.parttax == NULL)'.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/alt/PS2-G05-1-B-lazy-part-array-in-kdgraphMapRbPartSequ.diff",
+    "tested": "untested: applies cleanly",
+    "tradeoffs": "Only helps strategies that compute nothing at all; a refinement-only strategy (f, d) would still start from a NULL array, as PS2-G12-2 showed sequentially.",
+    "preferred": false,
+    "maintainer_fit": "He fixed the sequential case by pre-allocating."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0010-Bugfix-assign-all-vertices-to-the-initial-domain-bef.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G23-3",
+  "our_title": "vdgraphCheck prints the sequential routine name in two messages and leaks its part array on one error path",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "vdgraph_check.c:234 and :262 'errorPrint (\"vgraphCheck: ...\")' (fixed in patch 0003); :181-188: 'if ((reduglbtab[1] != - reduglbtab[0]) || ...) { errorPrint (\"vdgraphCheck: inconsistent global graph data\"); return (1); }' without memFree (partgsttax) allocated at :153 (debug-only path, not patched).",
+  "why_not_run": "debug-only inconsistency path, cannot be triggered without corrupting a graph",
+  "location_7_0_17": "src/libscotch/vdgraph_check.c:181-188, :234, :262",
+  "evidence": "see read_only",
+  "related_ids": [
+   "DMO-12"
+  ],
+  "fix_options": [
+   {
+    "label": "A: fix the messages (done in 0003); free partgsttax before the inconsistent-data return",
+    "summary": "one memFree line",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "trivial"
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G23-vdgraph-dorder/patches/0003-Bugfix-save-and-restore-the-local-part-loads-of-dist.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G23-4",
+  "our_title": "kdgraphMapRbPartSequ does not check the shrinking memRealloc of the fragment domain array",
+  "severity": "low",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "kdgraph_map_rb_part.c:138-139: 'if (kgrfdat.m.domnmax > kgrfdat.m.domnnbr) fragptr->domntab = memRealloc (fragptr->domntab, kgrfdat.m.domnnbr * sizeof (ArchDom));' : on failure domntab becomes NULL and the old array leaks; the fragment is then used by dmapTerm/dmapSave.",
+  "why_not_run": "a failing shrinking realloc is not injectable meaningfully (glibc never fails to shrink); G19 fixed the same pattern in dgraphGhst2 (0127/0128)",
+  "location_7_0_17": "src/libscotch/kdgraph_map_rb_part.c:138-139",
+  "evidence": "see read_only",
+  "related_ids": [
+   "PS2-G19-6",
+   "DMO-16"
+  ],
+  "fix_options": [
+   {
+    "label": "A: keep the old array when shrinking fails (G19's dgraphGhst2 idiom)",
+    "summary": "tmp pointer test",
+    "diff_file": "",
+    "tested": "untested: G24's file",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "Same as G19's 0127."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G23-5",
+  "our_title": "Non-deterministic hang of a folded sub-communicator after a collective band-separation failure",
+  "severity": "medium",
+  "status": "inconclusive",
+  "method": "ran",
+  "ran": "LD_PRELOAD injector, FI_FUNC=vdgraphSeparateDf FI_RANK=1 FI_NTH=0 (first allocation of dgraphGhst2 under the Df call fails; dgraphGhst agrees on it, vdgraphSeparateDf then vdgraphSeparateBd fail on all processes of the sub-communicator), np=3, st_df.txt: 1 run in 3 hangs (exit 124 after 15 s) on base-combined AND on the series, the other runs finish with rc=0 on all ranks; same at nth=1 and nth=2 (nth=2 is a tolerated realloc shrink failure in dgraphGhst2 with no error message at all). Without injection the same strategy completed 6/6 runs. Per-rank traces (repro/common/trace.*, instrumented scratch tree) once showed both processes of the folded half inside vdgraphSeparateSq's vdgraphGatherAll while the other half had finished; a backtrace once showed both in dgraphHaloSync's Alltoallv of a later dgraphBand.",
+  "read_only": "Not isolated: no gdb on this box; the hang is timing dependent (the injector's extra latency and the sub-communicator fold are both needed); the dgraphCoarsen fold-dup threads (dgraph_coarsen.c, dgraph_fold*.c: G18/G21) and the asynchronous halo collectives (SCOTCH_MPI_ASYNC_COLL, dgraph_halo.c: G20) are the suspects, not the vdgraph code which is the same on both sides of the collective failure.",
+  "why_not_run": "",
+  "location_7_0_17": "unknown; observed below vdgraph_separate_ml.c:773-777 (vdgraphSeparateMl2 on a folded coarse graph) in dgraph_halo.c / dgraph_gather_all.c collectives",
+  "evidence": "repro/common/redo.txt and scan_df_*.txt lines 'nth=0 exit=124 :: HANG; ... rank 2: OrderCompute rc=0' versus 'nth=0 exit=0' in other runs of the identical command",
+  "related_ids": [
+   "PS2-G18-3",
+   "PS-DGR-2",
+   "DMO-04"
+  ],
+  "fix_options": [
+   {
+    "label": "none",
+    "summary": "needs isolation by the dgraph fold/halo owners with a debugger or MPI tracing",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "",
+    "preferred": true,
+    "maintainer_fit": "n/a"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G23-6",
+  "our_title": "Diffusion methods return alone when a halo synchronization fails, hanging the other processes",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Same scans, nth=4..7 and 12..15: '(1): ERROR: dgraphHaloSync2: out of memory; (1): ERROR: vdgraphSeparateDf: cannot propagate diffusion data (1|2) / cannot propagate part data; (1): ERROR: vdgraphSeparateBd: cannot separate band graph' then HANG, pristine and patched alike (only rank 1 errors).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/vdgraph_separate_df.c:187-191, :276-280, :299-302; bdgraph_bipart_df.c (same pattern)",
+  "evidence": "vdgraph_separate_df.c:187-191: 'if (dgraphHaloSync (...) != 0) { errorPrint (\"vdgraphSeparateDf: cannot propagate diffusion data (1)\"); memFree (...); return (1); }' with dgraphHaloSync2's allocation failure being local (dgraph_halo.c).",
+  "related_ids": [
+   "PS-DGR-2",
+   "PS2-G20-2",
+   "DMO-04"
+  ],
+  "fix_options": [
+   {
+    "label": "none here",
+    "summary": "This is G20's halo design decision (alt A: unconditional Allreduce in dgraphHaloSync2; alt B: pre-allocated scratch at dgraphGhst time); the callers cannot fix it without an extra collective per pass.",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "",
+    "preferred": true,
+    "maintainer_fit": "Decided at the dgraphHaloSync level, not per caller."
+   }
+  ],
+  "patch_files": []
+ }
+]

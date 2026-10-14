@@ -1,0 +1,49 @@
+From e7e4b079d1d287c47e369475e3b14cdc2da7d3c6 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 20:23:48 +0000
+Subject: [PATCH 175/240] Bugfix: agree on the status of parallel recursive
+ bipartitioning [report PyScotch]
+
+The sequential mapping of the leaves of the parallel recursive
+bipartitioning runs on single processes, and the folded parts run on
+disjoint communicators, so that a process which failed returned alone
+from `kdgraphMapRbPart()` while the other ones went on with the next
+collective operations (`dmapTerm()`) and waited forever.
+
+Agree on the status of the whole recursive bipartitioning on the
+communicator of the graph being mapped, as `hdgraphOrderNd()` now does.
+
+Refs: PS2-G24-5
+---
+ src/libscotch/kdgraph_map_rb_part.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/src/libscotch/kdgraph_map_rb_part.c b/src/libscotch/kdgraph_map_rb_part.c
+index 8a6c24e..ebf3623 100644
+--- a/src/libscotch/kdgraph_map_rb_part.c
++++ b/src/libscotch/kdgraph_map_rb_part.c
+@@ -445,6 +445,8 @@ const KdgraphMapRbParam * restrict const  paraptr)
+ {
+   KdgraphMapRbPartGraph grafdat;
+   KdgraphMapRbPartData  datadat;
++  int                   cheklocval;
++  int                   chekglbval;
+ 
+   grafdat.domnorg = grafptr->m.domnorg;           /* Used in all cases */
+   grafdat.procnbr = grafptr->s.procglbnbr;
+@@ -468,5 +470,11 @@ const KdgraphMapRbParam * restrict const  paraptr)
+   grafdat.data.dgrfdat = grafptr->s;              /* Create a clone graph that will never be freed      */
+   grafdat.data.dgrfdat.flagval &= ~(DGRAPHFREEALL | DGRAPHFREECOMM); /* Do not free communicator either */
+ 
+-  return (kdgraphMapRbPart2 (&grafdat, &datadat)); /* Perform DRB */
++  cheklocval = kdgraphMapRbPart2 (&grafdat, &datadat); /* Perform DRB */
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->s.proccomm) != MPI_SUCCESS) { /* Processes of all folded parts must agree on the result */
++    errorPrint ("kdgraphMapRbPart: communication error");
++    return (1);
++  }
++
++  return (chekglbval);
+ }
+-- 
+2.47.3
+

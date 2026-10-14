@@ -1,0 +1,127 @@
+From 47a0513cf98e4357880739b19dfa99ee9f8c732b Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:09:33 +0000
+Subject: [PATCH 063/240] Bugfix: validate vertex labels, degrees and edge ends
+ read by `meshLoad()` [report PyScotch]
+
+`meshLoad()` stored file-controlled values without range checking, as
+`graphLoad()` did before commit febaef7 and the fixes for GRA-04 and
+GRA-10:
+
+ - negative vertex labels were accepted and later used as indices into
+   `indxtab[]` in `graphLoad2()`;
+ - negative vertex degrees were accepted, and a huge degree overflowed
+   the arc-count accumulator;
+ - edge ends were neither tested for sign nor, for unlabeled meshes,
+   against the range of the other kind of vertices, so a malformed file
+   produced a mesh that indexed vertex arrays out of bounds once ordered
+   (`mord` crashes in `hallOrderHdR2Halmd()`);
+ - a negative number of arcs and a vertex base sum that overflows were
+   not rejected.
+
+Reject negative labels, degrees, edge ends and arc counts at read time,
+test the arc-array overflow before adding the arc number, and check the
+edge ends of unlabeled meshes against the range of the other vertex
+kind.
+
+Refs: PS2-G11-mesh-struct-io-8, GRA-04, GRA-10
+---
+ src/libscotch/mesh_io.c | 28 +++++++++++++++++++++-------
+ 1 file changed, 21 insertions(+), 7 deletions(-)
+
+diff --git a/src/libscotch/mesh_io.c b/src/libscotch/mesh_io.c
+index 0133745..4e443b0 100644
+--- a/src/libscotch/mesh_io.c
++++ b/src/libscotch/mesh_io.c
+@@ -121,12 +121,13 @@ const Gnum                  baseval)              /* Base value (-1 means keep f
+       (intLoad (stream, &propval)          != 1) ||
+       (velmnbr < 0)                              ||
+       (vnodnbr < 0)                              ||
++      (meshptr->edgenbr < 0)                     ||
+       (velmbas < 0)                              ||
+       (vnodbas < 0)                              ||
+       (propval < 0)                              ||
+       (propval > 111)                            ||
+-      (((velmbas + velmnbr) != vnodbas) &&
+-       ((vnodbas + vnodnbr) != velmbas))) {
++      (((vnodbas - velmbas) != velmnbr) &&        /* Differences of non-negative values cannot overflow */
++       ((velmbas - vnodbas) != vnodnbr))) {
+     errorPrint ("meshLoad: bad input (2)");
+     return (1);
+   }
+@@ -199,6 +200,8 @@ const Gnum                  baseval)              /* Base value (-1 means keep f
+     Gnum                vertbas;
+     Gnum                vertnnd;
+     Gnum                edgeadj;
++    Gnum                vendbas;                  /* Range of valid edge ends, as numbered in file */
++    Gnum                vendnnd;
+     Gnum                vertnum;
+     Gnum                velosum;
+     Gnum                velomax;
+@@ -206,6 +209,8 @@ const Gnum                  baseval)              /* Base value (-1 means keep f
+     vertbas = vertbastab[i];
+     vertnnd = vertnndtab[i];
+     edgeadj = edgeadjtab[i];
++    vendbas = vertbastab[1 - i] - edgeadj;        /* Edge ends must belong to the other kind of vertices */
++    vendnnd = vertnndtab[1 - i] - edgeadj;
+     velosum = 0;
+     velomax = 1;                                  /* Assume vertex loads all equal to 1 */
+ 
+@@ -213,7 +218,8 @@ const Gnum                  baseval)              /* Base value (-1 means keep f
+       Gnum                degrval;
+ 
+       if (meshptr->vlbltax != NULL) {             /* If must read label */
+-        if (intLoad (stream, &vlblval) != 1) {    /* Read label data    */
++        if ((intLoad (stream, &vlblval) != 1) ||  /* Read label data                        */
++            (vlblval < 0)) {                      /* Labels are used as array indices later */
+           errorPrint ("meshLoad: bad input (3)");
+           meshFree   (meshptr);
+           return (1);
+@@ -234,7 +240,8 @@ const Gnum                  baseval)              /* Base value (-1 means keep f
+         meshptr->velotax[vertnum] = veloval;
+         velosum += veloval;
+       }
+-      if (intLoad (stream, &degrval) != 1) {      /* Read vertex degree */
++      if ((intLoad (stream, &degrval) != 1) ||    /* Read vertex degree */
++          (degrval < 0)) {
+         errorPrint ("meshLoad: bad input (5)");
+         meshFree   (meshptr);
+         return (1);
+@@ -243,12 +250,12 @@ const Gnum                  baseval)              /* Base value (-1 means keep f
+         degrmax = degrval;
+ 
+       meshptr->verttax[vertnum] = edgenum;        /* Set index in edge array */
+-      degrval += edgenum;
+-      if (degrval > edgennd) {                    /* Check if edge array overflows */
++      if (degrval > (edgennd - edgenum)) {        /* Check if edge array overflows (avoiding edgenum overflow) */
+         errorPrint ("meshLoad: invalid arc count (1)");
+         meshFree   (meshptr);
+         return (1);
+       }
++      degrval += edgenum;
+ 
+       for ( ; edgenum < degrval; edgenum ++) {
+         if (proptab[1] != 0) {                    /* If must read edge load        */
+@@ -258,11 +265,18 @@ const Gnum                  baseval)              /* Base value (-1 means keep f
+             return (1);
+           }
+         }
+-        if (intLoad (stream, &edgeval) != 1) {    /* Read edge data */
++        if ((intLoad (stream, &edgeval) != 1) ||  /* Read edge data                                    */
++            (edgeval < 0)) {                      /* Neither vertex indices nor labels can be negative */
+           errorPrint ("meshLoad: bad input (7)");
+           meshFree   (meshptr);
+           return (1);
+         }
++        if ((meshptr->vlbltax == NULL) &&         /* If edge ends are vertex indices, they must be in range */
++            ((edgeval < vendbas) || (edgeval >= vendnnd))) {
++          errorPrint ("meshLoad: invalid arc end number");
++          meshFree   (meshptr);
++          return (1);
++        }
+         meshptr->edgetax[edgenum] = edgeval + edgeadj;
+       }
+     }
+-- 
+2.47.3
+

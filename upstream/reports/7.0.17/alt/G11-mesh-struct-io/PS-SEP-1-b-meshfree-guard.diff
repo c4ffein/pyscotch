@@ -1,0 +1,12 @@
+--- a/src/libscotch/mesh.c	2026-10-13 08:40:02.911404262 +0000
++++ b/src/libscotch/mesh.c	2026-10-13 13:24:28.253913664 +0000
+@@ -128,7 +128,8 @@
+   }
+ #endif /* SCOTCH_DEBUG_MESH2 */
+   if ((meshptr->flagval & MESHFREEOTHR) != 0) {   /* If other arrays must be freed */
+-    if (meshptr->vlbltax != NULL)
++    if ((meshptr->vlbltax != NULL) &&             /* And are not in vertex array group (flags share the same bit) */
++        ((meshptr->flagval & MESHVERTGROUP) == 0))
+       memFree (meshptr->vlbltax + meshptr->baseval);
+   }
+ 

@@ -1,0 +1,20 @@
+diff --git a/src/libscotch/arch_deco_build.c b/src/libscotch/arch_deco_build.c
+index 58b6eda..dd1724a 100644
+--- a/src/libscotch/arch_deco_build.c
++++ b/src/libscotch/arch_deco_build.c
+@@ -351,7 +351,14 @@ fail:
+         disttax[termverttab[termdomend].labl].distval;
+   }
+ 
+-  archDecoArchBuild2 ((ArchDeco *) (void *) &tgtarchptr->data, termdomnbr, termdommax, termverttab, termdisttab);
++  if (archDecoArchBuild2 ((ArchDeco *) (void *) &tgtarchptr->data, termdomnbr, termdommax, termverttab, termdisttab) != 0) {
++    errorPrint ("archDecoArchBuild: cannot build decomposition");
++    archInit   (tgtarchptr);                      /* Leave an empty architecture */
++    memFree    (termverttab);
++    mapExit    (&mappdat);
++    archExit   (&archdat);
++    return     (1);
++  }
+ 
+   memFree  (termverttab);                         /* Free group leader */
+   mapExit  (&mappdat);

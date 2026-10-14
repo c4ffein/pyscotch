@@ -1,0 +1,340 @@
+From b3ec55e7f6cc4ebca6ac9624f598344c74e7ca45 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:24:05 +0000
+Subject: [PATCH 178/240] Bugfix: handle default values in MeTiS v5 option
+ arrays [report R. Perry]
+
+In MeTiS v5, option value -1 means "use the default value", and
+callers commonly fill their option array with -1. The v5 routines used
+`options[METIS_OPTION_NUMBERING]` as the base value without any check,
+so that such callers had their graphs built with a base value of -1,
+which led to invalid memory accesses and endless loops in coarsening.
+
+`_SCOTCH_METIS_optionGet()` now reads option values, substituting the
+default value when the option array is missing or when the value is
+-1, and the numbering option is checked to be 0 or 1 in all v5
+routines, as well as in `METIS_PartMeshDual()`.
+
+Refs: CLI-06
+---
+ src/check/test_libmetis.c                  | 21 +++++++++
+ src/libscotchmetis/Makefile                | 14 +++---
+ src/libscotchmetis/metis_graph_order.c     | 11 +++--
+ src/libscotchmetis/metis_graph_part.c      |  7 ++-
+ src/libscotchmetis/metis_graph_part_dual.c | 13 +++---
+ src/libscotchmetis/metis_options.c         | 37 +++++++++++++++-
+ src/libscotchmetis/metis_options.h         | 51 ++++++++++++++++++++++
+ 7 files changed, 138 insertions(+), 16 deletions(-)
+ create mode 100644 src/libscotchmetis/metis_options.h
+
+diff --git a/src/check/test_libmetis.c b/src/check/test_libmetis.c
+index ca0011a..c88dd9a 100644
+--- a/src/check/test_libmetis.c
++++ b/src/check/test_libmetis.c
+@@ -229,6 +229,7 @@ char *              argv[])
+   SCOTCH_Num          partnum;
+   SCOTCH_Num          vertnum;
+   SCOTCH_Num          options[METIS_NOPTIONS];
++  int                 optinum;
+ #endif /* (SCOTCH_METIS_VERSION == 5) */
+ 
+   SCOTCH_errorProg (argv[0]);
+@@ -380,6 +381,26 @@ char *              argv[])
+   }
+ 
+   checkOrder (baseval, vertnbr, parttab, peritab);
++
++  for (optinum = 0; optinum < METIS_NOPTIONS; optinum ++) /* MeTiS v5 callers fill option arrays with -1 to get default values */
++    options[optinum] = -1;
++  if (baseval != 0)                               /* Default numbering is from 0 */
++    options[METIS_OPTION_NUMBERING] = baseval;
++
++  if (SCOTCHMETISNAMEC (METIS_PartGraphKway) (&vertnbr, &nconval, verttab, edgetab, velotab, NULL, edlotab,
++                                              &partnbr, awgttab, kbaltab, options, &edgecut, parttab) != METIS_OK) {
++    SCOTCH_errorPrint ("main: error in METIS_V5_PartGraphKway (4)");
++    exit (EXIT_FAILURE);
++  }
++
++  checkPart (baseval, vertnbr, parttab, partnbr);
++
++  if (SCOTCHMETISNAMEC (METIS_NodeND) (&vertnbr, verttab, edgetab, velotab, options, peritab, parttab) != METIS_OK) {
++    SCOTCH_errorPrint ("main: error in METIS_V5_NodeND (2)");
++    exit (EXIT_FAILURE);
++  }
++
++  checkOrder (baseval, vertnbr, parttab, peritab);
+ #endif /* (SCOTCH_METIS_VERSION == 5) */
+ 
+   free (peritab);
+diff --git a/src/libscotchmetis/Makefile b/src/libscotchmetis/Makefile
+index 75ccc2b..15c316c 100644
+--- a/src/libscotchmetis/Makefile
++++ b/src/libscotchmetis/Makefile
+@@ -1,4 +1,4 @@
+-## Copyright 2007-2010,2018,2019,2021,2024,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++## Copyright 2007-2010,2018,2019,2021,2024-2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ ##
+ ## This file is part of the Scotch software package for static mapping,
+ ## graph partitioning and sparse matrix ordering.
+@@ -121,7 +121,8 @@ metis_graph_order_$(V)$(OBJ)	:	metis_graph_order.c				\
+ 					../libscotch/module.h				\
+ 					../libscotch/common.h				\
+ 					$(SCOTCHINCLUDEDIR)/scotch.h			\
+-					metis.h
++					metis.h						\
++					metis_options.h
+ 
+ metis_graph_order_f_$(V)$(OBJ)	:	metis_graph_order_f.c				\
+ 					../libscotch/module.h				\
+@@ -134,7 +135,8 @@ metis_graph_part_$(V)$(OBJ)	:	metis_graph_part.c				\
+ 					../libscotch/common.h				\
+ 					$(SCOTCHINCLUDEDIR)/scotch.h			\
+ 					metis.h						\
+-					metis_graph_part.h
++					metis_graph_part.h				\
++					metis_options.h
+ 
+ metis_graph_part_f_$(V)$(OBJ)	:	metis_graph_part_f.c				\
+ 					../libscotch/module.h				\
+@@ -148,7 +150,8 @@ metis_graph_part_dual_$(V)$(OBJ):	metis_graph_part_dual.c				\
+ 					$(SCOTCHINCLUDEDIR)/scotch.h			\
+ 					metis.h						\
+ 					metis_graph_dual.h				\
+-					metis_graph_part.h
++					metis_graph_part.h				\
++					metis_options.h
+ 
+ metis_graph_part_dual_f_$(V)$(OBJ):	metis_graph_part_dual_f.c			\
+ 					../libscotch/module.h				\
+@@ -160,7 +163,8 @@ metis_options_$(V)$(OBJ)	:	metis_options.c					\
+ 					../libscotch/module.h				\
+ 					../libscotch/common.h				\
+ 					$(SCOTCHINCLUDEDIR)/scotch.h			\
+-					metis.h
++					metis.h						\
++					metis_options.h
+ 
+ metis_options_f_$(V)$(OBJ)	:	metis_options_f.c				\
+ 					../libscotch/module.h				\
+diff --git a/src/libscotchmetis/metis_graph_order.c b/src/libscotchmetis/metis_graph_order.c
+index ba4bd3e..9fa1a23 100644
+--- a/src/libscotchmetis/metis_graph_order.c
++++ b/src/libscotchmetis/metis_graph_order.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2010,2012,2018,2019,2021,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2010,2012,2018,2019,2021,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -49,7 +49,7 @@
+ /**                # Version 6.1  : from : 20 jun 2021     **/
+ /**                                 to   : 20 jun 2021     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 11 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -61,6 +61,7 @@
+ #include "common.h"
+ #include "scotch.h"
+ #include "metis.h"                                /* Our "metis.h" file */
++#include "metis_options.h"
+ 
+ /************************************/
+ /*                                  */
+@@ -180,7 +181,11 @@ SCOTCH_Num * const          iperm)
+ {
+   SCOTCH_Num          baseval;
+ 
+-  baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;
++  baseval = _SCOTCH_METIS_optionGet (options, xadj, METIS_OPTION_NUMBERING, 0); /* For the Fortran interface, null arrays are those equal to xadj */
++  if ((baseval < 0) || (baseval > 1)) {
++    SCOTCH_errorPrint ("SCOTCH_METIS_V5_NodeND: invalid numbering option");
++    return (METIS_ERROR_INPUT);
++  }
+ 
+   return (_SCOTCH_METIS_Node (nvtxs, xadj, adjncy, vwgt, &baseval, options, perm, iperm));
+ }
+diff --git a/src/libscotchmetis/metis_graph_part.c b/src/libscotchmetis/metis_graph_part.c
+index 06ed518..ea08615 100644
+--- a/src/libscotchmetis/metis_graph_part.c
++++ b/src/libscotchmetis/metis_graph_part.c
+@@ -62,6 +62,7 @@
+ #include "scotch.h"
+ #include "metis.h"                                /* Our "metis.h" file */
+ #include "metis_graph_part.h"
++#include "metis_options.h"
+ 
+ /********************************/
+ /*                              */
+@@ -602,7 +603,11 @@ const SCOTCH_Num            flagval)
+     kbalval = ubvec[0] - 1.0;                     /* Turn MeTiS imbalance ratio into Scotch imbalance tolerance */
+   }
+ 
+-  baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0; /* For the Fortran interface, null arrays are those equal to xadj */
++  baseval = _SCOTCH_METIS_optionGet (options, xadj, METIS_OPTION_NUMBERING, 0); /* For the Fortran interface, null arrays are those equal to xadj */
++  if ((baseval < 0) || (baseval > 1)) {
++    SCOTCH_errorPrint ("_SCOTCH_METIS_V5_PartGraph: invalid numbering option");
++    return (METIS_ERROR_INPUT);
++  }
+ 
+   return ((vsize == NULL)
+           ? _SCOTCH_METIS_PartGraph (nvtxs, ncon, xadj, adjncy, vwgt, adjwgt,
+diff --git a/src/libscotchmetis/metis_graph_part_dual.c b/src/libscotchmetis/metis_graph_part_dual.c
+index d223d74..b83a339 100644
+--- a/src/libscotchmetis/metis_graph_part_dual.c
++++ b/src/libscotchmetis/metis_graph_part_dual.c
+@@ -44,7 +44,7 @@
+ /**   DATES      : # Version 6.1  : from : 01 sep 2020     **/
+ /**                                 to   : 30 dec 2021     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 01 apr 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -60,6 +60,7 @@
+ #include "metis.h"                                /* Our "metis.h" file */
+ #include "metis_graph_dual.h"
+ #include "metis_graph_part.h"
++#include "metis_options.h"
+ 
+ #define EPSILON                     1.0e-6        /* Rounding percision */
+ 
+@@ -103,10 +104,12 @@ SCOTCH_Num * const          npart)                /*+ Node partition array to be
+   SCOTCH_Mesh         meshdat;
+   int                 o;
+ 
+-  baseval = 0;                                    /* Assume base value is 0 */
+-
+-  if ((options != NULL) && (options != ne))       /* For the Fortran interface, null arrays are those equal to ne */
+-    baseval = options[METIS_OPTION_NUMBERING];    /* Get base value                                               */
++  baseval = _SCOTCH_METIS_optionGet (options, ne, METIS_OPTION_NUMBERING, 0); /* For the Fortran interface, null arrays are those equal to ne */
++  if ((baseval < 0) || (baseval > 1)) {
++    SCOTCH_errorPrint ("SCOTCH_METIS_PartMeshDual: invalid numbering option");
++    *objval = METIS_ERROR_INPUT;
++    return (METIS_ERROR_INPUT);
++  }
+ 
+   if ((tpwgts != NULL) && ((const SCOTCH_Num * const) tpwgts != ne)) {
+     SCOTCH_Num * restrict wtgttab;                /* Array of integer loads            */
+diff --git a/src/libscotchmetis/metis_options.c b/src/libscotchmetis/metis_options.c
+index 055f931..b862d7f 100644
+--- a/src/libscotchmetis/metis_options.c
++++ b/src/libscotchmetis/metis_options.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2021,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2021,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -43,7 +43,7 @@
+ /**   DATES      : # Version 6.1  : from : 20 jun 2021     **/
+ /**                                 to   : 20 jun 2021     **/
+ /**                # Version 7.0  : from : 21 jan 2023     **/
+-/**                                 to   : 11 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -55,6 +55,39 @@
+ #include "common.h"
+ #include "scotch.h"
+ #include "metis.h"                                /* Our "metis.h" file */
++#include "metis_options.h"
++
++/***********************************/
++/*                                 */
++/* This routine is the internal    */
++/* MeTiS option reading routine.   */
++/*                                 */
++/***********************************/
++
++/* This routine returns the value of the given
++** option, or the given default value if no
++** option array is provided or if the option
++** value is -1, which means "default" in MeTiS
++** v5. For the Fortran interface, null arrays
++** are those equal to the given reference array.
++** It returns:
++** - x  : the option value.
++*/
++
++SCOTCH_Num
++_SCOTCH_METIS_optionGet (
++const SCOTCH_Num * const    options,              /*+ Option array, or NULL                         +*/
++const SCOTCH_Num * const    nulltab,              /*+ Array that stands for a null array in Fortran +*/
++const int                   optinum,              /*+ Index of option in array                      +*/
++const SCOTCH_Num            defaval)              /*+ Default value                                 +*/
++{
++  if ((options == NULL) ||                        /* If no option array or default value requested */
++      (options == nulltab) ||
++      (options[optinum] == -1))
++    return (defaval);
++
++  return (options[optinum]);
++}
+ 
+ /*************************************/
+ /*                                   */
+diff --git a/src/libscotchmetis/metis_options.h b/src/libscotchmetis/metis_options.h
+new file mode 100644
+index 0000000..ac800df
+--- /dev/null
++++ b/src/libscotchmetis/metis_options.h
+@@ -0,0 +1,51 @@
++/* Copyright 2026 IPB, Universite de Bordeaux, INRIA & CNRS
++**
++** This file is part of the Scotch software package for static mapping,
++** graph partitioning and sparse matrix ordering.
++**
++** This software is governed by the CeCILL-C license under French law
++** and abiding by the rules of distribution of free software. You can
++** use, modify and/or redistribute the software under the terms of the
++** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
++** URL: "http://www.cecill.info".
++**
++** As a counterpart to the access to the source code and rights to copy,
++** modify and redistribute granted by the license, users are provided
++** only with a limited warranty and the software's author, the holder of
++** the economic rights, and the successive licensors have only limited
++** liability.
++**
++** In this respect, the user's attention is drawn to the risks associated
++** with loading, using, modifying and/or developing or reproducing the
++** software by the user in light of its specific status of free software,
++** that may mean that it is complicated to manipulate, and that also
++** therefore means that it is reserved for developers and experienced
++** professionals having in-depth computer knowledge. Users are therefore
++** encouraged to load and test the software's suitability as regards
++** their requirements in conditions enabling the security of their
++** systems and/or data to be ensured and, more generally, to use and
++** operate it in the same conditions as regards security.
++**
++** The fact that you are presently reading this means that you have had
++** knowledge of the CeCILL-C license and that you accept its terms.
++*/
++/************************************************************/
++/**                                                        **/
++/**   NAME       : metis_options.h                         **/
++/**                                                        **/
++/**   AUTHOR     : Francois PELLEGRINI                     **/
++/**                                                        **/
++/**   FUNCTION   : These lines are the data declarations   **/
++/**                for the MeTiS option management         **/
++/**                internal routines.                      **/
++/**                                                        **/
++/**   DATES      : # Version 7.0  : from : 13 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
++/**                                                        **/
++/************************************************************/
++
++/*
++**  The function prototypes.
++*/
++
++SCOTCH_Num                  _SCOTCH_METIS_optionGet (const SCOTCH_Num * const, const SCOTCH_Num * const, const int, const SCOTCH_Num);
+-- 
+2.47.3
+

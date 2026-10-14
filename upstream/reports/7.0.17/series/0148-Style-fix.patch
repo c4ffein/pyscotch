@@ -1,0 +1,39 @@
+From a1c92e73c06e8f5a7f9f7d0f9f5020a9af47e736 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:46:57 +0000
+Subject: [PATCH 148/240] Style fix
+
+---
+ src/libscotch/dgraph_coarsen.c      | 2 +-
+ src/libscotch/library_dgraph_band.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/dgraph_coarsen.c b/src/libscotch/dgraph_coarsen.c
+index 103909c..e5974e4 100644
+--- a/src/libscotch/dgraph_coarsen.c
++++ b/src/libscotch/dgraph_coarsen.c
+@@ -909,7 +909,7 @@ DgraphCoarsenData * restrict const  coarptr)
+     }
+ #endif /* (defined SCOTCH_PTHREAD) && (! defined DGRAPHCOARSENNOTHREAD) */
+ 
+-    ver0locnum = multloctab[multlocnum].vertglbnum[0] - vertlocadj; /* Compute local value of (always local) first multinode vertex */ 
++    ver0locnum = multloctab[multlocnum].vertglbnum[0] - vertlocadj; /* Compute local value of (always local) first multinode vertex */
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+     if ((ver0locnum <  finegrafptr->baseval) ||
+         (ver0locnum >= finegrafptr->vertlocnnd)) {
+diff --git a/src/libscotch/library_dgraph_band.c b/src/libscotch/library_dgraph_band.c
+index 64488f6..aed4d5c 100644
+--- a/src/libscotch/library_dgraph_band.c
++++ b/src/libscotch/library_dgraph_band.c
+@@ -310,7 +310,7 @@ fail2:
+   }
+   bandvertloctax[bandvertlocnnd] = bandedgelocnum; /* Set end of vertex array */
+ 
+-  memFree (bandvnumgsttax + bandgrafptr->baseval);  /* Free useless space */
++  memFree (bandvnumgsttax + bandgrafptr->baseval); /* Free useless space */
+ 
+   if (bandedloloctax != NULL) {                   /* If graph has edge weights                             */
+     for (bandvertlocnum = bandgrafptr->baseval;   /* For all vertices that do not belong to the last level */
+-- 
+2.47.3
+

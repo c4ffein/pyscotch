@@ -1,0 +1,11 @@
+Reproducers for group G10-mesh-separators (Scotch 7.0.17). All commands assume:
+  INFRA=.../scratchpad/infra          (pristine ASan build in $INFRA/asan, 32-bit Gnum)
+  WORK=.../scratchpad/work/G10-mesh-separators   (patched builds in $WORK/build (32-bit) and $WORK/build64)
+  export UBSAN_OPTIONS=print_stacktrace=1
+common/meshgrid.h      in-memory N x N quadrangle mesh builder (SCOTCH_meshBuild), element load array under a guard page
+common/build.sh        build a reproducer against a build tree with -lscotcherrexit:   ./common/build.sh <buildtree> <src.c> <out>
+common/build_err.sh    same with the non-exiting -lscotcherr (for fault injection)
+common/failmalloc.c    LD_PRELOAD malloc/realloc fault injector (FAIL_NTH=k fails the k-th call; FAIL_COUNT=1 prints the count;
+                       FAIL_TRACE=1 prints realloc callers); use ASAN_OPTIONS=verify_asan_link_order=0 and SCOTCH_PTHREAD_NUMBER=1
+common/failscan.sh     runs a program once per allocation index with that allocation failing, reports sanitizer findings
+Per-item directories hold a README with the exact commands and the recorded outputs (scan_*.txt, *_results.txt).

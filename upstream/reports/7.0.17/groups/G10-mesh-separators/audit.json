@@ -1,0 +1,407 @@
+[
+ {
+  "id": "SEP-02",
+  "our_title": "Separator mesh induction and HAMD fill read node loads from the element load array",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/SEP-02: ./sep02_pristine 30 1 -> AddressSanitizer: SEGV ... READ ... #0 _SCOTCHmeshInduceSepa mesh_induce_sepa.c:230 #1 _SCOTCHhmeshOrderNd hmesh_order_nd.c:213 (element loads under a guard page; 30 3 1: same). Patched: 30 1 0 / 30 3 1 / 32 3 0 / 64 2 1 / 30 0 0 -> order=0, permutation valid, on 32- and 64-bit builds. New test_scotch_mesh_order against the pristine library: heap-buffer-overflow 1980 bytes after the 54032-byte data block; patched: passes 30/30 runs with 8 threads.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Public API (SCOTCH_meshBuild + SCOTCH_meshOrder, default strategy) on any element-weighted mesh large enough to be dissected; memory over-read plus wrong weights; meshes from files are unaffected (single shared load array).",
+  "location_7_0_17": "src/libscotch/mesh_induce_sepa.c:180-187,227-233,347; src/libscotch/hmesh_order_hx.c:106,130,168 (reached from hmesh_order_nd.c:213 and hmesh_order_hd.c:139 / hmesh_order_hf.c:139)",
+  "evidence": "mesh_induce_sepa.c:180 `if (orgmeshptr->velotax != NULL) {` ... :185 `&indmeshptr->velotax, (size_t) (orgsepanbr * sizeof (Gnum)), NULL); /* Element vertices assumed not weighted */` :230 `indvnloval  = orgmeshptr->velotax[orgvnodnum];` :347 `indmeshptr->vnlosum = (indmeshptr->velotax == NULL) ? orgsepanbr : indvnlosum;` ; hmesh_order_hx.c:106 `const Gnum * restrict const velotax = meshptr->m.velotax;` :130 `nvtax[vertnum]  = (velotax != NULL) ? velotax[vnodnum] : 1;` :168 same for halo nodes.",
+  "upstream_change": "6a00c51 touched mesh_induce_sepa.c (1U << only); the defect is untouched.",
+  "review_accuracy": "Mechanism, locations and Fix line are right. The 8x8 reproducer cannot reach the code (81 nodes < the 120-node dissection threshold); the ASan 'heap-buffer-overflow' needs a guard page or a particular layout. It missed the second instance in hmeshOrderHxFill (same pattern, same inputs), which the Fix line as written would leave in place: with it alone, element-weighted meshes still read past the array in every HD/HF leaf ordering.",
+  "first_pass_critique": "Status, reproducer and preferred option are right, and its remark on meshLoad sharing one array is correct. It missed hmesh_order_hx.c:130/168 (same defect, also reached by its own 30x30 test since the leaves use d{}), so its diff was incomplete. It proposed a regression test without noticing that a plain test cannot see the over-read: with vnlotab allocated right after velotab the pristine code reads the right loads by accident; the committed test places the element load array last and checks that unit element loads leave the ordering unchanged, which pristine violates.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/hmesh_order_hx.c:130 and :168",
+    "quote": "nvtax[vertnum]  = (velotax != NULL) ? velotax[vnodnum] : 1;",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/hmesh_order_cp.c:209 (related, different defect: element array re-used with the wrong base for nodes-first meshes)",
+    "quote": "coarmeshdat.m.velotax = finemeshptr->m.velotax; /* Re-use element vertex load array, if any */",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Use the node load array (committed)",
+    "summary": "Test and read orgmeshptr->vnlotax, store the induced loads in indmeshptr->vnlotax (velotax stays NULL), test vnlotax for vnlosum; same in hmeshOrderHxFill.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0002-Bugfix-read-node-loads-from-the-node-load-array-in-m.patch",
+    "tested": "repro/SEP-02 on both builds; test_scotch_mesh_order (3 grid variants) on both builds, 30 repeated runs; check_prog_mord/mesh_graph.",
+    "tradeoffs": "None on file meshes (shared array); correct weights now used for SCOTCH_meshBuild meshes, so their orderings change.",
+    "preferred": true,
+    "maintainer_fit": "The Mesh header documents vnlotax as the node load array and hmesh_order_nd.c already feeds m.vnlosum to vnhlsum; his hmesh_induce.c:180,245 use vnlotax for nodes."
+   },
+   {
+    "label": "Drop node loads from the induced separator mesh",
+    "summary": "Never allocate a load array for the induced mesh; vnlosum = orgsepanbr.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/alt/SEP-02-b-drop-separator-node-loads.diff",
+    "tested": "compiled only (tools/altcheck.sh)",
+    "tradeoffs": "Removes the over-read in meshInduceSepa only; silently ignores user node loads in separator orderings and leaves hmesh_order_hx.c broken.",
+    "preferred": false,
+    "maintainer_fit": "He kept the load array on purpose (vnhlsum is propagated); he would not discard information."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0002-Bugfix-read-node-loads-from-the-node-load-array-in-m.patch"
+  ],
+  "cleanup_done": "none needed (the induced velotax branch is gone; velosum keeps his TODO comment, now accurate as elements are unweighted)",
+  "test_added": "src/check/test_scotch_mesh_order.c (new; Makefile check_scotch_mesh_order + CMake add_test_scotch): 32x32 grid built in memory with node loads, with node loads plus unit element loads (orderings must be identical), with element and node loads (base 1), without loads; plus the disjoint-triangle cases added by later commits.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Ordering determinism across the two in-process runs relies on SCOTCH_randomReset(); verified 30/30 with 8 threads on this box."
+ },
+ {
+  "id": "SEP-15",
+  "our_title": "hmeshOrderNd frees the second member of its array group and leaks the non-halo mesh on failure",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "SCOTCH_PTHREAD_NUMBER=1 FAIL_NTH=206 LD_PRELOAD=repro/common/failmalloc.so ASAN_OPTIONS=verify_asan_link_order=0 ./SEP-02/sep02_errp 30 2 0\nERROR: meshInduceSepa: out of memory (2)\nERROR: hmeshOrderNd: cannot build induced subgraph (1)\nAddressSanitizer: attempting free on address which was not malloc()-ed ... #1 _SCOTCHhmeshOrderNd hmesh_order_nd.c:215\nFAIL_NTH=214: ERROR: hmeshOrderNd: out of memory (1) / LeakSanitizer: Direct leak of 4008 byte(s) ... #2 _SCOTCHhmeshOrderNd hmesh_order_nd.c:138 (vendtab of hmeshMesh). Full scans: repro/SEP-15/scan_pristine_sep02.txt (18 invalid frees, 18 leaks on these two lines) vs scan_patched_sep02.txt (none).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Only on allocation failure inside the separator induction; then an invalid free (abort under glibc) rather than a clean error.",
+  "location_7_0_17": "src/libscotch/hmesh_order_nd.c:155-160 (leak of nspmeshdat.m), :213-217 (memFree of frontab)",
+  "evidence": ":155 `if (memAllocGroup ((void **) (void *)\\n &nspmeshdat.parttax, ...,\\n &nspmeshdat.frontab, ..., NULL) == NULL) { errorPrint (\"hmeshOrderNd: out of memory (1)\"); return (1); }` ; :215 `memFree    (nspmeshdat.frontab);            /* Free remaining space */`",
+  "upstream_change": "",
+  "review_accuracy": "Accurate, including the vendtax leak and the vmeshExit fix.",
+  "first_pass_critique": "Right on status, evidence and fix; its injection was a hand-patched return in meshInduceSepa rather than a real allocation failure. Its diff left the two other vmeshExit sites as separate returns; the committed version routes all three through one fail label (his 3c9b3ab idiom) and renames the message, which still said 'subgraph'.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Single fail label with vmeshExit (committed)",
+    "summary": "o = 1; goto fail for the separation, cblktab and induction failures; fail: vmeshExit; return (o). meshFree on the group allocation failure.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0005-Bugfix-fix-error-paths-of-hmeshOrderNd-and-meshInduc.patch",
+    "tested": "fault-injection scans pristine vs patched (repro/SEP-15); check set on both builds.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "dgraph_coarsen.c:792-796 and dgraphInduce2 (3c9b3ab) use exactly this label-plus-o shape; the other error exit of the function already called vmeshExit."
+   },
+   {
+    "label": "Explicit leader free at the site",
+    "summary": "memFree (parttax + baseval); meshFree (&nspmeshdat.m); meshFree on the allocation failure.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/alt/SEP-15-b-explicit-leader-free.diff",
+    "tested": "compiled only",
+    "tradeoffs": "Duplicates vmeshExit; breaks if Vmesh gains fields.",
+    "preferred": false,
+    "maintainer_fit": "He has vmeshExit for this; he would not open-code it."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0005-Bugfix-fix-error-paths-of-hmeshOrderNd-and-meshInduc.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Shares patch 0005 with SEP-22's mesh part. The test_added field is empty because src/check cannot inject allocation failures; the repro directory holds the scan."
+ },
+ {
+  "id": "SEP-22",
+  "our_title": "Error-path leaks in separator FM/induction routines and ignored greedy-partition results",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "meshInduceSepa second-group failure: pristine scan line 'meshInduceSepa: out of memory (2)' x18 with ASan invalid free downstream (SEP-15) and the first group leaked (LeakSanitizer in the same runs); patched: none. vgraphSeparateFm resize failure: debug object (-DSCOTCH_DEBUG_VGRAPH2) on data/bump.grf, injection at the 51 resize re-allocations: pristine 2 runs 'vgraphSeparateFmResize: out of memory / vgraphSeparateFm: out of memory (2)' + LeakSanitizer; patched 0/51 (repro/SEP-22/resize_*_result.txt).",
+  "read_only": "The ignored results of vgraphSeparateGg (vgraph_separate_fm.c:202) and vmeshSeparateGg (vmesh_separate_fm.c:354): those routines fail only on allocation failure; the change is a one-line propagation.",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Allocation-failure paths only; agrees with the review.",
+  "location_7_0_17": "src/libscotch/vgraph_separate_fm.c:202, :587-591 (and the 12 debug-mode `return (1)` after allocation); src/libscotch/mesh_induce_sepa.c:194-208, :327-332; src/libscotch/vmesh_separate_fm.c:354 (twin, not in the review); hmesh_order_nd.c:155-160 (with SEP-15)",
+  "evidence": "vgraph_separate_fm.c:202 `vgraphSeparateGg (grafptr, &paradat);` ; :588 `if (vgraphSeparateFmResize (...) != 0) { errorPrint (\"vgraphSeparateFm: out of memory (2)\"); return (1); }` ; mesh_induce_sepa.c:199-207 second memAllocGroup then `if (p == 0) { errorPrint (\"meshInduceSepa: out of memory (2)\"); return (1); }` with the first group still allocated; :328-331 debug check `return (1)` with both groups allocated; vmesh_separate_fm.c:354 `vmeshSeparateGg (meshptr, &paramdat);`",
+  "upstream_change": "",
+  "review_accuracy": "Accurate on its three sites; it did not list the vmeshSeparateFm twin nor the debug-mode returns.",
+  "first_pass_critique": "Correct status; it did not run anything (needed injection, done here). Its diff is the local-cleanup variant (alt b); it missed the vmeshSeparateFm Gg twin and the meshInduceSepa debug-path leak, and did not notice that bgraph_bipart_fm.c:599-604 frees and keeps going (extra PS2-G10-4).",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/vmesh_separate_fm.c:354",
+    "quote": "vmeshSeparateGg (meshptr, &paramdat);         /* Compute a balanced initial partition */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/mesh_induce_sepa.c:328-331 (debug mode)",
+    "quote": "errorPrint (\"meshInduceSepa: internal error\");\n    return     (1);",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/bgraph_bipart_fm.c:599-604",
+    "quote": "memFree    (hashtab);             /* Free group leader */\n                bgraphBipartFmTablExit (tablptr);\n              }\n              for (hashnum = ...",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "fail label in vgraphSeparateFm, sequential groups in meshInduceSepa, propagate Gg (committed)",
+    "summary": "vgraphSeparateFm: o = 1 at allocation, all later failures goto fail, fail: memFree hashtab + gainTablExit, return (o) (as wgraphPartFm:1021). meshInduceSepa: allocate the two groups in sequence, meshFree on the second failure, fail label shared by the debug check and the re-allocation failure. Gg results tested in both FM routines.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0006-Bugfix-fix-error-paths-of-vgraphSeparateFm-and-check.patch",
+    "tested": "repro/SEP-22 injections (pristine leaks, patched clean); check set on both builds.",
+    "tradeoffs": "Gg failure now stops the separation instead of continuing on an undefined partition (behaviour change on allocation failure only).",
+    "preferred": true,
+    "maintainer_fit": "wgraphPartFm already uses goto fail for every error including debug checks; dgraphInduce2 was reworked that way in 7.0.17."
+   },
+   {
+    "label": "Local cleanup at each site",
+    "summary": "memFree/gainTablExit at the resize failure, test Gg, free the first group in meshInduceSepa.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/alt/SEP-22-b-local-cleanup.diff",
+    "tested": "compiled only",
+    "tradeoffs": "Leaves the debug-mode returns leaking.",
+    "preferred": false,
+    "maintainer_fit": "Smaller, but he moved dgraphInduce2 away from per-site cleanup in 3c9b3ab."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0005-Bugfix-fix-error-paths-of-hmeshOrderNd-and-meshInduc.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0006-Bugfix-fix-error-paths-of-vgraphSeparateFm-and-check.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Patch 0005 (mesh part) and 0006 (graph part)."
+ },
+ {
+  "id": "SEP-03",
+  "our_title": "meshCoarsen ignores coarnbr/coarrat and matcher allocation failure, so multilevel separation recurses without bound",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/SEP-03: ./sep03_pristine 300 -> AddressSanitizer: stack-overflow ... _SCOTCHmeshCoarsen mesh_coarsen.c:151 <- vmeshSeparateMlCoarsen vmesh_separate_ml.c:96 <- vmeshSeparateMl2 (recursion). Patched: 300 and 1000 triangles, default and explicit m{} strategies -> order=0, permutation valid (both builds). Quality: m2_32_32 ordering identical to pristine; ship001 OPC 1.0654e10 -> 1.0635e10. Fault injection (patched): no finding in meshCoarsen.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "Default SCOTCH_meshOrder on an ordinary input (disjoint elements) crashes the process.",
+  "location_7_0_17": "src/libscotch/mesh_coarsen.c:94-166 (coarnbr, coarrat unused), :350 (always 0), :397-400 (matcher sets velmnbr and returns), :334 (unchecked memRealloc); src/libscotch/vmesh_separate_ml.c:93-98",
+  "evidence": "`meshCoarsenFuncTab[coartype] (finemeshptr, finemulttax, finecoartax, &coarvelmnbr, &coarvnodnbr, &coaredgenbr, contptr); /* Call proper matching function */` then straight to building; `*coarvelmptr = finemeshptr->velmnbr;          /* Indicate no coarsening occured */ return;` on hash allocation failure (finemulttax uninitialised); `return (0);` at the end; graph_coarsen.c:193 `if (coarvertnbr >= coarptr->coarvertmax) { ... retuval = 1`",
+  "upstream_change": "0328b08 removed a debug fprintf in the matcher; nothing else.",
+  "review_accuracy": "Accurate, including the uninitialised multinode array after a matcher failure; the suggested Fix is what was done.",
+  "first_pass_critique": "Correct status and reproducer. Its diff only compared the element count (`coarvelmnbr > coarrat * velmnbr`), kept the matcher silent, left coarnbr unused and the final memRealloc unchecked, and used `>` where graphCoarsen uses `>=`; the committed version mirrors graphCoarsen's contract, makes the matcher return an error, checks the re-allocation and frees on every path.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/mesh_coarsen.c:334",
+    "quote": "coarverttax = memRealloc (coarverttax + coarmeshptr->baseval, (coaredgeoftval + coarmeshptr->edgenbr) * sizeof (Gnum)); /* Re-allocate array to save space */",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/mesh_coarsen.c:136",
+    "quote": "coarmeshptr->flagval = GRAPHFREEVERT;",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "graphCoarsen contract inside meshCoarsen (committed)",
+    "summary": "return 1 if vnodnbr <= coarnbr or coarvelmnbr >= velmnbr * coarrat; matcher returns int and reports its allocation failure (2); checked memRealloc; fail1/fail2 labels free the work arrays; the node threshold test moves from vmeshSeparateMlCoarsen into meshCoarsen.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0004-Bugfix-make-meshCoarsen-report-when-the-mesh-cannot-.patch",
+    "tested": "repro/SEP-03 both builds; test_scotch_mesh_order 300-triangle case; check_prog_mord; fault-injection scan.",
+    "tradeoffs": "Levels whose matching does not reach the ratio now stop one level earlier (none seen on grid/ship meshes; ship001 slightly better).",
+    "preferred": true,
+    "maintainer_fit": "graph_coarsen.c:193,549,601-603 is the same contract; dgraph_coarsen.c:792-796 the same label style."
+   },
+   {
+    "label": "Caller-side ratio check",
+    "summary": "After meshCoarsen returns 0, reject the coarse mesh in vmeshSeparateMlCoarsen.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/alt/SEP-03-b-caller-side-ratio-check.diff",
+    "tested": "compiled only",
+    "tradeoffs": "Builds a coarse mesh only to discard it; leaves the matcher's uninitialised multinode array and the unchecked realloc.",
+    "preferred": false,
+    "maintainer_fit": "He put the contract in graphCoarsen, not in its callers."
+   },
+   {
+    "label": "Strict no-progress check only",
+    "summary": "Return 1 only when no element was merged.",
+    "diff_file": "",
+    "tested": "untested: subsumed by the committed check (ratio 0.8 >= no progress)",
+    "tradeoffs": "Deep recursion still possible when one element merges per level.",
+    "preferred": false,
+    "maintainer_fit": "Weaker than his graph contract."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0004-Bugfix-make-meshCoarsen-report-when-the-mesh-cannot-.patch"
+  ],
+  "cleanup_done": "The duplicate node threshold test in vmeshSeparateMlCoarsen is removed; the GRAPHFREEVERT typo replaced; the matcher's fake 'no coarsening' assignment removed.",
+  "test_added": "test_scotch_mesh_order: 300 disjoint triangles, base 1 (mesh that cannot be coarsened).",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "PS-SEP-4 is a separate defect that this fix does not touch (see its entry)."
+ },
+ {
+  "id": "SEP-18",
+  "our_title": "Dead 'OUCH' print in wgraphPartFm; its save-slot claim undercounts by one and relies on the degree slack",
+  "status": "partially-fixed",
+  "method": "ran",
+  "ran": "Pristine gpart -o on 10 data graphs x 7 part counts (70 runs): 'OUCH' never printed. Patched wgraph_part_fm.o with -DSCOTCH_DEBUG_WGRAPH2 (same 70 runs): no internal error (7)/(8), no sanitizer finding (repro/SEP-18/fuzz_results.txt). check_prog_gpart_overlap and check_scotch_graph_part_ovl pass on both builds. mesh_coarsen.c: grep shows no fprintf left.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "low",
+  "severity_note": "Diagnostic only; the write cannot overrun (bound below).",
+  "location_7_0_17": "src/libscotch/wgraph_part_fm.c:548 (savenbr = 2), :682 (claim), :857-858 (print); mesh_coarsen.c:431 in 7.0.16 (removed)",
+  "evidence": ":548 `savenbr = 2;                                /* TRICK: account for move and load for vertex itself  */` ; :682 `while (wgraphPartFmSaveClaim (&savedat, savenbr + (vendtax[vertnum] - verttax[vertnum])))` ; :857 `if (savedat.savenbr >= savedat.savesiz)\\n            fprintf (stderr, \"OUCH\\n\");` ; slots written per move: 1 move + L listed vertices (:669,:677 counted) + loads of destination part, T former parts (:575 counted) and frontier (:838-869 loop over the chain ending at -1): 3 + T + L, claimed 2 + T + L + degree, degree >= 1 for a frontier vertex.",
+  "upstream_change": "0328b08 'Clean-up' removed the mesh_coarsen.c print; the wgraph print remains.",
+  "review_accuracy": "Right about both prints; 'unguarded out-of-bounds savetab write' is not demonstrated: the write is covered by the claim (through the degree slack) and, in debug mode, by the same check (8) as the other load slots in that loop.",
+  "first_pass_critique": "Correct partial status and location. Its preferred option adds a second debug check for a write that check (8), eight lines above in the same loop, already guards, and it did not analyse the claim; it also did not fuzz. The committed change fixes the claim (3 instead of 2) so the bound holds without the slack.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/vmesh_separate_fm.c:154-156 (unfinished code with exit(1), handled as PS-SEP-2)",
+    "quote": "/* TODO */\n  fprintf (stderr, \"hertnum no longer valid !\\n\");\n  exit    (1);",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Remove the print, count the frontier load slot (committed)",
+    "summary": "savenbr = 3 with the comment saying what is counted; delete the OUCH lines; debug check (8) stays.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0007-Bugfix-remove-leftover-debug-output-and-fix-save-slo.patch",
+    "tested": "fuzz pristine and patched-debug (70 runs each); overlap check targets.",
+    "tradeoffs": "The claim grows by one slot (a resize may happen one move earlier).",
+    "preferred": true,
+    "maintainer_fit": "He removed the sibling print in 0328b08; the (7)/(8) checks are his pattern for these writes."
+   },
+   {
+    "label": "Unconditional runtime check",
+    "summary": "Replace the print by errorPrint + goto fail.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/alt/SEP-18-b-unconditional-check.diff",
+    "tested": "compiled only",
+    "tradeoffs": "A compare per move for a condition shown unreachable; inconsistent with (7)/(8) being debug-only.",
+    "preferred": false,
+    "maintainer_fit": "He keeps internal-consistency checks under SCOTCH_DEBUG_*."
+   },
+   {
+    "label": "Debug-only check in place of the print (first pass)",
+    "summary": "#ifdef SCOTCH_DEBUG_WGRAPH2 internal error.",
+    "diff_file": "",
+    "tested": "untested: redundant with check (8) in the same loop",
+    "tradeoffs": "Dead code.",
+    "preferred": false,
+    "maintainer_fit": "Duplicates an existing check."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0007-Bugfix-remove-leftover-debug-output-and-fix-save-slo.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "wgraph_part_fm.c:347 has a pre-existing tab character (not touched)."
+ },
+ {
+  "id": "PS-SEP-2",
+  "our_title": "vmeshSeparateFmResize unfinished: exit(1) after realloc, shielded by a 4x table over-allocation",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Natural trigger not found (pristine mord on mmk_m2 300 300, mmk_m3 40 40 40, a 3000x80 wedge with bal=1.0 strategies: all complete). Completed resize validated with vmesh_separate_fm.o built -DSCOTCH_DEBUG_VMESH2 -DSCOTCH_DEBUG_VMESH3 (estimate / 8, vmeshSeparateFmCheck after each move/pass): mord on m2_32_32 / ship001 / m2_100_100 / m3_20_20_20 = 14 / 98 / 297 / 64 resizes, rc=0, gotst valid (repro/PS-SEP-2/dbg_forced_results.txt). Non-debug patched build: m2_300_300 does 4 natural resizes, ordering identical to pristine; ship001 OPC 1.0291e10 -> 1.0258e10 (1 thread).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "A library calling exit(1); reachable only through meshes whose refinement touches more than four times the estimated table size, which no tested mesh did.",
+  "location_7_0_17": "src/libscotch/vmesh_separate_fm.c:88-236 (resize), :142 (mis-cast pointer), :161 (wrong clear range), :168-182 (loop never breaks when the slot is unchanged), :362 (`/* TODO */ hashmax *= 4;`), :370 (save array of hashmax records); vmesh_separate_fm.h:65-67 (states)",
+  "evidence": ":154-156 `/* TODO */\\n  fprintf (stderr, \"hertnum no longer valid !\\n\");\\n  exit    (1);` ; :142 `hnodtld = (VmeshSeparateFmNode *) ((byte *) helmtab) + ((byte *) *hnodptr - (byte *) *helmptr);` (cast binds before the addition); :161 `memSet (helmtab + hashold, ~0, hashold * 2 * sizeof (...))` (old size is 4 * hashold); :168-182 inner for has no break when `velmnum == helmtab[helmold].velmnum`; :362 `/* TODO */ hashmax *= 4;`",
+  "upstream_change": "",
+  "review_accuracy": "Not in the review.",
+  "first_pass_critique": "Correct find; 'shielded' remark right. It did not analyse the routine (three further bugs in the dead code, the state ambiguity between locked and chained elements, the stale node index in the filling loop, the undersized save array) nor the fact that the three debug checks placed after a resize can never pass.",
+  "extra_instances": [
+   {
+    "location": "src/libscotch/vmesh_separate_fm.c:370 (save array size)",
+    "quote": "&movetab, (size_t) (hashmax * sizeof (VmeshSeparateFmSave)), NULL) == NULL)) {",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/vmesh_separate_fm.c:448-453,659-664,763-768 (checks right after a resize, inconsistent state by construction)",
+    "quote": "if (vmeshSeparateFmCheck (meshptr, helmtab, hnodtab, hashmsk, ncmpload2, ncmploaddlt) != 0) {\n              errorPrint (\"vmeshSeparateFm: internal error (8)\");",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "Finish the resize as in vgraphSeparateFmResize (committed)",
+    "summary": "Save array moved, node table rebuilt, elements re-hashed in place in two segments, gain table re-linked and lock/chain lists rebuilt from a per-element state (new VMESHSEPAFMSTATESEPA, LINK becomes 3), save records translated back; elements inserted while filling are set USED; save array sized 2*hashmax; shield removed; debug-mode estimate/8 as in vgraph; the three post-resize checks removed.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0008-Bugfix-complete-hash-table-resizing-in-vmeshSeparate.patch",
+    "tested": "forced-resize debug runs with full checks on four meshes; natural resizes on m2_300_300; check set on both builds.",
+    "tradeoffs": "Orderings may change on meshes that now resize (m2_300_300 did not change); more code in a hot routine, exercised by SCOTCH_DEBUG_VMESH2 builds from now on.",
+    "preferred": true,
+    "maintainer_fit": "He wrote the vgraph version and left TODOs here; this is the vgraph code transposed, with his state constants."
+   },
+   {
+    "label": "Fail cleanly, keep the shield",
+    "summary": "errorPrint + return (1) instead of fprintf/exit; the caller already frees and returns.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/alt/PS-SEP-2-b-fail-cleanly.diff",
+    "tested": "compiled only",
+    "tradeoffs": "Turns a process kill into an ordering failure on such meshes; no behaviour change otherwise; the TODO stays.",
+    "preferred": false,
+    "maintainer_fit": "Acceptable as a stopgap, but it leaves a documented strategy unusable on large separators; he finished the graph version."
+   },
+   {
+    "label": "Finish the resize but keep the 4x shield",
+    "summary": "Patch 0008 without the sizing hunk.",
+    "diff_file": "",
+    "tested": "untested: strict subset of the committed patch",
+    "tradeoffs": "No ordering change at all on meshes that do not resize today; four times the hash memory kept for no reason.",
+    "preferred": false,
+    "maintainer_fit": "The shield is tagged TODO as a stopgap for the unfinished code."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0008-Bugfix-complete-hash-table-resizing-in-vmeshSeparate.patch"
+  ],
+  "cleanup_done": "Shield and its TODO removed; stale header comment on FREE state updated; dead post-resize checks removed; the mis-cast, the wrong clear range and the non-terminating loop are gone with the rewrite.",
+  "test_added": "",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "If the user prefers zero behaviour change on existing meshes, drop the sizing hunk of 0008 (option c)."
+ },
+ {
+  "id": "PS-SEP-4",
+  "our_title": "hallOrderHdR2Halmd counts zero-degree variables unweighted and runs out of pivots",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "gord iso_w2.grf /dev/null -od (3 isolated vertices of load 2) -> gord: ERROR: hallOrderHdR2Halmd: internal error (2); -of ok; unit loads ok. Mesh: sep03_pristine 30/45/100 (default strategy) -> same error (compression gives nodes of weight 3). Patched: all succeed, gotst validates; check_prog_gord/gotst with data/isolated_v.grf and test_scotch_mesh_order (30 triangles) pass on both builds. Alternative b built and run: valid orderings too.",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "Default mesh ordering aborts (errorexit) on any mesh with elements whose nodes are private; graph side needs an explicit d{} method (default leaves use f{}) and a weighted isolated vertex.",
+  "location_7_0_17": "src/libscotch/hall_order_hd.c:497-502 (`nel ++`), :386-452 (totel += nv[i]), :507 (`while (nel < totel)`), :514-518 (error 2); twin hall_order_hf.c:843-848 is correct",
+  "evidence": "hall_order_hd.c:497 `else {\\n      nel ++;\\n      elen[i] = - nel;\\n      pe[i]   = 0;\\n      w[i]    = 0;\\n    }` while :452 `totel    += nv[i];` and :528 `nel     += nvpiv;` for pivots; hall_order_hf.c:843 `else {  /* Variable can be eliminated at once because no off-diagonal non-zero in its row */\\n      nel += nv[i];`",
+  "upstream_change": "",
+  "review_accuracy": "Not in the review.",
+  "first_pass_critique": "Observed only; 'cause not analysed'. It is a halo-minimum-degree defect independent of SEP-03 (reachable from SCOTCH_graphOrder with weights and from any mesh ordering through compression), with the HF twin as precedent for the one-line fix.",
+  "extra_instances": [],
+  "fix_options": [
+   {
+    "label": "Weighted elimination count (committed)",
+    "summary": "nel += nv[i] in the zero-degree branch, comment as in HF.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0003-Bugfix-account-for-variable-weights-of-zero-degree-v.patch",
+    "tested": "gord -od on four weighted graphs + gotst; mesh default strategy on 30/45/100 disjoint triangles; check targets both builds.",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Identical to his HF code at hall_order_hf.c:844."
+   },
+   {
+    "label": "Let the degree lists handle zero-degree variables",
+    "summary": "Insert them in the degree-0 list instead of eliminating them up front; the pivot loop then counts nv.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/alt/PS-SEP-4-b-degree-lists.diff",
+    "tested": "scratch partial build: gord -od on the four graphs gives valid orderings (gotst OPC 24/13/40/443), mord ok",
+    "tradeoffs": "Changes elimination order of such variables (they become pivots); more work per variable.",
+    "preferred": false,
+    "maintainer_fit": "The early elimination exists in the original AMD; he kept it in HF and only weighted the count."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0003-Bugfix-account-for-variable-weights-of-zero-degree-v.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "src/check/data/isolated_v.grf (8 vertices, loads 1-5, 4 isolated) ordered with -od in check_prog_gord and checked in check_prog_gotst (CMake twins); test_scotch_mesh_order: 30 disjoint triangles.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": ""
+ }
+]

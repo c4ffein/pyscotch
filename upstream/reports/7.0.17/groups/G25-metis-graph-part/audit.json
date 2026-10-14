@@ -1,0 +1,372 @@
+[
+ {
+  "id": "CLI-02",
+  "our_title": "V5 recursive wrapper dereferences a NULL ubvec that the Kway wrapper tolerates",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$WORK/build/lib (or build64/lib) ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1; cd $WORK/repro; ./build.sh $WORK/build (or build64); ./CLI-02/cli02\n32-bit and 64-bit pristine: 'metis_graph_part.c:290:5: runtime error: load of null pointer of type const double' then 'AddressSanitizer: SEGV on unknown address 0x000000000000 ... #0 _SCOTCH_METIS_PartGraph2 metis_graph_part.c:290 #2 SCOTCH_METIS_V5_PartGraphRecursive metis_graph_part.c:590'. './cli02 k' (Kway): ret=1 objval=80. Patched: 'Recursive: ret=1 objval=80' (64-bit: objval=82). After the series, in both trees: make -C <tree>/src/check ... check_libmetis_v3 check_libmetis_v5 check_libmetis_dual_v3 check_libmetis_dual_v5 check_libmetis_dual_f_v3 check_libmetis_dual_f_v5 check_scotch_arch check_scotch_graph_map check_scotch_graph_part_ovl (gcc) and check_libparmetis_v3 (mpicc, EXECP4='mpirun --oversubscribe -np 4'): all rc=0, 0 build warnings (build.log / build64.log). The new test_libmetis.c / test_libparmetis.c compiled against the pristine $INFRA/asan libraries fail (pristine_tests/: rc=1, archCmpltwArchBuild2 'invalid parameters (2)' + double free at the bwgttab call; the Recursive NULL-ubvec call crashes).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "same as review: public API argument documented optional by METIS 5, NULL on the most common call form, hard crash",
+  "location_7_0_17": "src/libscotchmetis/metis_graph_part.c:589-595 (ubvec passed as kbalval), :290 (dereference)",
+  "evidence": "metis_graph_part.c:592 'SCOTCH_STRATRECURSIVE, ubvec)' and :595 'SCOTCH_STRATRECURSIVE, ubvec));' versus the Kway wrapper :559 'SCOTCH_STRATDEFAULT, (ubvec != NULL) ? ubvec : &kbalval)'; :290 'SCOTCH_stratGraphMapBuild (&stradat, flagval, *nparts, *kbalval);'",
+  "upstream_change": "none in 7.0.16..7.0.17 (no commit touches src/libscotchmetis). History: a026661 (2023-08-17) 'Allow users to pass a NULL ubvec vector in ... SCOTCH_METIS_V5_PartGraphKway()' fixed the Kway wrapper only; the Recursive twin was forgotten",
+  "review_accuracy": "accurate (mechanism, lines, reproducer). Its Fix line (copy the Kway fallback) works as written, but keeps two divergent copies of the same wrapper body, which is how the Kway-only fix of 2023 missed this one, and leaves the ubvec unit error (CLI-03) in place; the two must be fixed together.",
+  "first_pass_critique": "status, method, location and evidence correct. Its preferred fix (shared helper, under CLI-03) silently treats ubvec[0] <= 1.0 as 'default 0.01', hiding unit errors that real METIS rejects (CheckParams); its second option was never compiled. It did not propose merging the two wrapper bodies, which is the structural cause.",
+  "extra_instances": [
+   {
+    "location": "src/libscotchmetis/metis_graph_part_f.c:175-195 (METIS_V5_PARTGRAPHRECURSIVE Fortran wrapper)",
+    "quote": "*revaptr = SCOTCHMETISNAMES (METIS_V5_PartGraphRecursive) (nvtxs, ncon, xadj, adjncy, vwgt, vsize, adjwgt, nparts, tpwgts, ubvec, options, objval, part);",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a: NULL fallback in the Recursive wrapper (the review's fix)",
+    "summary": "Declare kbalval = 0.01 in METIS_V5_PartGraphRecursive and pass (ubvec != NULL) ? ubvec : &kbalval, as the Kway wrapper does.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/alt/CLI-02-a-recursive-null-fallback.diff",
+    "tested": "compiled (syntax) on pristine; not run",
+    "tradeoffs": "Two lines; fixes the crash only, keeps the ubvec unit bug (CLI-03) and the duplicated wrapper bodies.",
+    "preferred": false,
+    "maintainer_fit": "It is exactly what he did for Kway in a026661, which is why it is not enough: the same omission would recur at the next change."
+   },
+   {
+    "label": "b: default inside _SCOTCH_METIS_PartGraph2 when kbalval is NULL",
+    "summary": "SCOTCH_stratGraphMapBuild (..., (kbalval != NULL) ? *kbalval : 0.01).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/alt/CLI-02-b-callee-null-default.diff",
+    "tested": "compiled (syntax) on pristine; not run",
+    "tradeoffs": "One line, protects every caller, but duplicates the 0.01 default (V3 wrappers already set it) and hides the V5 contract in a routine shared with V3.",
+    "preferred": false,
+    "maintainer_fit": "He keeps defaults at the API boundary (kbalval = 0.01 in each V3 wrapper); a NULL-tolerant internal routine is not his idiom."
+   },
+   {
+    "label": "c: one common V5 routine that converts and checks the parameters (patch 0003)",
+    "summary": "_SCOTCH_METIS_V5_PartGraph() is the single body of both V5 wrappers; ubvec NULL gives the default tolerance, otherwise ubvec[0] is validated (> 1.0) and converted (CLI-03); ncon handled (CLI-07).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0003-Bugfix-convert-MeTiS-v5-partitioning-parameters-into.patch",
+    "tested": "cli02 (both strategies), check_libmetis_v5 (3 graphs) 32/64-bit, new test case: Recursive with NULL tpwgts and ubvec",
+    "tradeoffs": "Larger diff; behaviour change for callers passing ubvec (now honoured) and ubvec <= 1 (now METIS_ERROR_INPUT).",
+    "preferred": true,
+    "maintainer_fit": "Precedent: bfe5287 'Place MeTiS mapping metrics computation routines in separate functions' and 0ecabba 'Refactor MeTiS compatibility library' (he factors shared wrapper logic); unconditional checks on API-controlled values with SCOTCH_errorPrint + METIS_ERROR_INPUT as in metis_graph_part_dual.c:116-118."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0003-Bugfix-convert-MeTiS-v5-partitioning-parameters-into.patch"
+  ],
+  "cleanup_done": "The two wrapper bodies are replaced by calls to the common routine; the kbalval local of the Kway wrapper and the duplicated baseval expression are gone. No struct field or macro involved.",
+  "test_added": "src/check/test_libmetis.c (v5 section): METIS_PartGraphRecursive with tpwgts = NULL and ubvec = NULL, result checked by checkPart(). Pristine: crash.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "The V5 Fortran wrappers are pure pass-throughs and need no change."
+ },
+ {
+  "id": "CLI-03",
+  "our_title": "V5 ubvec ratio used unconverted as Scotch tolerance: 1.05 allows twice the average load",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$WORK/build/lib (or build64/lib) ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1; cd $WORK/repro; ./build.sh $WORK/build (or build64); ./CLI-03/cli03 (40x40 grid, loads 1..10, 4 parts, imbalance = max part load / ideal)\npristine 32-bit (64-bit identical): 'Kway ubvec=1.05 ret=1 cut=40 imbalance=2.0079', 'Kway ubvec=1.001 ... imbalance=2.0002', 'Kway ubvec=1.3 ... 2.0079', NULL: 'imbalance=1.0046'; Recursive same, NULL crashes (CLI-02).\npatched: 'Kway ubvec=1.001 imbalance=1.0006', '1.01 -> 1.0046', '1.03 -> 1.0200', '1.05 -> 1.0200', '1.3 -> 1.0200', NULL '1.0046'; Recursive '1.0006 / 1.0046 / 1.0187 / 1.0200 / 1.0200 / 1.0046'. After the series, in both trees: make -C <tree>/src/check ... check_libmetis_v3 check_libmetis_v5 check_libmetis_dual_v3 check_libmetis_dual_v5 check_libmetis_dual_f_v3 check_libmetis_dual_f_v5 check_scotch_arch check_scotch_graph_map check_scotch_graph_part_ovl (gcc) and check_libparmetis_v3 (mpicc, EXECP4='mpirun --oversubscribe -np 4'): all rc=0, 0 build warnings (build.log / build64.log). The new test_libmetis.c / test_libparmetis.c compiled against the pristine $INFRA/asan libraries fail (pristine_tests/: rc=1, archCmpltwArchBuild2 'invalid parameters (2)' + double free at the bwgttab call; the Recursive NULL-ubvec call crashes).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "same as review: silent quality loss for every V5 caller that sets ubvec (the usual call form); the maintainer's own test used 0.05, i.e. the Scotch convention, which shows the units were never reconciled",
+  "location_7_0_17": "src/libscotchmetis/metis_graph_part.c:559,562 (Kway) and :592,595 (Recursive) pass ubvec as kbalval; :290 uses *kbalval as the strategy tolerance; src/libscotch/kgraph_map_rb.c:140-141 apply it as (1 -/+ kbalval) * comploadrat",
+  "evidence": "metis_graph_part.c:559 'SCOTCH_STRATDEFAULT, (ubvec != NULL) ? ubvec : &kbalval)'; :290 'SCOTCH_stratGraphMapBuild (&stradat, flagval, *nparts, *kbalval);'; kgraph_map_rb.c:140 'datadat.comploadmin = (1.0 - paraptr->kbalval) * grafptr->comploadrat;' :141 'datadat.comploadmax = (1.0 + paraptr->kbalval) * grafptr->comploadrat;'; src/check/test_libmetis.c:168 'const double kbaltab[1] = { 0.05 };'",
+  "upstream_change": "",
+  "review_accuracy": "accurate on mechanism and effect. Its Fix line 'kbalval = max(ubvec[0] - 1.0, 0)' silently maps an invalid ratio (<= 1.0, e.g. the 0.05 of the shipped test) to a zero tolerance, i.e. demands perfect balance instead of reporting the caller's unit error; METIS 5.1 rejects ubvec[i] <= 1.0 (CheckParams). The review also omits that ParMETIS_V3_PartKway ignores ubvec altogether (it is mentioned only under CLI-07).",
+  "first_pass_critique": "status and measurements correct and reproduced exactly. Its preferred helper treats ubvec[0] <= 1.0 as 'default 0.01' (silent, not METIS behaviour) and leaves the ParMETIS twin untouched although it is the same conversion; it did not notice that src/check/test_libmetis.c passes 0.05 (so its fix would silently change what the shipped test exercises); the alternative 'subtract 1 when > 1' heuristic is correctly rejected but was not written as a real diff.",
+  "extra_instances": [
+   {
+    "location": "src/libscotchmetis/parmetis_dgraph_part.c:128-129 and 190-197",
+    "quote": "const float * const         ubvec,                /* Not used */ ... SCOTCH_stratInit (&stradat);  (default tolerance 0.05 from library_dgraph_map.c:180)",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/check/test_libmetis.c:168",
+    "quote": "const double        kbaltab[1] = { 0.05 };",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/check/test_libparmetis.c:242 (dead block, SCOTCH_METIS_VERSION == 5 is never built for ParMETIS)",
+    "quote": "const double        kbaltab[1] = { 0.05 };",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a: subtract 1.0 in both V5 wrappers, no validation",
+    "summary": "kbalval = (ubvec != NULL) ? (ubvec[0] - 1.0) : 0.01 in both wrappers (also fixes CLI-02).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/alt/CLI-03-a-wrapper-subtract-one.diff",
+    "tested": "compiled (syntax) on pristine; not run",
+    "tradeoffs": "Minimal; a ratio <= 1 yields a negative tolerance (comploadmax < comploadrat: every part over-full, FM refinement degenerates) instead of an error; still two copies of the wrapper body; ParMETIS untouched.",
+    "preferred": false,
+    "maintainer_fit": "Too lenient for an API-controlled value; he adds unconditional checks for those (b10825d 'Add parameter check to SCOTCH_dgraphRedist()')."
+   },
+   {
+    "label": "b: heuristic in _SCOTCH_METIS_PartGraph2: (*kbalval > 1.0) ? *kbalval - 1.0 : *kbalval",
+    "summary": "Treat values above 1 as METIS ratios inside the shared routine.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/alt/CLI-03-b-heuristic-in-partgraph2.diff",
+    "tested": "compiled (syntax) on pristine; not run",
+    "tradeoffs": "One line, but ambiguous: a V5 ratio of exactly 1.0 (perfect balance) and a legal V3 tolerance > 1 are misread; mixes two conventions in one routine.",
+    "preferred": false,
+    "maintainer_fit": "He would not take a heuristic on a documented unit."
+   },
+   {
+    "label": "c: validate and convert in the common V5 routine; ParMETIS honours ubvec[0] (patch 0003)",
+    "summary": "kbalval = ubvec[0] - 1.0 after checking ubvec[0] > 1.0 (else SCOTCH_errorPrint + METIS_ERROR_INPUT); NULL gives 0.01; ParMETIS_V3_PartKway builds its strategy with SCOTCH_stratDgraphMapBuild (SCOTCH_STRATDEFAULT, procglbnbr, *nparts, ubvec[0] - 1.0), default 0.05 as before.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0003-Bugfix-convert-MeTiS-v5-partitioning-parameters-into.patch",
+    "tested": "cli03 (table above), pcli07 (ParMETIS, ubvec 1.03), check_libmetis_v5 / check_libparmetis_v3 on bump, bump_b1, bump_imbal_32, 32/64-bit; shipped test's kbaltab changed to 1.05 (0.05 is now rejected, as in METIS)",
+    "tradeoffs": "Behaviour change: partitions for ubvec callers become tight (the point); ubvec <= 1 now fails with a message; the ParMETIS doc paragraph changes.",
+    "preferred": true,
+    "maintainer_fit": "Mirrors the ParMETIS strategy-building idiom of the sequential code (metis_graph_part.c:289-290) and the dgraph default (library_dgraph_map.c:180); error reporting as metis_graph_part_dual.c:116-118."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0003-Bugfix-convert-MeTiS-v5-partitioning-parameters-into.patch"
+  ],
+  "cleanup_done": "'Not used' comments on ncon and ubvec in parmetis_dgraph_part.c removed (4 places); kbalval default centralised; test value 0.05 replaced by 1.05.",
+  "test_added": "src/check/test_libmetis.c: kbaltab = 1.05 (METIS convention) for all v5 calls, plus checkLoad() on the ncon = 2 call (tolerance-driven balance of the first constraint); src/check/test_libparmetis.c: ubvec = {1.05, 1.05} call.",
+  "docs_updated": "doc/src/ptscotch/p_l.tex (ParMETIS_V3_PartKway: ubvec[0] is used, ratio semantics stated)",
+  "needs": "",
+  "needs_note": "",
+  "notes": "Not done on purpose: honouring options[METIS_OPTION_UFACTOR] when ubvec is NULL (METIS uses 1 + ufactor/1000, default 1.03 kway / 1.001 recursive). It would be a new feature changing the documented 'only NUMBERING and OBJTYPE are supported' statement; the Scotch default stays 0.01. The dead v5 block of test_libparmetis.c (kbaltab 0.05, tpwgtab undeclared) is left as is, see extra.json PS2-G25-2."
+ },
+ {
+  "id": "CLI-06",
+  "our_title": "V5 routines use options[NUMBERING] = -1 verbatim as base value: endless loop or heap overflow",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$WORK/build/lib (or build64/lib) ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1; cd $WORK/repro; ./build.sh $WORK/build (or build64); for m in kway rec nodend num2; do timeout 20 ./CLI-06/cli06 $m; done (0-based 40x40 grid, options[0..39] = -1)\npristine 32/64-bit: kway: never returns (timeout rc=124); nodend: never returns (rc=124); rec: NULL-ubvec crash first (CLI-02); num2 (NUMBERING = 2 with 0-based arrays): 'AddressSanitizer: heap-buffer-overflow ... kgraph_map_ml.c'.\npatched: 'kway: ret=1 objval=80 part[0]=1', 'rec: ret=1 objval=80', 'nodend: ret=1', 'num2: ERROR: _SCOTCH_METIS_V5_PartGraph: invalid numbering option' ret=-2. After the series, in both trees: make -C <tree>/src/check ... check_libmetis_v3 check_libmetis_v5 check_libmetis_dual_v3 check_libmetis_dual_v5 check_libmetis_dual_f_v3 check_libmetis_dual_f_v5 check_scotch_arch check_scotch_graph_map check_scotch_graph_part_ovl (gcc) and check_libparmetis_v3 (mpicc, EXECP4='mpirun --oversubscribe -np 4'): all rc=0, 0 build warnings (build.log / build64.log). The new test_libmetis.c / test_libparmetis.c compiled against the pristine $INFRA/asan libraries fail (pristine_tests/: rc=1, archCmpltwArchBuild2 'invalid parameters (2)' + double free at the bwgttab call; the Recursive NULL-ubvec call crashes).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "review says medium; raised because the outcome is an endless loop or out-of-bounds reads, and filling the option array with -1 is the documented METIS 5 idiom (its METIS_SetDefaultOptions does exactly that); it is hidden only for callers using Scotch's own zero-filling METIS_SetDefaultOptions",
+  "location_7_0_17": "src/libscotchmetis/metis_graph_part.c:554 and :587; metis_graph_order.c:183; metis_graph_part_dual.c:108-109; metis_options.c:70 (zero fill, documented in doc/src/scotch/s_l.tex:8942-8944)",
+  "evidence": "metis_graph_part.c:554 'baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;' (identical at :587 and metis_graph_order.c:183); metis_graph_part_dual.c:108-109 'if ((options != NULL) && (options != ne)) baseval = options[METIS_OPTION_NUMBERING];'; metis_options.c:70 'memSet (options, 0, METIS_NOPTIONS * sizeof (SCOTCH_Num));'",
+  "upstream_change": "",
+  "review_accuracy": "accurate but incomplete: metis_graph_order.c:183 (METIS_V5_NodeND) has the identical expression and is not listed; the Fix line (negative means 0, reject others than 0/1) is right, except that METIS's GETOPTION treats exactly -1 as 'default', not every negative value.",
+  "first_pass_critique": "correct status and evidence, and it did find NodeND. Its preferred option normalises inside a helper private to metis_graph_part.c and says 'same 3-line normalisation' for the other two files, i.e. three copies of the logic; its second option (fill with -1 in METIS_SetDefaultOptions) would change a documented behaviour ('Other values are set to 0', s_l.tex:8944) and break the shipped tests that set options[NUMBERING] after it, which it did not mention. It treats all negative values as default rather than -1 only.",
+  "extra_instances": [
+   {
+    "location": "src/libscotchmetis/metis_graph_order.c:183",
+    "quote": "baseval = ((options != NULL) && (options != xadj)) ? options[METIS_OPTION_NUMBERING] : 0;",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotchmetis/metis_graph_part_dual.c:108-109",
+    "quote": "if ((options != NULL) && (options != ne))       /* For the Fortran interface, null arrays are those equal to ne */\n    baseval = options[METIS_OPTION_NUMBERING];",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotchmetis/metis_graph_part_dual.c:218 (OBJTYPE read without default handling; harmless for -1 since it is simply not VOL)",
+    "quote": "((options != NULL) && (options != ne) && (options[METIS_OPTION_OBJTYPE] == METIS_OBJTYPE_VOL)))",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a: inline normalisation at the four sites",
+    "summary": "At each site: value -1 means 0; then reject anything but 0/1 with SCOTCH_errorPrint + METIS_ERROR_INPUT.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/alt/CLI-06-a-inline-normalisation.diff",
+    "tested": "compiled (syntax) on pristine; not run",
+    "tradeoffs": "No new file; four copies of the same five lines, which is how the three divergent copies arose in 9fe677a.",
+    "preferred": false,
+    "maintainer_fit": "Plausible for him (9fe677a inlined the expression three times), but the fourth copy makes a helper the better choice."
+   },
+   {
+    "label": "b: make METIS_SetDefaultOptions fill with -1 like METIS, plus normalisation",
+    "summary": "options[i] = -1 for all i; readers substitute defaults.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/alt/CLI-06-b-setdefaultoptions-minus-one.diff",
+    "tested": "compiled (syntax) on pristine; not run",
+    "tradeoffs": "Closest to METIS, but changes the documented output of METIS_SetDefaultOptions (s_l.tex 'Other values are set to 0'); readers must be fixed anyway, so it adds risk without removing work.",
+    "preferred": false,
+    "maintainer_fit": "He does not change documented behaviour for a bug that is fixed on the reading side."
+   },
+   {
+    "label": "c: _SCOTCH_METIS_optionGet() in metis_options.c, used by the four readers (patch 0004)",
+    "summary": "SCOTCH_Num _SCOTCH_METIS_optionGet (options, nulltab, optinum, defaval) returns defaval when options is NULL, equals the Fortran null array, or holds -1; each caller then rejects a numbering outside 0..1. New metis_options.h declares it; Makefile dependencies updated (CMake lists only sources).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0004-Bugfix-handle-default-values-in-MeTiS-v5-option-arra.patch",
+    "tested": "cli06 (all modes), check_libmetis_v3/v5/dual_v3/dual_v5/dual_f_v3/dual_f_v5 32/64-bit; new test: option array filled with -1 for PartGraphKway and NodeND",
+    "tradeoffs": "One new header and exported internal symbol; the PartMeshDual hunk is in a function that group G26 (CLI-05) also edits, on different lines.",
+    "preferred": true,
+    "maintainer_fit": "Same shape as metis_graph_part.h / metis_graph_dual.h internal helpers (_SCOTCH_METIS_OutputCut, _SCOTCH_METIS_MeshToDual2) declared in per-module headers; option handling belongs in metis_options.c."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0004-Bugfix-handle-default-values-in-MeTiS-v5-option-arra.patch"
+  ],
+  "cleanup_done": "none needed (the duplicated expression is replaced at every site; no symbol orphaned)",
+  "test_added": "src/check/test_libmetis.c (v5): options[] filled with -1 (NUMBERING forced to the graph base when it is not 0), METIS_PartGraphKway + METIS_NodeND, checked by checkPart/checkOrder. Pristine: endless loop.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "NUMBERING = 2 with 0-based arrays (num2) is a caller error that METIS rejects; libscotch itself handles base-2 graphs (gbase 2 + gpart run clean), so the heap overflow seen on pristine is the caller/library mismatch, now rejected."
+ },
+ {
+  "id": "CLI-07",
+  "our_title": "ncon > 1: interleaved vwgt read as one load per vertex; ParMETIS ignores ncon stride and ubvec",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$WORK/build/lib (or build64/lib) ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1; cd $WORK/repro; ./build.sh $WORK/build (or build64); ./CLI-07/cli07 ; mpirun --oversubscribe -np 1 ./CLI-07/pcli07  (ncon = 2, vwgt[2v] = 1..10, vwgt[2v+1] = 1000+v, tpwgts constraint 0 = .1/.2/.3/.4, ubvec 1.03)\npristine 32-bit cli07: 'part 0: target0=0.10 constraint0=0.0000 ... imbalance on constraint 0 (max load/target): 1.2145 (requested <= 1.03)' (64-bit: 1.8279); pcli07: 'part 1: target0=0.20 (tpwgts as read, unstrided: 0.50) constraint0=0.3427' (parts follow tpwgts[p]).\npatched: cli07 'imbalance on constraint 0: 1.0148' (64-bit 1.0092), parts 0.0998/0.2030/0.2951/0.4022; pcli07 constraint0 = 0.0996/0.1982/0.3038/0.3985. On the src/check graphs (pristine_tests/measure.c, test data): constraint-0 imbalance pristine 2.47/2.42/1.76 vs patched 1.03/1.00/1.01. After the series, in both trees: make -C <tree>/src/check ... check_libmetis_v3 check_libmetis_v5 check_libmetis_dual_v3 check_libmetis_dual_v5 check_libmetis_dual_f_v3 check_libmetis_dual_f_v5 check_scotch_arch check_scotch_graph_map check_scotch_graph_part_ovl (gcc) and check_libparmetis_v3 (mpicc, EXECP4='mpirun --oversubscribe -np 4'): all rc=0, 0 build warnings (build.log / build64.log). The new test_libmetis.c / test_libparmetis.c compiled against the pristine $INFRA/asan libraries fail (pristine_tests/: rc=1, archCmpltwArchBuild2 'invalid parameters (2)' + double free at the bwgttab call; the Recursive NULL-ubvec call crashes).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "same as review: silent wrong result, only for multi-constraint callers; PT-Scotch's manual already states that only the first constraint is used",
+  "location_7_0_17": "src/libscotchmetis/metis_graph_part.c:287 (vwgt passed as is to SCOTCH_graphBuild; :274-275 already stride tpwgts); src/libscotchmetis/parmetis_dgraph_part.c:156 (floatToInt on tpwgts without stride), :169 (veloloctab = vwgt), :128-129 (ncon, ubvec 'Not used'); doc/src/ptscotch/p_l.tex:5341-5344",
+  "evidence": "metis_graph_part.c:287 'if (SCOTCH_graphBuild (&grafdat, baseval, vertnbr, xadj, xadj + 1, vwgt, NULL,'; :274 '/* Gather first target constraint; only this one is used */'; parmetis_dgraph_part.c:156 '_SCOTCH_ParMETIS_floatToInt (*nparts, tpwgts, twintab);' :169 'veloloctab = ((vwgt   != NULL) && ((*wgtflag & 2) != 0)) ? vwgt   : NULL;'; p_l.tex:5343 'only the first {\\tt nparts} cells of the {\\tt tpwgts} array are considered. The {\\tt ncon}, {\\tt ubvec} and {\\tt options} parameters are not used.'",
+  "upstream_change": "",
+  "review_accuracy": "accurate; detail: the sequential tpwgts stride already exists, so the tpwgts half concerns ParMETIS only (the review says so).",
+  "first_pass_critique": "correct and it noticed the sequential tpwgts stride. Its sketch gives no test although it says one is needed; the ParMETIS half was source-read only; it did not see that p_l.tex documents the unstrided tpwgts reading (the doc must change with the fix) nor that src/check/test_libparmetis.c passes ncon = NULL (a ParMETIS fix dereferencing *ncon would break the shipped test).",
+  "extra_instances": [
+   {
+    "location": "doc/src/ptscotch/p_l.tex:5341-5344",
+    "quote": "Consequently, only the first {\\tt nparts} cells of the {\\tt tpwgts} array are considered. The {\\tt ncon}, {\\tt ubvec} and {\\tt options} parameters are not used.",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/check/test_libparmetis.c:303",
+    "quote": "SCOTCHMETISNAMES (ParMETIS_V3_PartKway) (vtxdist, vertloctab, edgeloctab, veloloctab, edloloctab, &fwgtval, &baseval, NULL, &partnbr, tpwgtab, NULL, NULL, ...  (ncon and ubvec NULL: the fix must tolerate NULL)",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a: reject ncon > 1 with METIS_ERROR_INPUT (METIS and ParMETIS)",
+    "summary": "Error out instead of silently using one constraint.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/alt/CLI-07-a-reject-multiple-constraints.diff",
+    "tested": "compiled (syntax) on pristine; not run",
+    "tradeoffs": "Tiny and honest, but contradicts the documented PT-Scotch behaviour ('only the first constraint is taken into account') and breaks callers that are content with single-constraint quality.",
+    "preferred": false,
+    "maintainer_fit": "He chose 'first constraint only' in the doc and in metis_graph_part.c:274; rejecting would reverse that choice."
+   },
+   {
+    "label": "b: gather the first constraint into a temporary array, stride tpwgts, honour ubvec[0] (patch 0003)",
+    "summary": "_SCOTCH_METIS_PartGraph2: nconval = (ncon != NULL) ? *ncon : 1 (V3 passes none); if vwgt and nconval > 1, velotmp[v] = vwgt[v * nconval] (memAlloc/memFree, like edlotax in _Volume); twintab block switched to memAlloc. ParMETIS_V3_PartKway: same gather for vwgt and tpwgts, ubvec[0] - 1 into SCOTCH_stratDgraphMapBuild; *ncon < 1 rejected.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0003-Bugfix-convert-MeTiS-v5-partitioning-parameters-into.patch",
+    "tested": "cli07/pcli07, measure.c on the three test graphs, check_libmetis_v5 and check_libparmetis_v3 (new ncon = 2 cases with interleaved loads and strided weights; checkLoad() bound 1.5 on the first constraint, pristine gives 1.76-2.47), 32/64-bit",
+    "tradeoffs": "One O(n) temporary when ncon > 1; doc paragraph updated; ParMETIS wrapper now reads ubvec.",
+    "preferred": true,
+    "maintainer_fit": "Extends his own 'Gather first target constraint; only this one is used' (metis_graph_part.c:274) to the vertex constraint, and matches the manual's statement."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0003-Bugfix-convert-MeTiS-v5-partitioning-parameters-into.patch"
+  ],
+  "cleanup_done": "'Not used' comments on ncon/ubvec removed; malloc/free of twintab/twdbtab replaced by memAlloc/memFree in the rewritten block (STYLE: never libc allocation).",
+  "test_added": "src/check/test_libmetis.c: ncon = 2 call with interleaved loads (second constraint = vertex index) and interleaved part weights, checkPart + new checkLoad(); src/check/test_libparmetis.c: ncon = 2 call with interleaved loads, strided tpwgts and ubvec {1.05, 1.05}, checkPart.",
+  "docs_updated": "doc/src/ptscotch/p_l.tex (ParMETIS_V3_PartKway description)",
+  "needs": "",
+  "needs_note": "",
+  "notes": "ParMETIS wrapper returns early from one process on an input/memory error, as the pristine malloc path already did (non-collective); not changed."
+ },
+ {
+  "id": "CLI-08",
+  "our_title": "Target weight conversion overflows to INT_MIN for arbitrary weights, then double-frees",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$WORK/build/lib (or build64/lib) ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1; cd $WORK/repro; ./build.sh $WORK/build (or build64); ./CLI-08/cli08 6 1  (6 normalised pseudo-random weights, then the same tpwgts through METIS_PartGraphKway)\npristine 32-bit: '0.185404 -> -2147483648' (all six INT_MIN), then 'ERROR: archCmpltwArchBuild2: invalid parameters (2)' and 'AddressSanitizer: attempting double-free ... #1 _SCOTCH_METIS_PartGraph2 metis_graph_part.c:313' (PS2-G25-1). 64-bit: '0.185404 -> -55411773953759104' then the same double free.\npatched (0001+0002): '0.185404 -> 185404 ... 0.120656 -> 120656', 'METIS_PartGraphKway ... ret=1 objval=123', part loads within 0.1% of targets; './cli08 3 2' unchanged (19049/20266/12193). After the series, in both trees: make -C <tree>/src/check ... check_libmetis_v3 check_libmetis_v5 check_libmetis_dual_v3 check_libmetis_dual_v5 check_libmetis_dual_f_v3 check_libmetis_dual_f_v5 check_scotch_arch check_scotch_graph_map check_scotch_graph_part_ovl (gcc) and check_libparmetis_v3 (mpicc, EXECP4='mpirun --oversubscribe -np 4'): all rc=0, 0 build warnings (build.log / build64.log). The new test_libmetis.c / test_libparmetis.c compiled against the pristine $INFRA/asan libraries fail (pristine_tests/: rc=1, archCmpltwArchBuild2 'invalid parameters (2)' + double free at the bwgttab call; the Recursive NULL-ubvec call crashes).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "high",
+  "severity_note": "review says medium; raised because in 7.0.17 the failure path double-frees the caller's array (PS2-G25-1), so arbitrary tpwgts (computed fractions are the common case) corrupt the heap instead of merely failing",
+  "location_7_0_17": "src/libscotchmetis/metis_graph_part.c:216-229 (_SCOTCH_METIS_doubleToInt, casts at :225 and :229); src/libscotchmetis/parmetis_dgraph_part.c:91-109 (_SCOTCH_ParMETIS_floatToInt)",
+  "evidence": "metis_graph_part.c:224-225 'doubtmp = doubadj / doubtmp; doubadj = (doubadj * doubtmp) / (double) intGcd ((int) round (doubadj), (int) round (doubtmp));' :229 'intetab[i] = (SCOTCH_Num) round (doubtab[i] * doubadj);'; parmetis_dgraph_part.c:101-102 same with floats",
+  "upstream_change": "",
+  "review_accuracy": "accurate on mechanism. Its Fix line 'round(w * 1e6), minimum 1' would turn a zero target into 1 and change the integer ratios of exact inputs (0.5/0.5 -> 500000/500000); 'cap doubadj' is right but the cap must be tested before the gcd: the intermediate doubtmp = doubadj / fraction reaches 1e12 before the lcm is formed, so a cap applied after the gcd still performs an out-of-range (int) conversion.",
+  "first_pass_critique": "evidence right (INT_MIN values reproduced). Its tested diff clamps every weight to >= 1 (its own text says to drop that) and caps only after intGcd ((int) round (doubtmp)) with the possibly-overflowing cast, so the UB it set out to remove remains at the step that blows up; DOUBADJMAX = 1e4 is too coarse (targets below 1e-4 round to 0 and are then rejected by archCmpltw); it named the float twin but did not patch it; it did not notice the double free that its own repro printed.",
+  "extra_instances": [
+   {
+    "location": "src/libscotchmetis/parmetis_dgraph_part.c:91-109",
+    "quote": "flotadj = (flotadj * flottmp) / (float) intGcd ((SCOTCH_Num) round (flotadj), (SCOTCH_Num) round (flottmp));",
+    "covered_by_patch": true
+   },
+   {
+    "location": "src/libscotch/arch_cmpltw.c:184 (new defect PS2-G25-1, reached by this one)",
+    "quote": "memFree    (velotab);",
+    "covered_by_patch": true
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a: always round at a fixed resolution (drop the common-denominator search)",
+    "summary": "intetab[i] = round (doubtab[i] * 1e6) in both converters; intGcd no longer used there.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/alt/CLI-08-a-fixed-resolution.diff",
+    "tested": "compiled (syntax) on pristine; not run",
+    "tradeoffs": "Simplest and always in range, but exact ratios change (0.25/0.75 gives 250000/750000 instead of 1/3) so archCmpltw weights and partitions differ from 7.0.17 for every weighted call; the ParMETIS 'skip equal values' optimisation becomes moot.",
+    "preferred": false,
+    "maintainer_fit": "He wrote the gcd search to keep small exact integers; dropping it changes results for all existing users."
+   },
+   {
+    "label": "b: bound the factor at 1e6, tested before the gcd (patch 0002)",
+    "summary": "doubtmp = doubadj / fraction; if doubtmp <= DOUBADJMAX reduce by the gcd; if the result exceeds DOUBADJMAX, set doubadj = DOUBADJMAX and stop (fixed resolution); casts become (SCOTCH_Num). Same in the float twin (FLOTADJMAX).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0002-Bugfix-bound-the-renormalization-factor-when-convert.patch",
+    "tested": "cli08 6 1 / 3 2 32/64-bit, check_libmetis_v5 and check_libparmetis_v3 with a new 9-weight array without small common denominator (pristine fails on both)",
+    "tradeoffs": "Exact small ratios preserved; arbitrary weights rounded at 1e-6 (sum of integer weights about 1e6, far below Gnum range; kgraph uses doubles for comploadavg).",
+    "preferred": true,
+    "maintainer_fit": "Keeps his algorithm and adds a bound, as c5baef9 'Set tighter boundary on hypercube dimension' and 6a552f9 'Check overflow in intLoad()' do."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0002-Bugfix-bound-the-renormalization-factor-when-convert.patch",
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0001-Bugfix-free-proper-array-on-invalid-target-weight-in.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "src/check/test_libmetis.c and test_libparmetis.c: bwgttab (9 six-decimal weights summing to 1) passed as tpwgts; checkPart. Pristine: archCmpltw error + double free.",
+  "docs_updated": "",
+  "needs": "",
+  "needs_note": "",
+  "notes": "A zero target weight still fails (archCmpltw rejects null weights, METIS_ERROR returned); with patch 0001 it now fails cleanly."
+ },
+ {
+  "id": "CLI-19",
+  "our_title": "V5 wrappers pick cut or volume from vsize presence, ignoring options[OBJTYPE]",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "export LD_LIBRARY_PATH=$WORK/build/lib (or build64/lib) ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1; cd $WORK/repro; ./build.sh $WORK/build (or build64); ./CLI-19/cli19 (40x40 grid, 4 parts; objval versus independently computed cut and volume)\npristine 32-bit: 'Kway OBJTYPE=VOL vsize=NULL : objval=80 | true cut=80 true volume(unit)=160' (a cut is returned); 'Kway OBJTYPE=CUT vsize=set : objval=558 | true cut=104 true volume(vsize)=558' (a volume is returned); Recursive crashes at the NULL ubvec (CLI-02). 64-bit same pattern (objval=80/160, 586/93).\npatched: 'OBJTYPE=VOL vsize=NULL : objval=160 | true volume(unit)=160', 'OBJTYPE=CUT vsize=set : objval=80 | true cut=80', 'OBJTYPE=VOL vsize=set : objval=555 | true volume(vsize)=555', Recursive same. After the series, in both trees: make -C <tree>/src/check ... check_libmetis_v3 check_libmetis_v5 check_libmetis_dual_v3 check_libmetis_dual_v5 check_libmetis_dual_f_v3 check_libmetis_dual_f_v5 check_scotch_arch check_scotch_graph_map check_scotch_graph_part_ovl (gcc) and check_libparmetis_v3 (mpicc, EXECP4='mpirun --oversubscribe -np 4'): all rc=0, 0 build warnings (build.log / build64.log). The new test_libmetis.c / test_libparmetis.c compiled against the pristine $INFRA/asan libraries fail (pristine_tests/: rc=1, archCmpltwArchBuild2 'invalid parameters (2)' + double free at the bwgttab call; the Recursive NULL-ubvec call crashes).",
+  "read_only": "",
+  "why_not_run": "",
+  "severity": "medium",
+  "severity_note": "review says low; raised one step because callers asking for METIS_OBJTYPE_VOL get a partition optimised for the other objective and a wrong objval, silently; the partition itself stays valid",
+  "location_7_0_17": "src/libscotchmetis/metis_graph_part.c:556-562 (Kway) and :589-595 (Recursive)",
+  "evidence": "metis_graph_part.c:556 'return ((vsize == NULL)' :557 '? _SCOTCH_METIS_PartGraph (...' :560 ': _SCOTCH_METIS_PartGraph_Volume (...'; options[METIS_OPTION_OBJTYPE] is read nowhere in this file; metis_graph_part_dual.c:217-218 does read it",
+  "upstream_change": "",
+  "review_accuracy": "accurate; its Fix line matches the patch. Assumption I make from the METIS 5.1 manual: METIS_PartGraphKway minimises edge cut (adjwgt) for OBJTYPE_CUT and total communication volume (vsize, NULL = unit sizes) for OBJTYPE_VOL, objval reporting the selected objective; real METIS rejects OBJTYPE_VOL for METIS_PartGraphRecursive (pmetis CheckParams) whereas the patch honours it there too, since Scotch's recursive strategy can run the same volume emulation (same leniency as the current code).",
+  "first_pass_critique": "correct but explicitly untested ('Not compiled/tested here'); its volflag sketch reads options[OBJTYPE] without the -1 default handling (CLI-06) and silently accepts invalid values such as METIS_OBJTYPE_NODE.",
+  "extra_instances": [
+   {
+    "location": "src/libscotchmetis/metis_graph_part_dual.c:217-219 (PartMeshDual still returns a volume whenever vsize is given, even with OBJTYPE = CUT; lines owned by G26 / CLI-05)",
+    "quote": "if (((vsize != NULL) && (vsize != ne)) ||     /* If computation of communication volume wanted */\n        ((options != NULL) && (options != ne) && (options[METIS_OPTION_OBJTYPE] == METIS_OBJTYPE_VOL)))",
+    "covered_by_patch": false
+   }
+  ],
+  "fix_options": [
+   {
+    "label": "a: keep the vsize-driven partitioning, report the requested metric only",
+    "summary": "After partitioning as before, recompute objval with _SCOTCH_METIS_OutputVol or _SCOTCH_METIS_OutputCut according to OBJTYPE.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/alt/CLI-19-a-report-requested-metric-only.diff",
+    "tested": "compiled (syntax) on pristine; not run",
+    "tradeoffs": "objval becomes right, but the partition is still optimised for the wrong objective and the metric is computed twice; Kway wrapper only in the diff.",
+    "preferred": false,
+    "maintainer_fit": "Half a fix; he already dispatches on OBJTYPE in PartMeshDual."
+   },
+   {
+    "label": "b: dispatch on OBJTYPE in the common V5 routine (patch 0005)",
+    "summary": "objtval = _SCOTCH_METIS_optionGet (options, xadj, METIS_OPTION_OBJTYPE, METIS_OBJTYPE_CUT); CUT -> _SCOTCH_METIS_PartGraph (adjwgt, vsize ignored); VOL -> _SCOTCH_METIS_PartGraph_Volume (vsize, NULL = unit sizes, which it already supports); other values -> METIS_ERROR_INPUT.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0005-Bugfix-select-the-partitioning-objective-from-option.patch",
+    "tested": "cli19 (six cases), check_libmetis_v5 32/64-bit with new checkObjval() cases (VOL without vsize, CUT with vsize) which the pristine code fails",
+    "tradeoffs": "Behaviour change for callers that relied on 'vsize given => volume' without setting OBJTYPE (they must set it, as with METIS); doc sentence for OBJTYPE updated.",
+    "preferred": true,
+    "maintainer_fit": "Same dispatch as his PartMeshDual (metis_graph_part_dual.c:217-219) and the documented meaning of OBJTYPE in s_l.tex."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G25-metis-graph-part/patches/0005-Bugfix-select-the-partitioning-objective-from-option.patch"
+  ],
+  "cleanup_done": "none needed",
+  "test_added": "src/check/test_libmetis.c: checkObjval() computes cut and volume of the returned partition; cases OBJTYPE = VOL with vsize = NULL (Kway) and OBJTYPE = CUT with a vsize array (Recursive).",
+  "docs_updated": "doc/src/scotch/s_l.tex (METIS_SetDefaultOptions: what OBJTYPE selects)",
+  "needs": "",
+  "needs_note": "",
+  "notes": "PartMeshDual's output selection (vsize || OBJTYPE) is left to G26, whose CLI-05 patch rewrites those lines."
+ }
+]

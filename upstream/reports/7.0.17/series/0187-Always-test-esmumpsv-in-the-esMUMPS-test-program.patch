@@ -1,0 +1,56 @@
+From 1a43d0b4fe9f04e55e439b039cf9702e72c160fe Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:41:39 +0000
+Subject: [PATCH 187/240] Always test `esmumpsv()` in the esMUMPS test program
+
+The weighted part of the test was guarded by the `ESMUMPS_HAS_ESMUMPSV`
+macro, which no build system defines, so that `esmumpsv()` was never
+tested. `esmumpsv()` has been part of the public interface since
+version 6.1, so the guard is removed; the weighted graph of the test
+list exercises it.
+
+Refs: BLD-19
+---
+ src/check/test_libesmumps.c | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/src/check/test_libesmumps.c b/src/check/test_libesmumps.c
+index ce713ad..1942e2d 100644
+--- a/src/check/test_libesmumps.c
++++ b/src/check/test_libesmumps.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2020 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2020,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 6.0  : from : 19 jan 2020     **/
+ /**                                 to   : 19 jan 2020     **/
+ /**                # Version 6.1  : from : 22 feb 2020     **/
+-/**                                 to   : 12 apr 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -178,8 +178,7 @@ char *              argv[])
+ 
+   checkEsmumps (vertnbr, nvtab, petab);
+ 
+-#ifdef ESMUMPS_HAS_ESMUMPSV
+-  if (velotab != NULL) {
++  if (velotab != NULL) {                          /* If graph has vertex weights, test esmumpsv() with them */
+     memcpy (petab, verttab, vertnbr * sizeof (SCOTCH_Num)); /* Prepare graph topology arrays */
+     for (vertnum = 0; vertnum < vertnbr; vertnum ++)
+       lentab[vertnum] = verttab[vertnum + 1] - verttab[vertnum];
+@@ -193,7 +192,6 @@ char *              argv[])
+ 
+     checkEsmumps (vertnbr, nvtab, petab);
+   }
+-#endif /* ESMUMPS_HAS_ESMUMPSV */
+ 
+   free (petab);
+   free (nvtab);
+-- 
+2.47.3
+

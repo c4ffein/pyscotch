@@ -1,0 +1,11 @@
+--- a/src/libscotch/wgraph_part_rb.c
++++ b/src/libscotch/wgraph_part_rb.c
+@@ -360,7 +360,7 @@
+     spltdat.frontab = NULL;                       /* No separator vertices, even if they were some */
+     spltdat.fronnbr = 0;
+     spltdat.parttax = NULL;
+-    wgraphPartRb2 (contptr, partval, &spltdat);
++    wgraphPartRb2 (contptr, 1, &spltdat);         /* Always run on fake part 1 */
+     vgraphExit    (&actgrafdat);
+     if (o != 0)
+       goto fail;

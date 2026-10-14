@@ -1,0 +1,39 @@
+From bb90304fc431325baba94b3f94046ae8fa73bd34 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:54:11 +0000
+Subject: [PATCH 1/4] Declare `SCOTCH_archLtleaf()` in the library header
+ [report PyScotch]
+
+`SCOTCH_archLtleaf()` has been exported by libScotch and documented in
+the user's manual since version 6.0, but its prototype was missing from
+"library.h", so that C callers had to declare it themselves.
+
+Refs: PS-API-2
+---
+ src/libscotch/library.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/libscotch/library.h b/src/libscotch/library.h
+index 3244089..2f6d7c8 100644
+--- a/src/libscotch/library.h
++++ b/src/libscotch/library.h
+@@ -58,7 +58,7 @@
+ /**                # Version 6.1  : from : 05 sep 2020     **/
+ /**                                 to   : 01 apr 2021     **/
+ /**                # Version 7.0  : from : 25 aug 2019     **/
+-/**                                 to   : 11 jul 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -196,6 +196,7 @@ int                         SCOTCH_archCmplt    (SCOTCH_Arch * const, const SCOT
+ int                         SCOTCH_archCmpltw   (SCOTCH_Arch * const, const SCOTCH_Num, const SCOTCH_Num * const);
+ int                         SCOTCH_archCmpltws  (SCOTCH_Arch * const, const SCOTCH_Num, const SCOTCH_Num * const);
+ int                         SCOTCH_archHcub     (SCOTCH_Arch * const, const SCOTCH_Num);
++int                         SCOTCH_archLtleaf   (SCOTCH_Arch * const, const SCOTCH_Num, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num, const SCOTCH_Num * const);
+ int                         SCOTCH_archMesh2    (SCOTCH_Arch * const, const SCOTCH_Num, const SCOTCH_Num);
+ int                         SCOTCH_archMesh3    (SCOTCH_Arch * const, const SCOTCH_Num, const SCOTCH_Num, const SCOTCH_Num);
+ int                         SCOTCH_archMeshX    (SCOTCH_Arch * const, const SCOTCH_Num, const SCOTCH_Num * const);
+-- 
+2.47.3
+

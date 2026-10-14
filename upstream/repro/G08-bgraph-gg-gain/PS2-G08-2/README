@@ -1,0 +1,10 @@
+PS2-G08-2: with the deterministic option set, results still differ between 1 thread and >= 2 threads because
+kgraphMapRbPart() (src/libscotch/kgraph_map_rb_part.c:316) splits the context into two sub-contexts, the second one
+with its own pseudo-random stream (common_context.c:280-299), without consulting CONTEXTOPTIONNUMDETERMINISTIC.
+Observed with the full series applied (../SEP-13/strat, /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build):
+   SCOTCH_DETERMINISTIC=1 SCOTCH_PTHREAD_NUMBER=<t> gpart 4 m16x16_b100000_v.grf out.map -M'r{sep=h{pass=20}}'
+     thr1=44898414 thr2=82e36d44 thr4=82e36d44           (pure GG on the whole graph, no multilevel)
+   same with -M'r{sep=h{pass=20}f{bal=0.01,move=120}}': thr1=59817023 thr2=e282946f thr4=e282946f
+   same with 2 parts (one bisection job, no split):      thr1=7a18bd8b thr2=7a18bd8b
+   default strategy: bump.grf and m16x16.grf agree across 1/2/4 threads; m4x4.grf, bump_b100000.grf and
+   m16x16_b100000_v.grf differ between 1 and >= 2 threads (2, 4 and 8 always agree with each other).

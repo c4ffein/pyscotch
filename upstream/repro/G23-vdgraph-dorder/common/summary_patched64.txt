@@ -1,0 +1,22 @@
+PASS check_scotch_dgraph_order np=1 san=0
+FAIL check_prog_dgord np=1 san=0
+FAIL check_prog_dgpart np=1 san=0
+PASS check_scotch_dgraph_check np=1 san=0
+FAIL check_prog_dgscat-dggath np=1 san=0
+PASS check_scotch_dgraph_order np=2 san=0
+FAIL check_prog_dgord np=2 san=0
+FAIL check_prog_dgpart np=2 san=0
+PASS check_scotch_dgraph_check np=2 san=0
+PASS check_prog_dgscat-dggath np=2 san=0
+PASS check_scotch_dgraph_order np=3 san=0
+FAIL check_prog_dgord np=3 san=0
+FAIL check_prog_dgpart np=3 san=0
+PASS check_scotch_dgraph_check np=3 san=0
+PASS check_prog_dgscat-dggath np=3 san=0
+PASS check_scotch_dgraph_order np=4 san=0
+PASS check_prog_dgord np=4 san=0
+PASS check_prog_dgpart np=4 san=0
+PASS check_scotch_dgraph_check np=4 san=0
+PASS check_prog_dgscat-dggath np=4 san=0
+PASS ptcheck san=3
+CHKDONE

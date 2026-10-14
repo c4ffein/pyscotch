@@ -1,0 +1,47 @@
+From 1e1be7afc64153f3c4d8c69dc6530c10c8794d85 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:04:24 +0000
+Subject: [PATCH 03/11] Bugfix: account for the data multiplier in the send
+ buffer bound check of `dgraphBand2Coll()` and `dgraphGrow2Coll()` [report R.
+ Perry]
+
+The send buffer of each neighbor process is sized according to the
+data multiplier of the instantiated routine, which is 2 for the grow
+routine, but the debug check of the send index did not account for it:
+in debug builds, `dgraphGrow2Coll()` reported an internal error as soon
+as more than half of the ghost vertices held by some neighbor process
+were reached, as `dgraphGrow2Ptop()` already did.
+
+Also give the proper routine name in an error message of the
+point-to-point variant.
+
+Refs: DGR-17
+---
+ src/libscotch/dgraph_band_grow.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/dgraph_band_grow.c b/src/libscotch/dgraph_band_grow.c
+index c04e522..3211d79 100644
+--- a/src/libscotch/dgraph_band_grow.c
++++ b/src/libscotch/dgraph_band_grow.c
+@@ -229,7 +229,7 @@ Context *                         contptr)        /*+ Execution context
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+           if ((grafptr->procvrttab[grafptr->procngbtab[procngbnum]]     >  vertglbend) ||
+               (grafptr->procvrttab[grafptr->procngbtab[procngbnum] + 1] <= vertglbend) ||
+-              (nsndidxtab[procngbnum] >= (vsnddsptab[grafptr->procngbtab[procngbnum]] + grafptr->procrcvtab[grafptr->procngbtab[procngbnum]]))) {
++              (nsndidxtab[procngbnum] >= (vsnddsptab[grafptr->procngbtab[procngbnum]] + DGRAPHBANDGROWSMUL (grafptr->procrcvtab[grafptr->procngbtab[procngbnum]])))) {
+             errorPrint (DGRAPHBANDGROWNSTR "Coll: internal error (1)");
+             return (1);
+           }
+@@ -540,7 +540,7 @@ Context *                         contptr)        /*+ Execution context
+         vertlocend = vrcvdatptr[vertrcvnum];      /* Get local vertex from message */
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+         if ((vertlocend < grafptr->baseval) || (vertlocend >= vertlocnnd)) {
+-          errorPrint (DGRAPHBANDGROWNSTR "dgraphBandPtop: internal error (3)");
++          errorPrint (DGRAPHBANDGROWNSTR "Ptop: internal error (3)");
+           return (1);
+         }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+-- 
+2.47.3
+

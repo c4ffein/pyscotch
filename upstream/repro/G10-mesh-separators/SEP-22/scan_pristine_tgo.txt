@@ -1,0 +1,70 @@
+total allocations: 239
+N=93 rc=1: ASAN :: ./tgo_dbgp: ERROR: graphLoad: out of memory
+N=99 rc=1: LEAK :: ./tgo_dbgp: ERROR: contextThreadInit2: out of memory
+N=104 rc=1: LEAK :: ==1356033==ERROR: LeakSanitizer: detected memory leaks
+N=106 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=107 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (15)
+N=108 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (14)
+N=109 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (9)
+N=110 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=111 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=112 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=113 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=114 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (2)
+N=115 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=116 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (1)
+N=117 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=118 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (3)
+N=119 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=120 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=121 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=122 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=123 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (2)
+N=124 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=125 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (1)
+N=126 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=127 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (3)
+N=128 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (1)
+N=129 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (4)
+N=130 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=131 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=132 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=133 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (15)
+N=134 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (14)
+N=135 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (9)
+N=136 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=137 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=138 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=139 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=140 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (2)
+N=141 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=142 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (1)
+N=143 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=144 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (3)
+N=145 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=146 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=147 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=148 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=149 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (2)
+N=150 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=151 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (1)
+N=152 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=153 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (3)
+N=154 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (1)
+N=155 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (4)
+N=156 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=157 rc=1: LEAK :: ./tgo_dbgp: ERROR: stratParserParse: out of memory (5)
+N=169 rc=1: ASAN :: ./tgo_dbgp: ERROR: graphCoarsen3: out of memory (1)
+N=170 rc=1: ASAN LEAK :: ./tgo_dbgp: ERROR: graphCoarsen3: out of memory (2)
+N=171 rc=1: ASAN :: ==1357470==ERROR: AddressSanitizer: SEGV on unknown address 0x00000000040c (pc 0x7f5b5c80131a bp 0x7fff15535e80 sp 0x7ff
+N=179 rc=1: ASAN :: vgraph_separate_fm.c:256:17: runtime error: load of null pointer of type 'const Gnum'
+N=186 rc=1: ASAN :: ./tgo_dbgp: ERROR: graphCoarsen3: out of memory (1)
+N=187 rc=1: ASAN LEAK :: ./tgo_dbgp: ERROR: graphCoarsen3: out of memory (2)
+N=188 rc=1: ASAN :: ==1357662==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000340 (pc 0x7f7621aaa31a bp 0x7ffd47c8f300 sp 0x7ff
+N=196 rc=1: ASAN :: vgraph_separate_fm.c:256:17: runtime error: load of null pointer of type 'const Gnum'
+N=202 rc=1: ASAN :: hgraph_order_gp.c:169:19: runtime error: load of null pointer of type 'const Gnum'
+N=206 rc=1: ASAN :: hgraph_order_hx.c:113:31: runtime error: load of null pointer of type 'const Gnum'
+N=213 rc=1: ASAN :: hgraph_order_hx.c:113:31: runtime error: load of null pointer of type 'const Gnum'
+N=224 rc=1: LEAK :: ./tgo_dbgp: ERROR: contextThreadInit2: out of memory
+N=228 rc=1: ASAN :: hgraph_order_cp.c:178:33: runtime error: load of null pointer of type 'const Gnum'
+runs with sanitizer findings: 68 / 239

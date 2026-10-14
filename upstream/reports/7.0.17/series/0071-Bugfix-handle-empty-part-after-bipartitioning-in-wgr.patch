@@ -1,0 +1,85 @@
+From 39fa9d6d9beabb140ace3595c3f96e7c182cce29 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:16:46 +0000
+Subject: [PATCH 071/240] Bugfix: handle empty part after bipartitioning in
+ `wgraphPartRb2()` [report R. Perry]
+
+When a vertex bipartition left one part empty, the recursion was called
+with the number of the empty part instead of with the fake part 1 that
+the surrounding code sets up; when the empty part was part 0, the
+callee took the terminal domain branch and dereferenced a NULL part
+array. Moreover, when the remaining target domain is terminal, there
+is nothing left to bipartition: map all vertices, separator vertices
+included, onto it.
+
+Add a test case with a strategy that leaves a part empty.
+
+Refs: SEP-01
+---
+ src/check/CMakeLists.txt       |  2 ++
+ src/check/Makefile             |  1 +
+ src/libscotch/wgraph_part_rb.c | 10 ++++++++--
+ 3 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index e26820d..30f39f5 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -352,6 +352,8 @@ add_test(NAME test_scotch_graph_part_ovl_1 COMMAND test_scotch_graph_part_ovl 4
+ 
+ add_test(NAME test_scotch_graph_part_ovl_2 COMMAND test_scotch_graph_part_ovl 4 ${dat}/m16x16_b100000.grf ${dev_null})
+ 
++add_test(NAME test_scotch_graph_part_ovl_3 COMMAND test_scotch_graph_part_ovl 3 ${dat}/m16x16.grf ${dev_null} r{sep=z})
++
+ # test_scotch_mesh_geom
+ 
+ add_test_scotch(test_scotch_mesh_geom)
+diff --git a/src/check/Makefile b/src/check/Makefile
+index c50a251..193bda9 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -557,6 +557,7 @@ test_scotch_graph_order		:	test_scotch_graph_order.c	\
+ check_scotch_graph_part_ovl	:	test_scotch_graph_part_ovl
+ 					$(EXECS) ./test_scotch_graph_part_ovl 4 data/m16x16.grf /dev/null
+ 					$(EXECS) ./test_scotch_graph_part_ovl 4 data/m16x16_b100000.grf /dev/null
++					$(EXECS) ./test_scotch_graph_part_ovl 3 data/m16x16.grf /dev/null 'r{sep=z}'
+ 
+ test_scotch_graph_part_ovl	:	test_scotch_graph_part_ovl.c	\
+ 					$(SCOTCHLIBDIR)/libscotch$(LIB)
+diff --git a/src/libscotch/wgraph_part_rb.c b/src/libscotch/wgraph_part_rb.c
+index da087d9..ea6cb4b 100644
+--- a/src/libscotch/wgraph_part_rb.c
++++ b/src/libscotch/wgraph_part_rb.c
+@@ -45,7 +45,7 @@
+ /**                # Version 6.1  : from : 01 nov 2021     **/
+ /**                                 to   : 25 nov 2021     **/
+ /**                # Version 7.0  : from : 23 aug 2019     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # This code originally derived from     **/
+ /**                  the code of kgraph_map_rb_part.c,     **/
+@@ -354,13 +354,19 @@ const WgraphPartRbSplit * const spltptr)
+ 
+   if ((partval = 1, actgrafdat.compsize[0] <= 0) || /* If a subpart is empty, run on other part (without considering separator vertices) */
+       (partval = 0, actgrafdat.compsize[1] <= 0)) {
++    if (spltdat.splttab[partval].domnsiz <= 1) {  /* If target domain of other part is terminal                       */
++      vgraphZero       (&actgrafdat);             /* Put all vertices, including separator vertices, in part 0       */
++      wgraphPartRb3One (dataptr, &actgrafdat.s, actgrafdat.parttax, 0, spltdat.splttab[partval].domnnum); /* Map them */
++      vgraphExit       (&actgrafdat);
++      return;
++    }
+     spltdat.splttab[1].vertnbr = actgrafdat.s.vertnbr; /* TRICK: use fake part 1 for calling */
+     spltdat.splttab[1].domnnum = spltdat.splttab[partval].domnnum;
+     spltdat.splttab[1].domnsiz = spltdat.splttab[partval].domnsiz;
+     spltdat.frontab = NULL;                       /* No separator vertices, even if they were some */
+     spltdat.fronnbr = 0;
+     spltdat.parttax = NULL;
+-    wgraphPartRb2 (contptr, partval, &spltdat);
++    wgraphPartRb2 (contptr, 1, &spltdat);         /* Run on fake part 1 */
+     vgraphExit    (&actgrafdat);
+     if (o != 0)
+       goto fail;
+-- 
+2.47.3
+

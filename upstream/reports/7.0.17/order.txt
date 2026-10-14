@@ -1,0 +1,32 @@
+# Apply order for merge-audit (groups not listed follow alphabetically).
+# G10 was rebased onto the other 29 series at QA time: it must come last.
+G01-arch-sub-dist
+G02-arch-tleaf-hcub-build
+G03-arch-mesh-deco-misc
+G04-strategy-parser
+G05-strategy-tables-api
+G06-threads-context
+G07-common-misc
+G08-bgraph-gg-gain
+G09-bgraph-df-ga-fm
+G11-mesh-struct-io
+G12-overlap-kgraph-rb
+G13-kgraph-fm-df-bd
+G14-graph-loaders
+G15-order-io-seq-misc
+G16-library-seq-api
+G17-fortran-wrappers
+G18-dgraph-fold-redist
+G19-dgraph-build-induce
+G20-dgraph-io-dmesh
+G21-dgraph-band-coarsen
+G22-bdgraph
+G23-vdgraph-dorder
+G24-hdgraph
+G25-metis-graph-part
+G26-metis-dual-esmumps
+G27-seq-tools
+G28-tools-docs-tests
+G29-cmake-sources-config
+G30-cmake-tests-make-ci
+G10-mesh-separators

@@ -1,0 +1,35 @@
+--- a/src/libscotch/vgraph_separate_fm.c
++++ b/src/libscotch/vgraph_separate_fm.c
+@@ -199,7 +199,8 @@
+       VgraphSeparateGgParam paradat;
+ 
+       paradat.passnbr = 4;                        /* Use a standard algorithm */
+-      vgraphSeparateGg (grafptr, &paradat);
++      if (vgraphSeparateGg (grafptr, &paradat) != 0) /* Compute balanced initial partition */
++        return (1);
+       if (grafptr->fronnbr == 0)                  /* If new partition has no frontier */
+         return (0);                               /* This algorithm is still useless  */
+     }
+@@ -586,7 +587,9 @@
+ 
+       if (hashnbr >= hashmax) {
+         if (vgraphSeparateFmResize (&hashtab, &hashmax, &hashmsk, &savetab, savenbr, tablptr, &lockdat) != 0) {
+-          errorPrint ("vgraphSeparateFm: out of memory (2)");
++          errorPrint   ("vgraphSeparateFm: out of memory (2)");
++          memFree      (hashtab);                 /* Free group leader */
++          gainTablExit (tablptr);
+           return (1);
+         }
+       }
+--- a/src/libscotch/vmesh_separate_fm.c
++++ b/src/libscotch/vmesh_separate_fm.c
+@@ -351,7 +351,8 @@
+     VmeshSeparateGgParam  paramdat;
+ 
+     paramdat.passnbr = 3;
+-    vmeshSeparateGg (meshptr, &paramdat);         /* Compute a balanced initial partition */
++    if (vmeshSeparateGg (meshptr, &paramdat) != 0) /* Compute a balanced initial partition */
++      return (1);
+   }
+ 
+   vertnbr = meshptr->m.velmnbr + meshptr->m.vnodnbr;

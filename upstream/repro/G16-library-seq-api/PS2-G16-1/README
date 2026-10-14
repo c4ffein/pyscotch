@@ -1,0 +1,16 @@
+PS2-G16-1: a single unmapped vertex (-1) zeroes the load/neighbor/diameter statistics of
+SCOTCH_graphMapView (reachable from a partial mapping file through gmtst).
+  partial.map: m4x4.grf mapping of vertices 1..15 (vertex 0 absent -> SCOTCH_graphTabLoad leaves -1)
+  gmtst $V/src/check/data/m4x4.grf $V/tgt/k2.tgt partial.map
+Pristine:
+  M Processors 0/2 (0)
+  M Target min=0 max=0 avg=0 dlt=0 maxavg=0
+  M Neighbors min=0 max=0 sum=0
+  ... M PartDiam min=0 max=0 avg=0.000000
+Patched (commit 0003):
+  M Processors 2/2 (1)
+  M Target min=7 max=8 avg=7.5 dlt=0.0666667 maxavg=1.06667
+  M Neighbors min=1 max=1 sum=2
+  ... M PartDiam min=6 max=7 avg=6.500000
+(full.map gives Processors 2/2, Target 8/8 in both versions; one.map, a single mapped vertex,
+gives Processors 1/2 patched.) The src/check test test_scotch_graph_map_view also covers it.

@@ -1,0 +1,6 @@
+PS-BLD-1: SCOTCH_graphOrderCheck() never checks the user's direct permutation array
+Build: gcc -O0 -g -fsanitize=address,undefined -I<tree>/include chk.c -o chk -L<tree>/lib -lscotch -lscotcherr -lz -lm -lpthread
+Run (LD_LIBRARY_PATH=<tree>/lib UBSAN_OPTIONS=print_stacktrace=1 (pristine tree: INFRA/asan; patched: $WORK/build or $WORK/build64)): ./chk <tree>/src/check/data/bump.grf
+Pristine: "check(valid)=0 check(permtab swapped)=0 check(permtab out of range)=0", rc=1.
+Patched: "check(valid)=0 check(permtab swapped)=1 check(permtab out of range)=1" with
+"SCOTCH_graphOrderCheck: invalid direct permutation", rc=0 (32-bit and 64-bit).

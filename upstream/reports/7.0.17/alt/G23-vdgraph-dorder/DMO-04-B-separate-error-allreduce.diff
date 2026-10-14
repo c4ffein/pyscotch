@@ -1,0 +1,47 @@
+diff --git a/src/libscotch/vdgraph_separate_df.c b/src/libscotch/vdgraph_separate_df.c
+index b96166b..9b678cb 100644
+--- a/src/libscotch/vdgraph_separate_df.c
++++ b/src/libscotch/vdgraph_separate_df.c
+@@ -104,6 +104,8 @@ const VdgraphSeparateDfParam * const  paraptr)    /*+ Method parameters +*/
+   float                           cremval;
+   Gnum                            psepval;        /* Separator part      */
+   int                             ovflval;        /* Overflow flag value */
++  int                             cheklocval;     /* Local error flag    */
++  int                             chekglbval;     /* Global error flag   */
+ 
+   if (dgraphGhst (&grafptr->s) != 0) {            /* Compute ghost edge array if not already present */
+     errorPrint ("vdgraphSeparateDf: cannot compute ghost edge array");
+@@ -125,22 +127,29 @@ const VdgraphSeparateDfParam * const  paraptr)    /*+ Method parameters +*/
+                      &difogsttax, (size_t) (grafptr->s.vertgstnbr * sizeof (float)),
+                      &difngsttax, (size_t) (grafptr->s.vertgstnbr * sizeof (float)), NULL) == NULL) {
+     errorPrint ("vdgraphSeparateDf: out of memory");
+-    reduloctab[0] = -1;
++    cheklocval = 1;
+   }
+   else {
+     ielsloctax -= grafptr->s.baseval;
+     difogsttax -= grafptr->s.baseval;
+     difngsttax -= grafptr->s.baseval;
++    cheklocval = 0;
+   }
+ 
+-  if (MPI_Allreduce (reduloctab, reduglbtab, 4, GNUM_MPI, MPI_SUM, grafptr->s.proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->s.proccomm) != MPI_SUCCESS) { /* All processes must agree on allocation */
+     errorPrint ("vdgraphSeparateDf: communication error (1)");
+     return     (1);
+   }
+-
+-  if (reduglbtab[0] < 0) {                        /* If memory error */
++  if (chekglbval != 0) {                          /* If memory error on some process */
+     if (ielsloctax != NULL)
+       memFree (ielsloctax + grafptr->s.baseval);  /* Free group leader */
++    return (1);
++  }
++
++  if (MPI_Allreduce (reduloctab, reduglbtab, 4, GNUM_MPI, MPI_SUM, grafptr->s.proccomm) != MPI_SUCCESS) {
++    errorPrint ("vdgraphSeparateDf: communication error (2)");
++    memFree    (ielsloctax + grafptr->s.baseval); /* Free group leader */
++    return     (1);
+   }
+   if ((reduglbtab[0] == 0) ||                     /* If graph is too small to have any usable anchors, leave partition as is */
+       (reduglbtab[1] == 0)) {

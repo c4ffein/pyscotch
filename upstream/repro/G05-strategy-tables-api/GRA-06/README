@@ -1,0 +1,19 @@
+GRA-06 (else-less conditional ordering leaves output unset) and
+GRA-13 (mdeg ordering condition read as double) reproducer.
+
+Build (pristine = INFRA/asan 32-bit; patched = build/ 32-bit, build64/ 64-bit):
+  gcc -O0 -g -fsanitize=address,undefined -I<inc> order.c -o order -L<lib> -lscotch -lscotcherr -lz -lm -lpthread
+  export LD_LIBRARY_PATH=<lib> UBSAN_OPTIONS=print_stacktrace=1
+
+GRA-06:  ./order '/(vert>1000)?s;'
+  pristine : AddressSanitizer heap-buffer-overflow WRITE in orderPeri (order.c:170)
+             via SCOTCH_graphOrder -> unset peritab indexed by caller sentinel -7
+  patched  : ret=0 peri[0]=0 perm[0]=0 invalid=0   (identity ordering applied)
+
+GRA-13:  ./order '/(mdeg>3)?s;'   (grid max degree = 4)
+  pristine : UBSan 'parser.c:437 load of misaligned address ... for type double'
+             (mdeg is a Gnum read through double *); 32-bit also reads past the field
+  patched  : ret=0 ... invalid=0  and mdeg compares the real maximum degree
+             (mdeg>3 true, mdeg>100 false -> else branch)
+
+64-bit: build with -I build64/include against build64/lib (order_p64); same results.

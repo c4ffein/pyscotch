@@ -1,0 +1,36 @@
+--- a/src/libscotch/common_context.c
++++ b/src/libscotch/common_context.c
+@@ -280,9 +280,6 @@
+   IntRandContext            randdat;              /* Pseudo-random context for second sub-context */
+   const int                 thrdnbr = contextThreadNbr (contptr);
+ 
+-  if (thrdnbr <= 1)                               /* If current context too small or inactive, nothing to do */
+-    return (1);
+-
+   spltdat.conttab[0].thrdptr = &thrdtab[0];
+   spltdat.conttab[0].randptr = contptr->randptr;  /* Re-use pseudo-random generator of initial context in sub-context 0 */
+   spltdat.conttab[0].valuptr = contptr->valuptr;
+@@ -292,12 +289,20 @@
+   spltdat.funcptr = funcptr;
+   spltdat.paraptr = paraptr;
+ 
++  intRandProc (&randdat, (int) intRandVal2 (contptr->randptr)); /* Initialize new generator from existing one, whatever the number of threads */
++  intRandSeed (&randdat,       intRandVal2 (contptr->randptr));
++
++  if (thrdnbr <= 1) {                             /* If current context too small or inactive, run sub-tasks in sequence */
++    spltdat.conttab[0].thrdptr =                  /* Both sub-contexts share the single-threaded context                 */
++    spltdat.conttab[1].thrdptr = contptr->thrdptr;
++    funcptr (&spltdat.conttab[0], 0, paraptr);    /* Sub-task 0 uses initial generator, sub-task 1 its own one, as when threaded */
++    funcptr (&spltdat.conttab[1], 1, paraptr);
++    return (0);
++  }
++
+   threadContextImport1 (&thrdtab[0], (thrdnbr + 1) / 2); /* Prepare sub-contexts to host threads */
+   threadContextImport1 (&thrdtab[1],  thrdnbr      / 2);
+ 
+-  intRandProc (&randdat, (int) intRandVal2 (contptr->randptr)); /* Initialize new generator from existing one */
+-  intRandSeed (&randdat,       intRandVal2 (contptr->randptr));
+-
+   threadLaunch (contptr->thrdptr, (ThreadFunc) contextThreadLaunchSplit2, (void *) &spltdat); /* Launch all threads of initial context */
+ 
+   return (0);

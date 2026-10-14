@@ -1,0 +1,292 @@
+From d6b03eebc6e025b657b22cab7d09ae6bbedc76d3 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:44:05 +0000
+Subject: [PATCH 1/9] Bugfix: validate vertex count and permutation values read
+ by `orderLoad()` [report R. Perry]
+
+`orderLoad()` replaced the vertex count of the ordering by the count
+read from the file and used the latter as the loop bound while
+reading into an array sized according to the former, so that a file
+with a larger count overflowed the permutation array. Permutation
+values were never range-checked before being used as indices by
+`orderPeri()`, and duplicate values left holes in the inverse
+permutation that crashed later computations.
+
+Reject a count that differs from the number of vertices of the
+ordering, check that each rank lies within [baseval, vnodnbr +
+baseval[ and that it is not already assigned, and build the inverse
+permutation on the fly, which removes the need for the temporary
+direct permutation array. The vertex count of the ordering is no
+longer modified by a failed load.
+
+Add a save/load round trip and invalid ordering files (bad count,
+out-of-range rank, duplicate rank) to test_scotch_graph_order.
+
+Refs: GRA-03
+---
+ src/check/test_scotch_graph_order.c | 103 ++++++++++++++++++++++++++--
+ src/libscotch/order_io.c            |  45 +++++++-----
+ 2 files changed, 125 insertions(+), 23 deletions(-)
+
+diff --git a/src/check/test_scotch_graph_order.c b/src/check/test_scotch_graph_order.c
+index a0b7b83..281607b 100644
+--- a/src/check/test_scotch_graph_order.c
++++ b/src/check/test_scotch_graph_order.c
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 6.0  : from : 05 aug 2014     **/
+ /**                                 to   : 01 sep 2019     **/
+ /**                # Version 7.0  : from : 04 jul 2025     **/
+-/**                                 to   : 11 apr 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -105,6 +105,55 @@ const SCOTCH_Num * const    peritab)
+   }
+ }
+ 
++/* This routine writes an ordering file in
++** which all vertices have their own index
++** as rank, save for vertex vertnum, which
++** has rank permval, and whose header holds
++** linenbr as number of ordering lines. It
++** then checks that loading it fails.
++** It exits on error.
++*/
++
++static
++void
++checkOrderLoad (
++const SCOTCH_Graph * const  grafptr,
++const SCOTCH_Num            baseval,
++const SCOTCH_Num            vertnbr,
++SCOTCH_Num * const          permtab,
++SCOTCH_Num * const          peritab,
++const SCOTCH_Num            linenbr,              /* Number of ordering lines in header */
++const SCOTCH_Num            vertnum,              /* Vertex whose rank is modified      */
++const SCOTCH_Num            permval)              /* Rank of this vertex                */
++{
++  SCOTCH_Ordering     ordedat;
++  FILE *              fileptr;
++  SCOTCH_Num          vertidx;
++
++  if ((fileptr = tmpfile ()) == NULL) {           /* Open temporary file for invalid ordering */
++    SCOTCH_errorPrint ("checkOrderLoad: cannot open file");
++    exit (EXIT_FAILURE);
++  }
++
++  fprintf (fileptr, "%ld\n", (long) linenbr);
++  for (vertidx = 0; vertidx < vertnbr; vertidx ++)
++    fprintf (fileptr, "%ld\t%ld\n", (long) (vertidx + baseval), (long) ((vertidx == vertnum) ? permval : (vertidx + baseval)));
++  rewind (fileptr);
++
++  if (SCOTCH_graphOrderInit (grafptr, &ordedat, permtab, peritab, NULL, NULL, NULL) != 0) {
++    SCOTCH_errorPrint ("checkOrderLoad: cannot initialize ordering");
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_graphOrderLoad (grafptr, &ordedat, fileptr) == 0) {
++    SCOTCH_errorPrint ("checkOrderLoad: invalid ordering file accepted");
++    exit (EXIT_FAILURE);
++  }
++
++  SCOTCH_graphOrderExit (grafptr, &ordedat);
++  fclose (fileptr);
++}
++
+ /*********************/
+ /*                   */
+ /* The main routine. */
+@@ -117,6 +166,7 @@ int                 argc,
+ char *              argv[])
+ {
+   FILE *              fileptr;
++  FILE *              fileptr2;
+   SCOTCH_Graph        grafdat;
+   SCOTCH_Ordering     ordedat;
+   SCOTCH_Strat        stradat;
+@@ -128,6 +178,7 @@ char *              argv[])
+   SCOTCH_Num *        listtab;
+   SCOTCH_Num *        peritab;
+   SCOTCH_Num *        permtab;
++  SCOTCH_Num *        peritmp;
+   int                 o;
+ 
+   SCOTCH_errorProg (argv[0]);
+@@ -168,7 +219,8 @@ char *              argv[])
+     listtab[listnum] = vertnum;
+ 
+   if (((peritab = malloc (vertnbr * sizeof (SCOTCH_Num))) == NULL) ||
+-      ((permtab = malloc (vertnbr * sizeof (SCOTCH_Num))) == NULL)) {
++      ((permtab = malloc (vertnbr * sizeof (SCOTCH_Num))) == NULL) ||
++      ((peritmp = malloc (vertnbr * sizeof (SCOTCH_Num))) == NULL)) {
+     SCOTCH_errorPrint ("main: out of memory (2)");
+     exit (EXIT_FAILURE);
+   }
+@@ -206,20 +258,62 @@ char *              argv[])
+   if (o != 0)
+     exit (EXIT_FAILURE);
+ 
++  if ((fileptr2 = tmpfile ()) == NULL) {          /* Open temporary file for ordering alone */
++    SCOTCH_errorPrint ("main: cannot open file (3)");
++    exit (EXIT_FAILURE);
++  }
++
++  if (SCOTCH_graphOrderSave (&grafdat, &ordedat, fileptr2) != 0) { /* Save ordering for reloading */
++    SCOTCH_errorPrint ("main: cannot save ordering");
++    exit (EXIT_FAILURE);
++  }
++  memcpy (peritmp, peritab, vertnbr * sizeof (SCOTCH_Num)); /* Keep computed inverse permutation */
++
+   SCOTCH_graphOrderExit (&grafdat, &ordedat);     /* Free computed ordering */
+ 
+-  if (SCOTCH_graphOrderInit (&grafdat, &ordedat, permtab, peritab, NULL, NULL, NULL) != 0) { /* Initialize ordering again */
++  if (SCOTCH_graphOrderInit (&grafdat, &ordedat, permtab, peritab, NULL, NULL, NULL) != 0) { /* Initialize ordering for loading */
+     SCOTCH_errorPrint ("main: cannot initialize ordering (2)");
+     exit (EXIT_FAILURE);
+   }
+ 
++  rewind (fileptr2);
++  if (SCOTCH_graphOrderLoad (&grafdat, &ordedat, fileptr2) != 0) { /* Test ordering data input routine */
++    SCOTCH_errorPrint ("main: cannot load ordering");
++    exit (EXIT_FAILURE);
++  }
++  fclose (fileptr2);
++
++  if (SCOTCH_graphOrderCheck (&grafdat, &ordedat) != 0) {
++    SCOTCH_errorPrint ("main: invalid ordering (2)");
++    exit (EXIT_FAILURE);
++  }
++
++  checkOrder (baseval, vertnbr, permtab, peritab); /* Double check permutation validity and bijectivity */
++
++  if (memcmp (peritab, peritmp, vertnbr * sizeof (SCOTCH_Num)) != 0) {
++    SCOTCH_errorPrint ("main: loaded ordering differs from saved ordering");
++    exit (EXIT_FAILURE);
++  }
++
++  SCOTCH_graphOrderExit (&grafdat, &ordedat);     /* Free loaded ordering */
++
++  checkOrderLoad (&grafdat, baseval, vertnbr, permtab, peritab, vertnbr + 1, 0, baseval); /* Invalid number of ordering lines */
++  checkOrderLoad (&grafdat, baseval, vertnbr, permtab, peritab, vertnbr, 0, baseval - 1); /* Rank below base value          */
++  checkOrderLoad (&grafdat, baseval, vertnbr, permtab, peritab, vertnbr, 0, baseval + vertnbr); /* Rank above range          */
++  checkOrderLoad (&grafdat, baseval, vertnbr, permtab, peritab, vertnbr, 1, baseval); /* Duplicate rank                     */
++
++  if (SCOTCH_graphOrderInit (&grafdat, &ordedat, permtab, peritab, NULL, NULL, NULL) != 0) { /* Initialize ordering again */
++    SCOTCH_errorPrint ("main: cannot initialize ordering (3)");
++    exit (EXIT_FAILURE);
++  }
++
+   if (SCOTCH_graphOrderComputeList (&grafdat, &ordedat, listnbr, listtab, &stradat) != 0) {
+     SCOTCH_errorPrint ("main: cannot order induced graph");
+     exit (EXIT_FAILURE);
+   }
+ 
+   if (SCOTCH_graphOrderCheck (&grafdat, &ordedat) != 0) {
+-    SCOTCH_errorPrint ("main: invalid ordering (2)");
++    SCOTCH_errorPrint ("main: invalid ordering (3)");
+     exit (EXIT_FAILURE);
+   }
+ 
+@@ -233,6 +327,7 @@ char *              argv[])
+ 
+   SCOTCH_graphOrderExit (&grafdat, &ordedat);
+ 
++  free (peritmp);
+   free (permtab);
+   free (peritab);
+   free (listtab);
+diff --git a/src/libscotch/order_io.c b/src/libscotch/order_io.c
+index 0a98d2c..fa37e59 100644
+--- a/src/libscotch/order_io.c
++++ b/src/libscotch/order_io.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2010,2019,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2010,2019,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -49,7 +49,7 @@
+ /**                # Version 6.0  : from : 29 sep 2019     **/
+ /**                                 to   : 29 sep 2019     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 11 jul 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -80,47 +80,54 @@ Order * restrict const      ordeptr,
+ const Gnum * restrict const vlbltax,
+ FILE * restrict const       stream)
+ {
+-  Gnum * restrict     permtab;
++  Gnum                vnodnbr;
+   Gnum                vertnum;
+ 
++  const Gnum                baseval = ordeptr->baseval;
++  const Gnum                vertnnd = ordeptr->vnodnbr + baseval;
++  Gnum * restrict const     peritab = ordeptr->peritab;
++
+   if (vlbltax != NULL) {
+     errorPrint ("orderLoad: vertex labels not yet supported");
+     return     (1);
+   }
+ 
+-  if ((permtab = memAlloc (ordeptr->vnodnbr * sizeof (Gnum))) == NULL) {
+-    errorPrint ("orderLoad: out of memory");
+-    return     (1);
+-  }
+-
+-  if (intLoad (stream, &ordeptr->vnodnbr) != 1) {
++  if ((intLoad (stream, &vnodnbr) != 1) ||        /* Number of ordering lines must be that of vertices */
++      (vnodnbr != ordeptr->vnodnbr)) {
+     errorPrint ("orderLoad: bad input (1)");
+-    memFree    (permtab);
+     return     (1);
+   }
+ 
++  memSet (peritab, ~0, ordeptr->vnodnbr * sizeof (Gnum)); /* Mark all ranks as not yet assigned */
++
+   if (vlbltax == NULL) {                          /* If ordering does not have label array */
+     for (vertnum = 0; vertnum < ordeptr->vnodnbr; vertnum ++) {
+       Gnum                vertval;
++      Gnum                permval;
+ 
+-      if ((intLoad (stream, &vertval)          != 1) || /* Read item data */
+-          (intLoad (stream, &permtab[vertnum]) != 1)) {
++      if ((intLoad (stream, &vertval) != 1) ||    /* Read item data */
++          (intLoad (stream, &permval) != 1)) {
+         errorPrint ("orderLoad: bad input (2)");
+-        memFree    (permtab);
+         return     (1);
+       }
+-      if (vertval != (vertnum + ordeptr->baseval)) { /* Read item data */
++      if (vertval != (vertnum + baseval)) {       /* Vertices must be listed in order */
+         errorPrint ("orderLoad: bad input (3)");
+-        memFree    (permtab);
+         return     (1);
+       }
++      if ((permval < baseval) ||                  /* Rank must be within range */
++          (permval >= vertnnd)) {
++        errorPrint ("orderLoad: invalid permutation value");
++        return     (1);
++      }
++      if (peritab[permval - baseval] != ~0) {     /* If rank already assigned to another vertex */
++        errorPrint ("orderLoad: duplicate permutation value");
++        return     (1);
++      }
++      peritab[permval - baseval] = vertval;       /* Build inverse permutation */
+     }
+   }
+ 
+-  orderPeri (permtab, ordeptr->baseval, ordeptr->vnodnbr, ordeptr->peritab, ordeptr->baseval); /* Compute inverse permutation */
+-
+-  memFree (permtab);
+-  return  (0);
++  return (0);
+ }
+ 
+ /* This routine saves an ordering.
+-- 
+2.47.3
+

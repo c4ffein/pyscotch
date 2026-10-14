@@ -1,0 +1,19 @@
+diff --git a/src/libscotch/dgraph_build_grid3d.c b/src/libscotch/dgraph_build_grid3d.c
+--- a/src/libscotch/dgraph_build_grid3d.c
++++ b/src/libscotch/dgraph_build_grid3d.c
+@@ -303,7 +303,6 @@
+   Gnum *                edloloctab;
+   Gnum                  degrglbmax;
+ 
+-#ifdef SCOTCH_DEBUG_DGRAPH1
+   if ((dimxval < 1) || (dimyval < 1) || (dimzval < 1)) { /* At least one vertex */
+     errorPrint ("dgraphBuildGrid3D: invalid parameters (1)");
+     return     (1);
+@@ -312,7 +311,6 @@
+     errorPrint ("dgraphBuildGrid3D: invalid parameters (2)");
+     return     (1);
+   }
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+ 
+   vertglbnbr = dimxval * dimyval * dimzval;
+   vertlocnbr = DATASIZE (vertglbnbr, grafptr->procglbnbr, grafptr->proclocnum);

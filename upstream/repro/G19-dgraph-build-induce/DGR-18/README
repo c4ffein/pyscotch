@@ -1,0 +1,11 @@
+DGR-18: dgraphBuildGrid3D() sets DGRAPHFREETABS (with =) before dgraphBuild2(); a failure inside dgraphBuild3() after the arrays were
+attached makes the routine and SCOTCH_dgraphExit() free them twice.
+grid3dfi.c: SCOTCH_dgraphBuildGrid3D (4x4x2, incrval 3 => vertex labels, so dgraphBuild3 allocates), then SCOTCH_dgraphExit().
+  R=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/repro; S=$R/common/scan.sh
+  pristine: $S /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/pristinefi/lib $R/DGR-18/bin_pristinefi/grid3dfi 1 0 0 5 -- 1 3
+     nth=3 exit=134 :: (0): ERROR: dgraphBuild3: out of memory; signal 6 (Aborted) = glibc double free in dgraphExit
+     nth=0,1,2 return 1 cleanly with np=1.
+            $S ... grid3dfi 2 1 0 5 -- 0 3 : nth=0,1 (dgraphBuildGrid3D: out of memory (1)/(2)) -> HANG (PS2-G19-1: the grid builder
+     returns alone before dgraphBuild2's Allgather); nth=2 -> HANG (DGR-05, rank 1 >= P/2); nth=3 -> abort (double free).
+  patched:  $S /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/buildfi/lib $R/DGR-18/bin_buildfi/grid3dfi 2 1 0 5 -- 0 3 -> nth=0..3: r0 and r1 grid3d rc=1, exit done; nth=4,5: rc=0, check rc=0
+            $S ... grid3dfi 3 2 0 5 -- 1 3 -> same with three ranks;  $S ... grid3dfi 1 0 0 5 -- 1 3 -> nth=3 rc=1, exit done

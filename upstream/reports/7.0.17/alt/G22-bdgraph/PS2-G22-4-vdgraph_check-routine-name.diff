@@ -1,0 +1,20 @@
+--- a/src/libscotch/vdgraph_check.c
++++ b/src/libscotch/vdgraph_check.c
+@@ -231,7 +231,7 @@
+       ((complocsize[0] != grafptr->complocsize[0]) ||
+        (complocsize[1] != grafptr->complocsize[1]) ||
+        (complocsize[2] != grafptr->complocsize[2]))) {
+-    errorPrint ("vgraphCheck: invalid local part sizes");
++    errorPrint ("vdgraphCheck: invalid local part sizes");
+     cheklocval = 1;
+   }
+ 
+@@ -259,7 +259,7 @@
+   if ((grafptr->compglbsize[0] != reduglbtab[3]) ||
+       (grafptr->compglbsize[1] != reduglbtab[4]) ||
+       (grafptr->compglbsize[2] != reduglbtab[5])) {
+-    errorPrint ("vgraphCheck: invalid global part sizes");
++    errorPrint ("vdgraphCheck: invalid global part sizes");
+     cheklocval = 1;
+   }
+ 

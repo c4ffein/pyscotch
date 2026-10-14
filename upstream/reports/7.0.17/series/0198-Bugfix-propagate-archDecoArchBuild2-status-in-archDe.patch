@@ -1,0 +1,43 @@
+From 2e0f54a48e9e7dba2b37630bbdc067845fefc3b9 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:08:12 +0000
+Subject: [PATCH 198/240] Bugfix: propagate `archDecoArchBuild2()` status in
+ `archDecoArchBuild()` [report PyScotch]
+
+`archDecoArchBuild()` ignored the return value of
+`archDecoArchBuild2()`, so that `SCOTCH_archBuild0()` reported
+success, with an empty architecture, when the decomposition could
+not be built.
+---
+ src/libscotch/arch_deco_build.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/arch_deco_build.c b/src/libscotch/arch_deco_build.c
+index 02d910d..d622f19 100644
+--- a/src/libscotch/arch_deco_build.c
++++ b/src/libscotch/arch_deco_build.c
+@@ -147,6 +147,7 @@ Context * const             contptr)              /*+ Execution context
+   GraphPart                         actpartval;   /* Part value to put to subjob                    */
+   Gnum                              actpartnbr;   /* Size of part value to put to subjob            */
+   Gnum                              termdomnum;
++  int                               o;
+ 
+   const Gnum * restrict const tgtverttax = tgtgrafptr->verttax;
+   const Gnum * restrict const tgtvendtax = tgtgrafptr->vendtax;
+@@ -358,11 +359,11 @@ fail:
+         disttax[termverttab[termdomend].labl].distval;
+   }
+ 
+-  archDecoArchBuild2 ((ArchDeco *) (void *) &tgtarchptr->data, termdomnbr, termdommax, termverttab, termdisttab);
++  o = archDecoArchBuild2 ((ArchDeco *) (void *) &tgtarchptr->data, termdomnbr, termdommax, termverttab, termdisttab);
+ 
+   memFree  (termverttab);                         /* Free group leader */
+   mapExit  (&mappdat);
+   archExit (&archdat);
+ 
+-  return (0);
++  return (o);
+ }
+-- 
+2.47.3
+

@@ -1,0 +1,7 @@
+GRA-26: based access pointer computed from a NULL multinode array (UBSan "applying non-zero offset to null pointer").
+  cd $WORK/scotch/src/check/data; export LD_LIBRARY_PATH=$WORK/build/lib UBSAN_OPTIONS=print_stacktrace=1
+  for g in m16x16_b1.grf bump_b1.grf; do for k in 2 5 8; do gpart $k $g /dev/null; done; gpart 8 $g /dev/null -Mr;
+      gmap $g ../../../tgt/h3.tgt /dev/null; gord $g /dev/null; gpart -o 4 $g /dev/null; done 2>&1 | grep "runtime error" | sort | uniq -c
+  pristine: 8 x "bgraph_bipart_ml.c:195:35: runtime error: applying non-zero offset 18446744073709551608 to null pointer"
+            8 x "kgraph_map_ml.c:239:44: ..."  -- no other site in these runs nor in the check targets run (see audit)
+  patched:  no report; all check targets listed in SUMMARY.md pass with 0 sanitizer reports (32- and 64-bit).

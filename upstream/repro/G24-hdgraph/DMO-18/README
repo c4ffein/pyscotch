@@ -1,0 +1,9 @@
+DMO-18 (forwarded, hdgraph instances): wrong debug macro/name in hdgraph_fold.c:891 (7.0.16) and '&&' in hdgraph_order_st.c:190
+==================================================================================================================================
+hdgraph_fold.c: pristine 7.0.17 :892-899 still had SCOTCH_DEBUG_DGRAPH1 and "dgraphFold2: communication error (18)"; in the base
+(G18's 7018b17 restructuring) the block is SCOTCH_DEBUG_HDGRAPH1 / "hdgraphFold2: communication error (20)" (hdgraph_fold.c:914-921):
+covered, no commit.  git grep 'dgraphFold2' src/libscotch/hdgraph_fold.c | grep -v hdgraphFold2 -> nothing.
+hdgraph_order_st.c:190 '&&' -> '||' (patches/0006) together with the three other dispatchers that had the same '&&'
+(hgraph_order_st.c:284, hmesh_order_st.c:264, vmesh_separate_st.c:240); the seven other *_st.c dispatchers use '||'.
+Debug-only code: proven by compiling the patched tree with -DSCOTCH_DEBUG_ALL (builddbg, 0 warnings) and running
+check_scotch_dgraph_order / check_scotch_dgraph_check / check_prog_dgord / check_prog_dgpart on it (chk_dbg/summary.txt).

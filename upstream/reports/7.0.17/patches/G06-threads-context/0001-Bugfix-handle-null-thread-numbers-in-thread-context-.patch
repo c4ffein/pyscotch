@@ -1,0 +1,141 @@
+From 049c85d2a03be9d5eea591c1281ba93865fcc87d Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:53:50 +0000
+Subject: [PATCH 1/5] Bugfix: handle null thread numbers in thread context
+ creation [report R. Perry]
+
+`threadContextInit()` only treats negative thread numbers as "use as
+many threads as cores" and 1 as "no thread system". A null number,
+which can be provided through the SCOTCH_PTHREAD_NUMBER environment
+variable or as an argument of `SCOTCH_contextThreadSpawn()`, leads to
+the allocation of an empty descriptor array that is written to, and
+to a start-up barrier that never completes. Null thread numbers are
+now handled like negative ones, as in `test_common_thread.c`.
+`SCOTCH_contextThreadImport1()` rejects thread numbers smaller than 1,
+as the imported pool must at least comprise the master thread.
+
+Refs: COR-10
+---
+ src/check/test_scotch_context.c | 27 +++++++++++++++++++++++----
+ src/libscotch/common_thread.c   |  6 +++---
+ src/libscotch/library_context.c |  6 +++++-
+ 3 files changed, 31 insertions(+), 8 deletions(-)
+
+diff --git a/src/check/test_scotch_context.c b/src/check/test_scotch_context.c
+index 7a604b5..2d1d142 100644
+--- a/src/check/test_scotch_context.c
++++ b/src/check/test_scotch_context.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2019,2021,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2019,2021,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -40,7 +40,7 @@
+ /**                feature of the library Context object.  **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 25 aug 2019     **/
+-/**                                 to   : 30 jul 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -262,6 +262,25 @@ char *              argv[])
+ 
+   printf ("Using a tailored context (2)\n");
+ 
++  SCOTCH_contextInit (&contdat);
++  if (SCOTCH_contextThreadSpawn (&contdat, 0, NULL) != 0) { /* A null number of threads means "as many threads as cores" */
++    SCOTCH_errorPrint ("main: cannot spawn threads");
++    exit (EXIT_FAILURE);
++  }
++
++  SCOTCH_graphInit            (&graftab[1]);
++  if (SCOTCH_contextBindGraph (&contdat, &graftab[0], &graftab[1]) != 0) { /* graftab[1] is the context graph */
++    SCOTCH_errorPrint ("main: cannot bind context (3)");
++    exit (EXIT_FAILURE);
++  }
++
++  SCOTCH_graphDoUsefulStuff (&graftab[1]);        /* Do some useful work using the context graph */
++
++  SCOTCH_graphExit   (&graftab[1]);
++  SCOTCH_contextExit (&contdat);
++
++  printf ("Using a tailored context (3)\n");
++
+   if ((coretab = (int *) malloc (thrdnbr * sizeof (int))) == NULL) { /* Create core placement array */
+     SCOTCH_errorPrint ("main: out of memory (1)");
+     exit (EXIT_FAILURE);
+@@ -281,7 +300,7 @@ char *              argv[])
+ 
+   SCOTCH_graphInit (&graftab[1]);
+   if (SCOTCH_contextBindGraph (&contdat, &graftab[0], &graftab[1]) != 0) { /* graftab[1] is the context graph */
+-    SCOTCH_errorPrint ("main: cannot bind context (3)");
++    SCOTCH_errorPrint ("main: cannot bind context (4)");
+     exit (EXIT_FAILURE);
+   }
+ 
+@@ -319,7 +338,7 @@ char *              argv[])
+ 
+   SCOTCH_graphInit (&graftab[1]);
+   if (SCOTCH_contextBindGraph (&contdat, &graftab[0], &graftab[1]) != 0) { /* graftab[1] is the context graph */
+-    SCOTCH_errorPrint ("main: cannot bind context (4)");
++    SCOTCH_errorPrint ("main: cannot bind context (5)");
+     exit (EXIT_FAILURE);
+   }
+ 
+diff --git a/src/libscotch/common_thread.c b/src/libscotch/common_thread.c
+index 54e22f6..3fb7fb6 100644
+--- a/src/libscotch/common_thread.c
++++ b/src/libscotch/common_thread.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2012-2015,2018,2019,2021,2022,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2012-2015,2018,2019,2021,2022,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -41,7 +41,7 @@
+ /**   DATES      : # Version 6.0  : from : 04 jul 2012     **/
+ /**                                 to   : 27 apr 2015     **/
+ /**                # Version 7.0  : from : 03 jun 2018     **/
+-/**                                 to   : 28 sep 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -111,7 +111,7 @@ const int * const           coretab)
+ 
+   threadProcessStateSave (contptr);               /* Save state of main thread        */
+   corenbr = threadProcessCoreNbr (contptr);       /* Get number of assigned cores     */
+-  if (thrdnbr < 0)                                /* If unspecified number of threads */
++  if (thrdnbr <= 0)                               /* If unspecified number of threads */
+     thrdnbr = corenbr;                            /* Take as many as available        */
+ 
+   contptr->barrnbr = 0;
+diff --git a/src/libscotch/library_context.c b/src/libscotch/library_context.c
+index 6f5b6cd..4f0e3a9 100644
+--- a/src/libscotch/library_context.c
++++ b/src/libscotch/library_context.c
+@@ -40,7 +40,7 @@
+ /**                library.                                **/
+ /**                                                        **/
+ /**   DATES      : # Version 7.0  : from : 07 may 2019     **/
+-/**                                 to   : 11 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -204,6 +204,10 @@ const int                   thrdnbr)
+ {
+   Context * restrict const  contptr = (Context *) libcontptr;
+ 
++  if (thrdnbr < 1) {
++    errorPrint (STRINGIFY (SCOTCH_contextThreadImport1) ": invalid number of threads");
++    return (1);
++  }
+   if (contptr->thrdptr != NULL) {
+     errorPrint (STRINGIFY (SCOTCH_contextThreadImport1) ": thread context already allocated");
+     return (1);
+-- 
+2.47.3
+

@@ -1,0 +1,1 @@
+nth=-1 exit=139 :: 1 fishim: rank 0: signal 11, backtrace:;1 fishim: rank 1: signal 11, backtrace:;2 library_dgraph_coarsen.c:163:7: runtime error: null pointer passed as argument 2, which is declared to never be null;

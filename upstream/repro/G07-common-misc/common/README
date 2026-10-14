@@ -1,0 +1,2 @@
+fishim.c: LD_PRELOAD malloc/realloc fault injector reused from the G18 (dead) harness; see its header comment.
+Build: gcc -O1 -g -fPIC -shared -o fishim.so fishim.c -ldl.  Only non-ASan builds can be preloaded ($WORK/buildfi64).

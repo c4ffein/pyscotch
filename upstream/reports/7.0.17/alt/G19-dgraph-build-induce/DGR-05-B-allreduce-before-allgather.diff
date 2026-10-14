@@ -1,0 +1,67 @@
+diff --git a/src/libscotch/dgraph_build.c b/src/libscotch/dgraph_build.c
+index 63995a6..58f3a12 100644
+--- a/src/libscotch/dgraph_build.c
++++ b/src/libscotch/dgraph_build.c
+@@ -163,6 +163,8 @@ const Gnum                  degrlocmax)
+ {
+   Gnum                  procnum;
+   int                   reduloctab[2];
++  int                   cheklocval;
++  int                   chekglbval;
+ 
+ #ifdef SCOTCH_DEBUG_DGRAPH2
+   if ((vertlocmax < vertlocnbr) ||
+@@ -172,6 +174,7 @@ const Gnum                  degrlocmax)
+   }
+ #endif /* SCOTCH_DEBUG_DGRAPH2 */
+ 
++  cheklocval = 0;
+   if (grafptr->procdsptab == NULL) {              /* If private data not yet allocated */
+     int                 procglbnbr;
+ 
+@@ -183,20 +186,20 @@ const Gnum                  degrlocmax)
+                        &grafptr->procngbtab, (size_t) (procglbnbr       * sizeof (int)),
+                        &grafptr->procrcvtab, (size_t) (procglbnbr       * sizeof (int)),
+                        &grafptr->procsndtab, (size_t) (procglbnbr       * sizeof (int)), NULL) == NULL) {
+-      int *               dummtab;
+-
+       errorPrint ("dgraphBuild2: out of memory");
+-      if ((dummtab = memAlloc ((procglbnbr * 2) * sizeof (int))) != NULL) {
+-        reduloctab[0] =
+-        reduloctab[1] = -1;
+-        if (MPI_Allgather (reduloctab, 2, MPI_INT, /* Use dummy receive array (if can be allocated too) */
+-                           dummtab,    2, MPI_INT, grafptr->proccomm) != MPI_SUCCESS)
+-          errorPrint ("dgraphBuild2: communication error (1)");
+-
+-        memFree (dummtab);
+-      }
+-      return (1);
++      cheklocval = 1;
++    }
++  }
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) { /* All processes must have private data before gathering */
++    errorPrint ("dgraphBuild2: communication error (1)");
++    chekglbval = 1;
++  }
++  if (chekglbval != 0) {
++    if (grafptr->procdsptab != NULL) {
++      memFree (grafptr->procdsptab);
++      grafptr->procdsptab = NULL;                 /* Free memory that has just been allocated */
+     }
++    return (1);
+   }
+ 
+   reduloctab[0] = (int) vertlocnbr;
+@@ -210,12 +213,6 @@ const Gnum                  degrlocmax)
+   grafptr->procdsptab[0] =                        /* Build vertex-to-process array */
+   grafptr->procvrttab[0] = baseval;
+   for (procnum = 0; procnum < grafptr->procglbnbr; procnum ++) {
+-    if (grafptr->procngbtab[procnum] < 0) {       /* If error notified by another process during memory allocation */
+-      memFree (grafptr->procdsptab);
+-      grafptr->procdsptab = NULL;                 /* Free memory that has just been allocated */
+-      return (1);
+-    }
+-
+     grafptr->procdsptab[procnum + 1] = grafptr->procdsptab[procnum] + (Gnum) grafptr->procngbtab[2 * procnum];
+     grafptr->procvrttab[procnum + 1] = grafptr->procvrttab[procnum] + (Gnum) grafptr->procngbtab[2 * procnum + 1];
+     grafptr->proccnttab[procnum]     = grafptr->procdsptab[procnum + 1] - grafptr->procdsptab[procnum];

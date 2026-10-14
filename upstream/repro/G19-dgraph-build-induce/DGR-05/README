@@ -1,0 +1,8 @@
+DGR-05: dgraphBuild2() misses the error flag of a process of rank >= P/2 (reads procngbtab[procnum] instead of [2 * procnum]).
+buildfi.c: SCOTCH_dgraphBuild() of a ring (nl vertices per process); the fault injector fails the memAllocGroup of the private data.
+  R=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/repro; S=$R/common/scan.sh
+  pristine: $S /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G18-dgraph-fold-redist/pristinefi/lib $R/DGR-05/bin_pristinefi/buildfi 4 3 0 0 -- 0 4   -> nth=0 exit=124 :: HANG; (3): ERROR: dgraphBuild2: out of memory; r3 build rc=1   (ranks 0-2 never return)
+            $S ... buildfi 4 2 0 0 -- 1 4  -> HANG;   $S ... buildfi 3 2 0 0 -- 1 4 -> HANG;   $S ... buildfi 4 1 0 0 -- 0 4 -> all ranks rc=1 (rank 1 < P/2 is seen)
+  patched:  $S /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/buildfi/lib $R/DGR-05/bin_buildfi/buildfi 4 3 0 0 -- 0 4 -> nth=0 exit=0 :: (3): ERROR: dgraphBuild2: out of memory; r0..r3 build rc=1
+            same for (4,2), (3,2), (3,1): every rank returns 1. nth=1 (no failure): build and check rc=0 everywhere.
+Also visible through DGR-18's grid3dfi: np=2, fail rank 1, nth=2 (dgraphBuild2 out of memory) hangs on pristine, returns 1 everywhere patched.

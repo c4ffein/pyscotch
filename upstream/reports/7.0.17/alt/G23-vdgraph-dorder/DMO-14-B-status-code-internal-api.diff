@@ -1,0 +1,57 @@
+diff --git a/src/libscotch/dorder.h b/src/libscotch/dorder.h
+index c719021..7fe1ee7 100644
+--- a/src/libscotch/dorder.h
++++ b/src/libscotch/dorder.h
+@@ -178,7 +178,7 @@ int                         dorderSaveTree      (const Dorder * const, const Dgr
+ int                         dorderSaveTree2     (const Dorder * restrict const, const Dgraph * restrict const, FILE * restrict const, int (*) (const Order * const, const Gnum * const, FILE * const));
+ #endif /* SCOTCH_ORDER_H */
+ #endif /* SCOTCH_DGRAPH_H */
+-Gnum                        dorderCblkDist      (const Dorder * restrict const);
++int                         dorderCblkDist      (const Dorder * restrict const, Gnum * restrict const);
+ int                         dorderTreeDist      (const Dorder * restrict const, Gnum * restrict const, Gnum * restrict const);
+ #ifdef SCOTCH_ORDER_H
+ int                         dorderGather        (const Dorder * const, Order * const);
+diff --git a/src/libscotch/dorder_tree_dist.c b/src/libscotch/dorder_tree_dist.c
+index 4b85bd8..05e2e98 100644
+--- a/src/libscotch/dorder_tree_dist.c
++++ b/src/libscotch/dorder_tree_dist.c
+@@ -109,17 +109,14 @@ Gnum * restrict const         dblkglbptr)         /*+ Pointer to global number o
+   return (0);
+ }
+ 
+-Gnum
++int
+ dorderCblkDist (
+-const Dorder * restrict const ordeptr)
++const Dorder * restrict const ordeptr,
++Gnum * restrict const         dblkglbptr)         /*+ Pointer to global number of distributed column blocks +*/
+ {
+   Gnum                dblklocnbr;
+-  Gnum                dblkglbnbr;
+-
+-  if (dorderCblkDist2 (ordeptr, &dblklocnbr, &dblkglbnbr) != 0)
+-    return (1);
+ 
+-  return (dblkglbnbr);
++  return (dorderCblkDist2 (ordeptr, &dblklocnbr, dblkglbptr));
+ }
+ 
+ /* This function returns on all of the procesors the
+diff --git a/src/libscotch/library_dgraph_order_tree_dist.c b/src/libscotch/library_dgraph_order_tree_dist.c
+index 5310d34..93ed9b2 100644
+--- a/src/libscotch/library_dgraph_order_tree_dist.c
++++ b/src/libscotch/library_dgraph_order_tree_dist.c
+@@ -81,7 +81,12 @@ SCOTCH_dgraphOrderCblkDist (
+ const SCOTCH_Dgraph * const     grafptr,          /*+ Graph to order    +*/
+ const SCOTCH_Dordering * const  ordeptr)          /*+ Computed ordering +*/
+ {
+-  return (dorderCblkDist ((Dorder *) ordeptr));
++  Gnum                dblkglbnbr;
++
++  if (dorderCblkDist ((Dorder *) ordeptr, &dblkglbnbr) != 0)
++    return (-1);
++
++  return ((SCOTCH_Num) dblkglbnbr);
+ }
+ 
+ /* This routine fills the given distributed

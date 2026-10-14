@@ -1,0 +1,6 @@
+Usage is:
+  gmtst [<input source file> [<input target file> [<input mapping file> [<output data file>]]]] <options>
+    -h  : Display this help
+    -o  : Consider it is a partitioning with overlap (from gpart)
+    -V  : Print program version and copyright
+  

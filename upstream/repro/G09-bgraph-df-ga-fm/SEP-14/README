@@ -1,0 +1,24 @@
+SEP-14: diffusion loop: allocation failure and overflow break thread synchronisation; errors are not reported.
+ST='r{sep=g{pass=2}b{bnd=d{pass=40}f{move=10},org=f{move=10},width=3}}' (8-part mesh2 mapping: band graphs with external gains)
+export LD_LIBRARY_PATH=$WORK/build/lib ASAN_OPTIONS=detect_leaks=0:verify_asan_link_order=0
+(a) allocation failure in a worker thread (malloc #120-123, 138, 139 are the bgraphBipartDfLoop allocations, 4 threads):
+  FAIL_MALLOC_NTH=120 LD_PRELOAD=../common/failnth.so ../common/mapgrid_build 20 4 8 "$ST"
+  pristine (alloc_scan.log): "bgraphBipartDfLoop: out of memory", then bgraphBipartDf() returns 0 with uninitialised thread
+    data (UBSan: signed overflow -1094795586 + -1094795586 at bgraph_bipart_df.c:523), then ASan "allocation-size-too-big"
+    in the caller; with #139: "stack-use-after-return ... bgraphBipartDfLoop bgraph_bipart_df.c:262 thread T1" (a worker
+    re-ran the loop on the launcher's dead stack frame, because barrier counts differed).
+  patched (patched_alloc.log): "bgraphBipartDfLoop: out of memory / bgraphBipartBd: cannot bipartition band graph /
+    kgraphMapRbMap: cannot bipartition job", rc=1, no sanitizer report.
+(b) NaN injection: mkinject.sh builds an interposer of bgraph_bipart_df.c with an env-controlled NaN
+    (INJ_CALL, INJ_THRD, INJ_PASS, INJ_VERT); mktrace.sh additionally logs every barrier per thread.
+  INJ_CALL=1 INJ_THRD=0 INJ_PASS=40 INJ_VERT=-1 LD_PRELOAD=./df_pristine_inject.so timeout 30 ../common/mapgrid_build 20 8 8 "$ST"
+  pristine case C: HANG (rc=124); nan_C_trace.log: thread 2 reached the skip barrier late, saw abrtval=1 set by thread 0's
+    overflow, returned, and the others wait forever at the next barrier.
+  INJ_CALL=2 INJ_THRD=0 INJ_PASS=40 INJ_VERT=-1 ... mapgrid_build 20 2 8 (cases D, E: band graph with veextax, 2 threads):
+  pristine: "AddressSanitizer: stack-use-after-return" (nan_D.log, nan_E.log): the overflowing thread skipped the anchor
+    reduction (its loop index ended at vancnnt + 1) and threads went out of step.
+  patched (patched_nan.log): cases A-G all rc=0, 0 sanitizer reports, no hang; result equals the normal run when the
+    overflow is rolled back late (case G) and is the rolled-back state otherwise.
+  The OOB read of ielstax[vertnnd] (non-last thread) lands in the 8-byte group padding of memAllocGroup, so ASan is silent;
+  the write difntax[vertnnd] hits the next thread's first vertex (rolled back) or, on the last thread, one past the
+  diffusion arrays.

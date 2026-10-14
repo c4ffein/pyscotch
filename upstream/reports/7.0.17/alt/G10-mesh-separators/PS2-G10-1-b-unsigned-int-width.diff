@@ -1,0 +1,22 @@
+--- a/src/libscotch/mesh_induce_sepa.c
++++ b/src/libscotch/mesh_induce_sepa.c
+@@ -135,7 +135,7 @@
+   Gnum                          hashmsk;          /* Mask for hash array                                        */
+   void * restrict               p;
+ 
+-  orgbitssiz = (orgmeshptr->velmnbr + (INTSIZEBITS - 1)) / INTSIZEBITS; /* Compute size of element bit array */
++  orgbitssiz = (orgmeshptr->velmnbr + ((sizeof (unsigned int) << 3) - 1)) / (sizeof (unsigned int) << 3); /* Compute size of element bit array */
+   if ((orgbitstab = (unsigned int *) memAlloc (orgbitssiz * sizeof (unsigned int))) == NULL) {
+     errorPrint ("meshInduceSepa: out of memory (1)");
+     return     (1);
+@@ -155,8 +155,8 @@
+       Gnum                orgvelmbit;             /* Bit to update in element bit array     */
+ 
+       orgvelmidx  = orgmeshptr->edgetax[orgenodnum] - orgmeshptr->velmbas;
+-      orgvelmbit  = orgvelmidx & (INTSIZEBITS - 1);
+-      orgvelmidx /= INTSIZEBITS;
++      orgvelmbit  = orgvelmidx & ((sizeof (unsigned int) << 3) - 1);
++      orgvelmidx /= (sizeof (unsigned int) << 3);
+       indvelmnbr += (orgbitstab[orgvelmidx] >> orgvelmbit) & 1; /* Count element vertex if not yet accounted for */
+       orgbitstab[orgvelmidx] &= ~(1U << orgvelmbit);
+     }

@@ -1,0 +1,52 @@
+Usage is:
+  dgord [<input source file> [<output ordering file> [<output log file>]]] <options>
+    -b         : Output block ordering data instead of plain ordering data
+    -C<opt>    : Choose execution context options according to one or several of <opt>:
+                   d  : deterministic behavior (even across multiple threads; implies 'f')
+                   f  : fixed random seed
+                   r  : variable random seed
+                   u  : undeterministic behavior (may be faster with several threads)
+                   Default behavior depends on compilation flags
+    -c<opt>    : Choose default ordering strategy according to one or several of <opt>:
+                   b  : enforce load balance as much as possible
+                   q  : privilege quality over speed (default)
+                   s  : privilege speed over quality
+                   t  : enforce safety
+                   x  : enforce scalability
+    -h         : Display this help
+    -m<file>   : Save column block mapping data to <file>
+    -o<strat>  : Set parallel ordering strategy (see user's manual)
+    -r<num>    : Set root process for centralized files (default is 0)
+    -t<file>   : Save partitioning tree data to <file>
+    -V         : Print program version and copyright
+    -v<verb>   : Set verbose mode to <verb> :
+                   a  : memory allocation information
+                   s  : strategy information
+                   t  : timing information
+  
+  See default strategy with option '-vs'
+--------------------------------------------------------------------------
+prterun has exited due to process rank 0 with PID 993808 on node 8f72f7c979a7 exiting
+improperly. There are three reasons this could occur:
+
+1. this process did not call "init" before exiting, but others in the
+job did. This can cause a job to hang indefinitely while it waits for
+all processes to call "init". By rule, if one process calls "init",
+then ALL processes must call "init" prior to termination.
+
+2. this process called "init", but exited without calling "finalize".
+By rule, all processes that call "init" MUST call "finalize" prior to
+exiting or it will be considered an "abnormal termination"
+
+3. this process called "MPI_Abort" or "prte_abort" and the mca
+parameter prte_create_session_dirs is set to false. In this case, the
+run-time cannot detect that the abort call was an abnormal
+termination. Hence, the only error message you will receive is this
+one.
+
+This may have caused other processes in the application to be
+terminated by signals sent by prterun (as reported here).
+
+You can avoid this message by specifying -quiet on the prterun command
+line.
+--------------------------------------------------------------------------

@@ -1,0 +1,215 @@
+From 9373c61680d360530f3ce6a5d5a09eacebe84445 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:49:25 +0000
+Subject: [PATCH 6/8] Bugfix: fix error paths of `vgraphSeparateFm()` and check
+ initial partitioning result [report R. Perry]
+
+When the hash table of `vgraphSeparateFm()` could not be resized, the
+routine returned without freeing its hash and save arrays nor its gain
+table; the same held for the consistency checks of debug mode. Route
+all failures after allocation through a single `fail` label, as in
+`wgraphPartFm()`.
+
+`vgraphSeparateFm()` and `vmeshSeparateFm()` ignored the result of the
+greedy routine they call to compute a balanced initial partition when
+no frontier exists, and went on with an undefined partition when it
+had failed. Return an error instead.
+
+Refs: SEP-22
+---
+ src/libscotch/vgraph_separate_fm.c | 38 +++++++++++++++++-------------
+ src/libscotch/vmesh_separate_fm.c  |  5 ++--
+ 2 files changed, 25 insertions(+), 18 deletions(-)
+
+diff --git a/src/libscotch/vgraph_separate_fm.c b/src/libscotch/vgraph_separate_fm.c
+index a5d5fbf..fabbde8 100644
+--- a/src/libscotch/vgraph_separate_fm.c
++++ b/src/libscotch/vgraph_separate_fm.c
+@@ -56,7 +56,7 @@
+ /**                # Version 6.1  : from : 27 nov 2021     **/
+ /**                                 to   : 01 dec 2021     **/
+ /**                # Version 7.0  : from : 16 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -178,6 +178,7 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+   Gnum                            mswpnum;        /* Number of current move sweep            */
+   Gnum                            compsize1add;   /* Number of vertices to add to counters   */
+   Gnum                            compsize1sub;
++  int                             o;
+ 
+   const Gnum * restrict const verttax = grafptr->s.verttax; /* Fast accesses */
+   const Gnum * restrict const vendtax = grafptr->s.vendtax;
+@@ -199,7 +200,8 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+       VgraphSeparateGgParam paradat;
+ 
+       paradat.passnbr = 4;                        /* Use a standard algorithm */
+-      vgraphSeparateGg (grafptr, &paradat);
++      if (vgraphSeparateGg (grafptr, &paradat) != 0) /* Compute balanced initial partition */
++        return (1);
+       if (grafptr->fronnbr == 0)                  /* If new partition has no frontier */
+         return (0);                               /* This algorithm is still useless  */
+     }
+@@ -226,6 +228,8 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+   }
+   memSet (hashtab, ~0, hashsiz * sizeof (VgraphSeparateFmVertex)); /* Set all vertex numbers to ~0 */
+ 
++  o = 1;                                          /* Assume an error */
++
+   for (fronnum = 0, hashnbr = grafptr->fronnbr;   /* Set initial gains */
+        fronnum < hashnbr; fronnum ++) {
+     Gnum                vertnum;
+@@ -235,7 +239,7 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH2
+     if (parttax[vertnum] != 2) {
+       errorPrint ("vgraphSeparateFm: vertex not in separator");
+-      return (1);
++      goto fail;
+     }
+ #endif /* SCOTCH_DEBUG_VGRAPH2 */
+ 
+@@ -299,7 +303,7 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH3
+   if (vgraphSeparateFmCheck (grafptr, hashtab, hashmsk, compload2bst, comploaddltbst) != 0) {
+     errorPrint ("vgraphSeparateFm: internal error (1)");
+-    return (1);
++    goto fail;
+   }
+ #endif /* SCOTCH_DEBUG_VGRAPH3 */
+ 
+@@ -342,7 +346,7 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH3
+     if (vgraphSeparateFmCheck (grafptr, hashtab, hashmsk, compload2, comploaddlt) != 0) {
+       errorPrint ("vgraphSeparateFm: internal error (2)");
+-      return (1);
++      goto fail;
+     }
+ #endif /* SCOTCH_DEBUG_VGRAPH3 */
+ 
+@@ -356,7 +360,7 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH2
+         if (vexxptr->gainlink0.next != VGRAPHSEPAFMSTATEUSED) {
+           errorPrint ("vgraphSeparateFm: linked non-used vertex");
+-          return (1);
++          goto fail;
+         }
+ #endif /* SCOTCH_DEBUG_VGRAPH2 */
+         gainTablAdd (tablptr, &vexxptr->gainlink0, vexxptr->compgain[0]); /* Link it */
+@@ -385,7 +389,7 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH2
+       if (vexxptr->partval != 2) {
+         errorPrint ("vgraphSeparateFm: linked non-separator vertex (1)");
+-        return (1);
++        goto fail;
+       }
+ #endif /* SCOTCH_DEBUG_VGRAPH2 */
+       gainTablDel (tablptr, &vexxptr->gainlink0); /* Remove it from table */
+@@ -427,7 +431,7 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH2
+             if (parttax[vertend] != (1 - partval)) {
+               errorPrint ("vgraphSeparateFm: undeclared separator vertex");
+-              return (1);
++              goto fail;
+             }
+ #endif /* SCOTCH_DEBUG_VGRAPH2 */
+ 
+@@ -439,7 +443,7 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH2
+             if (hashnbr > hashmsk) {
+               errorPrint ("vgraphSeparateFm: hash table overflow");
+-              return (1);
++              goto fail;
+             }
+ #endif /* SCOTCH_DEBUG_VGRAPH2 */
+           }
+@@ -498,7 +502,7 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH2
+                     if (parttax[vertent] != (1 - partval)) {
+                       errorPrint ("vgraphSeparateFm: broken separator (1)");
+-                      return (1);
++                      goto fail;
+                     }
+ #endif /* SCOTCH_DEBUG_VGRAPH2 */
+                     compgainp += (velotax != NULL) ? velotax[vertent] : 1;
+@@ -508,7 +512,7 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH2
+                     if (vexxent->partval == partval) {
+                       errorPrint ("vgraphSeparateFm: broken separator (2)");
+-                      return (1);
++                      goto fail;
+                     }
+ #endif /* SCOTCH_DEBUG_VGRAPH2 */
+                     if (vexxent->partval == 2) {  /* If vertex is in separator (or is vexxptr) */
+@@ -559,7 +563,7 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH2
+         if (vexxptr->partval != 2) {
+           errorPrint ("vgraphSeparateFm: linked non-separator vertex (2)");
+-          return (1);
++          goto fail;
+         }
+ #endif /* SCOTCH_DEBUG_VGRAPH2 */
+ 
+@@ -580,14 +584,14 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH3
+       if (vgraphSeparateFmCheck (grafptr, hashtab, hashmsk, compload2, comploaddlt) != 0) {
+         errorPrint ("vgraphSeparateFm: internal error (3)");
+-        return (1);
++        goto fail;
+       }
+ #endif /* SCOTCH_DEBUG_VGRAPH3 */
+ 
+       if (hashnbr >= hashmax) {
+         if (vgraphSeparateFmResize (&hashtab, &hashmax, &hashmsk, &savetab, savenbr, tablptr, &lockdat) != 0) {
+           errorPrint ("vgraphSeparateFm: out of memory (2)");
+-          return (1);
++          goto fail;
+         }
+       }
+ 
+@@ -682,14 +686,16 @@ const VgraphSeparateFmParam * const paraptr)      /*+ Method parameters +*/
+ #ifdef SCOTCH_DEBUG_VGRAPH2
+   if (vgraphCheck (grafptr) != 0) {
+     errorPrint ("vgraphSeparateFm: inconsistent graph data");
+-    return (1);
++    goto fail;
+   }
+ #endif /* SCOTCH_DEBUG_VGRAPH2 */
+ 
++  o = 0;                                          /* Everything went well */
++fail:
+   memFree      (hashtab);                         /* Free group leader */
+   gainTablExit (tablptr);
+ 
+-  return (0);
++  return (o);
+ }
+ 
+ /* This routine doubles the size all of the arrays
+diff --git a/src/libscotch/vmesh_separate_fm.c b/src/libscotch/vmesh_separate_fm.c
+index 107e872..de390b5 100644
+--- a/src/libscotch/vmesh_separate_fm.c
++++ b/src/libscotch/vmesh_separate_fm.c
+@@ -49,7 +49,7 @@
+ /**                # Version 6.1  : from : 05 dec 2021     **/
+ /**                                 to   : 05 dec 2021     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -351,7 +351,8 @@ const VmeshSeparateFmParam * restrict const paraptr) /*+ Method parameters    +*
+     VmeshSeparateGgParam  paramdat;
+ 
+     paramdat.passnbr = 3;
+-    vmeshSeparateGg (meshptr, &paramdat);         /* Compute a balanced initial partition */
++    if (vmeshSeparateGg (meshptr, &paramdat) != 0) /* Compute a balanced initial partition */
++      return (1);
+   }
+ 
+   vertnbr = meshptr->m.velmnbr + meshptr->m.vnodnbr;
+-- 
+2.47.3
+

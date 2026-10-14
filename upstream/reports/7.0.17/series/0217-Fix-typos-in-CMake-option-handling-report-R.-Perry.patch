@@ -1,0 +1,40 @@
+From d2d64e0dfaec41c2ecf2e8bedc06e52d77359400 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:08:34 +0000
+Subject: [PATCH 217/240] Fix typos in CMake option handling [report R. Perry]
+
+The FreeBSD detection test had a stray closing brace, so that its left
+operand was "FreeBSD}" and the test only worked because of the
+surrounding wildcards. The error message for an invalid IDXSIZE value
+was copied from the INTSIZE one.
+
+Refs: BLD-25
+---
+ src/CMakeLists.txt | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 6be99d5..24acb04 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -64,7 +64,7 @@ if(MSVC)
+ endif(MSVC)
+ 
+ # Detect FreeBSD
+-if(${CMAKE_HOST_SYSTEM_NAME}} MATCHES "^.*FreeBSD.*$")
++if(CMAKE_HOST_SYSTEM_NAME MATCHES "FreeBSD")
+   set(OS_IS_FREEBSD ON)
+   message(STATUS "OS is FreeBSD")
+ endif()
+@@ -128,7 +128,7 @@ if(NOT IDXSIZE STREQUAL "")
+     message(STATUS "Index size is 64 bits")
+     add_definitions(-DIDXSIZE64)
+   else()
+-    message(FATAL_ERROR "Invalid integer size value")
++    message(FATAL_ERROR "Invalid index size value")
+   endif()
+ endif()
+ 
+-- 
+2.47.3
+

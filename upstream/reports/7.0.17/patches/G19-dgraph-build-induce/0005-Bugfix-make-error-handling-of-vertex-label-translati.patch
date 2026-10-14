@@ -1,0 +1,108 @@
+From be0ed70c88de4323154bb2174d2e5588a617c215 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:42:21 +0000
+Subject: [PATCH 05/11] Bugfix: make error handling of vertex label translation
+ in `dgraphBuild3()` collective [report PyScotch]
+
+In non-debug builds, the agreements on local errors of the vertex label
+translation of `dgraphBuild3()` were compiled out. A process that could
+not allocate its sort arrays, or that found a duplicate label among its
+vertices, returned alone while the other processes entered the ring
+exchange of label data and waited forever for its messages. Likewise,
+a duplicate label found during the exchange was reported on some
+processes only, so that the routine returned different values on
+different processes.
+
+Always perform both agreements, as the cost of two integer reductions
+is negligible compared to that of the ring exchange, and report errors
+where they are found, as in `hdgraphGather()`.
+---
+ src/libscotch/dgraph_build.c | 45 ++++++++++++++++++------------------
+ 1 file changed, 23 insertions(+), 22 deletions(-)
+
+diff --git a/src/libscotch/dgraph_build.c b/src/libscotch/dgraph_build.c
+index 72cfa77..62805f9 100644
+--- a/src/libscotch/dgraph_build.c
++++ b/src/libscotch/dgraph_build.c
+@@ -362,13 +362,14 @@ const Gnum                  degrlocmax)
+ 
+     procglbnbr = grafptr->procglbnbr;
+ 
++    cheklocval = 1;                               /* Assume an error */
+     if (memAllocGroup ((void **) (void *)
+                        &vesongbtab[0], (size_t) (grafptr->vertglbmax * sizeof (DgraphLablSortVert)),
+                        &vesongbtab[1], (size_t) (grafptr->vertglbmax * sizeof (DgraphLablSortVert)),
+                        &edsoloctab,    (size_t) (grafptr->edgeglbmax * sizeof (DgraphLablSortEdge)),
+                        NULL) == NULL) {
+       errorPrint ("dgraphBuild3: out of memory");
+-      return (1);
++      goto fail;
+     }
+ 
+     for (vertlocnum = 0, vesongbptr = vesongbtab[0], vlbllocptr = vlblloctax + baseval;
+@@ -380,23 +381,23 @@ const Gnum                  degrlocmax)
+     intSort2asc1 (vesongbtab[0], vertlocnbr);
+     vesongbnbr[0] = vertlocnbr;                   /* Set array size */
+ 
+-    cheklocval = 0;
+-
+     for (vesongbptr = vesongbtab[0] + 1, vesongbtnd = vesongbtab[0] + vertlocnbr;
+          vesongbptr < vesongbtnd; vesongbptr ++) {
+       if (vesongbptr[0].vlblglbnum == vesongbptr[-1].vlblglbnum) {
+-        cheklocval = 1;
+-        break;
++        errorPrint ("dgraphBuild3: duplicate vertex label (1)");
++        goto fail;
+       }
+     }
+-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication cannot be merged with a useful one */
+-    MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->proccomm);
+-#else /* SCOTCH_DEBUG_DGRAPH1 */
+-    chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+-    if (chekglbval != 0) {
+-      errorPrint ("dgraphBuild3: duplicate vertex label (1)");
+-      memFree    (vesongbtab[0]);
++
++    cheklocval = 0;                               /* Everything went well */
++fail:
++    if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) { /* All processes must agree before exchanging label data */
++      errorPrint ("dgraphBuild3: communication error (1)");
++      chekglbval = 1;
++    }
++    if (chekglbval != 0) {                        /* If some process cannot proceed */
++      if (vesongbtab[0] != NULL)
++        memFree (vesongbtab[0]);                  /* Free group leader */
+       return (1);
+     }
+ 
+@@ -455,17 +456,17 @@ const Gnum                  degrlocmax)
+       }
+     }
+ 
+-    memFree (vesongbtab[0]);
+-
+-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication cannot be merged with a useful one */
+-    MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->proccomm);
+-#else /* SCOTCH_DEBUG_DGRAPH1 */
+-    chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+-    if (chekglbval != 0) {
++    if (cheklocval != 0)                          /* If some label was found on several processes */
+       errorPrint ("dgraphBuild3: duplicate vertex label (2)");
+-      return (1);
++
++    memFree (vesongbtab[0]);                      /* Free group leader */
++
++    if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) { /* All processes must agree on the validity of the graph */
++      errorPrint ("dgraphBuild3: communication error (2)");
++      chekglbval = 1;
+     }
++    if (chekglbval != 0)
++      return (1);
+   }
+ 
+   return (0);
+-- 
+2.47.3
+

@@ -1,0 +1,12 @@
+API-04: SCOTCH_dgraphGather() with the Fortran "not root" alias: fixed in 7.0.17 (04c85e9)
+==========================================================================================
+Harness: ../common gatherfi in "alias" mode (ranks != 0 pass their own SCOTCH_Dgraph as cgrfptr).
+The 7.0.16 behaviour is reproduced by compiling the 7.0.16 wrapper (library_dgraph_gather_7016.c
+= git show v7.0.16:src/libscotch/library_dgraph_gather.c) into an overriding shared object and
+preloading it over the patched 7.0.17 library:
+  mpicc <CFLAGS> -DSCOTCH_PTSCOTCH -shared -fPIC -I$B/src/libscotch -I$B/include library_dgraph_gather_7016.c -o libgather7016.so
+  mpirun --oversubscribe -np 2 -x LD_PRELOAD=$PWD/libgather7016.so ../common/bin_buildfi/gatherfi alias 1 5
+  -> rank 1 exits on signal 11 (rc=139): the non-root wrote Graph fields into its own Dgraph
+  mpirun --oversubscribe -np 2 ../common/bin_buildfi/gatherfi alias 1 5     (7.0.17 wrapper)
+  -> rank 0: centralized check=0 vertnbr=10 edgenbr=20; rank 0/1: gather rc=0; distributed graphs intact
+  np=3: idem (vertnbr=15 edgenbr=30).

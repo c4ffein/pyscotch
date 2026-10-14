@@ -1,0 +1,8 @@
+SEP-10 / PS-SEP-5: bgraphZero() adds vfixload[0] to compload0 (bgraphSwal() adds both fixed loads).
+Debug build (-DSCOTCH_DEBUG_ALL), fixed-vertex mapping of a 12x12 grid (loads 3, first row fixed to 0, last to 1):
+  LD_LIBRARY_PATH=$WORK/builddbg/lib ../common/fixgrid_builddbg 'r{sep=g{pass=3}z}' 12 2
+  pristine (pristine_fixgrid.log): ERROR: bgraphCheck: invalid part load / bgraphBipartZr: inconsistent graph data / rc=1
+      also for 'r{sep=h{pass=3}z}' and 'r{sep=m{vert=20,low=z,asc=f{move=80}}}'; release build: rc=0 (wrong imbalance is
+      overwritten by the next method that recomputes loads from scratch, e.g. GG).
+  patched  (patched_fixgrid.log): rc=0 for all strategies; check_scotch_graph_map on the debug build passes
+      (patched_dbg_check_graph_map.log; it also passed on pristine because its strategies never run 'z' after a zeroing).

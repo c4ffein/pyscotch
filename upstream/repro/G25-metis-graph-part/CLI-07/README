@@ -1,0 +1,11 @@
+CLI-07  ncon = 2: interleaved vwgt read as one load per vertex; ParMETIS tpwgts not strided and ubvec ignored
+  ./cli07                                   (METIS v5 Kway, ncon=2, vwgt[2v]=1..10, vwgt[2v+1]=1000+v, tpwgts constraint 0 = .1/.2/.3/.4, ubvec 1.03)
+  mpirun --oversubscribe -np 1 ./pcli07     (ParMETIS_V3_PartKway, same data as floats)
+pristine (32-bit):
+  cli07:  part 0: target0=0.10 constraint0=0.0000 ... imbalance on constraint 0 (max load/target): 1.2145 (requested <= 1.03)  [64-bit: 1.8279]
+  pcli07: part 1: target0=0.20 (tpwgts as read, unstrided: 0.50) constraint0=0.3427 ...  (parts follow tpwgts[p], not tpwgts[p*ncon])
+patched (0003):
+  cli07:  part 0: target0=0.10 constraint0=0.0998 ... imbalance on constraint 0: 1.0148   [64-bit: 1.0092]
+  pcli07: part 0..3 constraint0 = 0.0996 / 0.1982 / 0.3038 / 0.3985 for targets .10/.20/.30/.40
+Also measured on the src/check graphs with the test's data (pristine_tests/measure.c): constraint-0 imbalance pristine 2.47 / 2.42 / 1.76
+(bump, bump_b1, bump_imbal_32) vs patched 1.03 / 1.00 / 1.01; the new checkLoad() in test_libmetis.c uses a 1.5 bound.

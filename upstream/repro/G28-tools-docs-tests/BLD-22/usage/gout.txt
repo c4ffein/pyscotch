@@ -1,0 +1,44 @@
+Usage is:
+  gout [<input source file> [<input geometry file> [<input mapping file> [<output picture file>]]]] <options>
+    -g<arguments>       : Geometry parameters :
+                            n  : do not read geometry data (matrix display)
+                            p  : permute Y and Z geometry dimensions
+                            r  : rotate geometry by 90 degrees
+    -h                  : Display this help
+    -mn                 : Do not read mapping data
+    -Oi[{<arguments>}]  : Open Inventor mesh file :
+                            c        : color output
+                            g        : gray level output
+                            r        : remove cut edges
+                            v        : view cut edges
+    -Om[{<arguments>}]  : PostScript matrix file :
+                            e        : EPSF-type output
+                            f        : full-page output
+    -Op[{<arguments>}]  : PostScript mesh file :
+                            c        : color output
+                            g        : gray level output
+                            e        : EPSF-type output
+                            f        : full-page output
+                            s        : short clipping (disks excluded)
+                            l        : large clipping (disks included)
+                            a        : avoid displaying disks
+                            d        : display disks
+                            r        : remove cut edges
+                            v        : view cut edges
+                            X=<val>  : maximum x clipping ratio (in [0.0;1.0])
+                            x=<val>  : minimum x clipping ratio
+                            Y=<val>  : maximum y clipping ratio
+                            y=<val>  : minimum y clipping ratio
+    -Ot[{<arguments>}]  : Tulip graph file :
+                            b        : b/w output
+                            c        : color output
+                            a        : avoid displaying disks
+                            d        : display disks
+                            r        : remove cut edges
+                            v        : view cut edges
+    -Ov[{<arguments>}]  : VTK mesh file :
+                            r        : remove cut edges
+                            v        : view cut edges
+    -V                  : Print program version and copyright
+  
+  Default option set is : -Ov{v}

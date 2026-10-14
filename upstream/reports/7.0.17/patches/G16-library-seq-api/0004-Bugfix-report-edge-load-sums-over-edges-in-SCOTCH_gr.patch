@@ -1,0 +1,114 @@
+From 2af0a3e1cdf455f6ba92dcda57af0f3e14c29087 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:38:50 +0000
+Subject: [PATCH 4/9] Bugfix: report edge load sums over edges in
+ `SCOTCH_graphStat()` and `SCOTCH_dgraphStat()` [report R. Perry]
+
+When the graph has edge loads, the sum of edge loads was computed
+over all arcs, hence counting every edge twice, while it was the
+number of edges when the graph has no edge loads. Every edge is now
+counted once in both cases, as documented.
+
+Refs: API-19
+---
+ doc/src/ptscotch/p_l.tex            | 3 ++-
+ doc/src/scotch/s_l.tex              | 3 ++-
+ src/libscotch/library_dgraph_stat.c | 7 ++++---
+ src/libscotch/library_graph.c       | 6 ++++--
+ 4 files changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/doc/src/ptscotch/p_l.tex b/doc/src/ptscotch/p_l.tex
+index de5c1a0..6305b45 100644
+--- a/doc/src/ptscotch/p_l.tex
++++ b/doc/src/ptscotch/p_l.tex
+@@ -2564,7 +2564,8 @@ degree, the average vertex degree, and the variance of the vertex
+ degrees, respectively.
+ {\tt edlomin}, {\tt edlomax}, {\tt edlosum}, {\tt edloavg} and
+ {\tt edlodlt} are the minimum edge load, the maximum edge
+-load, the sum of all edge loads, the average edge load,
++load, the sum of all edge loads (every edge being counted once,
++although it is represented by two arcs), the average edge load,
+ and the variance of the edge loads, respectively.
+ 
+ \progret
+diff --git a/doc/src/scotch/s_l.tex b/doc/src/scotch/s_l.tex
+index 31ddfd5..3186057 100644
+--- a/doc/src/scotch/s_l.tex
++++ b/doc/src/scotch/s_l.tex
+@@ -3771,7 +3771,8 @@ degree, the average vertex degree, and the variance of the vertex
+ degrees, respectively.
+ {\tt edlomin}, {\tt edlomax}, {\tt edlosum}, {\tt edloavg} and
+ {\tt edlodlt} are the minimum edge load, the maximum edge
+-load, the sum of all edge loads, the average edge load,
++load, the sum of all edge loads (every edge being counted once,
++although it is represented by two arcs), the average edge load,
+ and the variance of the edge loads, respectively.
+ \end{itemize}
+ 
+diff --git a/src/libscotch/library_dgraph_stat.c b/src/libscotch/library_dgraph_stat.c
+index 417cc7e..13bfa90 100644
+--- a/src/libscotch/library_dgraph_stat.c
++++ b/src/libscotch/library_dgraph_stat.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2012,2014,2018,2019,2021,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2012,2014,2018,2019,2021,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -46,7 +46,7 @@
+ /**                # Version 6.1  : from : 05 apr 2021     **/
+ /**                                 to   : 05 apr 2021     **/
+ /**                # Version 7.0  : from : 20 sep 2019     **/
+-/**                                 to   : 08 oct 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -255,6 +255,7 @@ double *                    edlodltptr)
+              edgelocnum < srcgrafptr->vendloctax[vertlocnum]; edgelocnum ++)
+           edlolocdlt += fabs ((double) srcgrafptr->edloloctax[edgelocnum] - edloglbavg);
+       }
++      edloglbsum /= 2;                            /* Edges have been accounted for twice, as arcs */
+ 
+       srclstadat.edlomin = edlolocmin;
+       srclstadat.edlomax = edlolocmax;
+@@ -262,7 +263,7 @@ double *                    edlodltptr)
+     else {
+       srclstadat.edlomin =
+       srclstadat.edlomax = 1;
+-      edloglbsum         = srcgrafptr->edgeglbnbr / 2;
++      edloglbsum         = srcgrafptr->edgeglbnbr / 2; /* Count every edge once */
+       edloglbavg         = 1.0L;
+     }
+   }
+diff --git a/src/libscotch/library_graph.c b/src/libscotch/library_graph.c
+index 9bc8e4d..837c144 100644
+--- a/src/libscotch/library_graph.c
++++ b/src/libscotch/library_graph.c
+@@ -54,7 +54,7 @@
+ /**                # Version 6.1  : from : 15 mar 2021     **/
+ /**                                 to   : 31 may 2021     **/
+ /**                # Version 7.0  : from : 07 may 2019     **/
+-/**                                 to   : 06 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -503,11 +503,13 @@ double *                    edlodltptr)
+           edlodlt += fabs ((double) srcgrafptr->edlotax[edgenum] - edloavg);
+       }
+       edlodlt /= (double) srcgrafptr->edgenbr;
++
++      edlosum /= 2;                               /* Edges have been accounted for twice, as arcs */
+     }
+     else {
+       edlomin =
+       edlomax = 1;
+-      edlosum = srcgrafptr->edgenbr / 2;
++      edlosum = srcgrafptr->edgenbr / 2;          /* Count every edge once */
+       edloavg = 1.0L;
+     }
+   }
+-- 
+2.47.3
+

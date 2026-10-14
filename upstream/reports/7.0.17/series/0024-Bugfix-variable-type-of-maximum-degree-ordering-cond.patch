@@ -1,0 +1,96 @@
+From 137f4a35fb8925e1d4f3372a0174e7ffa8280e5e Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:54:43 +0000
+Subject: [PATCH 024/240] Bugfix: variable type of maximum-degree ordering
+ condition [report R. Perry]
+
+The `mdeg' graph ordering condition variable was declared `STRATPARAMDOUBLE'
+but pointed at the `Gnum' field `degrmax', so `stratTestEval()' read it through
+a `double *'. On a 64-bit `Gnum' this compared a bit-reinterpreted value; on a
+32-bit `Gnum' it read eight bytes from a four-byte field, past its end. Any
+ordering strategy using a condition on `mdeg', such as `/(mdeg>3)?s;', thus
+tested garbage (and read out of bounds).
+
+Declare `mdeg' as `STRATPARAMINT', like the other integer-valued graph
+conditions `vert', `edge', `load' and `levl'. The same table defect was present
+in the sequential graph, distributed graph and mesh orderings.
+
+Refs: GRA-13
+---
+ src/libscotch/hdgraph_order_st.c | 2 +-
+ src/libscotch/hgraph_order_st.c  | 6 +++---
+ src/libscotch/hmesh_order_st.c   | 6 +++---
+ 3 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/src/libscotch/hdgraph_order_st.c b/src/libscotch/hdgraph_order_st.c
+index ab2b803..2e11fda 100644
+--- a/src/libscotch/hdgraph_order_st.c
++++ b/src/libscotch/hdgraph_order_st.c
+@@ -128,7 +128,7 @@ static StratParamTab        hdgraphorderstcondtab[] = { /* Graph condition param
+                                 (byte *) &hdgraphorderstgraphdummy,
+                                 (byte *) &hdgraphorderstgraphdummy.s.veloglbsum,
+                                 NULL },
+-                              { STRATNODECOND,         STRATPARAMDOUBLE, "mdeg",
++                              { STRATNODECOND,         STRATPARAMINT,    "mdeg",
+                                 (byte *) &hdgraphorderstgraphdummy,
+                                 (byte *) &hdgraphorderstgraphdummy.s.degrglbmax,
+                                 NULL },
+diff --git a/src/libscotch/hgraph_order_st.c b/src/libscotch/hgraph_order_st.c
+index 9bb0e0f..3acc991 100644
+--- a/src/libscotch/hgraph_order_st.c
++++ b/src/libscotch/hgraph_order_st.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2012,2018,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2012,2018,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -50,7 +50,7 @@
+ /**                # Version 6.0  : from : 17 oct 2012     **/
+ /**                                 to   : 05 apr 2018     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 07 nov 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -228,7 +228,7 @@ static StratParamTab        hgraphorderstcondtab[] = { /* Graph condition parame
+                                 (byte *) &hgraphorderstgraphdummy,
+                                 (byte *) &hgraphorderstgraphdummy.vnlosum,
+                                 NULL },
+-                              { STRATNODECOND,        STRATPARAMDOUBLE, "mdeg",
++                              { STRATNODECOND,        STRATPARAMINT,    "mdeg",
+                                 (byte *) &hgraphorderstgraphdummy,
+                                 (byte *) &hgraphorderstgraphdummy.s.degrmax,
+                                 NULL },
+diff --git a/src/libscotch/hmesh_order_st.c b/src/libscotch/hmesh_order_st.c
+index b7dd2db..f5a8515 100644
+--- a/src/libscotch/hmesh_order_st.c
++++ b/src/libscotch/hmesh_order_st.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ /**   DATES      : # Version 4.0  : from : 28 sep 2002     **/
+ /**                                 to   : 05 jan 2005     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 07 nov 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -204,7 +204,7 @@ static StratParamTab        hmeshorderstcondtab[] = { /* Mesh condition paramete
+                                 (byte *) &hmeshorderstmeshdummy,
+                                 (byte *) &hmeshorderstmeshdummy.vnhlsum,
+                                 NULL },
+-                              { STRATNODECOND,        STRATPARAMDOUBLE, "mdeg",
++                              { STRATNODECOND,        STRATPARAMINT,    "mdeg",
+                                 (byte *) &hmeshorderstmeshdummy,
+                                 (byte *) &hmeshorderstmeshdummy.m.degrmax,
+                                 NULL },
+-- 
+2.47.3
+

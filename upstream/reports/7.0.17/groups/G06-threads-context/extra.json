@@ -1,0 +1,188 @@
+[
+ {
+  "local_id": "PS2-G08-2",
+  "our_title": "Context split creates a second random stream regardless of the deterministic option; ordering (and partition) depend on thread count",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/PS2-G08-2 (series tree, SCOTCH_DETERMINISTIC=1): gord bump.grf differing lines vs 1 thread: 2 threads 3532, 4 threads 6186; gpart 8: 2 threads 0, 4 threads 5646; run-to-run at 2 threads: 0 (reproducible for a fixed thread count). mord cube_8.msh: 0 (not observed on that mesh). With alt a (common_context.c): gord 1==2==4, gpart 2==4 but 1 vs 2 = 829 (residual is bgraphBipartGg's per-thread PRNG, G08's SEP-13). With alt b (hgraph_order_nd.c + hmesh_order_nd.c guards): gord 1==2==4, gpart unchanged (kgraphMapRbPart is G12's 0009).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/common_context.c:272-304 (contextThreadLaunchSplit: randdat seeded from the parent at :298-299), callers: kgraph_map_rb_part.c:316, wgraph_part_rb.c:377 (G12 0009), hgraph_order_nd.c:305, hmesh_order_nd.c:261 (not covered), dgraph_fold_dup.c:166 (no random use)",
+  "evidence": "common_context.c:290 'spltdat.conttab[1].randptr = &randdat; /* Set independent pseudo-random generator for sub-context 1 */' and :298-299 'intRandProc (&randdat, (int) intRandVal2 (contptr->randptr)); intRandSeed (&randdat, intRandVal2 (contptr->randptr));' ; hgraph_order_nd.c:305 'if (contextThreadLaunchSplit (grafptr->contptr, (ContextSplitFunc) hgraphOrderNd2, &spltdat) != 0)' ; vgraph_separate_gg.c:145 'contextIntRandVal (grafptr->contptr, grafptr->s.vertnbr)); /* Randomly select first root vertex */' ; s_l.tex:7900-7904 'a value of 1 induces a deterministic behavior across multiple runs, for any number of threads (yet, for the same number of MPI processes ...)' ; gmap.c:107 'd : deterministic behavior (even across multiple threads; implies f)'.",
+  "related_ids": [
+   "SEP-13",
+   "PS2-G08-1",
+   "PS2-G12-3"
+  ],
+  "fix_options": [
+   {
+    "label": "b. Guard the two ordering callers like G12's 0009 guards the two partitioning callers (recommended; extends 0009)",
+    "summary": "hgraph_order_nd.c and hmesh_order_nd.c: include context.h, read CONTEXTOPTIONNUMDETERMINISTIC, run the two sub-tasks in sequence when set ('if ((deteval != 0) || (contextThreadLaunchSplit (...) != 0))'), identical to 0009's hunks.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G06-threads-context/alt/PS2-G08-2-b-order-callers-no-split.diff",
+    "tested": "build_alt_b: gord bump.grf identical at 1, 2 and 4 threads under SCOTCH_DETERMINISTIC=1 (0 differing lines); builds with 0 warnings; applies on v7.0.17 (and on top of 0009, different files).",
+    "tradeoffs": "Loses task-level concurrency of nested dissection under the deterministic option (each half still uses all threads for its own threaded work, as graphMatchInit() does); four near-identical guards in the tree.",
+    "preferred": true,
+    "maintainer_fit": "The maintainer's idiom for consuming the option is in the algorithm that needs it, with '#include \"context.h\"' (graph_match.c:57,205-212; dgraph_band_grow.c:403; dgraph_match_sync_ptop.c:222): no common_*.c file includes context.h, the common layer only provides the values mechanism and does not know what value 0 means. Caller-side guards also leave dgraphFoldDup()'s split alone, which consumes no random numbers and would be serialized for nothing by option a."
+   },
+   {
+    "label": "a. Refuse to split in contextThreadLaunchSplit() when the deterministic option is set (single point, all five callers)",
+    "summary": "common_context.c: include context.h, read the option, 'return (1)' ('could not split') so every caller takes its sequential fallback; routine comment updated.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G06-threads-context/alt/PS2-G08-2-a-common-context-no-split.diff",
+    "tested": "build_alt_a: gord identical at 1, 2, 4 threads; gpart 2 == 4 threads (1-thread residual = SEP-13); 0 warnings; applies on v7.0.17.",
+    "tradeoffs": "One place instead of five, cannot be forgotten by a future caller; but it makes the common layer depend on libscotch's option numbering (layering) and serializes the PT-Scotch fold-dup split (dgraph_fold_dup.c:166) although it is random-free; makes 0009's guards redundant.",
+    "preferred": false,
+    "maintainer_fit": "Layering: common_context.c is the generic context code; the deterministic option is a libscotch concept (context.h, contextOptionsInit in context.c)."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G06-1",
+  "our_title": "Run-time fixed-seed option (and thus the deterministic option) never read: seed stays time-based unless COMMON_RANDOM_FIXED_SEED is compiled in",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/PS2-G06-1 (build_nofs: 7.0.17, same flags as the ASan tree minus sanitizers and minus -DCOMMON_RANDOM_FIXED_SEED; 1 thread; two gpart 8 bump.grf runs 1.3 s apart): SCOTCH_RANDOM_FIXED_SEED=1 -> 5646/829/4817 differing lines; SCOTCH_DETERMINISTIC=1 -> 0/5646/4817; gpart -Cf -> 4817; -Cd -> 4817; no option -> 9552/829/4817. Same with the ASan tree (compiled with the flag): 0. With alt a applied (build_nofs_alt): all three run-time ways give 0 differing lines in 3 trials each.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/common_integer.c:313-324 (intRandInit), context.c:96-107 (contextOptionsInit), library_context.c:306-323 (SetNum), common_context.c:77-82 (contextInit calls intRandInit before the options exist)",
+  "evidence": "git grep -n CONTEXTOPTIONNUMRANDOMFIXEDSEED src/libscotch -> context.c:104,105 (read env, store), library_context.c:307,315,337,338 (store), context.h:61, dummysizes.c:288; nothing reads it back. common_integer.c:317-321 '#if ! ((defined COMMON_DEBUG) || (defined COMMON_RANDOM_FIXED_SEED)) contptr->seedval = (INT) time (NULL); #else contptr->seedval = 1;'. README.md:115 documents SCOTCH_RANDOM_FIXED_SEED=1 as 'a fixed pseudo-random seed'; s_l.tex:7913-7918 documents the option the same way.",
+  "related_ids": [
+   "API-02"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Reseed the context generator when the option is set (API, Parse, environment); SCOTCH_DETERMINISTIC env implies the fixed seed",
+    "summary": "library_context.c: SetNum(RANDOMFIXEDSEED, 1) calls intRandSeed (randptr, 1) (the COMMON_RANDOM_FIXED_SEED seed); SetNum(DETERMINISTIC, 1) goes through SetNum(RANDOMFIXEDSEED, 1); context.c: contextOptionsInit sets rafival = 1 when deteval != 0 (as the API does) and reseeds when rafival != 0.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G06-threads-context/alt/PS2-G06-1-a-reseed-when-option-set.diff",
+    "tested": "build_nofs_alt: 0 warnings; -Cf, SCOTCH_RANDOM_FIXED_SEED=1, SCOTCH_DETERMINISTIC=1 all reproducible across runs (3 trials); unconfigured runs still vary.",
+    "tradeoffs": "Behaviour change needing the maintainer's decision: (1) contextOptionsInit runs at every CONTEXTINIT, i.e. at every library call on a plain (non-container) object, so with the option on the shared global generator is reseeded before every call and successive calls on the same graph give identical results, whereas with the compile-time flag the stream continues across calls (SCOTCH_randomReset exists for users who want the restart); (2) reseeding the global generator from one context affects all contexts that use it.",
+    "preferred": true,
+    "maintainer_fit": "Smallest change that makes the documented knobs do what README.md:115 and s_l.tex:7913 say; whether the run-time option should mean 'seed once per process' (which needs intRandInit to know the option, i.e. moving the random initialization from contextInit() to contextCommit() and giving intRandInit a flag) is his call. Not sent as a commit for that reason."
+   },
+   {
+    "label": "b. Honour the option at first generator initialization only",
+    "summary": "Move intRandInit() of the global generator from contextInit() to the first contextCommit()/contextRandomClone() and pass it the option value (seed 1 if fixed, time(NULL) otherwise), so the semantics equal the compile-time flag.",
+    "diff_file": "",
+    "tested": "untested: no diff; needs an API change of intRandInit() (common layer) and a change of the init order in context.h CONTEXTINIT and SCOTCH_contextInit; the maintainer's design choice.",
+    "tradeoffs": "Exact equivalence with COMMON_RANDOM_FIXED_SEED; but the option value is only known after contextOptionsInit, and the option set later through SCOTCH_contextOptionSetNum would have no effect on an already-initialized generator unless it reseeds (option a).",
+    "preferred": false,
+    "maintainer_fit": "Cleaner semantics, larger change across common_integer.c / common_context.c / context.h."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G06-2",
+  "our_title": "SCOTCH_contextOptionParse() has no Fortran interface and no user-manual entry; manual misnames OPTIONNUMRANDOMFIXEDSEED",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/PS2-G06-2/opt_f.f90: pristine -> link error (undefined scotchfcontextoptionparse_); with patches/0005 on both trees: 'parse d: ierr = 0', 'deterministic = 1 fixedseed = 1', 'parse x: ierr = 1'. grep -i optionparse doc/src/scotch/s_l.tex -> nothing in 7.0.17; s_l.tex:7910 'OPTIONNUMFIXEDSEED' vs library.h:99 'SCOTCH_OPTIONNUMRANDOMFIXEDSEED'.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/library_context_f.c (wrappers CONTEXTOPTIONGETNUM/SETNUM only, :184-208), library.h:227 (public prototype), doc/src/scotch/s_l.tex:7873-7923 (SetNum section; no Parse section), :7910",
+  "evidence": "library.h:227 'int SCOTCH_contextOptionParse (SCOTCH_Context * const, const char *);' ; library_context_f.c has CONTEXTOPTIONGETNUM (:184) and CONTEXTOPTIONSETNUM (:199) only; s_l.tex:7910 '\\item \\texttt{SCOTCH\\_\\lbt OPTIONNUMFIXEDSEED}: a value of'.",
+  "related_ids": [
+   "API-02"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Add the wrapper and the manual entry (recommended, done)",
+    "summary": "patches/0005: library_context_f.c CONTEXTOPTIONPARSE (string copy idiom of STRATGRAPHMAP), s_l.tex subsection + name fix.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G06-threads-context/patches/0005-Add-Fortran-interface-and-documentation-for-SCOTCH_c.patch",
+    "tested": "see ran",
+    "tradeoffs": "additive",
+    "preferred": true,
+    "maintainer_fit": "His rule that every API routine has a Fortran twin (259f38a, b189b87 fix Fortran twins in 7.0.17)."
+   },
+   {
+    "label": "b. Make SCOTCH_contextOptionParse() internal",
+    "summary": "Remove it from library.h and rename it for the programs' use only.",
+    "diff_file": "",
+    "tested": "untested: ABI change, not drafted",
+    "tradeoffs": "Breaks the public symbol exported since 7.0",
+    "preferred": false,
+    "maintainer_fit": "He does not remove public symbols within 7.0."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G06-threads-context/patches/0005-Add-Fortran-interface-and-documentation-for-SCOTCH_c.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G06-3",
+  "our_title": "Automatic thread count with a non-NULL coretab reads beyond the table's documented thrdnbr entries",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "whole of threadContextInit()",
+  "why_not_run": "Requires a caller to pass thrdnbr < 0 (or 0 after patches/0001) together with a coretab, which the documentation defines as having thrdnbr entries: a contract violation by the caller rather than a reachable library defect.",
+  "location_7_0_17": "src/libscotch/common_thread.c:114-115 with :137-140 (and the same lines after patches/0001 and 0004)",
+  "evidence": "common_thread.c:114-115 'if (thrdnbr < 0) thrdnbr = corenbr;' then :137-140 'for (thrdnum = 1; thrdnum < thrdnbr; thrdnum ++) { ... corenum = (coretab != NULL) ? (coretab[thrdnum] % corenbr) : ...' ; s_l.tex:8179-8181 'it represents an array of thrdnbr integer values'.",
+  "related_ids": [
+   "COR-10",
+   "COR-24"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Ignore coretab when the thread number is automatic",
+    "summary": "In threadContextInit(): if thrdnbr <= 0, use the automatic placement (treat coretab as NULL).",
+    "diff_file": "",
+    "tested": "untested: not drafted (one-line local change, semantics to be confirmed by the maintainer)",
+    "tradeoffs": "Silently drops a user-provided table",
+    "preferred": true,
+    "maintainer_fit": "Defensive; consistent with -1/0 meaning 'let Scotch decide'."
+   },
+   {
+    "label": "b. Document that coretab requires an explicit thrdnbr",
+    "summary": "s_l.tex note.",
+    "diff_file": "",
+    "tested": "untested: doc only",
+    "tradeoffs": "none",
+    "preferred": false,
+    "maintainer_fit": "doc-only"
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G06-4",
+  "our_title": "Deterministic/fixed-seed implication is one-way and order-dependent: 'd,r' and SCOTCH_DETERMINISTIC=1 env leave deterministic=1 with a variable seed",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/API-02/opt: 'Parse (\"d,r\") = 0' then 'after Parse d,r deterministic=1 fixedseed=0'. repro/PS2-G06-1: SCOTCH_DETERMINISTIC=1 in the environment sets only the deterministic value (context.c:103-104); even with alt PS2-G06-1-a's reseed on RANDOMFIXEDSEED alone, SCOTCH_DETERMINISTIC=1 runs still differed (3279 lines) until the env implication was added to the alt.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/library_context.c:311-316 (API implication), :334-339 (option table), src/libscotch/context.c:99-105 (environment: no implication)",
+  "evidence": "context.c:103-105 'contextValuesSetInt (contptr, CONTEXTOPTIONNUMDETERMINISTIC, envGetInt (\"SCOTCH_DETERMINISTIC\", deteval)); contextValuesGetInt (contptr, CONTEXTOPTIONNUMRANDOMFIXEDSEED, &rafival); contextValuesSetInt (contptr, CONTEXTOPTIONNUMRANDOMFIXEDSEED, envGetInt (\"SCOTCH_RANDOM_FIXED_SEED\", rafival));' vs library_context.c:315 '/* If deterministic behavior wanted, use fixed random seed */' ; s_l.tex:7906-7907 'A deterministic behavior implies the use of a fixed random seed'.",
+  "related_ids": [
+   "API-02",
+   "PS2-G06-1"
+  ],
+  "fix_options": [
+   {
+    "label": "a. Apply the implication in contextOptionsInit() too (part of alt PS2-G06-1-a)",
+    "summary": "rafival = 1 when deteval != 0 after reading the environment.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G06-threads-context/alt/PS2-G06-1-a-reseed-when-option-set.diff",
+    "tested": "build_nofs_alt, see PS2-G06-1",
+    "tradeoffs": "none beyond PS2-G06-1's",
+    "preferred": true,
+    "maintainer_fit": "Same rule in both entry points."
+   },
+   {
+    "label": "b. Reject SetNum(RANDOMFIXEDSEED, 0) while deterministic is 1 (or clear deterministic)",
+    "summary": "Keep the two values consistent on every set.",
+    "diff_file": "",
+    "tested": "untested: not drafted",
+    "tradeoffs": "Makes 'd,r' an error or silently clears 'd'; behaviour change of the -C option",
+    "preferred": false,
+    "maintainer_fit": "Design choice."
+   }
+  ],
+  "patch_files": []
+ }
+]

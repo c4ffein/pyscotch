@@ -1,0 +1,4 @@
+SEP-23: meshBase() does not shift velotax/vnlotax; hmeshBase() loops over the new element range on the old-based vehdtax and double-adjusts an aliased vendtax.
+  ./base   pristine -> "AddressSanitizer: global-buffer-overflow ... _SCOTCHmeshCheck mesh_check.c:199" right after meshBase (m, 0) (load array read at old base)
+           patched  -> all "check=0": meshBase 1->0->1, hmeshBase with aliased vehdtax, hmeshBase with distinct vehdtax (values 3 6 at base 0, 4 7 at base 1)
+Fixed by patches/0002; regression test: src/check/test_mesh_base.c (check_mesh_base), fails on pristine the same way.

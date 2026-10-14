@@ -1,0 +1,37 @@
+diff --git a/src/libscotch/dorder_io.c b/src/libscotch/dorder_io.c
+index 64a0637..17ca8af 100644
+--- a/src/libscotch/dorder_io.c
++++ b/src/libscotch/dorder_io.c
+@@ -116,7 +116,7 @@ FILE * restrict const         stream)
+   if (protnum == ordeptr->proclocnum) {
+     Gnum                  vlblnbr;
+ 
+-    vlblnbr = (grafptr->vlblloctax != NULL) ? ordeptr->vnodglbnbr : 0;
++    vlblnbr = (grafptr->vlblloctax != NULL) ? (ordeptr->vnodglbnbr + ordeptr->baseval) : 0; /* Displacement array is based */
+     if (memAllocGroup ((void **) (void *)
+                        &permtab, (size_t) (ordeptr->vnodglbnbr * sizeof (Gnum)),
+                        &peritab, (size_t) (ordeptr->vnodglbnbr * sizeof (Gnum)),
+@@ -199,9 +199,7 @@ FILE * restrict const         stream)
+ 
+     orderPeri (peritab, ordeptr->baseval, ordeptr->vnodglbnbr, permtab, ordeptr->baseval); /* Compute direct permutation */
+ 
+-    if (grafptr->vlblloctax != NULL) {            /* If ordering has label array */
+-      vlbltax -= ordeptr->baseval;                /* Base label array            */
+-
++    if (grafptr->vlblloctax != NULL) {            /* If ordering has label array; it is based by the gather */
+       for (vertnum = 0; vertnum < ordeptr->vnodglbnbr; vertnum ++) {
+         if (fprintf (stream, GNUMSTRING "\t" GNUMSTRING "\n",
+                      (Gnum) vlbltax[vertnum + ordeptr->baseval],
+diff --git a/src/libscotch/dorder_io_tree.c b/src/libscotch/dorder_io_tree.c
+index f40fd19..b6ddd65 100644
+--- a/src/libscotch/dorder_io_tree.c
++++ b/src/libscotch/dorder_io_tree.c
+@@ -115,7 +115,7 @@ int                        (* funcptr) (const Order * restrict const, const Gnum
+   vlbltab = NULL;
+   if (reduglbtab[2] != 0) {
+     if (protnum == ordeptr->proclocnum)
+-      if ((vlbltab = memAlloc (ordeptr->vnodglbnbr * sizeof (Gnum))) == NULL) {
++      if ((vlbltab = memAlloc ((ordeptr->vnodglbnbr + ordeptr->baseval) * sizeof (Gnum))) == NULL) { /* Displacement array is based */
+         errorPrint ("dorderSaveTree2: out of memory");
+         cheklocval = 1;
+       }

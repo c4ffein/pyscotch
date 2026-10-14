@@ -1,0 +1,6 @@
+GRA-07  Matrix Market loader vertex-array overflow for base != 1
+  <build>/bin/gcv -im0 t0b.mtx /dev/null        (5x5, 0-based indices, base 0)
+  <build>/bin/gcv -im2 t2c.mtx out.grf          (base 2, trailing isolated vertices)
+PRISTINE: -im0 -> AddressSanitizer heap-buffer-overflow WRITE in graphGeomLoadMmkt graph_io_mmkt.c:229.
+          -im2 -> uninitialised end-of-array entry; gtst: invalid vertex arrays.
+PATCHED : base 0/1/2 all load and pass gtst/graphCheck.

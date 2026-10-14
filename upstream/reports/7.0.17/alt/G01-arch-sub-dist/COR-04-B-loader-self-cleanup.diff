@@ -1,0 +1,90 @@
+--- a/src/libscotch/arch_sub.c
++++ b/src/libscotch/arch_sub.c
+@@ -88,6 +88,9 @@
+   }
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
++  subarchptr->archptr = NULL;                     /* Assume nothing allocated yet */
++  subarchptr->termtab = NULL;
++
+   if (intLoad (stream, &termnbr) != 1) {
+     errorPrint ("archSubArchLoad: bad input (1)");
+     return (1);
+@@ -112,12 +115,14 @@
+     return (1);
+   }
+ 
++  archInit (orgarchptr);                          /* Original architecture can always be freed, even if not loaded */
+   o = archLoad (orgarchptr, stream);
+   if (o == 0)
+     o = archSubArchBuild (subarchptr, orgarchptr, termnbr, termtab);
+-  if (o != 0) {
++  if (o != 0) {                                   /* On error, nothing is left for archSubArchFree() to free */
+     archExit (orgarchptr);
+     memFree  (orgarchptr);
++    subarchptr->archptr = NULL;
+   }
+ 
+   memFree (termtab);
+@@ -190,12 +195,14 @@
+   }
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+-  if ((archArch (archptr)->flagval & ARCHFREE) != 0) { /* If sub-architecture needs to be freed too */
++  if (((archArch (archptr)->flagval & ARCHFREE) != 0) && /* If original architecture needs to be freed too */
++      (archptr->archptr != NULL)) {
+     archFree (archptr->archptr);
+     memFree  (archptr->archptr);
+   }
+ 
+-  memFree (archptr->termtab);                     /* Free group leader */
++  if (archptr->termtab != NULL)                   /* If sub-architecture was built */
++    memFree (archptr->termtab);                   /* Free group leader             */
+ 
+   return (0);
+ }
+@@ -420,12 +427,6 @@
+ 
+   treetab ++;                                     /* TRICK: Hide first slot */
+ 
+-  subarchptr->archptr = orgarchptr;
+-  subarchptr->termnbr = vnumnbr;
+-  subarchptr->termtab = termtab;
+-  subarchptr->domnnbr = domnnbr;
+-  subarchptr->domntab = domntab;
+-
+   for (orgtermnum = 0; orgtermnum < orgtermnbr; orgtermnum ++) { /* Initialize values for all vertices of original architecture */
+     treetab[orgtermnum].domnsiz =
+     treetab[orgtermnum].domnwgt = 0;
+@@ -482,6 +483,7 @@
+   if (rootptr == NULL) {
+     errorPrint ("archSubArchBuild: cannot create sub-architecture (1)");
+     memFree    (treetab - 1);
++    memFree    (termtab);
+     return (2);
+   }
+ #ifdef SCOTCH_DEBUG_ARCH2
+@@ -493,11 +495,21 @@
+ 
+   if (archSubArchBuild3 (domntab, termtab, rootptr, 1, 0) != domnnbr) {
+     errorPrint ("archSubArchBuild: cannot create sub-architecture (2)");
+-    memFree    (treetab - 1);
+-    return (2);
++    for (treetab --; treetab != NULL; treetab = treetmp) { /* Free all tree blocks    */
++      treetmp = treetab[0].sonstab[0];            /* Get pointer to next tree block */
++      memFree (treetab);
++    }
++    memFree (termtab);
++    return  (2);
+   }
+   domntab[0].dfatidx = -1;                        /* Set index of root father as -1 */
+ 
++  subarchptr->archptr = orgarchptr;               /* Set sub-architecture fields only on success */
++  subarchptr->termnbr = vnumnbr;
++  subarchptr->termtab = termtab;
++  subarchptr->domnnbr = domnnbr;
++  subarchptr->domntab = domntab;
++
+   for (treetab --; treetab != NULL; treetab = treetmp) { /* Free all tree blocks    */
+     treetmp = treetab[0].sonstab[0];              /* Get pointer to next tree block */
+     memFree (treetab);

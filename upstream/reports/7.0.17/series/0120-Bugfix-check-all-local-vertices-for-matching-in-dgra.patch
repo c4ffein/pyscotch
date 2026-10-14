@@ -1,0 +1,64 @@
+From 5dd39cbf87d7f1b5f0551fe9b6b00f117426262b Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:40:21 +0000
+Subject: [PATCH 120/240] Bugfix: check all local vertices for matching in
+ `dgraphMatchCheck()` [report R. Perry]
+
+The loop that looks for unmatched local vertices ran from `baseval` to
+`vertlocnbr`, a count, instead of `vertlocnnd`, so that the last local
+vertex was never checked when the base value is not 0.
+
+Refs: DGR-21
+---
+ src/libscotch/dgraph_match_check.c | 10 ++++------
+ 1 file changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/src/libscotch/dgraph_match_check.c b/src/libscotch/dgraph_match_check.c
+index 05a7983..c37bb62 100644
+--- a/src/libscotch/dgraph_match_check.c
++++ b/src/libscotch/dgraph_match_check.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2008,2009,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2008,2009,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -44,7 +44,7 @@
+ /**                # Version 6.0  : from : 15 may 2018     **/
+ /**                                 to   : 15 may 2018     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 17 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -81,7 +81,6 @@ DgraphMatchData * restrict const    mateptr)
+   int                 procngbnum;
+   Gnum                multlocnbr;
+   Gnum                multlocnum;
+-  Gnum                vertlocnbr;
+   Gnum                vertlocnnd;
+   Gnum                vertlocnum;
+   Gnum                vertlocadj;
+@@ -110,8 +109,8 @@ DgraphMatchData * restrict const    mateptr)
+     cheklocval = 1;
+   }
+ 
+-  vertlocnbr = grafptr->vertlocnbr;
+-  for (vertlocnum = baseval; vertlocnum < vertlocnbr; vertlocnum ++) {
++  vertlocnnd = grafptr->vertlocnnd;
++  for (vertlocnum = baseval; vertlocnum < vertlocnnd; vertlocnum ++) {
+     if (mategsttax[vertlocnum] < 0) {
+       errorPrint ("dgraphMatchCheck: unmatched local vertex");
+       cheklocval = 1;
+@@ -140,7 +139,6 @@ DgraphMatchData * restrict const    mateptr)
+   memSet (flaggsttax, ~0, grafptr->vertgstnbr * sizeof (Gnum));
+   flaggsttax -= baseval;
+ 
+-  vertlocnnd = grafptr->vertlocnnd;
+   vertlocadj = grafptr->procvrttab[grafptr->proclocnum] - baseval;
+   for (multlocnum = 0; multlocnum < multlocnbr; multlocnum ++) {
+     Gnum                vertglbnum;
+-- 
+2.47.3
+

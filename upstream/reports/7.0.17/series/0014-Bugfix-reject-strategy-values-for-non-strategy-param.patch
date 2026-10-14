@@ -1,0 +1,47 @@
+From b40462ba3293582c030cc552691fb37595c3351a Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 09:19:59 +0000
+Subject: [PATCH 014/240] Bugfix: reject strategy values for non-strategy
+ parameters [report R. Perry]
+
+The grammar accepted a (possibly empty) strategy as the value of any
+method parameter, and stored the `Strat` pointer over the parameter
+slot whatever its type: `m{vert=}` or `m{vert=/(vert>1)?f;g}` silently
+corrupted the method data (8-byte store over an `INT` slot) and leaked
+the sub-strategy. Check the parameter type before parsing the
+sub-strategy, and report an invalid parameter value through the
+existing error rule.
+
+Refs: COR-22
+---
+ src/libscotch/parser_yy.y | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/parser_yy.y b/src/libscotch/parser_yy.y
+index 37994f8..742ca33 100644
+--- a/src/libscotch/parser_yy.y
++++ b/src/libscotch/parser_yy.y
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 30 sep 2014     **/
+ /**                                 to   : 27 apr 2018     **/
+ /**                # Version 7.0  : from : 02 mar 2018     **/
+-/**                                 to   : 25 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -457,7 +457,10 @@ PARAMVAL      : VALCASE
+               }
+               |
+               {
+-                ($<SAVE>$).strat = penvptr->straptr;
++                if (penvptr->paraptr->typeval != STRATPARAMSTRAT) /* If parameter cannot hold a strategy */
++                  YYERROR;                        /* Report invalid parameter value         */
++
++                ($<SAVE>$).strat = penvptr->straptr; /* Save current method and parameter */
+                 ($<SAVE>$).param = penvptr->paraptr;
+                 penvptr->straptr = NULL;
+                 penvptr->paraptr = NULL;
+-- 
+2.47.3
+

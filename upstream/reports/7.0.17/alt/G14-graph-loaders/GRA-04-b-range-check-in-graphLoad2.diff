@@ -1,0 +1,17 @@
+Alternative for GRA-04: reject the offending values inside graphLoad2()
+instead of at read time in graphLoad(). Protects every caller of
+graphLoad2() (graphLoad, meshLoad, graphGeomLoadChac) in one place, but
+leaves the unlabeled edge-end path (GRA-10) unguarded and adds a branch
+to the relabeling loop.
+
+--- a/src/libscotch/graph_io.c
++++ b/src/libscotch/graph_io.c
+@@ -302,7 +302,8 @@
+   memSet (indxtab, ~0, (vlblmax + 1) * sizeof (Gnum)); /* Assume labels not used */
+   for (vertnum = baseval; vertnum < vertnnd; vertnum ++) {
+-    if (indxtab[vlbltax[vertnum]] != ~0) {        /* If vertex label already used */
++    if ((vlbltax[vertnum] < 0) ||                 /* If label out of range or already used */
++        (indxtab[vlbltax[vertnum]] != ~0)) {
+       errorPrint ("graphLoad2: duplicate vertex label");
+       memFree    (indxtab);
+       return (1);

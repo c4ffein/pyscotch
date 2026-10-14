@@ -1,0 +1,82 @@
+From c314f324ab1f9b9722428ec8dc2eb7918d7e8e5c Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:13:34 +0000
+Subject: [PATCH 04/11] Bugfix: agree on allocation failures in
+ `vdgraphSeparateDf()` before using the diffusion arrays [report R. Perry]
+
+An allocation failure was flagged as a -1 in the slot of the summed
+reduction that holds the global degree of the first anchor vertex, so
+that it was masked by the positive degrees of the other processes, and
+the failing process then wrote through null pointers. When the sum did
+happen to be negative, the error branch freed the arrays but fell
+through into the diffusion loops instead of returning.
+
+Reduce a dedicated error flag along with the anchor data, and free the
+arrays and return on all processes when any of them failed.
+
+Refs: DMO-04
+---
+ src/libscotch/vdgraph_separate_df.c | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/src/libscotch/vdgraph_separate_df.c b/src/libscotch/vdgraph_separate_df.c
+index b96166b..1768828 100644
+--- a/src/libscotch/vdgraph_separate_df.c
++++ b/src/libscotch/vdgraph_separate_df.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2008,2023,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2008,2023,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -43,7 +43,7 @@
+ /**   DATES      : # Version 5.1  : from : 05 nov 2007     **/
+ /**                                 to   : 09 nov 2008     **/
+ /**                # Version 7.0  : from : 20 jan 2023     **/
+-/**                                 to   : 09 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -97,8 +97,8 @@ const VdgraphSeparateDfParam * const  paraptr)    /*+ Method parameters +*/
+   float                           valolocval[2];  /* Fraction of load to remove from anchor vertices at each step */
+   Gnum                            vanclocnnd;
+   Gnum                            vertlocnum;
+-  Gnum                            reduloctab[4];  /* Local degree of both anchor vertices, minus edges to other anchors, and their loads */
+-  Gnum                            reduglbtab[4];
++  Gnum                            reduloctab[5];  /* Local degree of both anchor vertices, minus edges to other anchors, their loads, and error flag */
++  Gnum                            reduglbtab[5];
+   Gnum                            passnum;
+   float                           cdifval;
+   float                           cremval;
+@@ -125,22 +125,24 @@ const VdgraphSeparateDfParam * const  paraptr)    /*+ Method parameters +*/
+                      &difogsttax, (size_t) (grafptr->s.vertgstnbr * sizeof (float)),
+                      &difngsttax, (size_t) (grafptr->s.vertgstnbr * sizeof (float)), NULL) == NULL) {
+     errorPrint ("vdgraphSeparateDf: out of memory");
+-    reduloctab[0] = -1;
++    reduloctab[4] = 1;                            /* Flag allocation failure for all processes */
+   }
+   else {
+     ielsloctax -= grafptr->s.baseval;
+     difogsttax -= grafptr->s.baseval;
+     difngsttax -= grafptr->s.baseval;
++    reduloctab[4] = 0;
+   }
+ 
+-  if (MPI_Allreduce (reduloctab, reduglbtab, 4, GNUM_MPI, MPI_SUM, grafptr->s.proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (reduloctab, reduglbtab, 5, GNUM_MPI, MPI_SUM, grafptr->s.proccomm) != MPI_SUCCESS) {
+     errorPrint ("vdgraphSeparateDf: communication error (1)");
+     return     (1);
+   }
+ 
+-  if (reduglbtab[0] < 0) {                        /* If memory error */
++  if (reduglbtab[4] != 0) {                       /* If memory error on some process */
+     if (ielsloctax != NULL)
+       memFree (ielsloctax + grafptr->s.baseval);  /* Free group leader */
++    return (1);
+   }
+   if ((reduglbtab[0] == 0) ||                     /* If graph is too small to have any usable anchors, leave partition as is */
+       (reduglbtab[1] == 0)) {
+-- 
+2.47.3
+

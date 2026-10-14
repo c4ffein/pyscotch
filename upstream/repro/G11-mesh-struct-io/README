@@ -1,0 +1,13 @@
+Reproducers for group G11-mesh-struct-io (Scotch 7.0.17).
+
+Environment (all READMEs below assume it):
+  WORK=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G11-mesh-struct-io
+  INFRA=/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra
+  PRISTINE: export LD_LIBRARY_PATH=$INFRA/asan/lib      (ASan+UBSan build of pristine 7.0.17, 32-bit Gnum)
+  PATCHED : export LD_LIBRARY_PATH=$WORK/build/lib      (same flags, with the 11-patch series)
+  64-bit  : $WORK/build64/lib and the binaries in $WORK/repro/bin64 (same harnesses compiled with -DINTSIZE64 -DIDXSIZE64)
+  export UBSAN_OPTIONS=print_stacktrace=1
+Harness build line (public API):
+  gcc X.c -o X -O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer -I$WORK/build/include -L$WORK/build/lib -lscotch -lscotcherr -lz -lm -lpthread
+Internal-API harnesses (SEP-23, SEP-21, hmeshExit) add the libscotch CFLAGS of $WORK/build/src/Makefile.inc and -I$WORK/build/src/libscotch.
+Tools (mtst, mcv, mord, gmk_msh) are $INFRA/asan/bin/* (pristine) and $WORK/build/bin/* (patched).

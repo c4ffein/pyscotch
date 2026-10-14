@@ -1,0 +1,7 @@
+PS2-G12-1: kgraphMapRb() computes fixed-vertex merge, frontier and cost after the recursive bipartitioning failed.
+Reproducer: ../GRA-21/gra21.32 100 h (hcub target -> kgraphMapRbMap path, invalid fixed terminal 100).
+Pristine (INFRA/asan/lib):
+  ERROR: kgraphMapRbBgraph: invalid fixed part array / kgraphMapRbMap: cannot create bipartition graph
+  arch_hcub.c:261:13: runtime error: shift exponent -1094795586 is negative  (archHcubDomSize <- kgraphCost <- kgraphMapRb kgraph_map_rb.c:176)
+  kgraph_cost.c:178:34: runtime error: signed integer overflow ... ; ret=1
+Patched: the two errors, then "kgraphMapRb: cannot compute recursive bipartitioning", no UBSan report, ret=1.

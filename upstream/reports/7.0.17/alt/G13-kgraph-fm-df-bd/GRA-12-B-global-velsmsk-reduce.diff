@@ -1,0 +1,24 @@
+# SKETCH (not a clean apply): alternative to the recommended GRA-12 fix.
+# Instead of letting each thread fall through to the existing barriers, reduce
+# velsmsk across all threads BEFORE the first barrier so every thread takes the
+# same decision, avoiding even the per-thread sort-array allocation.
+#
+# Needs a new shared field in KgraphMapDfData and one extra barrier:
+#
+# --- a/src/libscotch/kgraph_map_df.h
+# +++ b/src/libscotch/kgraph_map_df.h
+# @@ KgraphMapDfData
+# +  volatile int              velsmsk;            /* Reduced "all anchors usable" flag */
+#
+# --- a/src/libscotch/kgraph_map_df.c
+# @@ after velstax/velsmsk are computed, before the setup barriers
+# -  if (velsmsk == 0)
+# -    loopptr->abrtval = 1;
+# +  loopptr->velsmsk &= velsmsk;                  /* Shared AND over all threads */
+# +  threadBarrier (descptr);
+# +  if (loopptr->velsmsk == 0)
+# +    loopptr->abrtval = 1;
+#
+# Trade-off: correct and avoids the private allocation, but adds a shared field
+# and a third barrier to a hot loop; heavier than the recommended fall-through,
+# which reuses the two barriers already present. Not preferred.

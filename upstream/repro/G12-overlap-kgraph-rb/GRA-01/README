@@ -1,0 +1,9 @@
+GRA-01: zero-load fixed vertices on many distinct terminal domains hang kgraphMapRbVfloMerge().
+Build: ../common/build.sh <tree> 32  (gra01.32). usage: gra01 fixnbr fixweight [freenbr]
+Pristine (INFRA/asan/lib):
+  timeout 60 ./gra01.32 64 1   -> ret=0 (unit loads)
+  timeout 20 ./gra01.32 64 0   -> killed (rc 124): infinite probe loop; also 40 0, 33 0, 32 0 (6 free vertices: 32 slots)
+Patched (../build/lib):
+  timeout 60 ./gra01.32 64 0   -> ret=0 ; 32 0 -> ret=0 ; 300 0 1 -> ret=0
+Regression test added to src/check/test_scotch_graph_map.c (all vertices but one fixed, zero loads, distinct terminals):
+  ../../build/src/check/test_scotch_graph_map data/m4x4.grf against pristine lib: timeout (hang); patched: passes.

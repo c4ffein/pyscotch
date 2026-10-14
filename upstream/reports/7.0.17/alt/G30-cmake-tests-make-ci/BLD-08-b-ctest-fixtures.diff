@@ -1,0 +1,23 @@
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -792,12 +792,14 @@
+ 
+   # check_prog_dgscat-dggath
+ 
+-  add_test(NAME test_dgscat COMMAND
+-    ${BASH} -c "'${MPIEXEC_EXECUTABLE}' ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 '$<TARGET_FILE:dgscat>' \
+-      -r1 -c '${dat}/m16x16.grf' out_dgscat-%r.grf ; \
+-      '${MPIEXEC_EXECUTABLE}' ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 '$<TARGET_FILE:dggath>' \
+-      -r1 -c out_dgscat-%r.grf out_dggat.grf ; \
+-      '${CMAKE_COMMAND}' -E compare_files '${dat}/m16x16.grf' out_dggat.grf")
++  add_test(NAME test_dgscat_scatter COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 $<TARGET_FILE:dgscat> -r1 -c ${dat}/m16x16.grf out_dgscat-%r.grf)
++  set_tests_properties(test_dgscat_scatter PROPERTIES FIXTURES_SETUP DGSCAT)
++  add_test(NAME test_dgscat_gather COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 $<TARGET_FILE:dggath> -r1 -c out_dgscat-%r.grf out_dggat.grf)
++  set_tests_properties(test_dgscat_gather PROPERTIES FIXTURES_REQUIRED DGSCAT FIXTURES_SETUP DGGATH)
++  add_test(NAME test_dgscat COMMAND ${CMAKE_COMMAND} -E compare_files ${dat}/m16x16.grf out_dggat.grf)
++  set_tests_properties(test_dgscat PROPERTIES FIXTURES_REQUIRED DGGATH)
++  add_test(NAME test_dgscat_cleanup COMMAND ${CMAKE_COMMAND} -E rm -f out_dgscat-0.grf out_dgscat-1.grf out_dgscat-2.grf out_dggat.grf)
++  set_tests_properties(test_dgscat_cleanup PROPERTIES FIXTURES_CLEANUP "DGSCAT;DGGATH")
+ 
+   add_test(NAME test_dgscat_b100000 COMMAND
+     ${BASH} -c "'${MPIEXEC_EXECUTABLE}' ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 '$<TARGET_FILE:dgscat>' \

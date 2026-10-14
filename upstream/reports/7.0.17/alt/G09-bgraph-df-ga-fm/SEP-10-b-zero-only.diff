@@ -1,0 +1,19 @@
+diff --git a/src/libscotch/bgraph.c b/src/libscotch/bgraph.c
+index 120b9d2..aa50137 100644
+--- a/src/libscotch/bgraph.c
++++ b/src/libscotch/bgraph.c
+@@ -241,12 +241,9 @@ void
+ bgraphZero (
+ Bgraph * restrict const     grafptr)
+ {
+-  Gnum                compload0;
+-
+-  compload0 = grafptr->s.velosum + grafptr->vfixload[0];
+   grafptr->fronnbr      = 0;                      /* No frontier vertices */
+-  grafptr->compload0dlt = compload0 - grafptr->compload0avg;
+-  grafptr->compload0    = compload0;
++  grafptr->compload0dlt = grafptr->s.velosum - grafptr->compload0avg;
++  grafptr->compload0    = grafptr->s.velosum;
+   grafptr->compsize0    = grafptr->s.vertnbr;
+   grafptr->commload     = grafptr->commloadextn0; /* Initialize communication load */
+   grafptr->commgainextn = grafptr->commgainextn0;

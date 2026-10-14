@@ -1,0 +1,32 @@
+DGR-01 (one design problem with DGR-02 and PS-DGR-4): dgraphFold2() receiver edge-array allocation
+fails after senders posted everything: undrained requests, peers hang, use-after-free
+=================================================================================================
+Harness: ../common. np=4, part 0 (ranks 0,1 receive), ring of 5 vertices per rank, vertex loads,
+edge loads and folded data enabled. Allocation #6 on rank 0 is "dgraphFold2: out of memory (6)",
+the receiver edge array allocated after the senders posted all their Isends (dgraph_fold.c:463).
+
+Pristine 7.0.17 (release build):
+  cd ../common
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/foldfi 4 0 0 8 -- 0 0 5 1 1 1
+  nth=6 exit=124 :: HANG; (0): ERROR: dgraphFold2: out of memory (6); rank 0: fold rc=1; rank 2: fold rc=0; rank 3: fold rc=0
+  (rank 1, the other receiver, never returns: it waits in MPI_Waitany for data its peer sender never
+  completes; ranks 2,3 returned 0 and hang in MPI_Finalize)
+  nth=0..5 (out of memory (1),(3),(4),(5), dgraphFoldComm (1),(2)) HANG as well, and so does a sender
+  failure (./scan.sh ... 4 2 0 3 -- 0 0 5 1 1 1, nth=0..2): the first agreement is compiled out in
+  release builds (PS-DGR-4). nth>=7: exit 0.
+
+Patched (series applied, same commands against $WORK/buildfi/lib and ./bin_buildfi/foldfi):
+  nth=0..6 exit=1 :: all four ranks print "fold rc=1"; nth>=7 exit=0 and the folded graph checks.
+  Also verified: np=3 part 1 (rank 2 sole receiver, base 1) nth=0..7; np=4 base 1 (DGR-02).
+
+Twin hdgraphFold2() exercised through SCOTCH_dgraphOrderCompute() (orderfi, m16x16.grf, np=4):
+  ./scan.sh $WORK/pristinefi/lib ./bin_pristinefi/orderfi 4 0 82 96 -- $INFRA/v7.0.17/src/check/data/m16x16.grf
+  pristine: HANG at every hdgraphFold2()/dgraphFoldComm() allocation (#82-#88, #94-#96 on rank 0;
+  #82-#84, #90-#96 on rank 2); patched: exit=1 with "cannot compute ordering" on all four ranks.
+  (#89 on rank 2 crashes on both: unchecked memRealloc() in hdgraphInduceList(), see extra.json.)
+
+Success paths: foldfi matrix np=3..6 x part 0/1 x base 0/1 x {no loads, loads+data, velo+data}
+(48 runs each) on the ASan 32-bit, ASan+SCOTCH_DEBUG_ALL and 64-bit builds: 0 failures.
+check_scotch_dgraph_{check,band,coarsen,order,grow,induce,redist}, check_strat_par,
+check_libparmetis_{v3,dual}, check_prog_{dgord,dgpart,dgscat-dggath,dgtst}: all pass on the 32-bit
+ASan and the 64-bit trees ($WORK/chk_32_*.log, chk_64_*.log, chk_dbg_*.log).

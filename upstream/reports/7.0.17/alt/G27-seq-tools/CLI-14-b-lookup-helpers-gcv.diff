@@ -1,0 +1,81 @@
+diff --git a/src/scotch/gcv.c b/src/scotch/gcv.c
+index 0618e44..a4b0cce 100644
+--- a/src/scotch/gcv.c
++++ b/src/scotch/gcv.c
+@@ -126,6 +126,41 @@ static const char *         C_usageList[] = {
+   "Default option set is : '-Ib -Os'",
+   NULL };
+ 
++/* These routines search the format tables
++** for the given format code.
++** They return:
++** - >= 0  : index of format in table.
++** - -1    : if code not found.
++*/
++
++static
++int
++C_inpFormatFind (
++const char                  codeval)
++{
++  int                 j;
++
++  for (j = 0; C_inpFormatTab[j].code != '\0'; j ++) {
++    if (C_inpFormatTab[j].code == codeval)
++      return (j);
++  }
++  return (-1);
++}
++
++static
++int
++C_outFormatFind (
++const char                  codeval)
++{
++  int                 j;
++
++  for (j = 0; C_outFormatTab[j].code != '\0'; j ++) {
++    if (C_outFormatTab[j].code == codeval)
++      return (j);
++  }
++  return (-1);
++}
++
+ /*****************************/
+ /*                           */
+ /* This is the main function */
+@@ -165,27 +200,17 @@ char *                      argv[])
+           return     (EXIT_SUCCESS);
+         case 'I' :                               /* Select input file type */
+         case 'i' :
+-          for (j = 0; C_inpFormatTab[j].code != '\0'; j ++) { /* Find proper format code */
+-            if (C_inpFormatTab[j].code == argv[i][2]) {
+-              C_inpFormatType = j;
+-              C_inpFormatData = &argv[i][3];
+-              break;
+-            }
+-          }
+-          if (C_inpFormatTab[j].code == '\0')
++          if ((j = C_inpFormatFind (argv[i][2])) < 0) /* Find proper format code */
+             errorPrint ("main: unprocessed option '%s'", argv[i]);
++          C_inpFormatType = j;
++          C_inpFormatData = &argv[i][3];
+           break;
+-        case 'O' :                               /* Select input file type */
++        case 'O' :                               /* Select output file type */
+         case 'o' :
+-          for (j = 0; C_outFormatTab[j].code != '\0'; j ++) { /* Find proper format code */
+-            if (C_outFormatTab[j].code == argv[i][2]) {
+-              C_outFormatType = j;
+-              C_outFormatData = &argv[i][3];
+-              break;
+-            }
+-          }
+-          if (C_inpFormatTab[j].code == '\0')
++          if ((j = C_outFormatFind (argv[i][2])) < 0) /* Find proper format code */
+             errorPrint ("main: unprocessed option '%s'", argv[i]);
++          C_outFormatType = j;
++          C_outFormatData = &argv[i][3];
+           break;
+         case 'V' :
+           fprintf (stderr, "gcv, version " SCOTCH_VERSION_STRING "\n");

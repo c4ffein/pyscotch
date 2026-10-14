@@ -1,0 +1,24 @@
+# COR-17 option B: same checks as option A, but the MPI_Allreduce agreement is compiled
+# only under a debug flag, as the maintainer does for allocation failures in dgraph_fold.c,
+# dgraph_redist.c, dgraph_gather_all.c ("Communication cannot be merged with a useful one",
+# #ifdef SCOTCH_DEBUG_DGRAPH1). Release builds keep the rank-local early return, i.e. the
+# deadlock of COR-17 / PS-COR-2 remains in release; only the silent truncation of the
+# scalar counts (commAllgatherv / commScatterv) is fixed there. Not recommended: unlike the
+# dgraph cases, the error here is reachable from data (counts), not only from allocation
+# failure, and these wrappers are already the slow path for > 2^31-element gathers.
+# Diff relative to option A (sketch, not run):
+--- a/src/libscotch/comm.c  (option A)
++++ b/src/libscotch/comm.c  (option B)
+@@ (in each of the three routines)
++#ifdef SCOTCH_DEBUG_COMM1                         /* Communication cannot be merged with a useful one */
+   if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, comm) != MPI_SUCCESS) { /* Agree on error before entering collective communication */
+     errorPrint ("commGatherv: communication error (1)");
+     chekglbval = MPI_ERR_OTHER;
+   }
++#else /* SCOTCH_DEBUG_COMM1 */
++  chekglbval = cheklocval;
++#endif /* SCOTCH_DEBUG_COMM1 */
+   o = (chekglbval == MPI_SUCCESS)
+       ? MPI_Gatherv (senddattab, isndcntnbr, sendtypval,
+                      recvdattab, ircvcnttab, ircvdsptab, recvtypval, rootnum, comm)
+       : chekglbval;

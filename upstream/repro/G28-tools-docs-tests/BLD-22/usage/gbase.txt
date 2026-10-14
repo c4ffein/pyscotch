@@ -1,0 +1,4 @@
+Usage is:
+  gbase <base> [<input graph file> [<output graph file>]] <options>
+    -h  : Display this help
+    -V  : Print program version and copyright

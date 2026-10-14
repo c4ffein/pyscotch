@@ -1,0 +1,106 @@
+-- rank 0
+  nth=295 base[?;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0  <--
+  nth=296 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=297 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=298 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: HANG leak=0  <--
+  nth=299 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=300 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=301 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=302 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=303 base[?;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0  <--
+  nth=304 base[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0   patched[_SCOTCHbgraphBipartFm;1]: rc=0,0,0 leak=0  <--
+  nth=305 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=6   patched[_SCOTCHbgraphBipartFm;1]: rc=0,0,0 leak=0  <--
+  nth=306 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=6   patched[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0  <--
+  nth=307 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0
+  nth=308 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0
+  nth=309 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=6   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0  <--
+  nth=310 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0   patched[?;1]: HANG leak=0  <--
+  nth=311 base[_SCOTCHdgraphInduce2;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphInduce2;1]: rc=0,0,0 leak=0
+  nth=312 base[_SCOTCHdgraphGhst2;1]: HANG leak=0   patched[_SCOTCHdgraphInduce2;1]: rc=0,0,0 leak=0  <--
+  nth=313 base[_SCOTCHdgraphFoldComm;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0
+  nth=314 base[_SCOTCHdgraphFoldComm;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphFoldComm;1]: rc=1,1,1 leak=0
+  nth=315 base[?;1]: HANG leak=0   patched[?;1]: HANG leak=0
+  nth=316 base[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0
+  nth=317 base[_SCOTCHdgraphGatherAll2;1]: HANG leak=0   patched[_SCOTCHdgraphGatherAll2;1]: HANG leak=0
+  nth=318 base[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphGatherAll2;1]: HANG leak=0  <--
+  nth=319 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=6   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0  <--
+  nth=320 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=6   patched[_SCOTCHdgraphGatherAll2;1]: HANG leak=0  <--
+  nth=321 base[_SCOTCHgraphMatch;1]: rc=0,0,0 leak=0   patched[_SCOTCHbdgraphGatherAll;1]: HANG leak=0  <--
+  nth=322 base[_SCOTCHbdgraphGatherAll;1]: HANG leak=0   patched[_SCOTCHbdgraphGatherAll;1]: HANG leak=0
+  nth=444 base[?;1]: HANG leak=0   patched[_SCOTCHbgraphStoreInit;1]: rc=0,0,0 leak=0  <--
+  nth=445 base[_SCOTCHbgraphBipartDf;1]: rc=0,0,0 leak=0   patched[_SCOTCHbgraphBipartDf;1]: rc=0,0,0 leak=0
+  nth=446 base[_SCOTCHdgraphInduce2;1]: HANG leak=0   patched[?;1]: rc=0,0,0 leak=0  <--
+  nth=447 base[?;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphInduce2;1]: HANG leak=0  <--
+  nth=448 base[?;1]: rc=0,0,0 leak=0   patched[_SCOTCHbgraphInit;1]: HANG leak=0  <--
+  nth=449 base[?;1]: HANG leak=0   patched[?;1]: rc=0,0,0 leak=0  <--
+  nth=450 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=451 base[?;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphGatherAll2;1]: HANG leak=0  <--
+  nth=452 base[_SCOTCHdgraphGatherAll2;1]: HANG leak=0   patched[_SCOTCHdgraphGatherAll2;1]: HANG leak=0
+  nth=453 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=454 base[_SCOTCHdgraphGatherAll2;1]: HANG leak=0   patched[?;1]: rc=0,0,0 leak=0  <--
+  nth=455 base[_SCOTCHkdgraphMapRbAdd2;1]: HANG leak=0   patched[?;1]: rc=0,0,0 leak=0  <--
+  nth=456 base[_SCOTCHkdgraphMapRbAdd2;1]: HANG leak=0   patched[_SCOTCHbgraphBipartFm;1]: rc=0,0,0 leak=0  <--
+  nth=457 base[_SCOTCHdgraphInduce2;1]: HANG leak=0   patched[?;1]: HANG leak=0
+  nth=582 base[_SCOTCHkgraphMapRb;1]: HANG leak=0   patched[_SCOTCHbgraphStoreInit;1]: rc=0,0,0 leak=0  <--
+  nth=586 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+-- rank 1
+  nth=307 base[_SCOTCHbdgraphGatherAll;1]: HANG leak=0   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0  <--
+  nth=308 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0
+  nth=309 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0
+  nth=310 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0   patched[?;1]: HANG leak=0  <--
+  nth=311 base[?;1]: HANG leak=0   patched[_SCOTCHdgraphGatherAll2;1]: rc=1,1,1 leak=0  <--
+  nth=312 base[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0
+  nth=313 base[_SCOTCHdgraphGhst2;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0  <--
+  nth=314 base[_SCOTCHdgraphGhst2;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphFoldComm;1]: rc=1,1,1 leak=0  <--
+  nth=315 base[?;1]: HANG leak=0   patched[_SCOTCHdgraphFoldComm;1]: rc=1,1,1 leak=0  <--
+  nth=316 base[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphGatherAll2;1]: HANG leak=0  <--
+  nth=317 base[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphGatherAll2;1]: HANG leak=0  <--
+  nth=318 base[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphGatherAll2;1]: HANG leak=0  <--
+  nth=319 base[_SCOTCHbdgraphGatherAll;1]: HANG leak=0   patched[_SCOTCHdgraphGatherAll2;1]: HANG leak=0
+  nth=320 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=6   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0  <--
+  nth=321 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=6   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0  <--
+  nth=322 base[_SCOTCHdgraphInduce2;1]: rc=0,0,0 leak=0   patched[_SCOTCHbdgraphGatherAll;1]: HANG leak=0  <--
+  nth=323 base[_SCOTCHdgraphInduce2;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphGatherAll2;1]: rc=1,1,1 leak=0  <--
+  nth=324 base[?;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphGatherAll2;1]: rc=1,1,1 leak=0  <--
+  nth=325 base[_SCOTCHdgraphGhst2;1]: HANG leak=0   patched[?;1]: rc=0,0,0 leak=0  <--
+  nth=326 base[_SCOTCHgraphMatchInit;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphGhst2;1]: rc=0,0,0 leak=0
+  nth=327 base[?;1]: HANG leak=0   patched[_SCOTCHdgraphGhst2;1]: rc=0,0,0 leak=0  <--
+  nth=328 base[_SCOTCHgraphMatch;1]: rc=0,0,0 leak=0   patched[?;1]: HANG leak=0  <--
+  nth=329 base[?;1]: HANG leak=0   patched[_SCOTCHgraphMatch;1]: rc=0,0,0 leak=0  <--
+  nth=330 base[_SCOTCHdgraphGatherAll2;1]: HANG leak=0   patched[_SCOTCHgraphMatch;1]: rc=0,0,0 leak=0  <--
+  nth=331 base[_SCOTCHdgraphGatherAll2;1]: HANG leak=0   patched[_SCOTCHdgraphGatherAll2;1]: HANG leak=0
+  nth=332 base[_SCOTCHgraphMatch;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphGatherAll2;1]: HANG leak=0  <--
+  nth=333 base[_SCOTCHdgraphGatherAll2;1]: HANG leak=0   patched[_SCOTCHbdgraphGatherAll;1]: HANG leak=0
+  nth=334 base[_SCOTCHbdgraphGatherAll;1]: HANG leak=0   patched[_SCOTCHgainTablInit;1]: rc=0,0,0 leak=0  <--
+  nth=458 base[?]: rc=0,0,0 leak=0   patched[?]: rc=0,0,0 leak=0
+  nth=459 base[?;1]: HANG leak=0   patched[?]: rc=0,0,0 leak=0  <--
+  nth=460 base[?]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphInduce2;1]: HANG leak=0  <--
+  nth=461 base[_SCOTCHdgraphInduce2;1]: rc=0,0,0 leak=0   patched[?]: rc=0,0,0 leak=0
+  nth=462 base[?]: rc=0,0,0 leak=0   patched[?;1]: HANG leak=0  <--
+  nth=463 base[?]: rc=0,0,0 leak=0   patched[_SCOTCHkdgraphMapRbAdd2;1]: HANG leak=0  <--
+  nth=464 base[_SCOTCHkdgraphMapRbAdd2;1]: HANG leak=0   patched[?]: rc=0,0,0 leak=0  <--
+  nth=465 base[_SCOTCHkdgraphMapRbAdd2;1]: HANG leak=0   patched[_SCOTCHkdgraphMapRbAdd2;1]: HANG leak=0
+  nth=466 base[_SCOTCHkdgraphMapRbAdd2;1]: HANG leak=0   patched[_SCOTCHkdgraphMapRbAdd2;1]: HANG leak=0
+  nth=467 base[_SCOTCHkdgraphMapRbAdd2;1]: HANG leak=0   patched[?]: rc=0,0,0 leak=0  <--
+  nth=468 base[?]: rc=0,0,0 leak=0   patched[?]: rc=0,0,0 leak=0
+-- rank 2
+  nth=294 base[_SCOTCHbgraphBipartDf;1]: rc=0,0,0 leak=0   patched[_SCOTCHbgraphStoreInit;1]: rc=0,0,0 leak=0
+  nth=295 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0   patched[?;1]: HANG leak=0  <--
+  nth=296 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=297 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=298 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=299 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=300 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=301 base[_SCOTCHdgraphFold2;1]: rc=1,1,1 leak=0   patched[?;1]: rc=0,0,0 leak=0  <--
+  nth=302 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: rc=0,0,0 leak=0
+  nth=303 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=6   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0  <--
+  nth=304 base[_SCOTCHbgraphBipartFm;1]: rc=0,0,0 leak=0   patched[_SCOTCHbgraphBipartFm;1]: rc=0,0,0 leak=0
+  nth=305 base[?;1]: HANG leak=0   patched[_SCOTCHbgraphBipartFm;1]: rc=0,0,0 leak=0  <--
+  nth=306 base[?;1]: rc=0,0,0 leak=0   patched[?;1]: HANG leak=0  <--
+  nth=307 base[?;1]: HANG leak=0   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0  <--
+  nth=308 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0
+  nth=309 base[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0   patched[_SCOTCHdgraphGatherAll2;1]: rc=1,1,1 leak=0
+  nth=310 base[_SCOTCHgraphMatch;1]: rc=0,0,0 leak=0   patched[_SCOTCHdgraphInduce2;1]: rc=1,1,1 leak=0  <--
+  nth=311 base[_SCOTCHkgraphInit;1]: HANG leak=0   patched[_SCOTCHkgraphInit;1]: HANG leak=0
+  nth=434 base[_SCOTCHbgraphStoreInit;1]: rc=0,0,0 leak=0   patched[_SCOTCHbgraphBipartBd;1]: rc=0,0,0 leak=0
+  nth=438 base[?;1]: CRASH leak=0   patched[?;1]: rc=0,0,0 leak=0  <--

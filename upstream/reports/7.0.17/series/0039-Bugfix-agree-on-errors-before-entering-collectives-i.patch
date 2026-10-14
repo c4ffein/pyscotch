@@ -1,0 +1,266 @@
+From a589f08055db40214cf3d2dc282a1ed67faaf338 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:23:51 +0000
+Subject: [PATCH 039/240] Bugfix: agree on errors before entering collectives
+ in large-count communication wrappers [report R. Perry]
+
+In `commAllgatherv()`, `commGatherv()` and `commScatterv()`, which are
+used when Gnum is wider than int, a process that found a count or
+displacement that does not fit in an int, or that could not allocate
+its conversion arrays, returned before entering the collective
+communication, while the other processes entered it and waited
+forever. The check on the local send count that was added to
+`commGatherv()` in 73229e6 is also local to each process. Moreover,
+the local count passed to `commAllgatherv()` and `commScatterv()` was
+converted to int without any check, so that a count that does not fit
+was silently truncated and the communication yielded wrong results
+without any error.
+
+Check the local count in the three routines, then agree on the error
+status with an `MPI_Allreduce()` before calling the collective
+communication routine, so that all processes return the same error
+code. This adds one small collective communication per call, in
+64-bit Gnum builds only.
+
+Refs: COR-17, PS-COR-2
+---
+ src/libscotch/comm.c | 142 ++++++++++++++++++++++++++++---------------
+ 1 file changed, 93 insertions(+), 49 deletions(-)
+
+diff --git a/src/libscotch/comm.c b/src/libscotch/comm.c
+index d30d796..bf48ef4 100644
+--- a/src/libscotch/comm.c
++++ b/src/libscotch/comm.c
+@@ -41,7 +41,7 @@
+ /**    DATES     : # Version 5.1  : from : 30 jul 2010     **/
+ /**                                 to   : 30 jul 2010     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 06 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -77,10 +77,13 @@ const Gnum * const          recvdsptab,
+ MPI_Datatype                recvtypval,
+ MPI_Comm                    comm)
+ {
++  int                 isndcntnbr;
+   int * restrict      ircvcnttab;
+   int * restrict      ircvdsptab;
+   int                 procglbnbr;
+   int                 procnum;
++  int                 cheklocval;
++  int                 chekglbval;
+   int                 o;
+ 
+   if (sizeof (Gnum) == sizeof (int))              /* If no integer size issue, directly call the MPI routine */
+@@ -89,28 +92,45 @@ MPI_Comm                    comm)
+                             recvtypval, comm));
+ 
+   MPI_Comm_size (comm, &procglbnbr);
+-  if (memAllocGroup ((void **) (void *)
+-                     &ircvcnttab, (size_t) (procglbnbr * sizeof (int)),
+-                     &ircvdsptab, (size_t) (procglbnbr * sizeof (int)), NULL) == NULL) {
++
++  ircvcnttab = NULL;
++  cheklocval = MPI_SUCCESS;                       /* Assume everything is all right */
++
++  isndcntnbr = (int) sendcntnbr;
++  if ((Gnum) isndcntnbr != sendcntnbr) {
++    errorPrint ("commAllgatherv: communication indices out of range (1)");
++    cheklocval = MPI_ERR_ARG;
++  }
++  else if (memAllocGroup ((void **) (void *)
++                          &ircvcnttab, (size_t) (procglbnbr * sizeof (int)),
++                          &ircvdsptab, (size_t) (procglbnbr * sizeof (int)), NULL) == NULL) {
+     errorPrint ("commAllgatherv: out of memory");
+-    return     (MPI_ERR_OTHER);
++    cheklocval = MPI_ERR_OTHER;
+   }
+-
+-  for (procnum = 0; procnum < procglbnbr; procnum ++) {
+-    ircvcnttab[procnum] = (int) recvcnttab[procnum];
+-    ircvdsptab[procnum] = (int) recvdsptab[procnum];
+-    if (((Gnum) ircvcnttab[procnum] != recvcnttab[procnum]) ||
+-        ((Gnum) ircvdsptab[procnum] != recvdsptab[procnum])) {
+-      errorPrint ("commAllgatherv: communication indices out of range");
+-      memFree    (ircvcnttab);
+-      return     (MPI_ERR_ARG);
++  else {
++    for (procnum = 0; procnum < procglbnbr; procnum ++) {
++      ircvcnttab[procnum] = (int) recvcnttab[procnum];
++      ircvdsptab[procnum] = (int) recvdsptab[procnum];
++      if (((Gnum) ircvcnttab[procnum] != recvcnttab[procnum]) ||
++          ((Gnum) ircvdsptab[procnum] != recvdsptab[procnum])) {
++        errorPrint ("commAllgatherv: communication indices out of range (2)");
++        cheklocval = MPI_ERR_ARG;
++        break;
++      }
+     }
+   }
+ 
+-  o = MPI_Allgatherv (senddattab, sendcntnbr, sendtypval,
+-                      recvdattab, ircvcnttab, ircvdsptab, recvtypval, comm);
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, comm) != MPI_SUCCESS) { /* Agree on error before entering collective communication */
++    errorPrint ("commAllgatherv: communication error (1)");
++    chekglbval = MPI_ERR_OTHER;
++  }
++  o = (chekglbval == MPI_SUCCESS)
++      ? MPI_Allgatherv (senddattab, isndcntnbr, sendtypval,
++                        recvdattab, ircvcnttab, ircvdsptab, recvtypval, comm)
++      : chekglbval;
+ 
+-  memFree (ircvcnttab);
++  if (ircvcnttab != NULL)
++    memFree (ircvcnttab);
+ 
+   return (o);
+ }
+@@ -135,6 +155,8 @@ MPI_Comm                    comm)
+   int * restrict      ircvcnttab;
+   int * restrict      ircvdsptab;
+   int                 proclocnum;
++  int                 cheklocval;
++  int                 chekglbval;
+   int                 o;
+ 
+   if (sizeof (Gnum) == sizeof (int))              /* If no integer size issue, directly call the MPI routine */
+@@ -145,9 +167,14 @@ MPI_Comm                    comm)
+   MPI_Comm_rank (comm, &proclocnum);
+ 
+   ircvcnttab = NULL;
+-  o = MPI_ERR_ARG;                                /* Assume a parameter overflow error */
++  cheklocval = MPI_SUCCESS;                       /* Assume everything is all right */
+ 
+-  if (rootnum == proclocnum) {
++  isndcntnbr = (int) sendcntnbr;
++  if ((Gnum) isndcntnbr != sendcntnbr) {
++    errorPrint ("commGatherv: communication indices out of range (1)");
++    cheklocval = MPI_ERR_ARG;
++  }
++  else if (rootnum == proclocnum) {
+     int                 procglbnbr;
+     int                 procnum;
+ 
+@@ -156,30 +183,31 @@ MPI_Comm                    comm)
+                        &ircvcnttab, (size_t) (procglbnbr * sizeof (int)),
+                        &ircvdsptab, (size_t) (procglbnbr * sizeof (int)), NULL) == NULL) {
+       errorPrint ("commGatherv: out of memory");
+-      return     (MPI_ERR_OTHER);
++      cheklocval = MPI_ERR_OTHER;
+     }
+-
+-    for (procnum = 0; procnum < procglbnbr; procnum ++) {
+-      ircvcnttab[procnum] = (int) recvcnttab[procnum];
+-      ircvdsptab[procnum] = (int) recvdsptab[procnum];
+-      if (((Gnum) ircvcnttab[procnum] != recvcnttab[procnum]) ||
+-          ((Gnum) ircvdsptab[procnum] != recvdsptab[procnum])) {
+-        errorPrint ("commGatherv: communication indices out of range (1)");
+-        goto fail;
++    else {
++      for (procnum = 0; procnum < procglbnbr; procnum ++) {
++        ircvcnttab[procnum] = (int) recvcnttab[procnum];
++        ircvdsptab[procnum] = (int) recvdsptab[procnum];
++        if (((Gnum) ircvcnttab[procnum] != recvcnttab[procnum]) ||
++            ((Gnum) ircvdsptab[procnum] != recvdsptab[procnum])) {
++          errorPrint ("commGatherv: communication indices out of range (2)");
++          cheklocval = MPI_ERR_ARG;
++          break;
++        }
+       }
+     }
+   }
+ 
+-  isndcntnbr = (int) sendcntnbr;
+-  if ((Gnum) isndcntnbr != sendcntnbr) {
+-    errorPrint ("commGatherv: communication indices out of range (2)");
+-    goto fail;
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, comm) != MPI_SUCCESS) { /* Agree on error before entering collective communication */
++    errorPrint ("commGatherv: communication error (1)");
++    chekglbval = MPI_ERR_OTHER;
+   }
++  o = (chekglbval == MPI_SUCCESS)
++      ? MPI_Gatherv (senddattab, isndcntnbr, sendtypval,
++                     recvdattab, ircvcnttab, ircvdsptab, recvtypval, rootnum, comm)
++      : chekglbval;
+ 
+-  o = MPI_Gatherv (senddattab, isndcntnbr, sendtypval,
+-                   recvdattab, ircvcnttab, ircvdsptab, recvtypval, rootnum, comm);
+-
+-fail:
+   if (ircvcnttab != NULL)
+     memFree (ircvcnttab);
+ 
+@@ -204,7 +232,10 @@ MPI_Comm                    comm)
+ {
+   int * restrict      isndcnttab;
+   int * restrict      isnddsptab;
++  int                 ircvcntnbr;
+   int                 proclocnum;
++  int                 cheklocval;
++  int                 chekglbval;
+   int                 o;
+ 
+   if (sizeof (Gnum) == sizeof (int))              /* If no integer size issue, directly call the MPI routine */
+@@ -215,8 +246,14 @@ MPI_Comm                    comm)
+   MPI_Comm_rank (comm, &proclocnum);
+ 
+   isndcnttab = NULL;
++  cheklocval = MPI_SUCCESS;                       /* Assume everything is all right */
+ 
+-  if (rootnum == proclocnum) {
++  ircvcntnbr = (int) recvcntnbr;
++  if ((Gnum) ircvcntnbr != recvcntnbr) {
++    errorPrint ("commScatterv: communication indices out of range (1)");
++    cheklocval = MPI_ERR_ARG;
++  }
++  else if (rootnum == proclocnum) {
+     int                 procglbnbr;
+     int                 procnum;
+ 
+@@ -225,23 +262,30 @@ MPI_Comm                    comm)
+                        &isndcnttab, (size_t) (procglbnbr * sizeof (int)),
+                        &isnddsptab, (size_t) (procglbnbr * sizeof (int)), NULL) == NULL) {
+       errorPrint ("commScatterv: out of memory");
+-      return     (MPI_ERR_OTHER);
++      cheklocval = MPI_ERR_OTHER;
+     }
+-
+-    for (procnum = 0; procnum < procglbnbr; procnum ++) {
+-      isndcnttab[procnum] = (int) sendcnttab[procnum];
+-      isnddsptab[procnum] = (int) senddsptab[procnum];
+-      if (((Gnum) isndcnttab[procnum] != sendcnttab[procnum]) ||
+-          ((Gnum) isnddsptab[procnum] != senddsptab[procnum])) {
+-        errorPrint ("commScatterv: communication indices out of range");
+-        memFree    (isndcnttab);
+-        return     (MPI_ERR_ARG);
++    else {
++      for (procnum = 0; procnum < procglbnbr; procnum ++) {
++        isndcnttab[procnum] = (int) sendcnttab[procnum];
++        isnddsptab[procnum] = (int) senddsptab[procnum];
++        if (((Gnum) isndcnttab[procnum] != sendcnttab[procnum]) ||
++            ((Gnum) isnddsptab[procnum] != senddsptab[procnum])) {
++          errorPrint ("commScatterv: communication indices out of range (2)");
++          cheklocval = MPI_ERR_ARG;
++          break;
++        }
+       }
+     }
+   }
+ 
+-  o = MPI_Scatterv (senddattab, isndcnttab, isnddsptab, sendtypval,
+-                    recvdattab, (int) recvcntnbr, recvtypval, rootnum, comm);
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, comm) != MPI_SUCCESS) { /* Agree on error before entering collective communication */
++    errorPrint ("commScatterv: communication error (1)");
++    chekglbval = MPI_ERR_OTHER;
++  }
++  o = (chekglbval == MPI_SUCCESS)
++      ? MPI_Scatterv (senddattab, isndcnttab, isnddsptab, sendtypval,
++                      recvdattab, ircvcntnbr, recvtypval, rootnum, comm)
++      : chekglbval;
+ 
+   if (isndcnttab != NULL)
+     memFree (isndcnttab);
+-- 
+2.47.3
+

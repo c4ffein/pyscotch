@@ -1,0 +1,123 @@
+From 1065480f51d0a277d77e0971a84ddedfcbf9cd6b Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:10:36 +0000
+Subject: [PATCH 2/5] Bugfix: check target architecture sizes on loading
+ [report R. Perry]
+
+The loaders of the mesh, torus and weighted-complete-graph target
+architectures did not fully check the sizes read from the target file.
+
+`archMeshXArchLoad()` did not reject a dimension count smaller than one,
+so that a "meshXD 0" target made `archMeshXDomNum()` read `c[-1]`.
+
+The products of the mesh and torus dimensions, and the sum of the vertex
+weights of a weighted complete graph, were accumulated in an `Anum`
+without any overflow check, so that large values in a target file wrapped
+around and yielded wrong terminal counts (reported by UBSan).
+
+Reject a dimension count lower than one, and check every dimension
+product and weight sum against `ANUMMAX` before computing it, as the
+other mesh loaders already partly did.
+
+Refs: COR-07, COR-21
+---
+ src/libscotch/arch_cmpltw.c | 10 ++++++++++
+ src/libscotch/arch_mesh.c   | 17 ++++++++++++-----
+ 2 files changed, 22 insertions(+), 5 deletions(-)
+
+diff --git a/src/libscotch/arch_cmpltw.c b/src/libscotch/arch_cmpltw.c
+index 934afca..c93b5ee 100644
+--- a/src/libscotch/arch_cmpltw.c
++++ b/src/libscotch/arch_cmpltw.c
+@@ -184,6 +184,11 @@ const Anum * restrict const velotab)
+       memFree    (vecwtab);
+       return (1);
+     }
++    if (veloval > (ANUMMAX - velosum)) {          /* Overall load must fit in an Anum */
++      errorPrint ("archCmpltwArchBuild2: invalid parameters (3)");
++      memFree    (vecwtab);
++      return (1);
++    }
+ 
+     velosum += veloval;
+     vecwtab[vertnum].veloval = veloval;
+@@ -255,6 +260,11 @@ FILE * restrict const       stream)
+       memFree    (vecwtab);
+       return (1);
+     }
++    if (veloval > (ANUMMAX - velosum)) {          /* Overall load must fit in an Anum */
++      errorPrint ("archCmpltwArchLoad2: bad input (3)");
++      memFree    (vecwtab);
++      return (1);
++    }
+ 
+     velosum += veloval;
+     vecwtab[vertnum].veloval = veloval;
+diff --git a/src/libscotch/arch_mesh.c b/src/libscotch/arch_mesh.c
+index e990207..8f05e02 100644
+--- a/src/libscotch/arch_mesh.c
++++ b/src/libscotch/arch_mesh.c
+@@ -64,7 +64,7 @@
+ /**                # Version 6.0  : from : 14 feb 2011     **/
+ /**                                 to   : 15 may 2018     **/
+ /**                # Version 7.0  : from : 19 feb 2018     **/
+-/**                                 to   : 08 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # The vertices of the (dX,dY) mesh are  **/
+ /**                  numbered as terminals so that         **/
+@@ -115,7 +115,8 @@ FILE * restrict const       stream)
+ 
+   if ((intLoad (stream, &archptr->c[0]) != 1) ||
+       (intLoad (stream, &archptr->c[1]) != 1) ||
+-      (archptr->c[0] < 1) || (archptr->c[1] < 1)) {
++      (archptr->c[0] < 1) || (archptr->c[1] < 1) ||
++      (archptr->c[0] > (ANUMMAX / archptr->c[1]))) { /* Terminal number must fit in an Anum */
+     errorPrint ("archMesh2ArchLoad: bad input");
+     return (1);
+   }
+@@ -387,7 +388,9 @@ FILE * restrict const       stream)
+   if ((intLoad (stream, &archptr->c[0]) != 1) ||
+       (intLoad (stream, &archptr->c[1]) != 1) ||
+       (intLoad (stream, &archptr->c[2]) != 1) ||
+-      (archptr->c[0] < 1) || (archptr->c[1] < 1) || (archptr->c[2] < 1)) {
++      (archptr->c[0] < 1) || (archptr->c[1] < 1) || (archptr->c[2] < 1) ||
++      (archptr->c[0] > (ANUMMAX / archptr->c[1])) || /* Terminal number must fit in an Anum */
++      ((archptr->c[0] * archptr->c[1]) > (ANUMMAX / archptr->c[2]))) {
+     errorPrint ("archMesh3ArchLoad: bad input");
+     return (1);
+   }
+@@ -620,6 +623,7 @@ ArchMeshX * restrict const  archptr,
+ FILE * restrict const       stream)
+ {
+   Anum                dimnnum;
++  Anum                sizeval;                    /* Running product of mesh dimensions */
+ 
+ #ifdef SCOTCH_DEBUG_ARCH1
+   if ((sizeof (ArchMeshX)    > sizeof (ArchDummy)) ||
+@@ -630,17 +634,20 @@ FILE * restrict const       stream)
+ #endif /* SCOTCH_DEBUG_ARCH1 */
+ 
+   if ((intLoad (stream, &archptr->dimnnbr) != 1) ||
++      (archptr->dimnnbr < 1)                     ||
+       (archptr->dimnnbr > ARCHMESHDIMNMAX)) {
+     errorPrint ("archMeshXArchLoad: bad input (1)");
+     return (1);
+   }
+ 
+-  for (dimnnum = 0; dimnnum < archptr->dimnnbr; dimnnum ++) {
++  for (dimnnum = 0, sizeval = 1; dimnnum < archptr->dimnnbr; dimnnum ++) {
+     if ((intLoad (stream, &archptr->c[dimnnum]) != 1) ||
+-        (archptr->c[dimnnum] < 1)) {
++        (archptr->c[dimnnum] < 1)                     ||
++        (sizeval > (ANUMMAX / archptr->c[dimnnum]))) { /* Terminal number must fit in an Anum */
+       errorPrint ("archMeshXArchLoad: bad input (2)");
+       return (1);
+     }
++    sizeval *= archptr->c[dimnnum];
+   }
+ 
+   return (0);
+-- 
+2.47.3
+

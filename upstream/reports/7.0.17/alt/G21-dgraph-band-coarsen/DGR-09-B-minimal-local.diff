@@ -1,0 +1,92 @@
+# DGR-09 / API-17 option B (NOT preferred): minimal local fixes in both copies (NULL-initialized work pointers, local Gnum error flag, Gnum-sized scratch, free with the original base). Fixes the four reported defects but leaves every later error path (halo exchange, dgraphBuild4, debug checks) leaking, unlike the maintainer's dgraphInduce2() rework (3c9b3ab). Tested on the first pass's harness only.
+# (applies to the combined series base, i.e. v7.0.17 + the 20 finished groups)
+diff --git a/src/libscotch/dgraph_band.c b/src/libscotch/dgraph_band.c
+index 2b3bad8..e9eb0ae 100644
+--- a/src/libscotch/dgraph_band.c
++++ b/src/libscotch/dgraph_band.c
+@@ -153,7 +153,9 @@ Context *                           contptr)      /*+ Execution context
+   }
+ 
+   cheklocval = 0;
+-  bandvnumgstsiz = MAX ((grafptr->vertgstnbr * sizeof (Gnum)), (grafptr->procglbnbr * sizeof (int))); /* TRICK: re-use array for further error collective communications */
++  bandfronloctab = NULL;                          /* In case of error */
++  bandpartgsttax = NULL;
++  bandvnumgstsiz = MAX (grafptr->vertgstnbr, grafptr->procglbnbr) * sizeof (Gnum); /* TRICK: re-use array for further error collective communications, which exchange Gnum's */
+  if ((bandvnumgsttax = memAlloc (bandvnumgstsiz)) == NULL) /* Error will be propagated by dgraphBand2*() */
+     errorPrint ("dgraphBand: out of memory (1)");
+  else {
+@@ -221,16 +223,18 @@ Context *                           contptr)      /*+ Execution context
+   }
+ 
+   if (cheklocval != 0) {                          /* In case of memory error */
+-    bandgrafptr->procdsptab[0] = -1;
+-    if (MPI_Allgather (&bandgrafptr->procdsptab[0], 1, GNUM_MPI, /* Send received data to dummy array */
+-                       bandvnumgsttax + bandgrafptr->baseval, 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
++    Gnum                dummval;                  /* Private data may not exist */
++
++    dummval = -1;
++    if (MPI_Allgather (&dummval, 1, GNUM_MPI,     /* Send received data to dummy array */
++                       bandvnumgsttax + grafptr->baseval, 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
+       errorPrint ("dgraphBand: communication error (1)");
+       return (1);
+     }
+     if (bandfronloctab != NULL)
+       memFree (bandfronloctab);
+     dgraphFree (bandgrafptr);
+-    memFree    (bandvnumgsttax + bandgrafptr->baseval);
++    memFree    (bandvnumgsttax + grafptr->baseval); /* Band graph base value has just been reset */
+     return (1);
+   }
+   else {
+@@ -253,7 +257,7 @@ Context *                           contptr)      /*+ Execution context
+       if (bandfronloctab != NULL)
+         memFree (bandfronloctab);
+       dgraphFree (bandgrafptr);
+-      memFree    (bandvnumgsttax + bandgrafptr->baseval);
++      memFree    (bandvnumgsttax + grafptr->baseval); /* Band graph base value has just been reset */
+       return (1);
+     }
+     bandgrafptr->procdsptab[procngbnum]    += bandgrafptr->procdsptab[procngbnum - 1];
+diff --git a/src/libscotch/library_dgraph_band.c b/src/libscotch/library_dgraph_band.c
+index aa7c997..cf63981 100644
+--- a/src/libscotch/library_dgraph_band.c
++++ b/src/libscotch/library_dgraph_band.c
+@@ -139,7 +139,7 @@ SCOTCH_Dgraph * const       bndgrafptr)
+   }
+ 
+   cheklocval = 0;
+-  bandvnumgstsiz = MAX ((grafptr->vertgstnbr * sizeof (Gnum)), (grafptr->procglbnbr * sizeof (int))); /* TRICK: re-use array for further error collective communications */
++  bandvnumgstsiz = MAX (grafptr->vertgstnbr, grafptr->procglbnbr) * sizeof (Gnum); /* TRICK: re-use array for further error collective communications, which exchange Gnum's */
+   if ((bandvnumgsttax = memAlloc (bandvnumgstsiz)) == NULL)
+     errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": out of memory (1)"); /* Error will be propagated by dgraphBand2*() */
+   else {
+@@ -198,14 +198,16 @@ SCOTCH_Dgraph * const       bndgrafptr)
+   }
+ 
+   if (cheklocval != 0) {                          /* In case of memory error */
+-    bandgrafptr->procdsptab[0] = -1;
+-    if (MPI_Allgather (&bandgrafptr->procdsptab[0], 1, GNUM_MPI, /* Send received data to dummy array */
+-                       bandvnumgsttax + bandgrafptr->baseval, 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
++    Gnum                dummval;                  /* Private data may not exist */
++
++    dummval = -1;
++    if (MPI_Allgather (&dummval, 1, GNUM_MPI,     /* Send received data to dummy array */
++                       bandvnumgsttax + grafptr->baseval, 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
+       errorPrint (STRINGIFY (SCOTCH_dgraphBand) ": communication error (2)");
+       goto fail;
+     }
+     dgraphExit (bandgrafptr);
+-    memFree    (bandvnumgsttax + bandgrafptr->baseval);
++    memFree    (bandvnumgsttax + grafptr->baseval); /* Band graph structure has been reset */
+     goto fail;
+   }
+   else {
+@@ -224,7 +226,7 @@ SCOTCH_Dgraph * const       bndgrafptr)
+   for (procngbnum = 1; procngbnum <= grafptr->procglbnbr; procngbnum ++) { /* Process potential error flags from other processes */
+     if (bandgrafptr->procdsptab[procngbnum] < 0) { /* If error notified by another process                                       */
+       dgraphExit (bandgrafptr);
+-      memFree    (bandvnumgsttax + bandgrafptr->baseval);
++      memFree    (bandvnumgsttax + grafptr->baseval); /* Band graph structure has been reset */
+       goto fail;
+     }
+     bandgrafptr->procdsptab[procngbnum]    += bandgrafptr->procdsptab[procngbnum - 1];

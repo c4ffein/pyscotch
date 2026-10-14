@@ -1,0 +1,15 @@
+PS2-G06-1: the run-time fixed-seed option (CONTEXTOPTIONNUMRANDOMFIXEDSEED) has no consumer
+-----------------------------------------------------------------------------------------
+git grep CONTEXTOPTIONNUMRANDOMFIXEDSEED src/libscotch: only context.c (env -> value), library_context.c (set) and
+dummysizes.c; intRandInit() (common_integer.c:317-321) seeds from time(NULL) unless COMMON_RANDOM_FIXED_SEED or
+COMMON_DEBUG is defined at compile time.
+
+Build tree $WORK/build_nofs: pristine 7.0.17, -O0 -g, same flags as the ASan tree minus -fsanitize and minus
+-DCOMMON_RANDOM_FIXED_SEED. Two gpart runs 1.3 s apart, 1 thread, bump.grf, 8 parts; count differing mapping lines:
+  no option                      : 9552 / 829 / 4817  (expected: time-based seed)
+  SCOTCH_RANDOM_FIXED_SEED=1     : 5646 / 829 / 4817  <- option has no effect
+  SCOTCH_DETERMINISTIC=1         : 0 / 5646 / 4817    <- no effect either
+  gpart -Cf, gpart -Cd           : 4817 / 4817        <- no effect
+With -DCOMMON_RANDOM_FIXED_SEED (the ASan tree), 1 thread: 0 differing lines (compile-time flag works).
+alt/PS2-G06-1-a-reseed-when-option-set.diff applied on build_nofs_alt: all of env fixed-seed, env deterministic and -Cf
+give 0 differing lines in 3 trials each (no option still 829/853/829). Design caveats in extra.json.

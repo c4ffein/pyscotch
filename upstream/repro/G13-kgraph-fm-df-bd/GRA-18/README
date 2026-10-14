@@ -1,0 +1,12 @@
+GRA-18 -- diffusion band mapping copied from the stale array, lagging one pass
+==============================================================================
+Each pass of kgraphMapDfLoop writes difntax, then swaps difntax/difotax, so after
+the last pass the freshest part values are in difotax. The final copy read
+difntax instead, so the mapping was always one diffusion pass behind (a one-pass
+run never changed anything). bgraph_bipart_df.c reads difotax. Fix: copy difotax.
+
+Reproducer gra18.c: kgraphMapBd(bnd=d{pass=N}) on a 2-part jagged mapping of a
+24x24 grid; count vertices changed vs the initial mapping.
+  cc.sh <build> GRA-18/gra18 GRA-18/gra18.c ; LD_LIBRARY_PATH=<build>/lib ./GRA-18/gra18 <N>
+  pristine : pass=21->1  22->1  23->2  24->7  25->8   (lags: pass=1 never changes a vertex)
+  patched  : pass=21->1  22->2  23->7  24->8  25->8   (patched[N] == pristine[N+1]; one pass recovered)

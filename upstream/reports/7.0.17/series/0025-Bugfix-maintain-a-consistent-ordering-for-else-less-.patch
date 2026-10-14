@@ -1,0 +1,67 @@
+From ebe2f1ebb04ecc2dfc48b7b65f1fa7d8ed5912a3 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:55:35 +0000
+Subject: [PATCH 025/240] Bugfix: maintain a consistent ordering for else-less
+ false conditions [report R. Perry]
+
+A conditional ordering strategy without an else branch, such as
+`/(vert>1000)?s;', wrote nothing and returned success when its condition was
+false: the ordering permutation was left unset. `SCOTCH_graphOrder()' then
+passed the caller's uninitialised arrays to `orderPeri()', which indexed the
+permutation with the sentinel values they still held (heap-buffer-overflow
+confirmed with AddressSanitizer).
+
+Apply the identity ordering `hgraphOrderSi()' in the else-less case, exactly as
+the `STRATNODEEMPTY' node already does in the same routine, so that a complete
+and consistent ordering is always produced. The sequential graph, distributed
+graph and mesh ordering dispatchers shared the defect and are all fixed.
+
+Refs: GRA-06
+---
+ src/libscotch/hdgraph_order_st.c | 2 ++
+ src/libscotch/hgraph_order_st.c  | 2 ++
+ src/libscotch/hmesh_order_st.c   | 2 ++
+ 3 files changed, 6 insertions(+)
+
+diff --git a/src/libscotch/hdgraph_order_st.c b/src/libscotch/hdgraph_order_st.c
+index 2e11fda..c6f4a6c 100644
+--- a/src/libscotch/hdgraph_order_st.c
++++ b/src/libscotch/hdgraph_order_st.c
+@@ -199,6 +199,8 @@ const Strat * restrict const  straptr)            /*+ Graph ordering strategy +*
+         else {                                    /* Else if expression is false                              */
+           if (straptr->data.conddat.stratab[1] != NULL)  /* And if there is an else statement                 */
+             o = hdgraphOrderSt (grafptr, cblkptr, straptr->data.conddat.stratab[1]); /* Apply second strategy */
++          else                                    /* Else no strategy to apply                                */
++            o = hdgraphOrderSi (grafptr, cblkptr); /* Always maintain a consistent ordering                   */
+         }
+       }
+       break;
+diff --git a/src/libscotch/hgraph_order_st.c b/src/libscotch/hgraph_order_st.c
+index 3acc991..b5b708f 100644
+--- a/src/libscotch/hgraph_order_st.c
++++ b/src/libscotch/hgraph_order_st.c
+@@ -293,6 +293,8 @@ const Strat * restrict const    straptr)          /*+ Graph ordering strategy
+         else {                                    /* Else if expression is false             */
+           if (straptr->data.conddat.stratab[1] != NULL) /* And if there is an else statement */
+             o = hgraphOrderSt (grafptr, ordeptr, ordenum, cblkptr, straptr->data.conddat.stratab[1]); /* Apply second strategy */
++          else                                    /* Else no strategy to apply               */
++            o = hgraphOrderSi (grafptr, ordeptr, ordenum, cblkptr); /* Always maintain a consistent ordering */
+         }
+       }
+       break;
+diff --git a/src/libscotch/hmesh_order_st.c b/src/libscotch/hmesh_order_st.c
+index f5a8515..68d3925 100644
+--- a/src/libscotch/hmesh_order_st.c
++++ b/src/libscotch/hmesh_order_st.c
+@@ -273,6 +273,8 @@ const Strat * restrict const    straptr)          /*+ Mesh ordering strategy
+         else {                                    /* Else if expression is false             */
+           if (straptr->data.conddat.stratab[1] != NULL) /* And if there is an else statement */
+             o = hmeshOrderSt (meshptr, ordeptr, ordenum, cblkptr, straptr->data.conddat.stratab[1]); /* Apply second strategy */
++          else                                    /* Else no strategy to apply              */
++            o = hmeshOrderSi (meshptr, ordeptr, ordenum, cblkptr); /* Always maintain a coherent ordering */
+         }
+       }
+       break;
+-- 
+2.47.3
+

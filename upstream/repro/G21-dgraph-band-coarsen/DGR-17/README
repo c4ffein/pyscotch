@@ -1,0 +1,13 @@
+DGR-17: collective grow debug bound ignores the data multiplier (status: still-present, debug builds only, fixed by patch 0003)
+All reproducers use the shared driver repro/common/g21fi.c and the LD_PRELOAD fault shim repro/common/fishim.c (from G18).
+Trees: $WORK/pristinefi = v7.0.17, $WORK/basefi = combined series (base), $WORK/buildfi = base + this series; all built
+with CFLAGS "-O0 -g -fsanitize=undefined -ftrivial-auto-var-init=pattern" (ASan cannot be preloaded), see repro/common/build.sh.
+  cd $WORK/repro/common && ./build.sh $WORK/pristinefi && ./build.sh $WORK/basefi && ./build.sh $WORK/buildfi
+  ./scan.sh LIBDIR BIN NP FAILRANK NTH_FROM NTH_TO -- MODE TOPO BASE NL [ARGS]   (one line per failed allocation index; HANG = 15 s timeout)
+Full scan outputs: repro/common/scans/pri_* (v7.0.17), base_* (combined base), fix1_*/fix2_* (patched).
+Debug tree: $WORK/builddbg = INFRA/asan + -DSCOTCH_DEBUG_ALL (base-combined, then rebuilt with this series); ./build.sh $WORK/builddbg
+Ring of 8+8 vertices on np=2 (collective variant), seeds at both ends of each rank, distance 1:
+  LD_LIBRARY_PATH=$WORK/builddbg/lib mpirun --oversubscribe -np 2 ./bin_builddbg/g21fi grow ring 0 8 1
+  base-combined debug: (0): ERROR: dgraphGrow2Coll: internal error (1) / (1): ERROR: dgraphGrow2Coll: internal error (1) / grow rc=1 on both ranks
+  patched debug:       rank 0: grow bad=0 part[0..3]=0,0,-1,-1 / rank 1: grow bad=0 part[0..3]=2,2,-1,-1 / rc=0
+  (same with distance 3; the point-to-point variant, "grow sparse 0 4 3" on np=4, was already correct; band is unaffected since its multiplier is 1)

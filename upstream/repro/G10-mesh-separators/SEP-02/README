@@ -1,0 +1,15 @@
+SEP-02: node loads read from the element load array (mesh_induce_sepa.c:230, hmesh_order_hx.c:130/168)
+Build:   cd $WORK/repro; ./common/build.sh $INFRA/asan SEP-02/sep02.c SEP-02/sep02_pristine; ./common/build.sh $WORK/build SEP-02/sep02.c SEP-02/sep02
+Usage:   sep02 N kind [baseval]   kind: 1 = element loads, 2 = node loads, 3 = both  (default strategy; STRAT env overrides)
+Pristine (fails):
+  ./SEP-02/sep02_pristine 30 1
+  AddressSanitizer: SEGV on unknown address ... READ memory access
+    #0 _SCOTCHmeshInduceSepa mesh_induce_sepa.c:230   #1 _SCOTCHhmeshOrderNd hmesh_order_nd.c:213
+  (the element load array sits below a guard page; without it the over-read lands in live heap and is silent)
+  ./SEP-02/sep02_pristine 30 3   -> same SEGV
+Patched (passes, both 32- and 64-bit builds):
+  ./SEP-02/sep02 30 1 0 ; ./SEP-02/sep02 30 3 1 ; ./SEP-02/sep02 32 3 0 ; ./SEP-02/sep02 64 2 1 ; ./SEP-02/sep02 30 0 0
+  -> "order=0 ... permutation valid" for each
+Regression test: src/check/test_scotch_mesh_order (patch 0002); against the pristine library it fails with
+  "heap-buffer-overflow ... 1980 bytes after 54032-byte region" (element load array is last in the data block), and in a
+  non-sanitized build with "main: element load array changes ordering".

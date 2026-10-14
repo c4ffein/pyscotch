@@ -1,0 +1,60 @@
+From 903421e4e747f0b5acbd722a6ffed4cf16e0b32d Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 19:57:28 +0000
+Subject: [PATCH 239/240] Bugfix: remove leftover debug output and fix save
+ slot accounting in `wgraphPartFm()` [report R. Perry]
+
+A leftover check printed "OUCH" to stderr, without acting, when the
+save array was about to overflow when recording the load of the
+frontier. It could not fire: the number of save slots claimed before a
+move counted the move of the vertex and the load of its destination
+part, but not the load of the frontier, which was covered only by the
+slack of the vertex degree added to the claim. Count the frontier
+load slot explicitly, and remove the print; in debug mode, the write
+is guarded by the same internal error check as the other load slots.
+
+Refs: SEP-18
+---
+ src/libscotch/wgraph_part_fm.c | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/src/libscotch/wgraph_part_fm.c b/src/libscotch/wgraph_part_fm.c
+index 510d8d0..f93de6a 100644
+--- a/src/libscotch/wgraph_part_fm.c
++++ b/src/libscotch/wgraph_part_fm.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007-2013,2018,2020,2021,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007-2013,2018,2020,2021,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -49,7 +49,7 @@
+ /**                # Version 6.1  : from : 30 jul 2020     **/
+ /**                                 to   : 18 dec 2021     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 09 jul 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -545,7 +545,7 @@ const WgraphPartFmParam * const paraptr)    /*+ Method parameters +*/
+       partnum = linkptr->partnum;                 /* Get vertex target part     */
+       pminnum = linkptr->npmipartnum;             /* Get smallest impacted part */
+       gainval = (velotax != NULL) ? - velotax[vertnum] : -1;
+-      savenbr = 2;                                /* TRICK: account for move and load for vertex itself  */
++      savenbr = 3;                                /* TRICK: account for move of vertex and for loads of its destination part and of frontier */
+       nplsidx = partnum;                          /* Initialize vertex part list: first cell is frontier */
+       nplstab[partnum].nextidx = -1;
+       nplstab[partnum].loadgainval = 0;           /* Vertex remains in its destination part */
+@@ -854,8 +854,6 @@ const WgraphPartFmParam * const paraptr)    /*+ Method parameters +*/
+           cplosum += nplstab[partend].loadgainval; /* Update sum of part loads */
+         }
+         else {
+-          if (savedat.savenbr >= savedat.savesiz)
+-            fprintf (stderr, "OUCH\n");
+           savedat.savetab[savedat.savenbr].u.loaddat.loadval = frlosum;
+           savedat.savetab[savedat.savenbr].u.loaddat.sizeval = fronnbr;
+           frlosum += nplstab[partend].loadgainval;
+-- 
+2.47.3
+

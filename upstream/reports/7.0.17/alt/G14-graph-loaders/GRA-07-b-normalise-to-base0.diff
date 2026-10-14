@@ -1,0 +1,18 @@
+Alternative for GRA-07: normalise Matrix Market indices to base 0 while
+reading (store sorttab vertnum - baseval) and work in unbased space,
+adding baseval only when writing verttax/edgetax, so the fill loop
+compares unbased index against mrownbr. Cleaner model but rewrites many
+lines of a rarely used converter; larger regression risk than the
+two-token bound fix. (Representative hunk; a full implementation touches
+the read loop, the sort comparison and both verttax writers.)
+
+--- a/src/libscotch/graph_io_mmkt.c
++++ b/src/libscotch/graph_io_mmkt.c
+@@ -202,3 +202,3 @@
+   for (sortnum = degrmax = 0, vertnum = verttmp = baseval - 1, edgetmp = edgenum = baseval;
+        sortnum < sortnbr; sortnum ++) {
+     Gnum                vertend;
+@@ -227,3 +227,3 @@
+-  while (vertnum < mrownbr)                       /* Fill gaps with isolated vertices */
++  while ((vertnum - baseval) < (mrownbr - 1))     /* Fill gaps with isolated vertices (unbased compare) */
+     grafptr->verttax[++ vertnum] = edgenum;

@@ -1,0 +1,87 @@
+--- a/src/libscotch/dgraph_fold.c
++++ b/src/libscotch/dgraph_fold.c
+@@ -47,7 +47,7 @@
+ /**                # Version 6.1  : from : 18 jun 2021     **/
+ /**                                 to   : 19 jun 2021     **/
+ /**                # Version 7.0  : from : 14 sep 2021     **/
+-/**                                 to   : 05 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -193,6 +193,7 @@
+ 
+     memSet (fldgrafptr, 0, sizeof (Dgraph));      /* Pre-initialize graph fields */
+ 
++    fldgrafptr->baseval    = orggrafptr->baseval; /* Base value is needed for premature freeing of based arrays */
+     fldgrafptr->proccomm   = fldproccomm;
+     fldgrafptr->procglbnbr = fldprocglbnbr;
+     fldgrafptr->proclocnum = fldproclocnum;
+@@ -215,12 +216,26 @@
+     }
+ 
+     if ((fldcommtypval & DGRAPHFOLDCOMMSEND) == 0) { /* If process is a normal receiver */
++      Gnum                fldedgelocmax;          /* Upper bound on number of received edges */
++      Gnum                fldedlolocmax;
+       int                 commnum;
+ 
+       fldvertlocnbr = orggrafptr->vertlocnbr;     /* Account for local vertices */
+       for (commnum = 0; (commnum < commmax) && (fldcommdattab[commnum].procnum != -1); commnum ++)
+         fldvertlocnbr += fldcommdattab[commnum].vertnbr;
+       commnbr = commnum;                          /* Record number of receives to perform for each data type */
++
++      fldedgelocmax = orggrafptr->edgeglbnbr - orggrafptr->edgelocnbr; /* Received edges cannot exceed remote edges */
++      if ((fldvertlocnbr - orggrafptr->vertlocnbr) < (fldedgelocmax / orggrafptr->degrglbmax)) /* Nor degree bound (avoid overflow) */
++        fldedgelocmax = (fldvertlocnbr - orggrafptr->vertlocnbr) * orggrafptr->degrglbmax;
++      fldedgelocmax += orggrafptr->edgelocnbr;    /* Add local edges */
++      fldedlolocmax  = ((orgedloloctax != NULL) ? fldedgelocmax : 0);
++      if ((fldgrafptr->edgeloctax = memAlloc ((fldedgelocmax + fldedlolocmax) * sizeof (Gnum))) == NULL) { /* Over-allocate before agreement; will be shrunk once edge counts are known */
++        errorPrint ("dgraphFold2: out of memory (2)");
++        goto fail1;
++      }
++      fldgrafptr->edgeloctax -= orggrafptr->baseval;
++      fldgrafptr->edgelocsiz  = fldedgelocmax;
+     }
+     else {                                        /* Process is a sender receiver         */
+       Gnum                fldedgelocsiz;          /* Number of edges in folded graph      */
+@@ -233,7 +248,7 @@
+ 
+       fldedlolocsiz = ((orgedloloctax != NULL) ? fldedgelocsiz : 0);
+       if ((fldgrafptr->edgeloctax = memAlloc ((fldedgelocsiz + fldedlolocsiz) * sizeof (Gnum))) == NULL) { /* Allocate single array for both edge arrays */
+-        errorPrint ("dgraphFold2: out of memory (2)");
++        errorPrint ("dgraphFold2: out of memory (6)");
+         goto fail1;
+       }
+       fldgrafptr->edgeloctax -= orggrafptr->baseval; /* Do not care about the validity of edloloctax at this stage */
+@@ -287,14 +302,10 @@
+ 
+   cheklocval = 0;                                 /* Everything went well */
+ fail1:
+-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication cannot be merged with a useful one */
+-  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, orggrafptr->proccomm) != MPI_SUCCESS) {
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, orggrafptr->proccomm) != MPI_SUCCESS) { /* No process must post communications if some process cannot; nothing can fail afterwards but MPI calls */
+     errorPrint ("dgraphFold2: communication error (1)");
+     chekglbval = 1;
+   }
+-#else /* SCOTCH_DEBUG_DGRAPH1 */
+-  chekglbval = cheklocval;
+-#endif /* SCOTCH_DEBUG_DGRAPH1 */
+   if (chekglbval != 0) {
+     if ((fldcommtypval & DGRAPHFOLDCOMMRECV) != 0) {
+       if (fldvertidxtab != NULL)
+@@ -460,10 +471,13 @@
+       fldgrafptr->edgelocsiz = fldedgelocsiz;
+ 
+       fldedlolocsiz = ((orgedloloctax != NULL) ? fldedgelocsiz : 0);
+-      if ((fldgrafptr->edgeloctax = memAlloc ((fldedgelocsiz + fldedlolocsiz) * sizeof (Gnum))) == NULL) { /* Allocate single array for both edge arrays */
+-        errorPrint ("dgraphFold2: out of memory (6)");
++      fldgrafptr->edgeloctax = memRealloc (fldgrafptr->edgeloctax + orggrafptr->baseval, (fldedgelocsiz + fldedlolocsiz) * sizeof (Gnum)); /* Shrink to exact size */
++#ifdef SCOTCH_DEBUG_DGRAPH2
++      if (fldgrafptr->edgeloctax == NULL) {       /* Shrinking should never fail */
++        errorPrint ("dgraphFold2: internal error (4)");
+         goto fail3;
+       }
++#endif /* SCOTCH_DEBUG_DGRAPH2 */
+       fldgrafptr->edgeloctax -= orggrafptr->baseval; /* Do not care about the validity of edloloctax at this stage */
+ 
+       for (commnum = 0; commnum < commnbr; commnum ++) { /* Receive edge adjacency data */

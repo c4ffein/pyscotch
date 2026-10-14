@@ -1,0 +1,8 @@
+SEP-05: fixed in 7.0.17 (f37f70d). Verification that the fix is wired right and matters:
+  df_7016.c   = 'git show v7.0.16:src/libscotch/bgraph_bipart_df.c', built as an interposer:
+  gcc $CFLAGS -I$B/src/libscotch -I$B/include -shared -fPIC -o df_7016.so df_7016.c
+  ST='r{sep=g{pass=2}b{bnd=d{pass=40},org=d{pass=40},width=3}}'   (diffusion on band graphs with external gains)
+  ../common/mapgrid_build 20 1 8 "$ST"                                   7.0.17: hash=2650381151034940689 (1, 4 and 8 threads, 32- and 64-bit)
+  LD_PRELOAD="$(gcc -print-file-name=libasan.so):./df_7016.so" ../common/mapgrid_build 20 4 8 "$ST"   7.0.16 code: hash=4165651756179349444
+  (compare.log). Same result for 1 and 4 threads with the 7.0.17 code: the reduced per-thread anchor
+  contribution is read on the reduction root, which is the only thread that executes line 380.

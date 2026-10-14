@@ -1,0 +1,15 @@
+CLI-09: ParMETIS_V3_NodeND() returns METIS_ERROR (-4) on valid runs when the process count is not a
+power of two or when sizes == NULL, and ignores the status of SCOTCH_dgraphOrderCompute()/OrderPerm().
+Files: pn_firstpass.c (16x16 grid, block-distributed; argv[1] present => sizes = NULL).
+  mpicc -g -O0 -fsanitize=address,undefined -I$B/include pn_firstpass.c -o pn -L$B/lib \
+        -lptscotchparmetisv3 -lptscotch -lscotch -lptscotcherr -fsanitize=address,undefined -lz -lm -lrt -pthread
+  ASAN_OPTIONS=detect_leaks=0 mpirun --oversubscribe -np 3 ./pn      # pristine: ret=-4 on every rank, order complete
+  ASAN_OPTIONS=detect_leaks=0 mpirun --oversubscribe -np 4 ./pn null # pristine: ret=-4 (sizes NULL)
+Proof that the ordering is complete at np=3 (and that the status was the only problem): the shipped
+src/check/test_libparmetis.c (checkOrder gathers the permutation and checks it is a bijection):
+  pristine: mpirun -np 3 ./test_libparmetis_v3 data/bump.grf -> "main: error in ParMETIS_V3_NodeND", exit 1
+  patched : exit 0 at np=3 and np=4 (the patch adds the np=3 run to check_libparmetis_v3 and a checkSizes()
+            verifying sizes sums to the vertex count when np is a power of two, -1 everywhere otherwise).
+The "METIS_OK on failed runs" half: with the patch, o stays METIS_ERROR unless both calls return 0
+(source: parmetis_dgraph_order.c, the if around SCOTCH_dgraphOrderCompute/Perm); not fault-injected
+(would need a failure inside PT-Scotch's distributed ordering).

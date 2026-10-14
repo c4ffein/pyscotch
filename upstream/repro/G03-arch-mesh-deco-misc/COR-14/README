@@ -1,0 +1,5 @@
+COR-14 -- meshXD distance used torus wrap-around. FIXED IN 7.0.17 by feecf0d (verified complete).
+export LD_LIBRARY_PATH=$WORK/build/lib
+  atst meshXD_2_8_8.tgt -> max=14, identical to mesh2D 8 8 (was 8, like a torus, in 7.0.16)
+  meshXD 3 4 4 4 == mesh3D 4 4 4 (max 9); torusXD twins unchanged (max 8/6).
+No patch from this group. See audit.json COR-14 for the twin-consistency check (torusX still folds, by design).

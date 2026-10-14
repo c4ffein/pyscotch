@@ -1,0 +1,65 @@
+From adc45c3fd89a2827d7432ac76ce0a90aa2e7f99b Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:40:07 +0000
+Subject: [PATCH 110/240] Check the results of `METIS_PartMeshDual()` in the
+ Fortran test program [report R. Perry]
+
+"test_libmetis_dual_f.f90" called `METIS_PartMeshDual()` but never
+inspected "objval", "epart" nor "npart", unlike its C counterpart
+"test_libmetis_dual.c", so it could only fail on a crash. Add the same
+checks as the C program: non-negative objective value, and element and
+node partition values within [baseval, baseval + nparts).
+
+Refs: BLD-20
+---
+ src/check/test_libmetis_dual_f.f90.in | 21 +++++++++++++++++++--
+ 1 file changed, 19 insertions(+), 2 deletions(-)
+
+diff --git a/src/check/test_libmetis_dual_f.f90.in b/src/check/test_libmetis_dual_f.f90.in
+index 74a2da2..5e38e96 100644
+--- a/src/check/test_libmetis_dual_f.f90.in
++++ b/src/check/test_libmetis_dual_f.f90.in
+@@ -1,4 +1,4 @@
+-!* Copyright 2021,2024 IPB, Universite de Bordeaux, INRIA & CNRS
++!* Copyright 2021,2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ !*
+ !* This file is part of the Scotch software package for static mapping,
+ !* graph partitioning and sparse matrix ordering.
+@@ -42,7 +42,7 @@
+ !*   DATES      : # Version 6.1  : from : 10 feb 2021     **
+ !*                                 to     22 jun 2021     **
+ !*                # Version 7.0  : from : 09 aug 2024     **
+-!*                                 to     11 aug 2024     **
++!*                                 to     13 oct 2026     **
+ !*                                                        **
+ !234567*****************************************************
+ 
+@@ -132,8 +132,25 @@ program test_libmetis_dual
+     options (METIS_OPTION_NUMBERING) = baseval
+ 
+     call SCOTCHMETISNAMEFU (METIS_PartMeshDual) (ne, nn, eptr, eind, vgwt, vsize, ncommon, nparts, tpwgt, options, objval, epart, npart)
++    if (objval < 0) then
++      print *, "ERROR: main: error in METIS_PartMeshDual"
++      call exit_c (1)
++    end if
+   end block
+ 
++  do i = 1, ne                                    ! Verify element partition range
++    if ((epart(i) < baseval) .or. (epart(i) >= (baseval + nparts))) then
++      print *, "ERROR: main: invalid partition (1)"
++      call exit_c (1)
++    end if
++  end do
++  do i = 1, nn                                    ! Verify node partition range
++    if ((npart(i) < baseval) .or. (npart(i) >= (baseval + nparts))) then
++      print *, "ERROR: main: invalid partition (2)"
++      call exit_c (1)
++    end if
++  end do
++
+   deallocate (npart)
+   deallocate (epart)
+ 
+-- 
+2.47.3
+

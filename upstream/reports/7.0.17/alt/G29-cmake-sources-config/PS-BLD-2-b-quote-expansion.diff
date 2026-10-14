@@ -1,0 +1,22 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 50a488e..7973185 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -178,13 +178,13 @@ if(BUILD_PTSCOTCH)
+   if(NOT MPI_C_FOUND)
+     message(FATAL_ERROR "MPI required to compile PT-Scotch\n Rerun cmake with -DBUILD_PTSCOTCH=OFF")
+   else()
+-    string(REGEX MATCHALL "\( Open MPI \)+" found_suite ${MPI_C_LIBRARY_VERSION_STRING})
+-    if(NOT ${found_suite} STREQUAL "")
++    string(REGEX MATCHALL "Open MPI" found_suite "${MPI_C_LIBRARY_VERSION_STRING}")
++    if(NOT "${found_suite}" STREQUAL "")
+       message(STATUS "Found OpenMPI: using '--oversubscribe' policy for testing")
+       set(MPIEXEC_PREFLAGS ${MPIEXEC_PREFLAGS} --oversubscribe)
+     endif()
+-    string(REGEX MATCHALL "\(Intel\)+" found_suite ${MPI_C_LIBRARY_VERSION_STRING})
+-    if(NOT ${found_suite} STREQUAL "")
++    string(REGEX MATCHALL "Intel" found_suite "${MPI_C_LIBRARY_VERSION_STRING}")
++    if(NOT "${found_suite}" STREQUAL "")
+       message(STATUS "Found Intel MPI: using '-genv=I_MPI_PIN_DOMAIN=core' for testing")
+       set(MPIEXEC_PREFLAGS ${MPIEXEC_PREFLAGS} -genv=I_MPI_PIN_DOMAIN=core)
+     endif()

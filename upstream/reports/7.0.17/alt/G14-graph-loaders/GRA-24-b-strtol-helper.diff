@@ -1,0 +1,16 @@
+Alternative for GRA-24: factor the three digit-reading loops of
+graphGeomLoadHaboFormat() into a strtol()-based helper with end-pointer
+checks, removing the whole class of typo. Larger diff in a legacy parser;
+also the natural place to bound field widths (see PS2-G14-1). (Sketch.)
+
+--- a/src/libscotch/graph_io_habo.c
++++ b/src/libscotch/graph_io_habo.c
+@@ graphGeomLoadHaboFormat
+-  for (charptr ++; *charptr != '\0'; charptr ++) {
+-    if (! isdigit (*charptr < '0'))
+-      break;
+-    number = number * 10 + *charptr - '0';
+-  }
++  { char * endptr;
++    number = (int) strtol (charptr, &endptr, 10);
++    charptr = endptr; }

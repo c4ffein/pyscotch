@@ -1,0 +1,20 @@
+CLI-21: PT-Scotch tools skip MPI_Finalize on '?', -h, -V; errorPrint exits without MPI_Abort
+
+Help/version exits (pristine 7.0.17 and combined series, Open MPI 5.0.7):
+  $ mpirun --oversubscribe -np 2 dgmap -h     (also -V, '?', and dgord/dgscat/dggath/dgtst -h)
+  Usage is: ... (printed once per rank)
+  prterun has exited due to process rank 1 ... exiting improperly ... this process called "init",
+  but exited without calling "finalize"
+  rc=1
+  Patched (patches/0003): rc=0 for all five tools and the three paths.
+
+Error on one rank (hang/ directory): part-%r.grf = m16x16.grf scattered on 3 ranks with dgscat,
+part-1.grf overwritten with a truncated file ("2\n3\t1\n"); part-1.good is the original.
+  $ timeout 15 mpirun --oversubscribe -np 3 dgtst 'part-%r.grf'       (out_dgtst.txt, out_dgord.txt)
+  dgtst(1): ERROR: dgraphLoadDist: bad input (1)
+  prterun detected that one or more processes exited with non-zero status ... job terminated   rc=1, < 1 s
+  -> no hang under Open MPI 5 / PRRTE, which kills the job on a non-zero exit; the hang needs a launcher
+     that does not (e.g. Slurm srun without KillOnBadExit), which is not available here.
+  Patched (patches/0004, out_dgtst_patched.txt):
+  dgtst(1): ERROR: dgraphLoadDist: bad input (1)
+  MPI_ABORT was invoked on rank 1 in communicator MPI_COMM_WORLD, Errorcode: 1        rc=1, 1 s

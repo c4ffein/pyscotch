@@ -1,0 +1,170 @@
+[
+ {
+  "local_id": "PS2-G04-strategy-parser-1",
+  "our_title": "Strategy parameter set twice leaks the first sub-strategy",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "LD_LIBRARY_PATH=$INFRA/asan/lib repro/common/st_pristine 'm{asc=b{bnd=f,org=f},asc=b{bnd=f,org=f}}' -> ret=0, 'Direct leak of 104 byte(s) ... parser_yy.y:288' + 208 indirect; 'b{bnd=f,bnd=f}' same. Patched: ret=0, no leak.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/parser_yy.y:478-479",
+  "evidence": "'*((Strat **) (...)) = ($2);' overwrites the slot without freeing its previous value (default &stratdummy is handled by stratExit, parser.c:152-153).",
+  "related_ids": [
+   "COR-23"
+  ],
+  "fix_options": [
+   {
+    "label": "A. stratExit() the previous slot value before storing (recommended)",
+    "summary": "Compute the slot pointer once, 'stratExit (*slotptr); *slotptr = ($2);'.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G04-strategy-parser/patches/0004-Bugfix-free-previous-value-of-a-strategy-parameter-t.patch",
+    "tested": "Built, leak gone, valid strategies unchanged, check targets pass.",
+    "tradeoffs": "stratExit(&stratdummy) and stratExit(NULL) are no-ops, so safe for every default.",
+    "preferred": true,
+    "maintainer_fit": "Three lines in his style; alternative (reject duplicates with an error) would change accepted input."
+   },
+   {
+    "label": "B. Reject a parameter given twice",
+    "summary": "Track set parameters per method and errorPrint on a repeat.",
+    "diff_file": "",
+    "tested": "untested: not written; would need per-method state in ParserEnv.",
+    "tradeoffs": "Behaviour change for currently accepted strings.",
+    "preferred": false,
+    "maintainer_fit": "Over-engineering for a leak."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G04-strategy-parser/patches/0004-Bugfix-free-previous-value-of-a-strategy-parameter-t.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G04-strategy-parser-2",
+  "our_title": "Column numbers are 1-based on line 1 and 0-based on later lines",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "LD_LIBRARY_PATH=$INFRA/asan/lib repro/common/st_pristine 'r{sep=m{asc=b{x}}}' -> 'line 1, column 15' (15th char); \"$(printf 'r{\\nsep=m{asc=b{x}}}')\" -> 'line 2, column 12' (13th char of line 2). Patched: 'line 2, column 13'; multi-line case 'line 4, column 3'.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/parser.c:650",
+  "evidence": "'locaptr->coennum = 0;' after a newline, while parser_yy.y:100-103 initialises '@$.cobenum = @$.libenum = @$.coennum = @$.liennum = 1;'.",
+  "related_ids": [
+   "COR-25",
+   "COR-12"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Reset the column to 1 (recommended)",
+    "summary": "'locaptr->coennum = 1;'",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G04-strategy-parser/patches/0008-Bugfix-number-columns-from-1-on-all-lines-of-strateg.patch",
+    "tested": "Built; columns now 1-based on every line; check targets pass.",
+    "tradeoffs": "Column numbers in messages for multi-line strategies shift by one (they were wrong).",
+    "preferred": true,
+    "maintainer_fit": "One token, same loop he fixed in a94688c."
+   },
+   {
+    "label": "B. Make all columns 0-based",
+    "summary": "Initialise cobenum/coennum to 0 in %initial-action.",
+    "diff_file": "",
+    "tested": "untested: not written.",
+    "tradeoffs": "Changes every existing message (line 1 columns), and 1-based is the convention of editors.",
+    "preferred": false,
+    "maintainer_fit": "No."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G04-strategy-parser/patches/0008-Bugfix-number-columns-from-1-on-all-lines-of-strateg.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G04-strategy-parser-3",
+  "our_title": "Three strategy tables leave a strategy parameter NULL: unset parameter crashes method and stratSave",
+  "severity": "high",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "LD_LIBRARY_PATH=$INFRA/asan/lib $WORK/build/bin/gmap src/check/data/bump.grf c4.tgt /dev/null -Mr'{sep=m{asc=b,low=b}}' -> 'WARNING: stratParserParse: strategy parameter \"org\" of method \"b\" not set' then 'AddressSanitizer: SEGV ... #0 _SCOTCHbgraphBipartSt bgraph_bipart_st.c:299 #1 _SCOTCHbgraphBipartBd bgraph_bipart_bd.c:117'; st_pristine 'r{sep=m{asc=b,low=b}}' -> SEGV in stratSave (parser.c:195 via :254). Table audit (repro/PS2-G04-strategy-parser-3/audit_defaults.py): 3 mismatches (bgraph bd, bdgraph bd, hdgraph nd), 0 after the patch. Patched gmap: mapping completes, '-vs' prints 'b{bnd=,org=,width=3}'.",
+  "read_only": "hdgraph_order_nd.c:419 (osq -> hdgraphOrderSq2 with NULL) and bdgraph_bipart_bd.c:129 (stratorg NULL) read only: PT-Scotch run with a hand-written strategy not exercised; same code pattern as the sequential crash.",
+  "why_not_run": "the sequential instance reproduces the mechanism; the distributed twins are the same missing initialiser",
+  "location_7_0_17": "src/libscotch/bgraph_bipart_st.c:96, src/libscotch/bdgraph_bipart_st.c:84, src/libscotch/hdgraph_order_st.c:81 (defaults); src/libscotch/parser_yy.y:308-318 (warning only); src/libscotch/parser.c:254 (stratSave dereferences the NULL slot); bgraph_bipart_bd.c:117/217/420/507, bdgraph_bipart_bd.c:129/184/253, hdgraph_order_nd.c:276/419 (consumers)",
+  "evidence": "bgraph_bipart_st.c:96 '} bgraphbipartstdefaultbd = { { 3, &stratdummy } };' for a BgraphBipartBdParam {distmax, stratbnd, stratorg} (bgraph_bipart_bd.h:57-61) -> stratorg NULL; kgraph_map_st.c:96 has '{ { 3, &stratdummy, &stratdummy } }'. hdgraph_order_st.c:81 '{ { &stratdummy, &stratdummy, &stratdummy } }' for 4 fields (hdgraph_order_nd.h:59-64). parser_yy.y:314 only errorPrintW's 'strategy parameter ... not set'.",
+  "related_ids": [
+   "COR-22",
+   "COR-23"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Add the missing &stratdummy defaults (recommended)",
+    "summary": "Three initialisers completed so that an unset strategy parameter is the empty strategy, as for every other method.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G04-strategy-parser/patches/0009-Bugfix-set-default-empty-strategies-for-all-strategy.patch",
+    "tested": "Built 32/64-bit (0 warnings); gmap reproducer completes; stratSave prints 'org='; audit script 0 mismatches; check targets pass.",
+    "tradeoffs": "Touches bgraph_bipart_st.c, bdgraph_bipart_st.c, hdgraph_order_st.c (files outside this group: coordinate with their owners).",
+    "preferred": true,
+    "maintainer_fit": "The warning in the parser exists precisely to catch a table lacking a default (every other table has one); this is the fix he would make."
+   },
+   {
+    "label": "B. Make 'strategy parameter not set' a parser error",
+    "summary": "errorPrint + YYABORT instead of errorPrintW in the STRATMETHOD final action.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G04-strategy-parser/alt/PS2-3-b-unset-strategy-parameter-is-error.diff",
+    "tested": "untested: generated from pristine.",
+    "tradeoffs": "Prevents the crash for any future table mistake, but turns a warning into a hard error and does not give the method a usable default.",
+    "preferred": false,
+    "maintainer_fit": "Possible hardening on top of A; alone it leaves the tables wrong."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G04-strategy-parser/patches/0009-Bugfix-set-default-empty-strategies-for-all-strategy.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G04-strategy-parser-4",
+  "our_title": "last_resort/parser_yy.c and parser_lh.h are stale: YY_NO_UNISTD_H from 31f6197 missing",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "bison -p_SCOTCHyy --defines=parser_ly.h --output=parser_yy.c parser_yy.y (pristine 7.0.17 source) then diff against src/libscotch/last_resort/parser_yy.c: '142d141 < #define YY_NO_UNISTD_H /* Improve portability */' plus header dates '25 sep 2026' vs '11 sep 2024'; git show 31f6197 --stat touches only parser_ll.l and parser_yy.y; 38cbde4 regenerated only last_resort/parser_ll.c.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/last_resort/parser_yy.c:77,130,142 and last_resort/parser_lh.h:6",
+  "evidence": "last_resort/parser_yy.c:130 'to   : 11 sep 2024' vs parser_yy.y:55 'to   : 25 sep 2026'; the Windows portability define added by 31f6197 is absent from the fallback parser.",
+  "related_ids": [],
+  "fix_options": [
+   {
+    "label": "A. Regenerate all four last_resort files at release time (maintainer's own procedure)",
+    "summary": "As in 38cbde4, but for parser_yy.c/parser_ly.h/parser_lh.h as well.",
+    "diff_file": "",
+    "tested": "untested: a local regeneration differs from his by #line numbering (his flex emits numbers one lower), so not provided as a patch.",
+    "tradeoffs": "Generated-file churn.",
+    "preferred": true,
+    "maintainer_fit": "His release step."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G04-strategy-parser-5",
+  "our_title": "Double constants in saved test expressions printed with %lf lose precision",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "LD_LIBRARY_PATH=$INFRA/asan/lib repro/common/st_pristine '/(vert>0.1234567)?r;' -> '(/((vert)>(0.123457))?...' (value changed on re-parse). Same with the patched tree (not addressed).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/parser.c:601 (and :251 '%g' for double parameters)",
+  "evidence": "'o = (fprintf (stream, \"%lf\", testptr->data.val.valdbl) == EOF);'",
+  "related_ids": [
+   "COR-13"
+  ],
+  "fix_options": [
+   {
+    "label": "A. Print with '%.17g' (round-trip exact)",
+    "summary": "Use a format that preserves the double value.",
+    "diff_file": "",
+    "tested": "untested: not written; format choice is the maintainer's (changes every saved double).",
+    "tradeoffs": "Longer, uglier numbers in saved strategies.",
+    "preferred": true,
+    "maintainer_fit": "Decision for the maintainer; reported, not patched."
+   }
+  ],
+  "patch_files": []
+ }
+]

@@ -1,0 +1,11 @@
+--- a/src/libscotch/kgraph_map_rb_part.c
++++ b/src/libscotch/kgraph_map_rb_part.c
+@@ -254,7 +254,7 @@
+ 
+   if ((o = kgraphMapRbBgraph (spltptr->dataptr, &actgrafdat, indgrafptr, mappptr, domnsubtab, vflowgttab, contptr)) != 0) { /* Create active graph */
+     errorPrint ("kgraphMapRbPart2: cannot create bipartition graph");
+-    goto end2;
++    goto end1;                                    /* TRICK: bipartition graph may be partly built; parttax is NULL if not */
+   }
+   actgrafdat.levlnum = spltptr->levlnum;
+ 

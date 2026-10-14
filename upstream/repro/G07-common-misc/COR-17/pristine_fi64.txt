@@ -1,0 +1,18 @@
+=== FI root alloc failure, case ok
+rc=124
+sizeof (Gnum) = 8, sizeof (int) = 4, case ok
+0 ret=16
+fishim: rank 0: failing allocation #0
+(0): ERROR: commGatherv: out of memory
+=== FI root alloc failure, case s0
+rc=124
+sizeof (Gnum) = 8, sizeof (int) = 4, case s0
+0 ret=16
+fishim: rank 0: failing allocation #0
+(0): ERROR: commScatterv: out of memory
+=== FI root alloc failure, case a0
+rc=124
+sizeof (Gnum) = 8, sizeof (int) = 4, case a0
+0 ret=16
+fishim: rank 0: failing allocation #0
+(0): ERROR: commAllgatherv: out of memory

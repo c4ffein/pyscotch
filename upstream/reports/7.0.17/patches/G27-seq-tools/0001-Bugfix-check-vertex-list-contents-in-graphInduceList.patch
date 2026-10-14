@@ -1,0 +1,86 @@
+From c6146ccc4fd37c4cd5833fc4b96a317f57c86475 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:06:23 +0000
+Subject: [PATCH 01/11] Bugfix: check vertex list contents in
+ `graphInduceList()` [report R. Perry]
+
+The vertex list passed to `graphInduceList()` was trusted: an index
+outside the vertex range of the original graph, or listed twice, led
+to out-of-bounds accesses when filling the index array. Such lists
+can come from the user through `SCOTCH_graphInduceList()` and
+`SCOTCH_archBuild0()`, where `archDecoArchBuild()` also ignored the
+return value of `graphInduceList()`.
+
+Refs: CLI-11
+---
+ src/libscotch/arch_deco_build.c | 13 ++++++++++---
+ src/libscotch/graph_induce.c    | 11 +++++++++--
+ 2 files changed, 19 insertions(+), 5 deletions(-)
+
+diff --git a/src/libscotch/arch_deco_build.c b/src/libscotch/arch_deco_build.c
+index 58b6eda..02d910d 100644
+--- a/src/libscotch/arch_deco_build.c
++++ b/src/libscotch/arch_deco_build.c
+@@ -54,7 +54,7 @@
+ /**                # Version 6.0  : from : 28 jun 2011     **/
+ /**                                 to   : 15 may 2018     **/
+ /**                # Version 7.0  : from : 18 feb 2018     **/
+-/**                                 to   : 03 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -192,8 +192,15 @@ Context * const             contptr)              /*+ Execution context
+   mappdat.domnnbr = 1;
+ 
+   jobtab[0].domnum = 0;                           /* All vertices mapped to first domain              */
+-  if (tgtlisttab != NULL)                         /* If vertex list given                             */
+-    graphInduceList (tgtgrafptr, tgtlistnbr, tgtlisttab, &jobtab[0].grafdat); /* Restrict initial job */
++  if (tgtlisttab != NULL) {                       /* If vertex list given */
++    if (graphInduceList (tgtgrafptr, tgtlistnbr, tgtlisttab, &jobtab[0].grafdat) != 0) { /* Restrict initial job */
++      errorPrint ("archDecoArchBuild: cannot induce graph");
++      archExit   (&archdat);
++      mapExit    (&mappdat);
++      memFree    (jobtab);
++      return     (1);
++    }
++  }
+   else {                                          /* If no vertex list given                          */
+     jobtab[0].grafdat = *tgtgrafptr;              /* Job takes whole graph                            */
+     jobtab[0].grafdat.flagval &= ~GRAPHFREETABS;  /* Graph is a clone                                 */
+diff --git a/src/libscotch/graph_induce.c b/src/libscotch/graph_induce.c
+index 0a5e6fb..506cdef 100644
+--- a/src/libscotch/graph_induce.c
++++ b/src/libscotch/graph_induce.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007-2009,2011,2013-2016,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007-2009,2011,2013-2016,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -60,7 +60,7 @@
+ /**                # Version 6.0  : from : 29 mar 2011     **/
+ /**                                 to   : 05 apr 2018     **/
+ /**                # Version 7.0  : from : 19 jan 2023     **/
+-/**                                 to   : 19 jan 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /**   NOTES      : # Several algorithms, such as the       **/
+ /**                  active graph building routine of      **/
+@@ -133,6 +133,13 @@ Graph * restrict const          indgrafptr)
+     Gnum                orgvertnum;
+ 
+     orgvertnum = indvnumtax[indvertnum];
++    if ((orgvertnum < orggrafptr->baseval) ||     /* If vertex number out of range */
++        (orgvertnum >= orggrafptr->vertnnd)   ||
++        (orgindxtax[orgvertnum] != ~0)) {         /* Or vertex already selected    */
++      errorPrint ("graphInduceList: invalid vertex list");
++      graphExit  (indgrafptr);
++      return     (1);
++    }
+ 
+     orgindxtax[orgvertnum] = indvertnum;          /* Mark selected vertices */
+     indedgenbr += orgvendtax[orgvertnum] - orgverttax[orgvertnum];
+-- 
+2.47.3
+

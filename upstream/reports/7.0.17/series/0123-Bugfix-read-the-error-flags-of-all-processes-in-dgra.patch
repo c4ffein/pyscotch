@@ -1,0 +1,43 @@
+From 030908563be2548e49de1b3e35140f41a619c228 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:41:01 +0000
+Subject: [PATCH 123/240] Bugfix: read the error flags of all processes in
+ `dgraphBuild2()` [report R. Perry]
+
+The gathered array holds a pair of values per process, but the error
+flags were looked for at `procngbtab[procnum]`, so that an allocation
+failure on a process of rank greater than or equal to half the number
+of processes was never seen. The other processes then built their
+vertex range arrays from a count of -1 and entered the collective
+communications of `dgraphBuild3()`, which the failed process had left.
+
+Refs: DGR-05
+---
+ src/libscotch/dgraph_build.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/dgraph_build.c b/src/libscotch/dgraph_build.c
+index 63995a6..72cfa77 100644
+--- a/src/libscotch/dgraph_build.c
++++ b/src/libscotch/dgraph_build.c
+@@ -54,7 +54,7 @@
+ /**                # Version 6.0  : from : 23 dec 2013     **/
+ /**                                 to   : 03 jun 2018     **/
+ /**                # Version 7.0  : from : 17 jan 2023     **/
+-/**                                 to   : 01 oct 2025     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -210,7 +210,7 @@ const Gnum                  degrlocmax)
+   grafptr->procdsptab[0] =                        /* Build vertex-to-process array */
+   grafptr->procvrttab[0] = baseval;
+   for (procnum = 0; procnum < grafptr->procglbnbr; procnum ++) {
+-    if (grafptr->procngbtab[procnum] < 0) {       /* If error notified by another process during memory allocation */
++    if (grafptr->procngbtab[2 * procnum] < 0) {   /* If error notified by another process during memory allocation */
+       memFree (grafptr->procdsptab);
+       grafptr->procdsptab = NULL;                 /* Free memory that has just been allocated */
+       return (1);
+-- 
+2.47.3
+

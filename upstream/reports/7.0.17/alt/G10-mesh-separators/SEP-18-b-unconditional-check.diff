@@ -1,0 +1,15 @@
+--- a/src/libscotch/wgraph_part_fm.c
++++ b/src/libscotch/wgraph_part_fm.c
+@@ -854,8 +854,10 @@
+           cplosum += nplstab[partend].loadgainval; /* Update sum of part loads */
+         }
+         else {
+-          if (savedat.savenbr >= savedat.savesiz)
+-            fprintf (stderr, "OUCH\n");
++          if (savedat.savenbr >= savedat.savesiz) { /* Should never happen (see save slot claim) */
++            errorPrint ("wgraphPartFm: internal error (12)");
++            goto fail;
++          }
+           savedat.savetab[savedat.savenbr].u.loaddat.loadval = frlosum;
+           savedat.savetab[savedat.savenbr].u.loaddat.sizeval = fronnbr;
+           frlosum += nplstab[partend].loadgainval;

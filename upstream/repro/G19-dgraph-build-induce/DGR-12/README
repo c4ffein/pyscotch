@@ -1,0 +1,13 @@
+DGR-12: dgraphBuild3() translates labels of slots baseval..baseval+edgelocnbr-1 (assumes a compact edge array) and does not report
+labels found on no process. Also PS2-G19-2: a duplicate label on one process hangs the other processes in release builds.
+lab.c VARIANT base: 2 vertices per process with labels 100(r+1)+{1,2}, symmetric ring of processes, one gap slot (-1) after each vertex's arcs.
+  export LD_LIBRARY_PATH=<lib> ASAN_OPTIONS=detect_leaks=0; mpirun --oversubscribe -np N /tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/repro/DGR-12/bin_<build>/lab VARIANT BASE
+  pristine (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/infra/asan):
+     noncompact np=1 base=0: build rc=0, edges=[ 1 -1 101 -1 ] (gap slot 1 "translated", real slot 2 keeps label 101), check rc=1 "arc data do not match"
+     noncompact np=2..4: same, last real arc of each vertex 1 keeps its label; check rc=1
+     unknown np=1..4: build rc=0 with 9999 left in the edge array (then check rc=1)
+     dup np=1: build rc=1 "duplicate vertex label (1)";  dup np=3 or 4: HANG (timeout) - the faulty rank returns, the others wait in the ring exchange
+  patched (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G19-dgraph-build-induce/build):
+     noncompact np=1..4, base 0/1: build rc=0, check rc=0, gap slots untouched (e.g. np=3 base=0 r0 edges=[ 1 5 -1 0 2 -1 ])
+     unknown: "dgraphBuild3: unknown vertex label", build rc=1 on EVERY rank;  dup: "duplicate vertex label (1)", rc=1 on every rank, no hang
+The same cases are in the new src/check/test_scotch_dgraph_build.c.

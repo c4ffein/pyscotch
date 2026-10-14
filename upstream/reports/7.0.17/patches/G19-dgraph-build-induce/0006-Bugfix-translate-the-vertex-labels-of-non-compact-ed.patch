@@ -1,0 +1,370 @@
+From 2c62d2062cbb733149f44d410c72fc6ea65412cc Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:44:24 +0000
+Subject: [PATCH] Bugfix: translate the vertex labels of non-compact edge
+ arrays and report unknown labels in `dgraphBuild3()` [report R. Perry]
+
+When vertex labels are given, the edges to translate were taken from
+the first `edgelocnbr` slots of the edge array, which is wrong when
+the edge array is not compact: unused slots were translated while real
+edges beyond these slots kept their labels. Moreover, an edge label
+found on no process was left as is, without any error being reported.
+
+Collect edges vertex by vertex, which also checks that the sum of
+vertex degrees matches the announced number of local edges, and report
+edges whose label has not been translated. Add a test program for
+labeled graphs with non-compact edge arrays.
+
+Refs: DGR-12
+---
+ src/check/CMakeLists.txt             |   6 +
+ src/check/Makefile                   |   9 ++
+ src/check/test_scotch_dgraph_build.c | 227 +++++++++++++++++++++++++++
+ src/libscotch/dgraph_build.c         |  35 ++++-
+ 4 files changed, 270 insertions(+), 7 deletions(-)
+ create mode 100644 src/check/test_scotch_dgraph_build.c
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index 00d7009..a759629 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -445,6 +445,12 @@ if(BUILD_PTSCOTCH)
+ 
+   add_test_ptscotch(test_scotch_dgraph_check ${dat}/bump_b100000.grf)
+ 
++  # test_scotch_dgraph_build
++
++  add_exec_ptscotch(test_scotch_dgraph_build)
++
++  add_test(NAME test_scotch_dgraph_build COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 $<TARGET_FILE:test_scotch_dgraph_build>)
++
+   # test_scotch_dgraph_grow
+ 
+   add_exec_ptscotch(test_scotch_dgraph_grow)
+diff --git a/src/check/Makefile b/src/check/Makefile
+index 5661483..088492d 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -257,6 +257,7 @@ endif
+ 
+ CHECKPTSCOTCH = 	check_strat_par				\
+ 			check_scotch_dgraph_check		\
++			check_scotch_dgraph_build		\
+ 			check_scotch_dgraph_band		\
+ 			check_scotch_dgraph_coarsen		\
+ 			check_scotch_dgraph_order		\
+@@ -657,6 +658,14 @@ test_scotch_dgraph_check	:	test_scotch_dgraph_check.c	\
+ 
+ ##
+ 
++check_scotch_dgraph_build	:	test_scotch_dgraph_build
++					$(EXECP3) ./test_scotch_dgraph_build
++
++test_scotch_dgraph_build	:	test_scotch_dgraph_build.c	\
++					$(SCOTCHLIBDIR)/libptscotch$(LIB)
++
++##
++
+ check_scotch_dgraph_grow	:	test_scotch_dgraph_grow
+ 					$(EXECP3) ./test_scotch_dgraph_grow data/bump.grf $(TMPDIR)/test_scotch_dgraph_grow.map
+ 					$(EXECP3) ./test_scotch_dgraph_grow data/bump_b100000.grf $(TMPDIR)/test_scotch_dgraph_grow.map
+diff --git a/src/check/test_scotch_dgraph_build.c b/src/check/test_scotch_dgraph_build.c
+new file mode 100644
+index 0000000..ca9c0b3
+--- /dev/null
++++ b/src/check/test_scotch_dgraph_build.c
+@@ -0,0 +1,227 @@
++/* Copyright 2026 IPB, Universite de Bordeaux, INRIA & CNRS
++**
++** This file is part of the Scotch software package for static mapping,
++** graph partitioning and sparse matrix ordering.
++**
++** This software is governed by the CeCILL-C license under French law
++** and abiding by the rules of distribution of free software. You can
++** use, modify and/or redistribute the software under the terms of the
++** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
++** URL: "http://www.cecill.info".
++**
++** As a counterpart to the access to the source code and rights to copy,
++** modify and redistribute granted by the license, users are provided
++** only with a limited warranty and the software's author, the holder of
++** the economic rights, and the successive licensors have only limited
++** liability.
++**
++** In this respect, the user's attention is drawn to the risks associated
++** with loading, using, modifying and/or developing or reproducing the
++** software by the user in light of its specific status of free software,
++** that may mean that it is complicated to manipulate, and that also
++** therefore means that it is reserved for developers and experienced
++** professionals having in-depth computer knowledge. Users are therefore
++** encouraged to load and test the software's suitability as regards
++** their requirements in conditions enabling the security of their
++** systems and/or data to be ensured and, more generally, to use and
++** operate it in the same conditions as regards security.
++**
++** The fact that you are presently reading this means that you have had
++** knowledge of the CeCILL-C license and that you accept its terms.
++*/
++/************************************************************/
++/**                                                        **/
++/**   NAME       : test_scotch_dgraph_build.c              **/
++/**                                                        **/
++/**   AUTHOR     : Francois PELLEGRINI                     **/
++/**                                                        **/
++/**   FUNCTION   : This module tests the operation of      **/
++/**                the SCOTCH_dgraphBuild() routine when   **/
++/**                vertex labels are provided.             **/
++/**                                                        **/
++/**   DATES      : # Version 7.0  : from : 13 oct 2026     **/
++/**                                 to   : 13 oct 2026     **/
++/**                                                        **/
++/************************************************************/
++
++/*
++**  The defines and includes.
++*/
++
++#include <mpi.h>
++
++#include "../libscotch/module.h"
++#include "../libscotch/common.h"
++
++#include "ptscotch.h"
++
++/*
++**  The type and structure definitions.
++*/
++
++/*+ Test cases. +*/
++
++typedef enum C_TestCase_ {
++  C_TESTVALID = 0,                                /*+ Valid labeled graph with a non-compact edge array +*/
++  C_TESTUNKNOWN,                                  /*+ Some edge refers to a label that does not exist   +*/
++  C_TESTDUPLICATE,                                /*+ Some process has two vertices with the same label +*/
++  C_TESTNBR
++} C_TestCase;
++
++/*********************/
++/*                   */
++/* The main routine. */
++/*                   */
++/*********************/
++
++/* Each process holds two vertices, with labels 100 * (p + 1) + 1
++** and 100 * (p + 1) + 2, so that labels are not contiguous. Each
++** vertex is linked to the other vertex of the same process, and
++** the processes form a ring: the first vertex of each process is
++** linked to the second vertex of the previous process, and the
++** second vertex of each process to the first vertex of the next
++** process. The edge array is not compact: an unused slot, filled
++** with a sentinel value, follows the edges of each vertex.
++*/
++
++int
++main (
++int                 argc,
++char *              argv[])
++{
++  MPI_Comm            proccomm;
++  int                 procglbnbr;                 /* Number of processes sharing graph data */
++  int                 proclocnum;                 /* Number of this process                 */
++  SCOTCH_Dgraph       grafdat;
++  SCOTCH_Num          baseval;
++  C_TestCase          casenum;
++#ifdef SCOTCH_PTHREAD
++  int                 thrdreqlvl;
++  int                 thrdprolvl;
++#endif /* SCOTCH_PTHREAD */
++
++  SCOTCH_errorProg (argv[0]);
++
++#ifdef SCOTCH_PTHREAD
++  thrdreqlvl = MPI_THREAD_MULTIPLE;
++  if (MPI_Init_thread (&argc, &argv, thrdreqlvl, &thrdprolvl) != MPI_SUCCESS) {
++    SCOTCH_errorPrint ("main: Cannot initialize (1)");
++    exit (EXIT_FAILURE);
++  }
++#else /* SCOTCH_PTHREAD */
++  if (MPI_Init (&argc, &argv) != MPI_SUCCESS) {
++    SCOTCH_errorPrint ("main: Cannot initialize (2)");
++    exit (EXIT_FAILURE);
++  }
++#endif /* SCOTCH_PTHREAD */
++
++  if (argc != 1) {
++    SCOTCH_errorPrint ("usage: %s", argv[0]);
++    exit (EXIT_FAILURE);
++  }
++
++  proccomm = MPI_COMM_WORLD;
++  MPI_Comm_size (proccomm, &procglbnbr);          /* Get communicator data */
++  MPI_Comm_rank (proccomm, &proclocnum);
++
++  SCOTCH_randomProc (proclocnum);                 /* Record process number to initialize pseudo-random seed */
++
++#ifdef SCOTCH_CHECK_NOAUTO
++  fprintf (stderr, "Proc %2d of %2d, pid %d\n", proclocnum, procglbnbr, getpid ());
++
++  if (proclocnum == 0) {                          /* Synchronize on keybord input */
++    char           c;
++
++    printf ("Waiting for key press...\n");
++    scanf ("%c", &c);
++  }
++#endif /* SCOTCH_CHECK_NOAUTO */
++
++  if (MPI_Barrier (proccomm) != MPI_SUCCESS) {    /* Synchronize for debug */
++    SCOTCH_errorPrint ("main: cannot communicate (1)");
++    exit (EXIT_FAILURE);
++  }
++
++  for (baseval = 0; baseval <= 1; baseval ++) {
++    for (casenum = C_TESTVALID; casenum < C_TESTNBR; casenum ++) {
++      SCOTCH_Num          vertloctab[2];
++      SCOTCH_Num          vendloctab[2];
++      SCOTCH_Num          vlblloctab[2];
++      SCOTCH_Num          edgeloctab[8];
++      SCOTCH_Num          edgelocnbr;
++      SCOTCH_Num          edgelocnum;
++      SCOTCH_Num          vlblnxtval;             /* First label of next process */
++      int                 cheklocval;
++      int                 chekglbval[2];
++      int                 o;
++
++      vlblloctab[0] = 100 * (proclocnum + 1) + 1;
++      vlblloctab[1] = 100 * (proclocnum + 1) + 2;
++      if ((casenum == C_TESTDUPLICATE) && (proclocnum == 0)) /* Duplicate label on first process */
++        vlblloctab[1] = vlblloctab[0];
++      vlblnxtval = 100 * ((proclocnum + 1) % procglbnbr + 1);
++
++      edgelocnum = baseval;
++      vertloctab[0] = edgelocnum;
++      edgeloctab[edgelocnum ++ - baseval] = vlblloctab[1];
++      if (procglbnbr > 1)
++        edgeloctab[edgelocnum ++ - baseval] = 100 * ((proclocnum + procglbnbr - 1) % procglbnbr + 1) + 2;
++      if ((casenum == C_TESTUNKNOWN) && (proclocnum == (procglbnbr - 1))) /* Unknown label on last process */
++        edgeloctab[edgelocnum ++ - baseval] = 9999;
++      vendloctab[0] = edgelocnum;
++      edgeloctab[edgelocnum ++ - baseval] = -1;   /* Unused slot */
++      vertloctab[1] = edgelocnum;
++      edgeloctab[edgelocnum ++ - baseval] = vlblloctab[0];
++      if (procglbnbr > 1)
++        edgeloctab[edgelocnum ++ - baseval] = vlblnxtval + 1;
++      vendloctab[1] = edgelocnum;
++      edgeloctab[edgelocnum ++ - baseval] = -1;   /* Unused slot */
++      edgelocnbr = (vendloctab[0] - vertloctab[0]) + (vendloctab[1] - vertloctab[1]);
++
++      if (SCOTCH_dgraphInit (&grafdat, proccomm) != 0) { /* Initialize source graph */
++        SCOTCH_errorPrint ("main: cannot initialize graph");
++        exit (EXIT_FAILURE);
++      }
++
++      o = SCOTCH_dgraphBuild (&grafdat, baseval, 2, 2, vertloctab, vendloctab, NULL, vlblloctab,
++                              edgelocnbr, edgelocnum - baseval, edgeloctab, NULL, NULL);
++
++      cheklocval  = o;                            /* All processes must return the same value */
++      chekglbval[0] = chekglbval[1] = 0;
++      if ((MPI_Allreduce (&cheklocval, &chekglbval[0], 1, MPI_INT, MPI_MIN, proccomm) != MPI_SUCCESS) ||
++          (MPI_Allreduce (&cheklocval, &chekglbval[1], 1, MPI_INT, MPI_MAX, proccomm) != MPI_SUCCESS)) {
++        SCOTCH_errorPrint ("main: cannot communicate (2)");
++        exit (EXIT_FAILURE);
++      }
++      if (chekglbval[0] != chekglbval[1]) {
++        SCOTCH_errorPrint ("main: processes disagree on build result (case %d)", (int) casenum);
++        exit (EXIT_FAILURE);
++      }
++
++      if (casenum == C_TESTVALID) {
++        if (o != 0) {
++          SCOTCH_errorPrint ("main: cannot build valid graph (base %d)", (int) baseval);
++          exit (EXIT_FAILURE);
++        }
++        if (SCOTCH_dgraphCheck (&grafdat) != 0) {
++          SCOTCH_errorPrint ("main: invalid built graph (base %d)", (int) baseval);
++          exit (EXIT_FAILURE);
++        }
++        if ((edgeloctab[vendloctab[0] - baseval] != -1) || /* Unused slots must not have been translated */
++            (edgeloctab[vendloctab[1] - baseval] != -1)) {
++          SCOTCH_errorPrint ("main: unused edge slots modified (base %d)", (int) baseval);
++          exit (EXIT_FAILURE);
++        }
++      }
++      else if (o == 0) {
++        SCOTCH_errorPrint ("main: invalid graph accepted (case %d, base %d)", (int) casenum, (int) baseval);
++        exit (EXIT_FAILURE);
++      }
++
++      SCOTCH_dgraphExit (&grafdat);
++    }
++  }
++
++  MPI_Finalize ();
++  exit (EXIT_SUCCESS);
++}
+diff --git a/src/libscotch/dgraph_build.c b/src/libscotch/dgraph_build.c
+index 62805f9..9618845 100644
+--- a/src/libscotch/dgraph_build.c
++++ b/src/libscotch/dgraph_build.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2007,2010,2013,2014,2018,2023,2025 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2007,2010,2013,2014,2018,2023,2025,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -389,6 +389,23 @@ const Gnum                  degrlocmax)
+       }
+     }
+ 
++    for (vertlocnum = baseval, edsolocptr = edsoloctab, edsoloctnd = edsoloctab + edgelocnbr; /* Edge array may not be compact */
++         vertlocnum < grafptr->vertlocnnd; vertlocnum ++) {
++      Gnum                edgelocnnd;
++
++      edgelocnnd = vendloctax[vertlocnum];
++      if ((edgelocnnd - vertloctax[vertlocnum]) > (edsoloctnd - edsolocptr)) /* If more edges than announced */
++        break;
++      for (edgelocnum = vertloctax[vertlocnum]; edgelocnum < edgelocnnd; edgelocnum ++, edsolocptr ++) {
++        edsolocptr->vlblglbnum = edgeloctax[edgelocnum]; /* Build edge sort array */
++        edsolocptr->edgelocnum = edgelocnum;
++      }
++    }
++    if (edsolocptr != edsoloctnd) {               /* If sum of vertex degrees differs from number of edges */
++      errorPrint ("dgraphBuild3: invalid local number of edges");
++      goto fail;
++    }
++
+     cheklocval = 0;                               /* Everything went well */
+ fail:
+     if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) { /* All processes must agree before exchanging label data */
+@@ -401,12 +418,7 @@ fail:
+       return (1);
+     }
+ 
+-    for (edsolocptr = edsoloctab, edsoloctnd = edsoloctab + edgelocnbr, edgelocnum = baseval;
+-         edsolocptr < edsoloctnd; edsolocptr ++, edgelocnum ++) {
+-      edsolocptr->vlblglbnum = edgeloctax[edgelocnum];
+-      edsolocptr->edgelocnum = edgelocnum;
+-    }
+-    intSort2asc2 (edsoloctab, grafptr->edgelocnbr);
++    intSort2asc2 (edsoloctab, edgelocnbr);
+ 
+     procrcvnum = (grafptr->proclocnum + 1) % procglbnbr; /* Compute indices of neighbors */
+     procsndnum = (grafptr->proclocnum - 1 + procglbnbr) % procglbnbr;
+@@ -458,6 +470,15 @@ fail:
+ 
+     if (cheklocval != 0)                          /* If some label was found on several processes */
+       errorPrint ("dgraphBuild3: duplicate vertex label (2)");
++    else {
++      for (edsolocptr = edsoloctab; edsolocptr < edsoloctnd; edsolocptr ++) {
++        if (edsolocptr->edgelocnum != -1) {       /* If some edge label was found on no process */
++          errorPrint ("dgraphBuild3: unknown vertex label");
++          cheklocval = 1;
++          break;
++        }
++      }
++    }
+ 
+     memFree (vesongbtab[0]);                      /* Free group leader */
+ 
+-- 
+2.47.3
+

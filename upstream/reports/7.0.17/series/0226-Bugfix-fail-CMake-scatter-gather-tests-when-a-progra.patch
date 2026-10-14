@@ -1,0 +1,54 @@
+From 04eae10f9f872ccd20207ec3f38ae5d42377985f Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:11:12 +0000
+Subject: [PATCH 226/240] Bugfix: fail CMake scatter/gather tests when a
+ program fails [report R. Perry]
+
+The three "test_dgscat*" tests chained "dgscat", "dggath" and the file
+comparison with ";", so that only the exit status of the comparison
+was taken into account: with an output file left by a previous run,
+the tests passed even when both programs failed. Chain the commands
+with "&&", as the other tests do.
+
+Refs: BLD-08
+---
+ src/check/CMakeLists.txt | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index db172d2..09a83af 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -803,23 +803,23 @@ if(BUILD_PTSCOTCH)
+ 
+   add_test(NAME test_dgscat COMMAND
+     ${BASH} -c "'${MPIEXEC_EXECUTABLE}' ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 '$<TARGET_FILE:dgscat>' \
+-      -r1 -c '${dat}/m16x16.grf' out_dgscat-%r.grf ; \
++      -r1 -c '${dat}/m16x16.grf' out_dgscat-%r.grf && \
+       '${MPIEXEC_EXECUTABLE}' ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 '$<TARGET_FILE:dggath>' \
+-      -r1 -c out_dgscat-%r.grf out_dggat.grf ; \
++      -r1 -c out_dgscat-%r.grf out_dggat.grf && \
+       '${CMAKE_COMMAND}' -E compare_files '${dat}/m16x16.grf' out_dggat.grf")
+ 
+   add_test(NAME test_dgscat_b100000 COMMAND
+     ${BASH} -c "'${MPIEXEC_EXECUTABLE}' ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 '$<TARGET_FILE:dgscat>' \
+-      -c '${dat}/m16x16_b100000.grf' out_b100000_dgscat-%r.grf ; \
++      -c '${dat}/m16x16_b100000.grf' out_b100000_dgscat-%r.grf && \
+       '${MPIEXEC_EXECUTABLE}' ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 '$<TARGET_FILE:dggath>' \
+-      -c out_b100000_dgscat-%r.grf out_b100000_ddgat.grf ; \
++      -c out_b100000_dgscat-%r.grf out_b100000_ddgat.grf && \
+       '${CMAKE_COMMAND}' -E compare_files '${dat}/m16x16_b100000.grf' out_b100000_ddgat.grf")
+ 
+   add_test(NAME test_dgscat_b1 COMMAND
+     ${BASH} -c "'${MPIEXEC_EXECUTABLE}' ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 '$<TARGET_FILE:dgscat>' \
+-      -c '${dat}/m4x4_b1_elv.grf' out_m1elv_dgscat-%r.grf ; \
++      -c '${dat}/m4x4_b1_elv.grf' out_m1elv_dgscat-%r.grf && \
+       '${MPIEXEC_EXECUTABLE}' ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 '$<TARGET_FILE:dggath>' \
+-      -c out_m1elv_dgscat-%r.grf out_m1elv_ddgat.grf ; \
++      -c out_m1elv_dgscat-%r.grf out_m1elv_ddgat.grf && \
+       '${CMAKE_COMMAND}' -E compare_files '${dat}/m4x4_b1_elv.grf' out_m1elv_ddgat.grf")
+ 
+   # check_prog_dgtst
+-- 
+2.47.3
+

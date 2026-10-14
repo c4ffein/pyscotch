@@ -1,0 +1,11 @@
+--- a/src/scotch/gmap.c
++++ b/src/scotch/gmap.c
+@@ -167,7 +167,7 @@
+   int                   i, j;
+ 
+   flagval = C_FLAGNONE;                           /* Default behavior               */
+-  kbalval = 0.01;                                 /* Default imbalance              */
++  kbalval = 0.05;                                 /* Default imbalance              */
+   emraval = 1;                                    /* Default edge migration ratio   */
+   straval = 0;                                    /* No strategy flags              */
+   straptr = NULL;

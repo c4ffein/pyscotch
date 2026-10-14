@@ -1,0 +1,8 @@
+PS2-G12-2 (not patched, other group's files): mapping strategies that do not start with a method computing an
+initial mapping dereference the NULL part array (SCOTCH_graphPart/Map with a user strategy).
+Pristine and patched (../build), from <tree>/src/check:
+  gpart 4 data/m16x16.grf /dev/null -vmt -Mf                       -> kgraph_cost.c:104:13: runtime error: load of null pointer of type 'Anum' (kgraphMapFm)
+  gpart 4 data/m16x16.grf /dev/null -vmt '-Mb{width=3,bnd=f,org=f}' -> same (via kgraphMapBd -> kgraphMapSt -> kgraphMapFm)
+  gpart 4 data/m16x16.grf /dev/null -vmt '-Md{pass=10}'             -> AddressSanitizer: SEGV
+  gpart 4 data/m16x16.grf /dev/null -vmt -Mx                        -> "Processors 0/4 (0)"
+With alt/PS2-G12-2-a (mapAlloc + kgraphFrst after kgraphInit in graphMapCompute2), rebuilt in a scratch tree: all four print "Processors 1/4".

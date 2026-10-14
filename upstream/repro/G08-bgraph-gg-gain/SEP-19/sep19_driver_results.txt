@@ -1,0 +1,11 @@
+== s19a (7.0.17 fix present, fault injected):
+ERROR: bgraphCheck: invalid communication loads
+ERROR: bgraphBipartGg: inconsistent graph data
+ERROR: kgraphMapRbPart2: cannot bipartition graph
+ERROR: kgraphCost: invalid part number (1)
+SCOTCH_graphPart returned 1
+== s19b (2a6fd07 reverted, fault injected):
+ERROR: bgraphCheck: invalid communication loads
+ERROR: bgraphBipartGg: inconsistent graph data
+SCOTCH_graphPart returned 0
+SCOTCH_graphPart returned 0

@@ -1,0 +1,5 @@
+PS-SEP-1: MESHVERTGROUP == MESHFREEOTHR (0x0010): meshFree() frees vlbltab, an interior pointer of the vertex array group.
+  $INFRA/asan/bin/mtst m16_lbl.msh        (pristine)  -> "AddressSanitizer: attempting free on address which was not malloc()-ed ... _SCOTCHmeshFree mesh.c:132 ... SCOTCH_meshExit ... mtst.c:167"
+  $WORK/build/bin/mtst m16_lbl.msh        (patched)   -> prints statistics, exits cleanly
+Also: $WORK/build/bin/mtst $WORK/scotch/src/check/data/small2_lbl.msh (the file added to src/check/data).
+Fixed by patches/0001.

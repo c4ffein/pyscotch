@@ -1,0 +1,77 @@
+--- a/src/libscotchmetis/metis_graph_part_dual.c
++++ b/src/libscotchmetis/metis_graph_part_dual.c
+@@ -90,6 +90,8 @@
+   SCOTCH_Graph        graftmp;
+   SCOTCH_Arch         archdat;
+   SCOTCH_Strat        stradat;
++  const SCOTCH_Num *  vwgtptr;
++  const SCOTCH_Num *  vsizptr;
+   SCOTCH_Num          baseval;                    /* Global base value                   */
+   SCOTCH_Num          velmbas;                    /* Base value of mesh element vertices */
+   SCOTCH_Num          vnodbas;                    /* Base value of mesh node vertices    */
+@@ -103,6 +105,9 @@
+   SCOTCH_Mesh         meshdat;
+   int                 o;
+ 
++  vwgtptr = ((vwgt  != NULL) && (vwgt  != ne)) ? vwgt  : NULL; /* Fortran null arrays are those equal to ne */
++  vsizptr = ((vsize != NULL) && (vsize != ne)) ? vsize : NULL;
++
+   baseval = 0;                                    /* Assume base value is 0 */
+ 
+   if ((options != NULL) && (options != ne))       /* For the Fortran interface, null arrays are those equal to ne */
+@@ -166,7 +171,7 @@
+ 
+   SCOTCH_graphData (&grafdat, NULL, &vertnbr, &verttab, &vendtab, NULL, NULL, &edgenbr, &edgetab, NULL); /* Get graph topology arrays */
+ 
+-  if ((vsize != NULL) && (vsize != ne)) {
++  if (vsizptr != NULL) {
+     const SCOTCH_Num * restrict vsiztax;
+     Gnum                        vertnum;
+     Gnum                        edgenum;
+@@ -183,14 +188,14 @@
+     }
+     edlotax = edlotab - baseval;                  /* Base access to edlotax */
+     edgetax = edgetab - baseval;
+-    vsiztax = vsize   - baseval;
++    vsiztax = vsizptr - baseval;
+ 
+     for (vertnum = 0, edgenum = baseval;          /* Un-based scan of vertex array verttab */
+          vertnum < vertnbr; vertnum ++) {
+       SCOTCH_Num          vsizval;                /* Communication size of current vertex */
+       SCOTCH_Num          edgennd;
+ 
+-      vsizval = vsize[vertnum];
++      vsizval = vsizptr[vertnum];
+       for (edgennd = vendtab[vertnum]; edgenum < edgennd; edgenum ++) { /* Based traversal of compact edge array */
+         SCOTCH_Num          vertend;              /* Based end vertex number                                     */
+ 
+@@ -203,7 +208,16 @@
+     edlotab = NULL;
+ 
+   SCOTCH_graphInit  (&graftmp);
+-  SCOTCH_graphBuild (&graftmp, baseval, vertnbr, verttab, vendtab, vwgt, NULL, edgenbr, edgetab, edlotab);
++  if (SCOTCH_graphBuild (&graftmp, baseval, vertnbr, verttab, vendtab, vwgtptr, NULL, edgenbr, edgetab, edlotab) != 0) {
++    SCOTCH_errorPrint ("SCOTCH_METIS_PartMeshDual: cannot build graph");
++    if (edlotab != NULL)
++      memFree (edlotab);
++    SCOTCH_meshExit  (&meshdat);
++    SCOTCH_graphExit (&grafdat);
++    SCOTCH_archExit  (&archdat);
++    *objval = METIS_ERROR;
++    return (METIS_ERROR);
++  }
+   SCOTCH_stratInit  (&stradat);
+ 
+   if (SCOTCH_graphMap (&graftmp, &archdat, &stradat, epart) == 0) {
+@@ -214,9 +228,9 @@
+         epart[vertnum] += baseval;
+     }
+ 
+-    if (((vsize != NULL) && (vsize != ne)) ||     /* If computation of communication volume wanted */
++    if ((vsizptr != NULL) ||                      /* If computation of communication volume wanted */
+         ((options != NULL) && (options != ne) && (options[METIS_OPTION_OBJTYPE] == METIS_OBJTYPE_VOL)))
+-      o = _SCOTCH_METIS_OutputVol (baseval, vertnbr + baseval, verttab - baseval, edgetab - baseval, vsize - baseval, *nparts, epart - baseval, objval);
++      o = _SCOTCH_METIS_OutputVol (baseval, vertnbr + baseval, verttab - baseval, edgetab - baseval, (vsizptr != NULL) ? (vsizptr - baseval) : NULL, *nparts, epart - baseval, objval);
+     else
+       o = _SCOTCH_METIS_OutputCut (baseval, vertnbr + baseval, verttab - baseval, edgetab - baseval,
+                                    (edlotab != NULL) ? (edlotab - baseval) : NULL, epart - baseval, objval);

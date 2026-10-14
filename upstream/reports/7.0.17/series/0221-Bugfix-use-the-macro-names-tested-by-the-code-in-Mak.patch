@@ -1,0 +1,149 @@
+From bd55c1f17cfc3a15530e60b673be3697befe4482 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:10:04 +0000
+Subject: [PATCH 221/240] Bugfix: use the macro names tested by the code in
+ Makefile.inc's [report R. Perry]
+
+The MinGW32 template defined COMMON_WINDOWS, which was renamed into
+COMMON_OS_WINDOWS in scotch@73468b5a, so that the Windows-specific
+code paths were never compiled in. The Haiku templates defined
+COMMON_FILE_COMPRESS_BZ instead of COMMON_FILE_COMPRESS_BZ2, which
+silently disabled bzip2 support while still linking with "-lbz2".
+Also remove COMMON_STUB_WAITPID, which no code tests since the
+waitpid() stub is provided along with the fork() one by
+COMMON_STUB_FORK, and SCOTCH_RENAME_PARSER, which disappeared from the
+parser in scotch@9f51c92f, and fix two "#endif" comments.
+
+Refs: BLD-21
+---
+ src/Make.inc/Makefile.inc.i686_pc_freebsd       | 2 +-
+ src/Make.inc/Makefile.inc.i686_pc_haiku.shlib   | 2 +-
+ src/Make.inc/Makefile.inc.i686_pc_linux2.c99    | 2 +-
+ src/Make.inc/Makefile.inc.i686_pc_linux3        | 2 +-
+ src/Make.inc/Makefile.inc.i686_pc_mingw32       | 2 +-
+ src/Make.inc/Makefile.inc.x86-64_pc_freebsd     | 2 +-
+ src/Make.inc/Makefile.inc.x86-64_pc_haiku.shlib | 2 +-
+ src/libscotch/common_file_compress.c            | 2 +-
+ src/libscotch/common_file_decompress.c          | 2 +-
+ 9 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/src/Make.inc/Makefile.inc.i686_pc_freebsd b/src/Make.inc/Makefile.inc.i686_pc_freebsd
+index 463fa5d..8312377 100644
+--- a/src/Make.inc/Makefile.inc.i686_pc_freebsd
++++ b/src/Make.inc/Makefile.inc.i686_pc_freebsd
+@@ -15,7 +15,7 @@ CCS		= cc
+ CCP		= mpicc
+ CCD		= mpicc
+ FCS		= gfortran
+-CFLAGS		+= -std=c99 -fPIC -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME -DSCOTCH_RENAME_PARSER -Dcpu_set_t=cpuset_t -D__BSD_VISIBLE
++CFLAGS		+= -std=c99 -fPIC -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME -Dcpu_set_t=cpuset_t -D__BSD_VISIBLE
+ CLIBFLAGS	=
+ LDFLAGS		+= -lz -lm -lpthread
+ CP		= cp
+diff --git a/src/Make.inc/Makefile.inc.i686_pc_haiku.shlib b/src/Make.inc/Makefile.inc.i686_pc_haiku.shlib
+index 8d4c0e6..d240e8e 100644
+--- a/src/Make.inc/Makefile.inc.i686_pc_haiku.shlib
++++ b/src/Make.inc/Makefile.inc.i686_pc_haiku.shlib
+@@ -10,7 +10,7 @@ CCS		= gcc
+ CCP		= mpicc
+ CCD		= gcc
+ FCS		= gfortran
+-CFLAGS		= -O3 -fPIC -U_FORTIFY_SOURCE -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_FILE_COMPRESS_BZ -DCOMMON_FILE_COMPRESS_LZMA -DCOMMON_PTHREAD_FILE -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME
++CFLAGS		= -O3 -fPIC -U_FORTIFY_SOURCE -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_FILE_COMPRESS_BZ2 -DCOMMON_FILE_COMPRESS_LZMA -DCOMMON_PTHREAD_FILE -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME
+ CLIBFLAGS	= -shared -fPIC
+ LDFLAGS		= -lz -llzma -lbz2 -lm -Xlinker --no-as-needed
+ CP		= cp
+diff --git a/src/Make.inc/Makefile.inc.i686_pc_linux2.c99 b/src/Make.inc/Makefile.inc.i686_pc_linux2.c99
+index 9205039..f209b91 100644
+--- a/src/Make.inc/Makefile.inc.i686_pc_linux2.c99
++++ b/src/Make.inc/Makefile.inc.i686_pc_linux2.c99
+@@ -10,7 +10,7 @@ CCS		= gcc
+ CCP		= mpicc
+ CCD		= gcc
+ FCS		= gfortran
+-CFLAGS		= -std=c99 -O3 -fPIC -U_FORTIFY_SOURCE -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_PTHREAD_AFFINITY_LINUX -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME -DSCOTCH_RENAME_PARSER
++CFLAGS		= -std=c99 -O3 -fPIC -U_FORTIFY_SOURCE -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_PTHREAD_AFFINITY_LINUX -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME
+ CLIBFLAGS	=
+ LDFLAGS		= -lz -lm -pthread
+ CP		= cp
+diff --git a/src/Make.inc/Makefile.inc.i686_pc_linux3 b/src/Make.inc/Makefile.inc.i686_pc_linux3
+index 98b5617..b763ef7 100644
+--- a/src/Make.inc/Makefile.inc.i686_pc_linux3
++++ b/src/Make.inc/Makefile.inc.i686_pc_linux3
+@@ -10,7 +10,7 @@ CCS		= gcc
+ CCP		= mpicc
+ CCD		= gcc
+ FCS		= gfortran
+-CFLAGS		= -O3 -fPIC -U_FORTIFY_SOURCE -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_PTHREAD_AFFINITY_LINUX -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME -DSCOTCH_RENAME_PARSER
++CFLAGS		= -O3 -fPIC -U_FORTIFY_SOURCE -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_PTHREAD_AFFINITY_LINUX -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME
+ CLIBFLAGS	=
+ LDFLAGS		= -lz -lpthread -lm -pthread
+ CP		= cp
+diff --git a/src/Make.inc/Makefile.inc.i686_pc_mingw32 b/src/Make.inc/Makefile.inc.i686_pc_mingw32
+index c858308..382bb2c 100644
+--- a/src/Make.inc/Makefile.inc.i686_pc_mingw32
++++ b/src/Make.inc/Makefile.inc.i686_pc_mingw32
+@@ -26,7 +26,7 @@ FCS			= gfortran
+ #--- Compiler/loader flags
+ CFLAGS_CPL		= -O0 -g3 -fPIC -U_FORTIFY_SOURCE
+ CFLAGS_INC		= 
+-CFLAGS_DEF		= -DCOMMON_RANDOM_FIXED_SEED -DCOMMON_STUB_FORK -DCOMMON_STUB_WAITPID -DCOMMON_WINDOWS -DSCOTCH_PTSCOTCH -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_RENAME
++CFLAGS_DEF		= -DCOMMON_RANDOM_FIXED_SEED -DCOMMON_STUB_FORK -DCOMMON_OS_WINDOWS -DSCOTCH_PTSCOTCH -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_RENAME
+ CLIBFLAGS		=
+ LDFLAGS   		= 
+ 
+diff --git a/src/Make.inc/Makefile.inc.x86-64_pc_freebsd b/src/Make.inc/Makefile.inc.x86-64_pc_freebsd
+index 53c9fe6..e90980f 100644
+--- a/src/Make.inc/Makefile.inc.x86-64_pc_freebsd
++++ b/src/Make.inc/Makefile.inc.x86-64_pc_freebsd
+@@ -15,7 +15,7 @@ CCS		= cc
+ CCP		= mpicc
+ CCD		= cc
+ FCS		= gfortran
+-CFLAGS		+= -std -fPIC -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME -DSCOTCH_RENAME_PARSER -DIDXSIZE64 -Dcpu_set_t=cpuset_t -D__BSD_VISIBLE
++CFLAGS		+= -std -fPIC -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME -DIDXSIZE64 -Dcpu_set_t=cpuset_t -D__BSD_VISIBLE
+ CLIBFLAGS	=
+ LDFLAGS		+= -lz -lm -lthread
+ CP		= cp
+diff --git a/src/Make.inc/Makefile.inc.x86-64_pc_haiku.shlib b/src/Make.inc/Makefile.inc.x86-64_pc_haiku.shlib
+index da453c0..40ee0df 100644
+--- a/src/Make.inc/Makefile.inc.x86-64_pc_haiku.shlib
++++ b/src/Make.inc/Makefile.inc.x86-64_pc_haiku.shlib
+@@ -10,7 +10,7 @@ CCS		= gcc
+ CCP		= mpicc
+ CCD		= gcc
+ FCS		= gfortran
+-CFLAGS		= -O3 -fPIC -U_FORTIFY_SOURCE -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_FILE_COMPRESS_BZ -DCOMMON_FILE_COMPRESS_LZMA -DCOMMON_PTHREAD_FILE -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME -DIDXSIZE64
++CFLAGS		= -O3 -fPIC -U_FORTIFY_SOURCE -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_FILE_COMPRESS_BZ2 -DCOMMON_FILE_COMPRESS_LZMA -DCOMMON_PTHREAD_FILE -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_MPI_ASYNC_COLL -DSCOTCH_PTHREAD -DSCOTCH_PTHREAD_MPI -DSCOTCH_RENAME -DIDXSIZE64
+ CLIBFLAGS	= -shared -fPIC
+ LDFLAGS		= -lz -llzma -lbz2 -lm -Xlinker --no-as-needed
+ CP		= cp
+diff --git a/src/libscotch/common_file_compress.c b/src/libscotch/common_file_compress.c
+index a5476bf..7beb342 100644
+--- a/src/libscotch/common_file_compress.c
++++ b/src/libscotch/common_file_compress.c
+@@ -78,7 +78,7 @@ static FileCompressTab      filetab[] = {
+                                           { ".bz2",  FILECOMPRESSTYPEBZ2,    },
+ #else /* COMMON_FILE_COMPRESS_BZ2 */
+                                           { ".bz2",  FILECOMPRESSTYPENOTIMPL },
+-#endif /* COMMON_FILE_COMPRESS_BZ */
++#endif /* COMMON_FILE_COMPRESS_BZ2 */
+ #ifdef COMMON_FILE_COMPRESS_GZ
+                                           { ".gz",   FILECOMPRESSTYPEGZ,     },
+ #else /* COMMON_FILE_COMPRESS_GZ */
+diff --git a/src/libscotch/common_file_decompress.c b/src/libscotch/common_file_decompress.c
+index fdbae7b..0f9382c 100644
+--- a/src/libscotch/common_file_decompress.c
++++ b/src/libscotch/common_file_decompress.c
+@@ -78,7 +78,7 @@ static FileCompressTab      filetab[] = {
+                                           { ".bz2",  FILECOMPRESSTYPEBZ2,    },
+ #else /* COMMON_FILE_COMPRESS_BZ2 */
+                                           { ".bz2",  FILECOMPRESSTYPENOTIMPL },
+-#endif /* COMMON_FILE_COMPRESS_BZ */
++#endif /* COMMON_FILE_COMPRESS_BZ2 */
+ #ifdef COMMON_FILE_COMPRESS_GZ
+                                           { ".gz",   FILECOMPRESSTYPEGZ,     },
+ #else /* COMMON_FILE_COMPRESS_GZ */
+-- 
+2.47.3
+

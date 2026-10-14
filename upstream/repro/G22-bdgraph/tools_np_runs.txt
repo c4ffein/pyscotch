@@ -1,0 +1,16 @@
+build np=1  dgpart:rc=0,err=0 dgmap:rc=1,err=1 dgord:rc=0,err=0
+build np=2  dgpart:rc=0,err=0 dgmap:rc=1,err=1 dgord:rc=0,err=0
+build np=3  dgpart:rc=0,err=0 dgmap:rc=1,err=2 dgord:rc=0,err=0
+build np=4  dgpart:rc=0,err=0 dgmap:rc=1,err=3 dgord:rc=0,err=0
+build64 np=1  dgpart:rc=0,err=0 dgmap:rc=1,err=1 dgord:rc=0,err=0
+build64 np=2  dgpart:rc=0,err=0 dgmap:rc=1,err=1 dgord:rc=0,err=0
+build64 np=3  dgpart:rc=0,err=0 dgmap:rc=1,err=2 dgord:rc=0,err=0
+build64 np=4  dgpart:rc=0,err=0 dgmap:rc=1,err=3 dgord:rc=0,err=0
+build np=1 dgmap(cmplt 7):rc=0,err=0
+build np=2 dgmap(cmplt 7):rc=1,err=1
+build np=3 dgmap(cmplt 7):rc=1,err=2
+build np=4 dgmap(cmplt 7):rc=1,err=3
+build64 np=1 dgmap(cmplt 7):rc=0,err=0
+build64 np=2 dgmap(cmplt 7):rc=1,err=1
+build64 np=3 dgmap(cmplt 7):rc=1,err=2
+build64 np=4 dgmap(cmplt 7):rc=1,err=3

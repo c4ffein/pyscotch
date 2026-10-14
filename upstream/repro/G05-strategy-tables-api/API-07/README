@@ -1,0 +1,13 @@
+API-07 (strategy builders overflow fixed stack buffers) reproducer.
+
+sb.c  = sequential builders; sbpt.c = PT-Scotch builders.
+  gcc  -O0 -g -fsanitize=address,undefined -I<inc> sb.c   -o sb   -L<lib> -lscotch -lscotcherr -lz -lm -lpthread
+  mpicc -O0 -g -fsanitize=address,undefined -I<inc> sbpt.c -o sbpt -L<lib> -lptscotch -lscotch -lptscotcherr -lz -lm -lpthread
+  export LD_LIBRARY_PATH=<lib> ASAN_OPTIONS=detect_leaks=0
+
+  ./sb 1e300
+   pristine : AddressSanitizer stack-buffer-overflow WRITE of size 309 (vsprintf/sprintf)
+              in every builder (SCOTCH_stratGraphMapBuild, ...PartOvlBuild, ...OrderBuild, ...)
+   patched  : each builder prints '-> 1' (rejected), no ASan error.
+  ./sb 1e30  : pristine overflows the 32-byte buffers (WRITE size 39); patched rejects those.
+  ./sb nan / inf / -0.5 : patched rejects (ret 1); valid 0.05 -> 0.

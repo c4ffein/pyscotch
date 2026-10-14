@@ -1,0 +1,8 @@
+SEP-06: per-thread best-pass selection (fixed upstream in 2d94960). Verified at run time by reverting the
+three comparison lines of 2d94960 in a copy of the pristine ASan build (/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G08-bgraph-gg-gain/build_no06,
+src/libscotch/bgraph_bipart_gg.c: compare against grafptr->commload / grafptr->compload0dlt again) and
+running gpart single-threaded, deterministic, on m16x16_b100000_v.grf:
+   SCOTCH_DETERMINISTIC=1 SCOTCH_PTHREAD_NUMBER=1 LD_LIBRARY_PATH=<lib> <bin>/gpart 4 m16x16_b100000_v.grf /dev/null -vm
+   SCOTCH_DETERMINISTIC=1 SCOTCH_PTHREAD_NUMBER=1 LD_LIBRARY_PATH=<lib> <bin>/gpart 2 m16x16_b100000_v.grf /dev/null -vm -M'r{sep=h{pass=20}}'
+Results (sep06_results.txt): pristine 7.0.17 cut 35 (default, 4 parts) / 17 (h only, 2 parts);
+2d94960 reverted: 47 / 24. Same with pass=64. The 7.0.17 comparison keeps the best pass; the 7.0.16 one kept the last improving pass.

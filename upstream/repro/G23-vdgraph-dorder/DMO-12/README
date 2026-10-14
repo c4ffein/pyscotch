@@ -1,0 +1,6 @@
+DMO-12 / PS-DMO-1: local part loads not stored/restored (proof on the -DSCOTCH_DEBUG_ALL tree)
+$WORK/dmo12proof.sh  (output: repro/common/dmo12proof.txt), strategy n{sep=(q{strat=h}|z)b{width=3,strat=q{strat=f}},ole=s,ose=s,osq=s}, np=3:
+  A full series on builddbg: rc=0, no error.
+  B base-combined vdgraph.h + vdgraph_store.c copied into builddbg (pristine store + new vdgraphCheck local-load test), rebuilt:
+    '(r): ERROR: vdgraphCheck: invalid local part loads' and '(r): ERROR: vdgraphStoreUpdt: inconsistent graph data' on all 3 ranks.
+  C series restored and rebuilt: clean again.

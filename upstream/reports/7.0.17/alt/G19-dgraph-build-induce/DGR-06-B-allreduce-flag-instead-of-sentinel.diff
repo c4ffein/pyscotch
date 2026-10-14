@@ -1,0 +1,65 @@
+diff --git a/src/libscotch/dgraph_induce.c b/src/libscotch/dgraph_induce.c
+index 91524ec..4af6e29 100644
+--- a/src/libscotch/dgraph_induce.c
++++ b/src/libscotch/dgraph_induce.c
+@@ -87,6 +87,8 @@ Dgraph * restrict const     indgrafptr)
+   Gnum                inddegrlocmax;              /* Local maximum degree                           */
+   Gnum                baseval;
+   int                 procnum;
++  int                 cheklocval;
++  int                 chekglbval;
+ 
+   const Gnum * restrict const orgvertloctax = orggrafptr->vertloctax;
+   const Gnum * restrict const orgvendloctax = orggrafptr->vendloctax;
+@@ -127,15 +129,10 @@ Dgraph * restrict const     indgrafptr)
+                      &indgrafptr->procngbtab, (size_t) (orggrafptr->procglbnbr       * sizeof (int)),
+                      &indgrafptr->procrcvtab, (size_t) (orggrafptr->procglbnbr       * sizeof (int)),
+                      &indgrafptr->procsndtab, (size_t) (orggrafptr->procglbnbr       * sizeof (int)), NULL) == NULL) {
+-    Gnum                dummval;
+-
+     errorPrint ("dgraphInduce2: out of memory (1)");
+-    if ((indgrafptr->procdsptab = memAlloc (orggrafptr->procglbnbr * sizeof (Gnum))) == NULL) /* TRICK: will be freed by dgraphExit() */
+-      return (1);                                 /* Cannot do a clean exit */
+ fail1:
+-    dummval = -1;
+-    if (MPI_Allgather (&dummval, 1, GNUM_MPI,     /* TRICK: use (possibly fake) procdsptab for synchronization */
+-                       indgrafptr->procdsptab, 1, GNUM_MPI, indgrafptr->proccomm) != MPI_SUCCESS)
++    cheklocval = 1;
++    if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, indgrafptr->proccomm) != MPI_SUCCESS) /* Notify other processes */
+       errorPrint ("dgraphInduce2: communication error (1)");
+     dgraphExit (indgrafptr);
+     return (1);
+@@ -163,21 +160,26 @@ fail1:
+   }
+   indgrafptr->edgeloctax -= baseval;
+ 
+-  indgrafptr->procdsptab[0] = indvertlocnbr;
+-  if (MPI_Allgather (&indgrafptr->procdsptab[0], 1, GNUM_MPI,
+-                     &indgrafptr->proccnttab[0], 1, GNUM_MPI, indgrafptr->proccomm) != MPI_SUCCESS) {
++  cheklocval = 0;
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, indgrafptr->proccomm) != MPI_SUCCESS) { /* Agree on errors before gathering counts */
+     errorPrint ("dgraphInduce2: communication error (2)");
+ fail2:
+     dgraphExit (indgrafptr);
+     return (1);
+   }
++  if (chekglbval != 0)                            /* If error notified by another process */
++    goto fail2;
++
++  indgrafptr->procdsptab[0] = indvertlocnbr;
++  if (MPI_Allgather (&indgrafptr->procdsptab[0], 1, GNUM_MPI,
++                     &indgrafptr->proccnttab[0], 1, GNUM_MPI, indgrafptr->proccomm) != MPI_SUCCESS) {
++    errorPrint ("dgraphInduce2: communication error (3)");
++    goto fail2;
++  }
+ 
+   indgrafptr->procdsptab[0] = baseval;            /* Build vertex-to-process array */
+-  for (procnum = 0; procnum < indgrafptr->procglbnbr; procnum ++) {
+-    if (indgrafptr->procdsptab[procnum] < 0)      /* If error notified by another process */
+-      goto fail2;
++  for (procnum = 0; procnum < indgrafptr->procglbnbr; procnum ++)
+     indgrafptr->procdsptab[procnum + 1] = indgrafptr->procdsptab[procnum] + indgrafptr->proccnttab[procnum];
+-  }
+ 
+   memSet (orgindxgsttax, ~0, orggrafptr->vertlocnbr * sizeof (Gnum)); /* Preset index array */
+   orgindxgsttax -= baseval;

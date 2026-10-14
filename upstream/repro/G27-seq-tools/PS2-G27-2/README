@@ -1,0 +1,6 @@
+PS2-G27-2: gout Inventor and VTK writers leak their index array when there is nothing to draw (src/scotch/gout_o.c:366, :1153).
+Files: v1.grf (one vertex, no edge), v1.xyz.
+Run:  B=$TREE/bin; export LD_LIBRARY_PATH=$TREE/lib ASAN_OPTIONS=detect_leaks=1
+  $B/gout v1.grf v1.xyz /dev/null /dev/null -mn -Oi; $B/gout v1.grf v1.xyz /dev/null /dev/null -mn -Ov
+Pristine: "LeakSanitizer: detected memory leaks" (memAllocGroup in outDrawInvMesh / outDrawVtkMesh) for both.
+Patched: no report.

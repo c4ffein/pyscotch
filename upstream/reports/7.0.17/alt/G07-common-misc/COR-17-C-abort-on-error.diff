@@ -1,0 +1,21 @@
+# COR-17 option C: no agreement; a process that cannot enter the collective aborts the
+# whole communicator. Deadlock-free and costless, but unrecoverable for the caller and
+# contrary to the library's "return an error code" contract. Sketch, not run.
+--- a/src/libscotch/comm.c
++++ b/src/libscotch/comm.c
+@@ (commGatherv, 7.0.17)
+       if (((Gnum) ircvcnttab[procnum] != recvcnttab[procnum]) ||
+           ((Gnum) ircvdsptab[procnum] != recvdsptab[procnum])) {
+         errorPrint ("commGatherv: communication indices out of range (1)");
+-        goto fail;
++        MPI_Abort (comm, MPI_ERR_ARG);            /* Other processes would wait forever */
+       }
+@@
+   isndcntnbr = (int) sendcntnbr;
+   if ((Gnum) isndcntnbr != sendcntnbr) {
+     errorPrint ("commGatherv: communication indices out of range (2)");
+-    goto fail;
++    MPI_Abort (comm, MPI_ERR_ARG);
+   }
+@@ (and the "out of memory" returns of the three routines, and the scalar checks
+@@  of commAllgatherv / commScatterv, which still need to be added)

@@ -41,7 +41,7 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 # Targets
-.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 build-reference-tools clean clean-scotch install test test-full test-quadrant test-differential test-reproducibility bump docs-api help lint-check format-check format
+.PHONY: all build-all build-32 build-64 build-seq-only build-seq-32 build-seq-64 build-reference-tools clean clean-scotch install test test-full test-quadrant test-differential test-reproducibility bump docs-api docs-serve upstream-report help lint-check format-check format
 
 help:
 	@echo "PyScotch Build System"
@@ -68,6 +68,8 @@ help:
 	@echo "  make test-differential     - Byte-compare PyScotch against those tools (needs build-reference-tools)"
 	@echo "  make docs-api              - Regenerate docs/site/api_data.json after a public-API change (mirrors CI)"
 	@echo "  make test-reproducibility  - N fresh-process runs per config must agree (PYSCOTCH_REPRO_RUNS=12)"
+	@echo "  make upstream-report SCOTCH=X.Y.Z - Build the per-version report for the Scotch team (HTML+PDF+email draft)"
+	@echo "  make docs-serve            - Serve docs + private reports on 127.0.0.1:8080 (ALL=1 for all interfaces; DOCS_HOST/DOCS_PORT to choose)"
 	@echo "  make bump SCOTCH=X.Y.Z     - Gated Scotch version bump (add BUMP_FLAGS=--apply to perform it)"
 	@echo "  make lint-check            - ruff check (what CI runs)"
 	@echo "  make format-check          - ruff format --check (what CI runs)"
@@ -352,3 +354,18 @@ clean-scotch:
 # Full clean
 distclean: clean clean-scotch
 	rm -rf $(SCOTCH_DIR)
+
+# Per-version report for the Scotch maintainers (see upstream/README.md). Data lives in the gitignored
+# upstream/reports/<version>/ (public since 7.0.17; the rendered out/ is gitignored).
+# Needs the `report` extra (jinja2, playwright + `playwright install chromium`).
+upstream-report:
+	@test -n "$(SCOTCH)" || { echo "usage: make upstream-report SCOTCH=7.0.17"; exit 2; }
+	$(DOCS_PYTHON) scripts/gen_upstream_report.py build --data upstream/reports/$(SCOTCH) --pdf
+
+# Serve the docs site locally, plus the PRIVATE reports at /upstream-reports/<version>/ (never copied into
+# docs/out, which CI publishes). Loopback by default; `make docs-serve ALL=1` (or DOCS_HOST=...) binds all
+# interfaces, which exposes the unreleased bug reports to anyone who can reach the port.
+DOCS_HOST ?= $(if $(ALL),0.0.0.0,127.0.0.1)
+DOCS_PORT ?= 8080
+docs-serve:
+	$(DOCS_PYTHON) scripts/docs_serve.py --host $(DOCS_HOST) --port $(DOCS_PORT)

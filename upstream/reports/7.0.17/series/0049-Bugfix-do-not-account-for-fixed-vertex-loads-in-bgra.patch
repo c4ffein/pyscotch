@@ -1,0 +1,114 @@
+From 1c16bfe0c6601ae08212b12323916ea1ffcb4fd2 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 12:56:46 +0000
+Subject: [PATCH 049/240] Bugfix: do not account for fixed vertex loads in
+ `bgraphZero()` and `bgraphSwal()` [report R. Perry]
+
+Part loads and sizes of a bipartition graph never account for fixed
+vertices: `bgraphInit2()` sets `compload0` to the sum of the graph
+vertex loads, `compload0avg` already subtracts the fixed load of part 0,
+all bipartitioning methods compute part loads from graph vertices only,
+and `bgraphCheck()` enforces this. `bgraphZero()` added the fixed load
+of part 0 and `bgraphSwal()` added both fixed loads, so that, in the
+presence of fixed vertices, the load imbalance was wrong after these
+routines, and `bgraphCheck()` failed after `bgraphBipartZr()` in debug
+mode. Document the convention in the structure definition.
+
+Refs: SEP-10, PS-SEP-5
+---
+ src/libscotch/bgraph.c | 21 ++++++++-------------
+ src/libscotch/bgraph.h | 10 +++++-----
+ 2 files changed, 13 insertions(+), 18 deletions(-)
+
+diff --git a/src/libscotch/bgraph.c b/src/libscotch/bgraph.c
+index 120b9d2..51f0136 100644
+--- a/src/libscotch/bgraph.c
++++ b/src/libscotch/bgraph.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2008,2011,2014,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2008,2011,2014,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -65,7 +65,7 @@
+ /**                # Version 6.0  : from : 03 mar 2011     **/
+ /**                                 to   : 15 may 2018     **/
+ /**                # Version 7.0  : from : 22 feb 2023     **/
+-/**                                 to   : 22 feb 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -215,17 +215,15 @@ Bgraph * restrict const     grafptr)
+ {
+   Gnum                vertnnd;
+   Gnum                vertnum;
+-  Gnum                comploadsum;
+ 
+   GraphPart * restrict const  parttax = grafptr->parttax;
+ 
+   for (vertnum = grafptr->s.baseval, vertnnd = grafptr->s.vertnnd; vertnum < vertnnd; vertnum ++)
+     parttax[vertnum] ^= 1;
+ 
+-  comploadsum = grafptr->s.velosum + grafptr->vfixload[0] + grafptr->vfixload[1]; /* Overall load sum, including fixed vertex loads */
+-  grafptr->compload0    =   comploadsum - grafptr->compload0;
+-  grafptr->compload0dlt =   comploadsum - grafptr->compload0dlt - 2 * grafptr->compload0avg;
+-  grafptr->compsize0    =   grafptr->s.vertnbr - grafptr->compsize0; /* Size does not account for fixed vertices */
++  grafptr->compload0    =   grafptr->s.velosum - grafptr->compload0; /* Loads and sizes do not account for fixed vertices */
++  grafptr->compload0dlt =   grafptr->s.velosum - grafptr->compload0dlt - 2 * grafptr->compload0avg;
++  grafptr->compsize0    =   grafptr->s.vertnbr - grafptr->compsize0;
+   grafptr->commload    +=   grafptr->commgainextn;
+   grafptr->commgainextn = - grafptr->commgainextn;
+ }
+@@ -241,12 +239,9 @@ void
+ bgraphZero (
+ Bgraph * restrict const     grafptr)
+ {
+-  Gnum                compload0;
+-
+-  compload0 = grafptr->s.velosum + grafptr->vfixload[0];
+-  grafptr->fronnbr      = 0;                      /* No frontier vertices */
+-  grafptr->compload0dlt = compload0 - grafptr->compload0avg;
+-  grafptr->compload0    = compload0;
++  grafptr->fronnbr      = 0;                      /* No frontier vertices                             */
++  grafptr->compload0dlt = grafptr->s.velosum - grafptr->compload0avg; /* Loads and sizes do not account for fixed vertices */
++  grafptr->compload0    = grafptr->s.velosum;
+   grafptr->compsize0    = grafptr->s.vertnbr;
+   grafptr->commload     = grafptr->commloadextn0; /* Initialize communication load */
+   grafptr->commgainextn = grafptr->commgainextn0;
+diff --git a/src/libscotch/bgraph.h b/src/libscotch/bgraph.h
+index 1a7e7e0..a7ca677 100644
+--- a/src/libscotch/bgraph.h
++++ b/src/libscotch/bgraph.h
+@@ -1,4 +1,4 @@
+-/* Copyright 2004,2007,2010,2011,2014,2018,2023 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2004,2007,2010,2011,2014,2018,2023,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -65,7 +65,7 @@
+ /**                # Version 6.0  : from : 03 mar 2011     **/
+ /**                                 to   : 05 apr 2018     **/
+ /**                # Version 7.0  : from : 08 jun 2018     **/
+-/**                                 to   : 28 mar 2023     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -96,10 +96,10 @@ typedef struct Bgraph_ {
+   Gnum                      fronnbr;              /*+ Number of frontier vertices                        +*/
+   Gnum                      compload0min;         /*+ Minimum allowed load in part 0 (strategy variable) +*/
+   Gnum                      compload0max;         /*+ Maximum allowed load in part 0 (strategy variable) +*/
+-  Gnum                      compload0avg;         /*+ Average load of part 0                             +*/
++  Gnum                      compload0avg;         /*+ Average load of part 0, excluding fixed vertices   +*/
+   Gnum                      compload0dlt;         /*+ Difference from the average                        +*/
+-  Gnum                      compload0;            /*+ Load in part 0 (strategy variable)                 +*/
+-  Gnum                      compsize0;            /*+ Number of vertices in part 0                       +*/
++  Gnum                      compload0;            /*+ Load in part 0 (strategy variable), without fixed  +*/
++  Gnum                      compsize0;            /*+ Number of vertices in part 0, without fixed        +*/
+   Gnum                      commload;             /*+ Communication load                                 +*/
+   Gnum                      commloadextn0;        /*+ Communication load if all moved to part 0          +*/
+   Gnum                      commgainextn0;        /*+ External gain if all swapped from part 0           +*/
+-- 
+2.47.3
+

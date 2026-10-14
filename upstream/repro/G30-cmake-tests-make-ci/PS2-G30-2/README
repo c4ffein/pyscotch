@@ -1,0 +1,5 @@
+PS2-G30-2: src/Make.inc/Makefile.inc.x86-64_pc_freebsd:18 has "CFLAGS += -std -fPIC ..." (no value).
+  echo 'int main(void){return 0;}' > std.c; gcc -std -fPIC -c std.c
+  -> gcc: error: unrecognized command-line option '-std'   (rc=1)
+The i686 FreeBSD template has "-std=c99". Present since the 6.0 import (git log -S'-std -fPIC').
+Fixed by patch 0004 (not built on FreeBSD; the flag error is compiler-side and reproduced with gcc 14 here).

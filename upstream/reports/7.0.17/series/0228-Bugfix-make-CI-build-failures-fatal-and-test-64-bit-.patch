@@ -1,0 +1,144 @@
+From 8cc0bc203c38ba986eb593684ab6e095952a0b8f Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:11:49 +0000
+Subject: [PATCH 228/240] Bugfix: make CI build failures fatal and test 64-bit
+ integers on 64-bit hosts [report R. Perry]
+
+"ci/build_makefile.sh" piped the output of "make" into "tee" without
+"pipefail", so that the exit status of the build step was always that
+of "tee": a compilation error did not fail the build jobs, and only
+surfaced in the test stage. Set "pipefail".
+
+The JOB_INT=64 rows of the Makefile matrix did not add any flag, so
+that 64-bit SCOTCH_Num was only tested on 32-bit hosts (JOB_INT=32-64)
+and never with 64-bit pointers. Add JOB_INT=64-64 rows, and let CMake
+jobs receive configuration options through JOB_CMAKE_FLAGS, with a job
+that builds and tests with INTSIZE=64, IDXSIZE=64, a name suffix and
+full determinism, none of which were exercised before.
+
+Also run "ci/check_sources.sh", which checks that the Makefile and
+CMake source lists agree, before configuring the CMake build.
+
+Refs: BLD-07, BLD-14
+---
+ .gitlab-ci.yml       | 27 +++++++++++++++++++++++++--
+ ci/build_cmake.sh    |  3 ++-
+ ci/build_makefile.sh |  2 ++
+ ci/env_makefile.sh   |  2 ++
+ 4 files changed, 31 insertions(+), 3 deletions(-)
+
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 0716677..62914d9 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -4,7 +4,7 @@ stages:
+   - test
+   - sonar
+ 
+-# JOB_INT: [ 32 | 64 | 32-64 ]
++# JOB_INT: [ 32 | 64 | 32-64 | 64-64 ]
+ # JOB_THREAD: [ n | c | k | s | m ]
+ # JOB_DETERMINISTIC: [ n | d ]
+ # JOB_DEBUG: [ n | a | f ]
+@@ -31,7 +31,7 @@ stages:
+ .matrix_64: &matrix_64
+   parallel:
+     matrix:
+-      - JOB_INT: [64]
++      - JOB_INT: [64, 64-64]
+         JOB_THREAD: [n]
+         JOB_DETERMINISTIC: [n]
+         JOB_DEBUG: [n]
+@@ -41,6 +41,11 @@ stages:
+         JOB_DETERMINISTIC: [d]
+         JOB_DEBUG: [a]
+         JOB_RENAME: [n]
++      - JOB_INT: [64-64]
++        JOB_THREAD: [m]
++        JOB_DETERMINISTIC: [d]
++        JOB_DEBUG: [a]
++        JOB_RENAME: [n]
+       - JOB_INT: [64]
+         JOB_THREAD: [m]
+         JOB_DETERMINISTIC: [n]
+@@ -153,6 +158,7 @@ scotch_sonar:
+ ## Build
+ ## Use a custom build directory setting GIT_CLONE_PATH
+ ## because CMake uses absolute paths and needs a stable directory between builds and tests
++## JOB_CMAKE_FLAGS: extra configuration options, to test non-default settings
+ 
+ .build_cmake: &build_cmake
+   <<: *rule_noschedule
+@@ -175,6 +181,14 @@ build_cmake_gcc:
+     FC: "gfortran"
+     GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_RUNNER_SHORT_TOKEN/cmake_gcc
+ 
++build_cmake_gcc_64:
++  <<: *build_cmake
++  variables:
++    CC: "gcc"
++    FC: "gfortran"
++    JOB_CMAKE_FLAGS: "-DINTSIZE=64 -DIDXSIZE=64 -DSCOTCH_NAME_SUFFIX=_64 -DSCOTCH_DETERMINISTIC=FULL"
++    GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_RUNNER_SHORT_TOKEN/cmake_gcc_64
++
+ build_cmake_clang:
+   <<: *build_cmake
+   variables:
+@@ -223,6 +237,15 @@ test_cmake_gcc:
+     FC: "gfortran"
+     GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_RUNNER_SHORT_TOKEN/cmake_gcc
+ 
++test_cmake_gcc_64:
++  <<: *test_cmake
++  needs:
++    - build_cmake_gcc_64
++  variables:
++    CC: "gcc"
++    FC: "gfortran"
++    GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_RUNNER_SHORT_TOKEN/cmake_gcc_64
++
+ test_cmake_clang:
+   <<: *test_cmake
+   needs:
+diff --git a/ci/build_cmake.sh b/ci/build_cmake.sh
+index 47a0630..38545ea 100755
+--- a/ci/build_cmake.sh
++++ b/ci/build_cmake.sh
+@@ -6,7 +6,8 @@ fatal() {
+ }
+ 
+ source ci/env_cmake.sh
++./ci/check_sources.sh || fatal
+ mkdir -p build
+ cd build
+-cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON .. || fatal
++cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON ${JOB_CMAKE_FLAGS} .. || fatal
+ make -j16 || fatal
+diff --git a/ci/build_makefile.sh b/ci/build_makefile.sh
+index 74dd860..1008fb5 100755
+--- a/ci/build_makefile.sh
++++ b/ci/build_makefile.sh
+@@ -1,5 +1,7 @@
+ #!/bin/bash
+ 
++set -o pipefail
++
+ fatal() {
+     echo "$0: error occurred, exit"
+     exit 1
+diff --git a/ci/env_makefile.sh b/ci/env_makefile.sh
+index cd6ac3e..d9d3579 100755
+--- a/ci/env_makefile.sh
++++ b/ci/env_makefile.sh
+@@ -11,6 +11,8 @@ case "${JOB_INT}" in
+        export JOBBUILDFLAGS="${JOBBUILDFLAGS} -DINTSIZE64 -DIDXSIZE64" ;;
+      64 )
+        export JOBBUILDFLAGS="${JOBBUILDFLAGS}" ;;
++     64-64 )
++       export JOBBUILDFLAGS="${JOBBUILDFLAGS} -DINTSIZE64 -DIDXSIZE64" ;;
+ esac
+ 
+ case "${JOB_THREAD}" in
+-- 
+2.47.3
+

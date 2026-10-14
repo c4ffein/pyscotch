@@ -1,0 +1,6 @@
+PS2-G02-arch-tleaf-hcub-build-1: archCmpltwArchBuild2 frees the caller's weight array on an invalid weight
+  gcc $CF -I$B/include -o cmpltw cmpltw.c -L$B/lib -lscotch -lscotcherr -lz -lm -lpthread -lrt; LD_LIBRARY_PATH=$B/lib ./cmpltw
+Pristine (32-bit ASan): 'archCmpltwArchBuild2: invalid parameters (2)' then AddressSanitizer attempting double-free, freed by
+  archCmpltwArchBuild2 arch_cmpltw.c:184 (the caller's malloc'ed array); the allocated vecwtab leaks.
+Patched (patches/0004): 'invalid parameters (2)', archCmpltw r=1, exit ok.
+Same path from a "cmpltw" target file with a non-positive weight: archCmpltwArchLoad2 rejects it itself before Build2, so only the API is affected.

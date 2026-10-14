@@ -1,0 +1,16 @@
+diff --git a/src/libscotch/arch_tleaf.c b/src/libscotch/arch_tleaf.c
+index ee9977f..1a149da 100644
+--- a/src/libscotch/arch_tleaf.c
++++ b/src/libscotch/arch_tleaf.c
+@@ -238,6 +238,11 @@ const ArchTleaf * restrict const   archptr)
+ 
+   const Anum * restrict const sizetab = archptr->sizetab;
+ 
++  if (archptr->levlnbr < 1) {                     /* Single-vertex architecture cannot be coarsened */
++    errorPrint ("archTleafMatchInit: invalid number of levels");
++    return (1);
++  }
++
+   for (levlnum = 0, levlnnd = archptr->levlnbr - 1, vertnbr = 1; /* Compute size of blocks save for last level */
+        levlnum < levlnnd; levlnum ++)
+     vertnbr *= sizetab[levlnum];

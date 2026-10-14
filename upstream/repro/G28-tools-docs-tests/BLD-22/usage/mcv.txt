@@ -1,0 +1,11 @@
+Usage is:
+  mcv [<input mesh file> [<output mesh file> [<output geometry file>]]] <options>
+    -h          : Display this help
+    -i<format>  : Select input file format
+                    b  : Boeing-Harwell format (elemental)
+                    s  : Scotch format
+    -o<format>  : Select output file format
+                    s  : Scotch format
+    -V          : Print program version and copyright
+  
+  Default option set is : '-Ib -Os'

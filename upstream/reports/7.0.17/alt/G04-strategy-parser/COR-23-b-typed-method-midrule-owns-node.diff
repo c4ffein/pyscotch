@@ -1,0 +1,64 @@
+--- a/src/libscotch/parser_yy.y
++++ b/src/libscotch/parser_yy.y
+@@ -52,7 +52,7 @@
+ /**                # Version 6.0  : from : 30 sep 2014     **/
+ /**                                 to   : 27 apr 2018     **/
+ /**                # Version 7.0  : from : 02 mar 2018     **/
+-/**                                 to   : 25 sep 2026     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -137,6 +137,13 @@
+ %type <STRAT>        STRATCONCAT   STRATTEST     STRATTESTELSE STRATEMPTY
+ %type <STRAT>        STRATGROUP    STRATMETHOD   STRATSELECT
+ 
++%destructor {                                     /* Free partial strategy trees discarded by error recovery or abort */
++  stratExit ($$);
++} <STRAT>
++%destructor {
++  stratTestExit ($$);
++} <TEST>
++
+ %start STRAT
+ 
+ %%
+@@ -259,7 +266,7 @@
+               | STRATMETHOD
+               ;
+ 
+-STRATMETHOD   : METHODNAME
++STRATMETHOD   : METHODNAME <STRAT>
+               {
+                 Strat *             straptr;
+                 int                 methnum;
+@@ -299,6 +306,7 @@
+                           sizeof (StratNodeMethodData));
+ 
+                 penvptr->straptr = straptr;       /* Structure available for parameter processing */
++                ($$)             = straptr;       /* Keep it on parser stack so that it is freed on error */
+               }
+                 METHODPARAM
+               {
+@@ -317,7 +325,7 @@
+                   }
+                 }
+ 
+-                ($$) = penvptr->straptr;          /* Return current structure */
++                ($$) = ($2);                      /* Return current structure */
+                 penvptr->straptr = NULL;          /* No current structure     */
+               }
+               ;
+@@ -821,11 +829,8 @@
+   stratParserLexBufDelete (buffdat, scandat);
+   stratParserLexDestroy   (scandat);
+ 
+-  if (o != 0) {
+-    if (penvdat.straptr != NULL)
+-      stratExit (penvdat.straptr);
++  if (o != 0)                                     /* Partial strategy trees have been freed by the parser */
+     return (NULL);
+-  }
+ 
+   return (penvdat.straptr);                       /* Return strategy pointer */
+ }

@@ -1,0 +1,31 @@
+BLD-02: find_package(SCOTCH) fails on a SCOTCH_NAME_SUFFIX install.
+
+Pristine (src-base), suffixed, tests off (with tests on, the pristine suffixed build does not even
+link: see SUMMARY.md, "suffixed Fortran test"):
+  cmake -S $WORK/src-base -B $WORK/cm/suffix32 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON -DSCOTCH_NAME_SUFFIX=_pys -DENABLE_TESTS=OFF -DCMAKE_INSTALL_PREFIX=$WORK/cm/inst-suffix32
+  make -C $WORK/cm/suffix32 -j4 && make -C $WORK/cm/suffix32 install
+  ls $WORK/cm/inst-suffix32/lib/cmake/scotch/ | grep esmumps      -> nothing installed
+  grep -n esmumps $WORK/cm/inst-suffix32/lib/cmake/scotch/SCOTCHConfig.cmake
+    111:  include("${CMAKE_CURRENT_LIST_DIR}/esmumpsTargets.cmake")
+    114:    include("${CMAKE_CURRENT_LIST_DIR}/ptesmumpsTargets.cmake")
+  cmake -S consumer -B consumer/b-suffix -DCMAKE_PREFIX_PATH=$WORK/cm/inst-suffix32 -DSUFFIX=_pys
+    CMake Error at .../SCOTCHConfig.cmake:111 (include):
+      include could not find requested file: .../inst-suffix32/lib/cmake/scotch/esmumpsTargets.cmake
+    CMake Error at .../SCOTCHConfig.cmake:114 (include): ... ptesmumpsTargets.cmake
+    rc=1
+
+Patched (src-patched), same configuration ($WORK/cm/patched-suffix, inst-patched-suffix):
+  configure prints "-- EsMUMPS library not built because SCOTCH_NAME_SUFFIX is set"
+  SCOTCHConfig.cmake now has "if(OFF)" around the esmumps includes
+  cmake -S consumer -B consumer/b-patched-suffix -DCMAKE_PREFIX_PATH=$WORK/cm/inst-patched-suffix -DSUFFIX=_pys
+    -- SCOTCH_FOUND=1 SCOTCH_LIBESMUMPS_FOUND=
+  make -C consumer/b-patched-suffix && LD_LIBRARY_PATH=$WORK/cm/inst-patched-suffix/lib consumer/b-patched-suffix/consumer
+    no scotch-internal macros in consumer
+  (consumer.c calls SCOTCH_graphInit_pys etc. through the NAME() macro: a suffixed scotch.h only
+   declares suffixed names, as with the Makefile build; -DSUFFIX selects it)
+Unsuffixed installs (inst-patched32, shared; inst-patched-noesmumps; inst-patched-static): consumer
+configures, builds and runs; SCOTCH_LIBESMUMPS_FOUND=ON / empty / ON respectively.
+
+Alternative b (include ... OPTIONAL) checked by editing a copy of the pristine config: find_package
+passes but SCOTCH_LIBESMUMPS_FOUND stays ON for a library that is not there.
+Alternative c (BUILD_LIBESMUMPS_EFFECTIVE) configured: generated SCOTCHConfig.cmake has if(OFF) (alt/TESTS.log).

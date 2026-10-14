@@ -1,0 +1,35 @@
+diff --git a/src/libscotch/hdgraph_order_sq.c b/src/libscotch/hdgraph_order_sq.c
+index 615e6d3..b15793b 100644
+--- a/src/libscotch/hdgraph_order_sq.c
++++ b/src/libscotch/hdgraph_order_sq.c
+@@ -85,7 +85,8 @@ const HdgraphOrderSqParam * restrict const  paraptr)
+ {
+   Hgraph                    cgrfdat;              /* Centralized halo graph data       */
+   Hgraph *                  cgrfptr;              /* Pointer to centralized halo graph */
+-  int                       o;
++  int                       cheklocval;
++  int                       chekglbval;
+ 
+   cgrfptr = (grafptr->s.proclocnum == 0) ? &cgrfdat : NULL; /* Set root process */
+   if (hdgraphGather (grafptr, cgrfptr) != 0) { /* Gather centralized subgraph   */
+@@ -93,13 +94,17 @@ const HdgraphOrderSqParam * restrict const  paraptr)
+     return (1);
+   }
+ 
+-  o = 0;
++  cheklocval = 0;
+   if (cgrfptr != NULL) {
+-    o = hdgraphOrderSq2 (&cgrfdat, cblkptr, paraptr->ordstratseq);
++    cheklocval = hdgraphOrderSq2 (&cgrfdat, cblkptr, paraptr->ordstratseq);
+     hgraphFree (&cgrfdat);
+   }
++  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->s.proccomm) != MPI_SUCCESS) { /* All processes must agree on the result */
++    errorPrint ("hdgraphOrderSq: communication error");
++    return (1);
++  }
+ 
+-  return (o);
++  return (chekglbval);
+ }
+ 
+ int

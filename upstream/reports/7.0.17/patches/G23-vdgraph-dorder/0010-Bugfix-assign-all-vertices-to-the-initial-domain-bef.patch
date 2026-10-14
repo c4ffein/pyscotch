@@ -1,0 +1,54 @@
+From 3e296fb07aae8b12fe849271e282e8a307e957c4 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 16:15:38 +0000
+Subject: [PATCH 10/11] Bugfix: assign all vertices to the initial domain
+ before sequential mapping in `kdgraphMapRbPartSequ()` [report PyScotch]
+
+The centralized subgraph was mapped by `kgraphMapSt()` on a `Kgraph`
+whose part array had only been declared by `kgraphInit()`. A
+sequential strategy that does not compute a mapping, such as the empty
+default of the "seq" parameter of the "r" method, left it null, and
+the resulting mapping fragment was dereferenced by `dmapTerm()` and
+`dmapSave()`. Allocate and initialize the mapping to the trivial
+single-domain one, as `graphMapCompute2()` and
+`kgraphMapMlUncoarsen()` do.
+---
+ src/libscotch/kdgraph_map_rb_part.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/src/libscotch/kdgraph_map_rb_part.c b/src/libscotch/kdgraph_map_rb_part.c
+index c60c710..bbb0576 100644
+--- a/src/libscotch/kdgraph_map_rb_part.c
++++ b/src/libscotch/kdgraph_map_rb_part.c
+@@ -1,4 +1,4 @@
+-/* Copyright 2008-2012,2014,2018,2019,2021-2024 IPB, Universite de Bordeaux, INRIA & CNRS
++/* Copyright 2008-2012,2014,2018,2019,2021-2024,2026 IPB, Universite de Bordeaux, INRIA & CNRS
+ **
+ ** This file is part of the Scotch software package for static mapping,
+ ** graph partitioning and sparse matrix ordering.
+@@ -49,7 +49,7 @@
+ /**                # Version 6.0  : from : 03 mar 2011     **/
+ /**                                 to   : 03 jun 2018     **/
+ /**                # Version 7.0  : from : 27 aug 2019     **/
+-/**                                 to   : 09 aug 2024     **/
++/**                                 to   : 13 oct 2026     **/
+ /**                                                        **/
+ /************************************************************/
+ 
+@@ -115,6 +115,13 @@ const KdgraphMapRbPartData * restrict const dataptr)
+   kgrfdat.comploadrat = dataptr->comploadrat;     /* Use ideal load of full graph and not that of subgraph                        */
+   kgrfdat.contptr     = dataptr->contptr;
+ 
++  if (mapAlloc (&kgrfdat.m) != 0) {               /* Set an initial mapping for strategies that do not compute one */
++    errorPrint ("kdgraphMapRbPartSequ: cannot allocate mapping array");
++    kgraphExit (&kgrfdat);
++    return (1);
++  }
++  kgraphFrst (&kgrfdat);                          /* Assign all vertices to the initial domain */
++
+   if (kgraphMapSt (&kgrfdat, dataptr->paraptr->stratseq) != 0) { /* Compute sequential mapping */
+     kgraphExit (&kgrfdat);
+     return (1);
+-- 
+2.47.3
+

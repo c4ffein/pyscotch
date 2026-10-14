@@ -1,0 +1,13 @@
+BLD-18: check_prog_mcv (and check_prog_atst) are defined in src/check/Makefile but not in CHECKSCOTCH
+
+Audit (7.0.17 and the combined series), see the commands in this file's history:
+  defined check_* targets not in CHECKSCOTCH / CHECKSCOTCHF / CHECKPTSCOTCH / CHECKESMUMPS:
+    check_prog_atst, check_prog_mcv            <- orphans (both have CMake tests: atst_4x4x4, mcv_*)
+    check_full, check_prog_full, check_prog_dfull   <- debug-mode aggregates, run by hand (not defects)
+  listed but not defined: none (check_prog_dgscat-dggath is defined; the dash hid it from a first grep)
+  reverse direction: every Makefile list entry has a CMake twin (library tests through add_test_scotch /
+  add_test_ptscotch helpers; CMake test definitions are G30's area).
+  $ make -n check | grep -c 'bin/mcv\|bin/atst'      -> 0 (pristine)      -> 4 (patched, patches/0005)
+
+Patched: `make check` on the 32-bit and 64-bit trees runs check_prog_atst and check_prog_mcv (see
+$WORK/check32.log, check64.log).

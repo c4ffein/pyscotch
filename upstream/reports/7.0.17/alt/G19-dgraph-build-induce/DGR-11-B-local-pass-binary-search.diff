@@ -1,0 +1,64 @@
+diff --git a/src/libscotch/dgraph_check.c b/src/libscotch/dgraph_check.c
+index 76af8fc..445b814 100644
+--- a/src/libscotch/dgraph_check.c
++++ b/src/libscotch/dgraph_check.c
+@@ -303,21 +303,44 @@ const Dgraph * restrict const grafptr)
+     }
+     edgelocnbr += vendloctax[vertlocnum] - vertloctax[vertlocnum];
+ 
+-    if ((grafptr->flagval & DGRAPHHASEDGEGST) != 0) { /* If ghost edge array is valid */
+-      for (edgelocnum = vertloctax[vertlocnum]; edgelocnum < vendloctax[vertlocnum]; edgelocnum ++) {
+-        if ((edgegsttax[edgelocnum] < grafptr->baseval) ||
+-            (edgegsttax[edgelocnum] >= grafptr->vertgstnnd)) {
+-          errorPrint ("dgraphCheck: inconsistent ghost edge array");
+-          cheklocval = 1;
+-          goto fail;
+-        }
+-
+-        if ((edloloctax != NULL) &&
+-            (edloloctax[edgelocnum] <= 0)) {
+-          errorPrint ("dgraphCheck: invalid edge load");
+-          cheklocval = 1;
+-          goto fail;
+-        }
++    for (edgelocnum = vertloctax[vertlocnum]; edgelocnum < vendloctax[vertlocnum]; edgelocnum ++) {
++      Gnum                vertglbend;
++      int                 procngbnum;
++      int                 procngbmax;
++
++      vertglbend = edgeloctax[edgelocnum];
++      if ((vertglbend < grafptr->procvrttab[0]) || (vertglbend >= grafptr->procvrttab[procglbnbr])) {
++        errorPrint ("dgraphCheck: invalid edge array (1)");
++        cheklocval = 1;
++        goto fail;
++      }
++      for (procngbnum = 0, procngbmax = procglbnbr; /* Find owner process of end vertex */
++           procngbmax - procngbnum > 1; ) {
++        int                 procngbmed;
++
++        procngbmed = (procngbmax + procngbnum) / 2;
++        if (grafptr->procvrttab[procngbmed] <= vertglbend)
++          procngbnum = procngbmed;
++        else
++          procngbmax = procngbmed;
++      }
++      if ((vertglbend - grafptr->procvrttab[procngbnum]) >= grafptr->proccnttab[procngbnum]) { /* If end vertex lies in numbering hole */
++        errorPrint ("dgraphCheck: invalid edge array (2)");
++        cheklocval = 1;
++        goto fail;
++      }
++      if ((edloloctax != NULL) &&
++          (edloloctax[edgelocnum] <= 0)) {
++        errorPrint ("dgraphCheck: invalid edge load");
++        cheklocval = 1;
++        goto fail;
++      }
++      if (((grafptr->flagval & DGRAPHHASEDGEGST) != 0) && /* If ghost edge array is valid */
++          ((edgegsttax[edgelocnum] < grafptr->baseval) ||
++           (edgegsttax[edgelocnum] >= grafptr->vertgstnnd))) {
++        errorPrint ("dgraphCheck: inconsistent ghost edge array");
++        cheklocval = 1;
++        goto fail;
+       }
+     }
+   }

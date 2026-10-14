@@ -1,0 +1,12 @@
+CLI-10: esmumps2() ignores the results of graphBuildGraph2(), orderGraph() and symbolFaxGraph() and
+returns 0 with nv/pe never written.
+Files: es_fail.c (8x8 grid, Fortran-based arrays, sentinel -12345 in nv; prints the return value and
+how many nv/pe entries were written).  Needs the non-sanitized tree $P = $WORK/plain and tools/failmalloc.so.
+  gcc -g -O0 -I$P/include es_fail.c -o es_fail -L$P/lib -lesmumps -lscotch -lscotcherr -lz -lm -lrt -pthread
+  LD_LIBRARY_PATH=$P/lib FAILMALLOC_AT=8 LD_PRELOAD=../tools/failmalloc.so ./es_fail 8
+  pristine: "ERROR: orderGraphListStrat: out of memory" then "esmumps returned 0; nv written 0/64, pe in output form 0/64"
+            (same for N=9..11 and N=16..40, where the strategy parser fails)
+  patched : "ERROR: esmumps2: cannot compute ordering" then "esmumps returned 1; nv written 0/64 ..."
+  N=7 fails the vendtab allocation (already reported, returns 1 on both).
+Note: N=12..15 make flex's yy_scan_bytes()/yyensure_buffer_stack() call exit(2) ("out of dynamic memory")
+inside libscotch's strategy parser: unrelated to esMUMPS (see extra.json, PS2-G26-2).

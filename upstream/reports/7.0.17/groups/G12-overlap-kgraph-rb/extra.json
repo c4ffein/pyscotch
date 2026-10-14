@@ -1,0 +1,141 @@
+[
+ {
+  "local_id": "PS2-G12-1",
+  "our_title": "kgraphMapRb() merges fixed vertices and computes frontier and cost after the recursive bipartitioning failed",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "$WORK/repro/GRA-21/gra21.32 100 h (pristine, hcub target, invalid fixed terminal): ERROR: kgraphMapRbBgraph: invalid fixed part array / kgraphMapRbMap: cannot create bipartition graph ; then arch_hcub.c:261:13: runtime error: shift exponent -1094795586 is negative (#0 archHcubDomSize #1 kgraphCost kgraph_cost.c:179 #2 kgraphMapRb kgraph_map_rb.c:176) ; kgraph_cost.c:178:34: runtime error: signed integer overflow ; ret=1.\nPatched: the two errors, 'kgraphMapRb: cannot compute recursive bipartitioning', ret=1, no sanitizer report.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/kgraph_map_rb.c:157-192",
+  "evidence": "kgraph_map_rb.c:157: o = ((archPart (...) != 0) ? kgraphMapRbPart : kgraphMapRbMap) (...); /* Compute recursive bipartitioning */\n:159-176: if (grafptr->pfixtax != NULL) { ... kgraphMapRbVfloMerge (...) } ... memReallocGroup ... kgraphFron (grafptr); kgraphCost (grafptr); -- all run whatever the value of o\n:192: return (o);",
+  "related_ids": [
+   "GRA-21",
+   "GRA-23"
+  ],
+  "fix_options": [
+   {
+    "label": "Return as soon as the recursion fails (recommended)",
+    "summary": "Free vflotab / indgrafdat, then return 1 before merging, frontier and cost computations.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0006-Bugfix-do-not-compute-cost-of-mapping-after-recursiv.patch",
+    "tested": "repro above; check_scotch_graph_map on 32/64/debug builds.",
+    "tradeoffs": "One more error message in the chain.",
+    "preferred": true,
+    "maintainer_fit": "Same early-return-on-error structure as the rest of the routine."
+   },
+   {
+    "label": "Skip only the cost computations",
+    "summary": "Guard Merge and the cost block with o == 0, keep return (o).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/PS2-G12-1-b-skip-cost-only.diff",
+    "tested": "untested: equivalent by reading, two guards instead of one exit.",
+    "tradeoffs": "More conditions.",
+    "preferred": false,
+    "maintainer_fit": "Less clear."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0006-Bugfix-do-not-compute-cost-of-mapping-after-recursiv.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G12-2",
+  "our_title": "Mapping strategies that do not start with a method computing an initial mapping dereference a NULL part array",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "From <tree>/src/check, pristine and patched alike: gpart 4 data/m16x16.grf /dev/null -vmt -Mf -> kgraph_cost.c:104:13: runtime error: load of null pointer of type 'Anum' (#0 kgraphCost #1 kgraphMapFm #2 kgraphMapSt) ; '-Mb{width=3,bnd=f,org=f}' -> same via kgraphMapBd ; '-Md{pass=10}' -> AddressSanitizer: SEGV ; -Mx -> 'Processors 0/4 (0)'.\nWith alt/PS2-G12-2-a applied to a scratch tree (library_graph_map.c: mapAlloc + kgraphFrst after kgraphInit): all four print 'Processors 1/4 (0.25)', default strategy unchanged (4/4).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/library_graph_map.c:272-294 (kgraphInit then kgraphMapSt without mapAlloc); src/libscotch/kgraph.c:116-117 (mapInit leaves m.parttax NULL); consumers src/libscotch/kgraph_cost.c:104, kgraph_map_fm.c, kgraph_map_df.c, kgraph_map_bd.c:155",
+  "evidence": "kgraph.c:116: mapInit (&actgrafptr->m, &actgrafptr->s, archptr, domnptr); /* Compute m.domnmax */ -- no part array\nkgraph_map_ml.c:245-249: if (mapAlloc (&finegrafptr->m) != 0) ... kgraphFrst (finegrafptr); /* Assign all vertices to first subdomain */ -- only the multilevel and RB methods allocate\nkgraph_cost.c:104: partval = parttax[vertnum]; (parttax == NULL)",
+  "related_ids": [],
+  "fix_options": [
+   {
+    "label": "Allocate and initialise the mapping in graphMapCompute2() (sketch, other group's file)",
+    "summary": "mapAlloc (&mapgrafdat.m) + kgraphFrst (&mapgrafdat) right after kgraphInit(), so every method starts from 'all vertices in the initial domain'.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/PS2-G12-2-a-initial-mapping-in-graphMapCompute2.diff",
+    "tested": "built in a scratch tree and run as above (no crash, 1/4 parts); not run through the check suite; PT-Scotch twin (library_dgraph_map.c) not examined.",
+    "tradeoffs": "One extra allocation per API call (freed by kgraphExit); strategies without an initial method now return the trivial mapping instead of crashing.",
+    "preferred": true,
+    "maintainer_fit": "Same two calls as kgraph_map_ml.c:245-249; could alternatively live in kgraphInit() (kgraph.c), which the maintainer may prefer."
+   },
+   {
+    "label": "Reject strategies whose first method needs a mapping",
+    "summary": "In kgraphMapSt(), errorPrint and return 1 when m.parttax == NULL for refinement methods.",
+    "diff_file": "",
+    "tested": "untested: not written, needs a per-method flag in the strategy table.",
+    "tradeoffs": "User-visible error instead of a trivial result.",
+    "preferred": false,
+    "maintainer_fit": "More machinery."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G12-3",
+  "our_title": "Deterministic option ignored by the context split of recursive bipartitioning: results depend on the number of threads",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "repro/PS2-G12-3/run.sh <lib> <bin> <check dir>: SCOTCH_DETERMINISTIC=1, SCOTCH_PTHREAD_NUMBER=1/2/4, gpart -o 9 bump.grf -Mr{sep=f} (sequential vgraph separators only) and gpart 9 bump.grf -Cr; diff line counts between the map files (each single run is reproducible: same run twice -> 0):\n  G08's tree (7.0.17 + bgraphBipartGg determinism fixes, this item unfixed): ovl t1-vs-t2=16606 t2-vs-t4=7132 ; rb 4732 / 428\n  G08's tree + this patch (kgraph_map_rb_part.c, wgraph_part_rb.c): ovl 0 / 0 ; rb 0 / 0\n  this series alone ($WORK/build, no GG fix): ovl 0 / 0 ; rb t1-vs-t2=0 t2-vs-t4=4304 (remaining difference is bgraphBipartGg's pass sharing, PS2-G08-1/SEP-13).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/kgraph_map_rb_part.c:315-322; src/libscotch/wgraph_part_rb.c:376-383; src/libscotch/common_context.c:283-299 (contextThreadLaunchSplit creates a second pseudo-random generator)",
+  "evidence": "kgraph_map_rb_part.c:316: if (contextThreadLaunchSplit (contptr, (ContextSplitFunc) kgraphMapRbPart2, &spltdat) != 0) /* If counld not split context to run concurrently */\ncommon_context.c:290: spltdat.conttab[1].randptr = &randdat; /* Set independent pseudo-random generator for sub-context 1 */ ; :298-299: intRandProc (&randdat, (int) intRandVal2 (contptr->randptr)); intRandSeed (&randdat, intRandVal2 (contptr->randptr));\nNo test of CONTEXTOPTIONNUMDETERMINISTIC on these paths, unlike graph_match.c:205-225: contextValuesGetInt (coarptr->contptr, CONTEXTOPTIONNUMDETERMINISTIC, &deteval); if ((deteval == 0) && (thrdnbr > 1)) { ... threaded ... } else { sequential }\ndoc/src/scotch/s_l.tex:7900-7904: 'SCOTCH_OPTIONNUMDETERMINISTIC: ... a value of 1 induces a deterministic behavior across multiple runs, for any number of threads'.",
+  "related_ids": [
+   "SEP-13"
+  ],
+  "fix_options": [
+   {
+    "label": "Do not split the context when deterministic behaviour is wanted (recommended)",
+    "summary": "In kgraphMapRbPart2() and wgraphPartRb2(), read CONTEXTOPTIONNUMDETERMINISTIC and run the two sub-tasks in sequence within the same context when it is set, exactly like graphMatchInit() falls back to sequential matching.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0009-Bugfix-do-not-split-contexts-in-recursive-bipartitio.patch",
+    "tested": "determinism runs above (1 == 2 == 4 threads once combined with G08's GG fix; overlap path already 1 == 2 == 4 with this series alone); zero warnings on 32/64-bit; check_prog_gpart, check_prog_gpart_overlap, check_scotch_graph_map on 32/64/debug builds.",
+    "tradeoffs": "Deterministic mode loses the recursion-level parallelism (each sub-task still uses all threads of the context for its own threaded methods, which are sequential in deterministic mode anyway). Non-deterministic mode unchanged.",
+    "preferred": true,
+    "maintainer_fit": "Caller-side check with the exact idiom of graph_match.c:205-225 (common_context.c cannot include context.h: the option enum is libscotch-level). 'Document that deterministic needs >= 2 threads' is not an option: the documentation already promises 'for any number of threads' and 2 and 4 threads differ as well (the split recurses)."
+   },
+   {
+    "label": "Always derive the second sub-task's generator, even when running sequentially",
+    "summary": "Make contextThreadLaunchSplit() draw the second generator and run the two sub-tasks itself when the context has a single thread, so that the pseudo-random streams are identical for every thread count without losing parallelism.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/alt/PS2-G12-3-b-always-split-random-stream.diff",
+    "tested": "untested: changes the results of every single-threaded run (COMMON_RANDOM_FIXED_SEED results change between versions), touches the common layer used by all callers, and still requires every threaded method to be thread-count independent.",
+    "tradeoffs": "Keeps parallelism in deterministic mode; larger behaviour change.",
+    "preferred": false,
+    "maintainer_fit": "A design change he may prefer for 7.1, not a 7.0.x bugfix."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G12-overlap-kgraph-rb/patches/0009-Bugfix-do-not-split-contexts-in-recursive-bipartitio.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G12-4",
+  "our_title": "Hash table sizes computed with an int shift `1 << (hashsiz + 2)` overflow for more than 2^29 entries",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "kgraph_map_rb.c:243, :411 and kgraph_band.c:155",
+  "why_not_run": "needs more than 2^29 fixed vertices (or domains) to overflow; not constructible on this machine",
+  "location_7_0_17": "src/libscotch/kgraph_map_rb.c:243, :411; src/libscotch/kgraph_band.c:155",
+  "evidence": "kgraph_map_rb.c:243: hashsiz = 1 << (hashsiz + 2); /* Fill hash table at 25% maximum */ (hashsiz is Gnum, the shifted constant is int)",
+  "related_ids": [
+   "GRA-01",
+   "GRA-16"
+  ],
+  "fix_options": [
+   {
+    "label": "Shift a Gnum constant",
+    "summary": "hashsiz = (Gnum) 1 << (hashsiz + 2); at the three sites.",
+    "diff_file": "",
+    "tested": "untested: not written as a diff (trivial, and the maintainer's 7.0.17 bit-set fix 6a00c51 used unsigned constants, so he may prefer (Gunum) 1).",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Same class as his 'apply left shifts to unsigned integers' fix."
+   }
+  ],
+  "patch_files": []
+ }
+]

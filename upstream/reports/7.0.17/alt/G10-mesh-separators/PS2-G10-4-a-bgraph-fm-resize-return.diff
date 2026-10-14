@@ -1,0 +1,10 @@
+--- a/src/libscotch/bgraph_bipart_fm.c
++++ b/src/libscotch/bgraph_bipart_fm.c
+@@ -600,6 +600,7 @@
+                 errorPrint ("bgraphBipartFm: out of memory (2)");
+                 memFree    (hashtab);             /* Free group leader */
+                 bgraphBipartFmTablExit (tablptr);
++                return (1);
+               }
+               for (hashnum = (vertend * BGRAPHBIPARTFMHASHPRIME) & hashmsk; hashtab[hashnum].vertnum != ~0; hashnum = (hashnum + 1) & hashmsk) ; /* Search for new first free slot */
+             }

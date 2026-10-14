@@ -1,0 +1,17 @@
+Alternative for PS-API-5: leave graphCheck() unchanged (no allocation in
+a Check routine) and instead make each label consumer robust. Example:
+SCOTCH_graphTabLoad() already sorts graph labels; bound the merge so a
+duplicate graph label cannot assign a wrong part. Does not stop every
+other label consumer misbehaving, and does not surface the invalid graph
+to the user.
+
+--- a/src/libscotch/library_graph_map_io.c
++++ b/src/libscotch/library_graph_map_io.c
+@@ -160,6 +160,9 @@
+     if (vertsortflag != 1)                        /* If graph label data not sorted     */
+       intSort2asc1 (vertsorttab, vertnbr);        /* Sort sort area by ascending labels */
++    for (vertsortnum = 1; vertsortnum < vertnbr; vertsortnum ++)
++      if (vertsorttab[vertsortnum].labl == vertsorttab[vertsortnum - 1].labl)
++        break;                                    /* Duplicate graph label: left to caller */
+ 
+     for (vertsortnum = 0, mappfilenum = 0; vertsortnum < vertnbr; vertsortnum ++) {

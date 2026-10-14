@@ -1,0 +1,12 @@
+--- a/src/libscotch/library_graph_map.c	2026-10-13 08:40:02.907404191 +0000
++++ b/src/libscotch/library_graph_map.c	2026-10-13 09:46:15.297908640 +0000
+@@ -292,7 +292,8 @@
+   mapgrafdat.contptr = CONTEXTGETDATA (actgrafptr);
+ 
+   o = kgraphMapSt (&mapgrafdat, mapstraptr);
+-  mapTerm (&mapgrafdat.m, lmapptr->parttab - baseval); /* Propagate mapping result to part array */
++  if (o == 0)                                     /* Propagate mapping result to part array only on success */
++    mapTerm (&mapgrafdat.m, lmapptr->parttab - baseval); /* (mapTerm dereferences the part array, which may be unset on failure) */
+ 
+   kgraphExit (&mapgrafdat);
+ 

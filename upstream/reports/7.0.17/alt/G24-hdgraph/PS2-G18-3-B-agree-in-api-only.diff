@@ -1,0 +1,26 @@
+diff --git a/src/libscotch/library_dgraph_order.c b/src/libscotch/library_dgraph_order.c
+index a8e8ca6..49db160 100644
+--- a/src/libscotch/library_dgraph_order.c
++++ b/src/libscotch/library_dgraph_order.c
+@@ -178,6 +178,7 @@ SCOTCH_Strat * const        straptr)              /*+ Ordering strategy
+   DorderCblk *        cblkptr;                    /* Column block to be ordered        */
+   CONTEXTDECL        (libgrafptr);
+   int                 o;
++  int                 oglb;
+ 
+   halgrafptr = NULL;
+   cbl0ptr    = NULL;
+@@ -346,7 +347,12 @@ fail:
+ 
+   CONTEXTEXIT (libgrafptr);
+ 
+-  return (o);
++  if (MPI_Allreduce (&o, &oglb, 1, MPI_INT, MPI_MAX, ((Dgraph *) CONTEXTGETOBJECT (libgrafptr))->proccomm) != MPI_SUCCESS) { /* All processes must return the same value */
++    errorPrint (STRINGIFY (SCOTCH_dgraphOrderComputeList) ": communication error (3)");
++    return (1);
++  }
++
++  return (oglb);
+ }
+ 
+ /* This routine parses the given

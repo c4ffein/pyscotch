@@ -1,0 +1,72 @@
+== veex ml fold=n np=1 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7886 dlt=83 size0=7886 comm=-2218 gainextn=14103 fron=4744 bal=0.0106369345 balcalc=0.0106369345
+== veex ml fold=n np=2 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7803 dlt=0 size0=7803 comm=35 gainextn=503 fron=284 bal=0 balcalc=0
+      1 rank 1: check=0
+      1 rank 1: ret=0 load0=7803 dlt=0 size0=7803 comm=35 gainextn=503 fron=284 bal=0 balcalc=0
+== veex ml fold=n np=3 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7803 dlt=0 size0=7803 comm=77 gainextn=569 fron=360 bal=0 balcalc=0
+      1 rank 1: check=0
+      1 rank 1: ret=0 load0=7803 dlt=0 size0=7803 comm=77 gainextn=569 fron=360 bal=0 balcalc=0
+      1 rank 2: check=0
+      1 rank 2: ret=0 load0=7803 dlt=0 size0=7803 comm=77 gainextn=569 fron=360 bal=0 balcalc=0
+== veex ml fold=n np=4 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7803 dlt=0 size0=7803 comm=67 gainextn=371 fron=250 bal=0 balcalc=0
+      1 rank 1: check=0
+      1 rank 1: ret=0 load0=7803 dlt=0 size0=7803 comm=67 gainextn=371 fron=250 bal=0 balcalc=0
+      1 rank 2: check=0
+      1 rank 2: ret=0 load0=7803 dlt=0 size0=7803 comm=67 gainextn=371 fron=250 bal=0 balcalc=0
+      1 rank 3: check=0
+      1 rank 3: ret=0 load0=7803 dlt=0 size0=7803 comm=67 gainextn=371 fron=250 bal=0 balcalc=0
+== veex ml fold=f np=1 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7886 dlt=83 size0=7886 comm=-2218 gainextn=14103 fron=4744 bal=0.0106369345 balcalc=0.0106369345
+== veex ml fold=f np=2 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7803 dlt=0 size0=7803 comm=-1174 gainextn=7947 fron=2794 bal=0 balcalc=0
+      1 rank 1: check=0
+      1 rank 1: ret=0 load0=7803 dlt=0 size0=7803 comm=-1174 gainextn=7947 fron=2794 bal=0 balcalc=0
+== veex ml fold=f np=3 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7803 dlt=0 size0=7803 comm=-720 gainextn=5859 fron=2225 bal=0 balcalc=0
+      1 rank 1: check=0
+      1 rank 1: ret=0 load0=7803 dlt=0 size0=7803 comm=-720 gainextn=5859 fron=2225 bal=0 balcalc=0
+      1 rank 2: check=0
+      1 rank 2: ret=0 load0=7803 dlt=0 size0=7803 comm=-720 gainextn=5859 fron=2225 bal=0 balcalc=0
+== veex ml fold=f np=4 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7803 dlt=0 size0=7803 comm=-667 gainextn=5603 fron=2136 bal=0 balcalc=0
+      1 rank 1: check=0
+      1 rank 1: ret=0 load0=7803 dlt=0 size0=7803 comm=-667 gainextn=5603 fron=2136 bal=0 balcalc=0
+      1 rank 2: check=0
+      1 rank 2: ret=0 load0=7803 dlt=0 size0=7803 comm=-667 gainextn=5603 fron=2136 bal=0 balcalc=0
+      1 rank 3: check=0
+      1 rank 3: ret=0 load0=7803 dlt=0 size0=7803 comm=-667 gainextn=5603 fron=2136 bal=0 balcalc=0
+== veex ml fold=d np=1 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7886 dlt=83 size0=7886 comm=-2218 gainextn=14103 fron=4744 bal=0.0106369345 balcalc=0.0106369345
+== veex ml fold=d np=2 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7803 dlt=0 size0=7803 comm=-1219 gainextn=7785 fron=2661 bal=0 balcalc=0
+      1 rank 1: check=0
+      1 rank 1: ret=0 load0=7803 dlt=0 size0=7803 comm=-1219 gainextn=7785 fron=2661 bal=0 balcalc=0
+== veex ml fold=d np=3 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7803 dlt=0 size0=7803 comm=-1420 gainextn=8737 fron=2919 bal=0 balcalc=0
+      1 rank 1: check=0
+      1 rank 1: ret=0 load0=7803 dlt=0 size0=7803 comm=-1420 gainextn=8737 fron=2919 bal=0 balcalc=0
+      1 rank 2: check=0
+      1 rank 2: ret=0 load0=7803 dlt=0 size0=7803 comm=-1420 gainextn=8737 fron=2919 bal=0 balcalc=0
+== veex ml fold=d np=4 (release build, check)
+      1 rank 0: check=0
+      1 rank 0: ret=0 load0=7803 dlt=0 size0=7803 comm=-720 gainextn=5875 fron=2218 bal=0 balcalc=0
+      1 rank 1: check=0
+      1 rank 1: ret=0 load0=7803 dlt=0 size0=7803 comm=-720 gainextn=5875 fron=2218 bal=0 balcalc=0
+      1 rank 2: check=0
+      1 rank 2: ret=0 load0=7803 dlt=0 size0=7803 comm=-720 gainextn=5875 fron=2218 bal=0 balcalc=0
+      1 rank 3: check=0
+      1 rank 3: ret=0 load0=7803 dlt=0 size0=7803 comm=-720 gainextn=5875 fron=2218 bal=0 balcalc=0

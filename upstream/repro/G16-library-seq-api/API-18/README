@@ -1,0 +1,17 @@
+API-18 (distributed CommDelta formula) and PS-API-7 (histogram division): differential test
+"same graph, same mapping, sequential view versus distributed view".
+dview.c loads a graph as a Dgraph and as a Graph, computes the mapping with SCOTCH_dgraphMapCompute,
+saves it, reloads it into the sequential mapping, and prints SCOTCH_graphMapView then "---" then
+SCOTCH_dgraphMapView (process 0). dgmap only supports complete-graph targets (kN.tgt).
+  sh ../build.sh $WORK/build _pristine
+  ASAN_OPTIONS=detect_leaks=0 mpirun --oversubscribe -np 1 ./dview_pristine $V/src/check/data/m4x4_b1_ev.grf $V/tgt/k4.tgt
+Pristine (weighted graph): every line identical except
+  sequential:  M CommDelta=0.657106   M CommLoad[0]=0.644068 ...   M Processors 4/4 (1)
+  distributed: M CommDelta=0.406780   M Cmlosum[0]=0.644068  ...   M Processors 4/4(1)
+  (0.406780 = edgeglbnbr / (2 cmlosum) = 48 / 118; 0.657106 = (21 * 24) / (59 * 13))
+Patched (commits 0007 + 0008): outputs identical line for line (PartDiam exists only in the
+sequential view), for m4x4_b1_ev/k4 (np 1, 2, 3), bump/k9 (np 1, 3), m16x16_b100000/k4 (np 2),
+32- and 64-bit. Unweighted graphs already agreed on CommDelta (1.000000) before the fix because
+expansion equals dilation when all loads are 1.
+PS-API-7: not reproducible: cmlosum == 0 implies every cdsttab cell is 0, hence cdstmax == -1 and
+the histogram loop body never runs (same guard structure as the sequential view).

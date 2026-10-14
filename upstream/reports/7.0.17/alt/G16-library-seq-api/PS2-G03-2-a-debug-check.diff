@@ -1,0 +1,16 @@
+--- a/src/libscotch/library_graph_map_view.c
++++ b/src/libscotch/library_graph_map_view.c
+@@ -468,6 +468,13 @@
+       archDomTerm (archptr, &domnorg, parttax[vertnum]); /* Get terminal domains */
+       archDomTerm (archptr, &domnend, parttax[edgetax[edgenum]]);
+       distval = archDomDist (archptr, &domnorg, &domnend);
++#ifdef SCOTCH_DEBUG_MAP2
++      if (distval < 0) {
++        errorPrint (STRINGIFY (SCOTCH_graphMapView) ": invalid distance");
++        memFree    (domntab);                     /* Free group leader */
++        return (1);
++      }
++#endif /* SCOTCH_DEBUG_MAP2 */
+       if (edlotax != NULL)                        /* Get edge weight if any */
+         edloval = edlotax[edgenum];
+       commdist[(distval > 255) ? 255 : distval] += edloval;

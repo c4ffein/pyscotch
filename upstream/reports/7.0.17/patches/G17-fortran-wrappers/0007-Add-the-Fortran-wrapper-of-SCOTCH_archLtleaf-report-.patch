@@ -1,0 +1,50 @@
+From a43838a6c8854210b3ce82b9e4fc3d440f7589b5 Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:44:13 +0000
+Subject: [PATCH 7/7] Add the Fortran wrapper of `SCOTCH_archLtleaf()` [report
+ PyScotch]
+
+The Scotch user's manual documents "scotchfarchltleaf", which was never
+defined in "library_arch_f.c". The wrapper mirrors that of
+`SCOTCH_archTleaf()`, with the permutation count and array added.
+
+This commit requires `SCOTCH_archLtleaf()` to be declared in "library.h"
+(see the commit "Declare `SCOTCH_archLtleaf()` in the library header").
+
+Refs: API-24, PS2-G02-2
+---
+ src/libscotch/library_arch_f.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/src/libscotch/library_arch_f.c b/src/libscotch/library_arch_f.c
+index 0cff505..1c85ef5 100644
+--- a/src/libscotch/library_arch_f.c
++++ b/src/libscotch/library_arch_f.c
+@@ -298,6 +298,24 @@ int * const                 revaptr), \
+ **
+ */
+ 
++SCOTCH_FORTRAN (                      \
++ARCHLTLEAF, archltleaf, (             \
++SCOTCH_Arch * const         archptr,  \
++const SCOTCH_Num * const    levlnbr,  \
++const SCOTCH_Num * const    sizetab,  \
++const SCOTCH_Num * const    linktab,  \
++const SCOTCH_Num * const    permnbr,  \
++const SCOTCH_Num * const    permtab,  \
++int * const                 revaptr), \
++(archptr, levlnbr, sizetab, linktab, permnbr, permtab, revaptr))
++{
++  *revaptr = SCOTCH_archLtleaf (archptr, *levlnbr, sizetab, linktab, *permnbr, permtab);
++}
++
++/*
++**
++*/
++
+ SCOTCH_FORTRAN (                      \
+ ARCHMESH2, archmesh2, (               \
+ SCOTCH_Arch * const         archptr,  \
+-- 
+2.47.3
+

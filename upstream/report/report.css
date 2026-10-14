@@ -1,0 +1,89 @@
+/* PyScotch upstream report — tokens follow docs/site/static/style.css (Inter / JetBrains Mono,
+   #c83232 accent, soft greys, 8px radius). Status colours are the reserved dataviz status steps;
+   they always travel with an icon and a text label. */
+:root {
+  --bg: #ffffff; --fg: #1c1c1c; --fg-muted: #5f5f5f; --fg-subtle: #8a8a8a;
+  --accent: #c83232; --surface: #ffffff; --surface-raised: #f6f6f6;
+  --border: #e3e3e3; --code-bg: #f6f8fa; --code-border: #d1d9e0; --radius: 8px;
+  --st-fixed: #0ca30c; --st-partial: #fab219; --st-present: #d03b3b; --st-nobug: #8a8a8a; --st-open: #5b7fb8;
+  --font: 'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', 'DejaVu Sans Mono', monospace;
+}
+@page {
+  size: A4; margin: 18mm 16mm 20mm 16mm;
+  @bottom-left   { content: "PyScotch · Scotch " var(--ver, ""); font: 400 8pt var(--font); color: #8a8a8a; }
+  @bottom-right  { content: "page " counter(page) " / " counter(pages); font: 400 8pt var(--font); color: #8a8a8a; }
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { font: 400 10pt/1.55 var(--font); color: var(--fg); margin: 0; background: var(--bg); }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 1.2rem; }
+@media print { .wrap { max-width: none; padding: 0; } details > summary { list-style: none; } }
+h1 { font-size: 24pt; line-height: 1.15; margin: 0 0 .3rem; letter-spacing: -.02em; }
+h2 { font-size: 15pt; margin: 2.2rem 0 .6rem; padding-bottom: .3rem; border-bottom: 2px solid var(--accent); break-after: avoid; }
+h3 { font-size: 11pt; margin: 1.4rem 0 .4rem; break-after: avoid; }
+p { margin: .4rem 0; } .muted { color: var(--fg-muted); } .small { font-size: 8.5pt; }
+code, pre { font-family: var(--mono); font-size: 8pt; }
+code { background: var(--code-bg); border: 1px solid var(--code-border); border-radius: 4px; padding: 0 .25em; }
+pre { background: var(--code-bg); border: 1px solid var(--code-border); border-radius: var(--radius); padding: .55rem .7rem;
+      white-space: pre-wrap; word-break: break-word; margin: .25rem 0; }
+.cover { padding: 1.2rem 0 .4rem; }
+.eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: 8pt; color: var(--accent); font-weight: 600; }
+.credit { border-left: 3px solid var(--accent); padding: .4rem .8rem; background: var(--surface-raised); margin: .9rem 0; font-size: 9pt; }
+.tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: .6rem; margin: 1rem 0; }
+.tile { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: .6rem .8rem; }
+.tile b { display: block; font-size: 22pt; line-height: 1.1; letter-spacing: -.02em; }
+.tile span { font-size: 8pt; color: var(--fg-muted); }
+table { border-collapse: collapse; width: 100%; margin: .5rem 0; font-size: 8.5pt; }
+th, td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--fg-muted); font-weight: 600; font-size: 8pt; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+tr { break-inside: avoid; }
+/* status marks */
+.badge { display: inline-flex; gap: .3em; align-items: center; font-size: 7.5pt; font-weight: 600; padding: .05rem .5rem; border-radius: 999px;
+         border: 1px solid var(--border); background: var(--surface); white-space: nowrap; }
+.badge i { font-style: normal; width: .8em; height: .8em; border-radius: 2px; display: inline-block; }
+.s-fixed i { background: var(--st-fixed); } .s-partial i { background: var(--st-partial); }
+.s-present i { background: var(--st-present); } .s-nobug i { background: var(--st-nobug); } .s-open i { background: var(--st-open); }
+.m-run { color: #0a5c0a; } .m-read { color: #8a5a00; }
+/* per-area stacked bars */
+.legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 8pt; margin: .4rem 0; }
+.bars { display: grid; grid-template-columns: 17rem 1fr 2.2rem; gap: .35rem .7rem; align-items: center; font-size: 8.5pt; margin: .5rem 0 1rem; }
+.bar { display: flex; gap: 2px; height: 14px; }
+.bar div { height: 100%; min-width: 2px; }
+.bar div:last-child { border-radius: 0 4px 4px 0; }
+.bar .f { background: var(--st-fixed); } .bar .p { background: var(--st-partial); } .bar .x { background: var(--st-present); }
+.bar .b { background: var(--st-nobug); } .bar .o { background: var(--st-open); }
+/* finding cards */
+.f-card { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: .4rem .7rem; margin: .4rem 0; break-inside: auto; }
+.f-head { display: flex; gap: .5rem; align-items: baseline; flex-wrap: wrap; }
+.f-id { font-family: var(--mono); font-weight: 600; font-size: 9pt; }
+.f-title { font-weight: 600; flex: 1 1 18rem; }
+.f-meta { font-size: 8pt; color: var(--fg-muted); margin: .15rem 0 .25rem; }
+.f-card h4 { margin: .35rem 0 .05rem; font-size: 8pt; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-muted); }
+.opt { border-left: 2px solid var(--border); padding-left: .6rem; margin: .35rem 0; }
+.opt.pref { border-left-color: var(--accent); }
+.opt b { font-size: 9pt; }
+.cut { color: var(--fg-subtle); font-size: 7.5pt; }
+.pending { color: var(--fg-subtle); font-style: italic; }
+.break { break-before: page; }
+@media (max-width: 760px) { .tiles { grid-template-columns: repeat(2, 1fr); } .bars { grid-template-columns: 1fr; } }
+
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--accent); }
+td a, .bars a, .f-meta a { border-bottom: 1px dotted var(--fg-subtle); }
+a.twin { font-size: 7.5pt; font-weight: 600; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: .02rem .5rem; white-space: nowrap; }
+a.twin:hover { background: var(--accent); color: #fff; }
+.f-card:target { outline: 2px solid var(--accent); }
+td code, .f-id { white-space: nowrap; }
+details > summary { cursor: pointer; font-size: 8pt; color: var(--accent); font-weight: 600; margin: .2rem 0; }
+table.index td:nth-child(2) { width: 46%; }
+table.index td, table.index th { padding: .22rem .45rem; }
+/* second pass: recommended patches, our severity, extra instances */
+.patch { border-left: 3px solid var(--st-fixed); padding: .3rem .7rem; margin: .4rem 0; background: var(--surface-raised); border-radius: 0 var(--radius) var(--radius) 0; }
+.patch b { font-size: 9pt; }
+.patch pre { max-height: none; }
+.sev-ours { font-weight: 600; }
+.m-part { color: #4b6a00; }
+.internal { border: 1px dashed var(--st-open); padding: .3rem .6rem; margin: .3rem 0; font-size: 8.5pt; background: #f3f6fb; }
+table.series td:nth-child(3) { width: 50%; }

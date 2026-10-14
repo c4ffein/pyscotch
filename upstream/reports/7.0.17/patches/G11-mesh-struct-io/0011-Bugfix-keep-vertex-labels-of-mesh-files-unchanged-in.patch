@@ -1,0 +1,128 @@
+From c73aa7b9f5e07b3b4bb34cbdfd947bd59c62840c Mon Sep 17 00:00:00 2001
+From: PyScotch <pyscotch@noreply.invalid>
+Date: Tue, 13 Oct 2026 13:10:41 +0000
+Subject: [PATCH 11/11] Bugfix: keep vertex labels of mesh files unchanged in
+ `meshLoad()` [report PyScotch]
+
+`meshLoad()` added the based number of the first vertex of each kind
+(and the base adjustment) to every vertex label read from the file,
+whereas `meshSave()` writes labels unchanged and edge ends as labels.
+Loading and saving a labeled mesh therefore shifted all node labels by
+`vnodbas` (and element labels when nodes come first), so that a mesh
+file was not stable under `mcv`, labels in orderings and geometry
+files no longer matched, and labeled files with a non-zero base could
+not be loaded at all since their edge ends had to be labels plus the
+base.
+
+Store labels as read, as `graphLoad()` does, and treat edge ends of
+labeled meshes as labels that `graphLoad2()` turns into vertex numbers.
+Labels must then be unique across elements and nodes, which
+`graphLoad2()` checks. Add a labeled mesh round trip to `check_prog_mcv`
+and a labeled geometry file to `check_scotch_mesh_geom`.
+
+Refs: PS2-G11-mesh-struct-io-5, SEP-16
+---
+ src/check/CMakeLists.txt      |  9 ++++++++-
+ src/check/Makefile            |  6 +++++-
+ src/check/data/small2_lbl.xyz |  9 +++++++++
+ src/libscotch/mesh_io.c       | 10 +++++++---
+ 4 files changed, 29 insertions(+), 5 deletions(-)
+ create mode 100644 src/check/data/small2_lbl.xyz
+
+diff --git a/src/check/CMakeLists.txt b/src/check/CMakeLists.txt
+index 62585a6..cdcdfe9 100644
+--- a/src/check/CMakeLists.txt
++++ b/src/check/CMakeLists.txt
+@@ -351,6 +351,10 @@ add_test(NAME test_scotch_mesh_geom COMMAND ${BASH} -c
+   "'$<TARGET_FILE:test_scotch_mesh_geom>' '${dat}/small2.msh' '${dat}/small2.xyz' small2.xyz && \
+    '${CMAKE_COMMAND}' -E compare_files '${dat}/small2.xyz' small2.xyz")
+ 
++add_test(NAME test_scotch_mesh_geom_lbl COMMAND ${BASH} -c
++  "'$<TARGET_FILE:test_scotch_mesh_geom>' '${dat}/small2_lbl.msh' '${dat}/small2_lbl.xyz' small2_lbl.xyz && \
++   '${CMAKE_COMMAND}' -E compare_files '${dat}/small2_lbl.xyz' small2_lbl.xyz")
++
+ # test_scotch_mesh_graph
+ 
+ add_test_scotch(test_scotch_mesh_graph)
+@@ -578,7 +582,10 @@ foreach(mmk_msh m2_5_1 m2_5_4 m3_5_4_3)
+   set_tests_properties(mcv_msh_${mmk_msh} PROPERTIES FIXTURES_REQUIRED MMK_MESHES)
+ endforeach()
+ 
+-add_test(NAME mtst_small2_lbl COMMAND mtst ${dat}/small2_lbl.msh)
++add_test(NAME mcv_msh_small2_lbl COMMAND ${BASH} -c
++  "'$<TARGET_FILE:mcv>' '${dat}/small2_lbl.msh' output_small2_lbl.msh -is -os && \
++   '${CMAKE_COMMAND}' -E compare_files '${dat}/small2_lbl.msh' output_small2_lbl.msh && \
++   '$<TARGET_FILE:mtst>' output_small2_lbl.msh")
+ 
+ add_test(NAME mcv_pue_hb3 COMMAND ${BASH} -c
+   "'$<TARGET_FILE:mcv>' '${dat}/hb3.pue' output_hb3.msh -ib -os && \
+diff --git a/src/check/Makefile b/src/check/Makefile
+index e290449..6bcef30 100644
+--- a/src/check/Makefile
++++ b/src/check/Makefile
+@@ -556,6 +556,8 @@ test_scotch_mesh_build_f	:	test_scotch_mesh_build_f.f90	\
+ check_scotch_mesh_geom		:	test_scotch_mesh_geom
+ 					$(EXECS) ./test_scotch_mesh_geom data/small2.msh data/small2.xyz $(TMPDIR)/small2.xyz
+ 					$(PROGDIFF) data/small2.xyz $(TMPDIR)/small2.xyz
++					$(EXECS) ./test_scotch_mesh_geom data/small2_lbl.msh data/small2_lbl.xyz $(TMPDIR)/small2_lbl.xyz
++					$(PROGDIFF) data/small2_lbl.xyz $(TMPDIR)/small2_lbl.xyz
+ 
+ test_scotch_mesh_geom		:	test_scotch_mesh_geom.c		\
+ 					$(SCOTCHLIBDIR)/libscotch$(LIB)
+@@ -727,7 +729,9 @@ check_prog_mcv		        :	check_prog_mmk
+ 					$(PROGDIFF) $(TMPDIR)/m2_5_1.msh $(TMPDIR)/output_m2_5_1.msh
+ 					$(PROGDIFF) $(TMPDIR)/m2_5_4.msh $(TMPDIR)/output_m2_5_4.msh
+ 					$(PROGDIFF) $(TMPDIR)/m2_5_4_3.msh $(TMPDIR)/output_m2_5_4_3.msh
+-					$(EXECS) $(SCOTCHBINDIR)/mtst data/small2_lbl.msh
++					$(EXECS) $(SCOTCHBINDIR)/mcv data/small2_lbl.msh $(TMPDIR)/output_small2_lbl.msh -is -os
++					$(PROGDIFF) data/small2_lbl.msh $(TMPDIR)/output_small2_lbl.msh
++					$(EXECS) $(SCOTCHBINDIR)/mtst $(TMPDIR)/output_small2_lbl.msh
+ 					$(EXECS) $(SCOTCHBINDIR)/mcv data/hb3.pue $(TMPDIR)/output_hb3.msh -ib -os
+ 					$(PROGDIFF) data/hb3.msh $(TMPDIR)/output_hb3.msh
+ 					$(EXECS) $(SCOTCHBINDIR)/mtst $(TMPDIR)/output_hb3.msh
+diff --git a/src/check/data/small2_lbl.xyz b/src/check/data/small2_lbl.xyz
+new file mode 100644
+index 0000000..69edcb8
+--- /dev/null
++++ b/src/check/data/small2_lbl.xyz
+@@ -0,0 +1,9 @@
++2
++7
++20	0.000000	0.000000
++21	1.000000	0.000000
++22	2.000000	0.000000
++23	0.000000	1.000000
++24	1.000000	1.000000
++25	2.000000	1.000000
++26	0.000000	2.000000
+diff --git a/src/libscotch/mesh_io.c b/src/libscotch/mesh_io.c
+index 4e443b0..8dc7ac2 100644
+--- a/src/libscotch/mesh_io.c
++++ b/src/libscotch/mesh_io.c
+@@ -196,6 +196,10 @@ const Gnum                  baseval)              /* Base value (-1 means keep f
+     vertnndtab[1] = meshptr->velmnnd;
+     edgeadjtab[1] = meshptr->vnodbas - meshptr->baseval + baseadj;
+   }
++  if (meshptr->vlbltax != NULL)                   /* If vertex labels are present, edge ends are labels, not vertex indices */
++    edgeadjtab[0] =
++    edgeadjtab[1] = 0;
++
+   for (i = 0; i < 2; i ++) {                      /* For both kinds of vertices */
+     Gnum                vertbas;
+     Gnum                vertnnd;
+@@ -224,9 +228,9 @@ const Gnum                  baseval)              /* Base value (-1 means keep f
+           meshFree   (meshptr);
+           return (1);
+         }
+-        meshptr->vlbltax[vertnum] = vlblval + vertbas + baseadj; /* Adjust vertex label */
+-        if (meshptr->vlbltax[vertnum] > vlblmax)  /* Get maximum vertex label           */
+-          vlblmax = meshptr->vlbltax[vertnum];
++        meshptr->vlbltax[vertnum] = vlblval;
++        if (vlblval > vlblmax)                    /* Get maximum vertex label */
++          vlblmax = vlblval;
+       }
+       if (proptab[2] != 0) {                      /* If must read vertex load */
+         if ((intLoad (stream, &veloval) != 1) ||  /* Read vertex load data    */
+-- 
+2.47.3
+

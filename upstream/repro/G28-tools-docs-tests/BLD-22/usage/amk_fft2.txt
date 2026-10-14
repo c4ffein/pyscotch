@@ -1,0 +1,4 @@
+Usage is:
+  amk_fft2 [<dim> [<output target file>]] <options>
+    -h  : Display this help
+    -V  : Print program version and copyright

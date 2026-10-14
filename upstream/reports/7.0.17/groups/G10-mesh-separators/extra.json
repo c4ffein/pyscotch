@@ -1,0 +1,231 @@
+[
+ {
+  "local_id": "PS2-G10-1",
+  "our_title": "64-bit Gnum build: element bit array of meshInduceSepa uses 32-bit words with INTSIZEBITS indexing",
+  "severity": "high",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "LD_LIBRARY_PATH=build64/lib; mmk_m2 32 32 m.msh; mord m.msh /dev/null -vt\nmesh_induce_sepa.c:160:45: runtime error: shift exponent 32 is too large for 32-bit type 'unsigned int'\nhmesh_order_gp.c:145:22: runtime error: pointer index expression ... overflowed\nAddressSanitizer: SEGV on unknown address (pc in _SCOTCHhmeshOrderGp) ; also repro/SEP-02 sep02_64 32 0 0 and 64 0 1 (unweighted meshes). Patched 64-bit: ok; check_prog_mmk/gmk_msh/mord extended with the 32x32 mesh pass on both builds.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/mesh_induce_sepa.c:122,138-139,143,157-161",
+  "evidence": "`unsigned int * restrict       orgbitstab;` ... `orgbitssiz = (orgmeshptr->velmnbr + (INTSIZEBITS - 1)) / INTSIZEBITS;` ... `orgvelmbit  = orgvelmidx & (INTSIZEBITS - 1); orgvelmidx /= INTSIZEBITS; indvelmnbr += (orgbitstab[orgvelmidx] >> orgvelmbit) & 1; orgbitstab[orgvelmidx] &= ~(1U << orgvelmbit);` with INTSIZEBITS == 64 in -DINTSIZE64 builds: elements k and k+32 of a 64-element block share a bit, indvelmnbr is undercounted, the induced mesh arrays are too small. Introduced long ago; 7.0.17's 6a00c51 only changed `1 <<` to `1U <<` on this line.",
+  "related_ids": [
+   "SEP-02"
+  ],
+  "fix_options": [
+   {
+    "label": "UINT words (committed)",
+    "summary": "Declare the bit array as UINT, whose width is INTSIZEBITS by definition (common.h:274,277), and shift (UINT) 1.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0001-Bugfix-size-element-bit-array-of-meshInduceSepa-acco.patch",
+    "tested": "mord/sep02 on 32x32 and 64x64 meshes, 32- and 64-bit builds; check_prog_mmk/gmk_msh/mord/mesh_order on both.",
+    "tradeoffs": "None; 32-bit builds unchanged.",
+    "preferred": true,
+    "maintainer_fit": "Minimal and consistent with common.h's own `(UINT) 1 << (INTSIZEBITS - 1)`; same shape as his 6a00c51 bit-set fixes."
+   },
+   {
+    "label": "Keep unsigned int, index with its own width",
+    "summary": "Replace INTSIZEBITS by (sizeof (unsigned int) << 3) as library_dgraph_map_stat.c:189,432 does.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/alt/PS2-G10-1-b-unsigned-int-width.diff",
+    "tested": "compiled only (tools/altcheck.sh)",
+    "tradeoffs": "Longer expressions repeated three times; same result.",
+    "preferred": false,
+    "maintainer_fit": "He used that idiom once in library_dgraph_map_stat.c, but here the INTSIZEBITS macro is already in place, so changing the word type is the smaller diff."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0001-Bugfix-size-element-bit-array-of-meshInduceSepa-acco.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G10-2",
+  "our_title": "hmeshInducePart re-allocates its edge array unchecked and returns success with a NULL edge array",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "SCOTCH_PTHREAD_NUMBER=1 ./common/failscan.sh ./SEP-03/sep03_err 300 1 (patched lib): 6 runs 'hmesh_induce.c:363:25: runtime error: applying non-zero offset 18446744073709551612 to null pointer' right after the injected failure, then crashes in meshCoarsenMatchNg / hmeshHgraph:185 on the NULL edge array; with mesh base 0 (sep02 scans) the same failure is silent and shows up as 'load of null pointer' in mesh_coarsen.c and SEGV in hmeshHgraph.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/hmesh_induce.c:362-363",
+  "evidence": "`indmeshptr->m.edgetax  = memRealloc (indedgetax + indmeshptr->m.baseval, indmeshptr->m.edgenbr * sizeof (Gnum));\n  indmeshptr->m.edgetax -= indmeshptr->m.baseval;` (no NULL test; routine returns 0 afterwards)",
+  "related_ids": [
+   "SEP-22"
+  ],
+  "fix_options": [
+   {
+    "label": "Check the re-allocation",
+    "summary": "Test the result; on failure free the group leader, hmeshExit the induced mesh and return 1.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/alt/PS2-G10-2-a-hmesh-induce-realloc-check.diff",
+    "tested": "compiled only; not applied to the series because hmesh_induce.c is outside this group's files (G11 owns the hmesh family).",
+    "tradeoffs": "Pure error path.",
+    "preferred": true,
+    "maintainer_fit": "Same shape as mesh_induce_sepa.c:338-343 (his own checked memRealloc)."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G10-3",
+  "our_title": "hmeshOrderCp re-uses the element load array with the fine element base for a re-based compressed mesh",
+  "severity": "low",
+  "status": "inconclusive",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "hmesh_order_cp.c:193-209: coarmeshdat.m.velmbas = baseval but velotax is copied as is; for a mesh whose nodes come first (velmbas > vnodbas, allowed by SCOTCH_meshBuild and mesh files) the compressed mesh reads velotax[coarvelmnum] with the wrong base; for file meshes the single load array keeps it in bounds (wrong values), for SCOTCH_meshBuild meshes with a separate element load array it reads before the array.",
+  "why_not_run": "Needs a nodes-first mesh with element loads; the harnesses build elements first. Not run for lack of time; the fix is a one-line base shift.",
+  "location_7_0_17": "src/libscotch/hmesh_order_cp.c:209",
+  "evidence": "`coarmeshdat.m.velotax = finemeshptr->m.velotax; /* Re-use element vertex load array, if any */` while `coarmeshdat.m.velmbas = coarmeshdat.m.baseval;` (:193) and edges are shifted by `(finemeshptr->m.velmbas - coarmeshdat.m.velmbas)` (:352)",
+  "related_ids": [
+   "SEP-02"
+  ],
+  "fix_options": [
+   {
+    "label": "Shift the array by the base difference",
+    "summary": "velotax + (fine velmbas - coarse velmbas), NULL if absent.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/alt/PS2-G10-3-a-hmesh-order-cp-velotax-base.diff",
+    "tested": "compiled only",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Mirrors the edge index shift at :352."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G10-4",
+  "our_title": "bgraphBipartFm frees its tables on resize failure and keeps running on them",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "bgraph_bipart_fm.c:598-605: on `bgraphBipartFmResize (...) != 0` it prints, frees hashtab and the gain table, then falls through to `for (hashnum = ...; hashtab[hashnum].vertnum != ~0; ...)` and continues the pass: use after free.",
+  "why_not_run": "Needs an allocation failure inside the bipartitioning resize; outside this group's files (bgraph family), so only reported.",
+  "location_7_0_17": "src/libscotch/bgraph_bipart_fm.c:599-604",
+  "evidence": "`if (bgraphBipartFmResize (&hashtab, ...) != 0) {\n  errorPrint (\"bgraphBipartFm: out of memory (2)\");\n  memFree    (hashtab);             /* Free group leader */\n  bgraphBipartFmTablExit (tablptr);\n}\nfor (hashnum = (vertend * BGRAPHBIPARTFMHASHPRIME) & hashmsk; hashtab[hashnum].vertnum != ~0; ...`",
+  "related_ids": [
+   "SEP-22"
+  ],
+  "fix_options": [
+   {
+    "label": "Return after freeing",
+    "summary": "Add `return (1);` in the failure block.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/alt/PS2-G10-4-a-bgraph-fm-resize-return.diff",
+    "tested": "compiled only",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Same as kgraph_map_fm.c:1098-1103, which returns after freeing."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G10-5",
+  "our_title": "vmeshSeparateFm save array holds hashmax records while a sweep can save one per element and per node",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Patched tree with the resize completed but the old sizing, vmesh_separate_fm.o built with -DSCOTCH_DEBUG_VMESH2/3 (tables estimate / 8): mord m2_32_32.msh -> AddressSanitizer: heap-buffer-overflow WRITE of size 4 ... _SCOTCHvmeshSeparateFm vmesh_separate_fm.c:707 (movetab[savenbr].data.node.vertpart). Sized to 2 * hashmax: all forced-resize runs clean (repro/PS-SEP-2/dbg_forced_results.txt).",
+  "read_only": "In pristine the 4x shield keeps both tables sparse; the window (helmnbr + hnodnbr > hashmax before either reaches hashmax) still exists for very large meshes.",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/vmesh_separate_fm.c:370 (and :128 in the resize)",
+  "evidence": "`&movetab, (size_t) (hashmax * sizeof (VmeshSeparateFmSave)), NULL)` while records are appended for elements (:605-611, :829-835) and nodes (:682-686) up to one per slot in use, resize at `helmnbr >= hashmax` / `hnodnbr >= hashmax`",
+  "related_ids": [
+   "PS-SEP-2"
+  ],
+  "fix_options": [
+   {
+    "label": "Size for both tables (committed)",
+    "summary": "2 * hashmax records, in the allocation and in the resize.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0008-Bugfix-complete-hash-table-resizing-in-vmeshSeparate.patch",
+    "tested": "forced-resize debug runs on four meshes; full check set on both trees.",
+    "tradeoffs": "Twice the save array memory (small next to the hash tables).",
+    "preferred": true,
+    "maintainer_fit": "Part of finishing the resize; vgraph sizes its save array to hashsiz for the same reason."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0008-Bugfix-complete-hash-table-resizing-in-vmeshSeparate.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G10-6",
+  "our_title": "hmeshOrderCp leaks the ordering tree of the compressed mesh when its ordering fails",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "SCOTCH_PTHREAD_NUMBER=1 FAIL_NTH=138 LD_PRELOAD=common/failmalloc.so ./SEP-03/sep03_err 300 1 (patched): ERROR: hmeshOrderNd: out of memory (1) then LeakSanitizer: Direct leak of 72 byte(s) (3 * sizeof (OrderCblk)) allocated from ... _SCOTCHhmeshOrderSt hmesh_order_st.c:290 <- _SCOTCHhmeshOrderCp hmesh_order_cp.c:386; 6 such runs in repro/SEP-03/scan_patched_sep03.txt.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/hmesh_order_cp.c:385-389",
+  "evidence": "`orderInit (&coarordedat, ...);\n  if (hmeshOrderSt (&coarmeshdat, &coarordedat, 0, &coarordedat.rootdat, paraptr->stratcpr) != 0) {\n    hmeshExit (&coarmeshdat);\n    return (1);\n  }` (no orderExit (&coarordedat); the success path calls it at :434)",
+  "related_ids": [
+   "SEP-22"
+  ],
+  "fix_options": [
+   {
+    "label": "orderExit on the error path",
+    "summary": "Call orderExit (&coarordedat) before hmeshExit in that block.",
+    "diff_file": "",
+    "tested": "untested: not written as a diff, outside this group's files; two-line change",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Mirrors :434."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G10-7",
+  "our_title": "meshCoarsen sets the coarse mesh flags with a Graph constant and never checks its final re-allocation",
+  "severity": "low",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "mesh_coarsen.c:136 `coarmeshptr->flagval = GRAPHFREEVERT;` (same value as MESHFREEVERT, wrong family); :334 `coarverttax = memRealloc (...)` unchecked then re-based.",
+  "why_not_run": "Fixed in passing in patch 0004; the realloc path was covered by the sep03 fault-injection scan (no finding).",
+  "location_7_0_17": "src/libscotch/mesh_coarsen.c:136,334-335",
+  "evidence": "`coarmeshptr->flagval = GRAPHFREEVERT;` ; `coarverttax = memRealloc (coarverttax + coarmeshptr->baseval, (coaredgeoftval + coarmeshptr->edgenbr) * sizeof (Gnum)); /* Re-allocate array to save space */\n  coarmeshptr->verttax = coarverttax - coarmeshptr->baseval;`",
+  "related_ids": [
+   "SEP-03"
+  ],
+  "fix_options": [
+   {
+    "label": "Fixed in the SEP-03 commit",
+    "summary": "MESHFREEVERT; checked memRealloc with out of memory (3) and cleanup.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0004-Bugfix-make-meshCoarsen-report-when-the-mesh-cannot-.patch",
+    "tested": "see SEP-03",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Same checks as in mesh_induce_sepa.c:338."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G10-mesh-separators/patches/0004-Bugfix-make-meshCoarsen-report-when-the-mesh-cannot-.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G10-8",
+  "our_title": "Error messages of hmeshMesh name hmeshHgraph",
+  "severity": "info",
+  "status": "still-present",
+  "method": "source-read",
+  "ran": "",
+  "read_only": "hmesh_mesh.c:114 and :126 print \"hmeshHgraph: out of memory (1)/(2)\" from hmeshMesh().",
+  "why_not_run": "Diagnostic text only; G11 owns hmesh_mesh.c.",
+  "location_7_0_17": "src/libscotch/hmesh_mesh.c:114,126",
+  "evidence": "`errorPrint (\"hmeshHgraph: out of memory (1)\");` inside `hmeshMesh (`",
+  "related_ids": [],
+  "fix_options": [
+   {
+    "label": "Rename the prefix",
+    "summary": "errorPrint (\"hmeshMesh: out of memory (1)\") / (2).",
+    "diff_file": "",
+    "tested": "untested: trivial, left to G11",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "His errorPrint convention."
+   }
+  ],
+  "patch_files": []
+ }
+]

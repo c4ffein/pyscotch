@@ -1,0 +1,234 @@
+[
+ {
+  "local_id": "PS2-G30-1",
+  "our_title": "Library link rules pass $(?) to $(AR): incremental shared-library builds drop every unchanged object",
+  "severity": "medium",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "ASan .so tree of base-combined: libscotch.so 1387 symbols; touch graph.c; make scotch -> 'gcc -shared -o libscotch.so graph.o', 3 symbols; top-level make scotch -> rc=2, 10 'undefined reference' (acpl.c:106 _SCOTCHusagePrint ...). Patched: touch graph.c; make -C src scotch ptscotch without removing any .so -> rc=0, 1387 symbols before and after, in both the 32- and 64-bit trees (verify.status).",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/libscotch/Makefile:3583-3604 (libscotch, libscotcherr, libscotcherrexit, libptscotch, libptscotcherr, libptscotcherrexit); src/esmumps/Makefile:205-206 (libesmumps)",
+  "evidence": "libscotch$(LIB) : $(LIBSCOTCHDEPS)\\n\\t$(AR) $(ARFLAGS) $(@) $(?)   with Make.inc/*.shlib: AR = gcc, ARFLAGS = -shared -o   (src/libscotchmetis/Makefile:222,235 use $(^))",
+  "related_ids": [
+   "BLD-11",
+   "BLD-14"
+  ],
+  "fix_options": [
+   {
+    "label": "Use $(^)",
+    "summary": "Pass all prerequisites to $(AR) in the seven rules.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0001-Bugfix-link-all-object-files-into-libraries-in-Makef.patch",
+    "tested": "Incremental builds above; clean 32/64-bit builds; check/ptcheck/escheck.",
+    "tradeoffs": "For static archives 'ar -ru' re-inserts unchanged members (harmless).",
+    "preferred": true,
+    "maintainer_fit": "libscotchmetis/Makefile has done it this way since the 6.0 import; one-token change per rule."
+   },
+   {
+    "label": "Remove the library before archiving",
+    "summary": "-$(RM) $(@) before $(AR) with $(^).",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/alt/PS2-G30-1-b-remove-before-link.diff",
+    "tested": "untested",
+    "tradeoffs": "Also drops stale members from static archives, at the cost of a full re-archive each time.",
+    "preferred": false,
+    "maintainer_fit": "Two lines where one suffices; he would take the libscotchmetis form."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0001-Bugfix-link-all-object-files-into-libraries-in-Makef.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G30-2",
+  "our_title": "x86-64 FreeBSD Makefile.inc passes '-std' without a value, which gcc and clang reject",
+  "severity": "low",
+  "status": "still-present",
+  "method": "partly-run",
+  "ran": "gcc -std -fPIC -c std.c -> \"gcc: error: unrecognized command-line option '-std'\" (rc=1)",
+  "read_only": "the template itself was not used on FreeBSD",
+  "why_not_run": "no FreeBSD host",
+  "location_7_0_17": "src/Make.inc/Makefile.inc.x86-64_pc_freebsd:18",
+  "evidence": "CFLAGS\\t\\t+= -std -fPIC -DCOMMON_FILE_COMPRESS_GZ ...   (i686 template: -std=c99)",
+  "related_ids": [
+   "BLD-21"
+  ],
+  "fix_options": [
+   {
+    "label": "-std=c99 as in the i686 template",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0004-Bugfix-fix-C-standard-flag-in-x86-64-FreeBSD-Makefil.patch",
+    "tested": "flag accepted by gcc 14 here",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "Obvious typo fix, same as his style fixes."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0004-Bugfix-fix-C-standard-flag-in-x86-64-FreeBSD-Makefil.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G30-3",
+  "our_title": "CMake emits the Fortran-template custom commands into every consuming target (duplicate rules under make -j)",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "grep -l cmake_sed_test_scotch_mesh_build_f $W/cm/src/check/CMakeFiles/*/build.make -> test_scotch_mesh_build_f.dir and test_scotch_mesh_build_f.f90_src.dir (pristine and patched); toy project $W/cmdup shows add_dependencies() does not change it.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/check/CMakeLists.txt:67-103 (suffix_fortran_file), 185-188, 209-215 (executables listing the generated .f90)",
+  "evidence": "add_custom_target(${file_we}_src ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${file_we}) ... add_executable(test_${tst_ftn}_f ${CMAKE_CURRENT_BINARY_DIR}/test_${tst_ftn}_f.f90)",
+  "related_ids": [
+   "BLD-10"
+  ],
+  "fix_options": [
+   {
+    "label": "Restructure so that only the *_src target owns the rules",
+    "summary": "Executables should depend on the custom target and not list the generated file as a same-directory custom-command output (e.g. generate in a sub-directory or use an OBJECT library).",
+    "diff_file": "",
+    "tested": "untested: design decision for the maintainer",
+    "tradeoffs": "CMake documents the duplicate-rule hazard; the race window here is a few milliseconds.",
+    "preferred": false,
+    "maintainer_fit": "Needs his choice; not patched."
+   }
+  ],
+  "patch_files": []
+ },
+ {
+  "local_id": "PS2-G30-4",
+  "our_title": "Fortran test template calls scotchfmeshinit/scotchfmeshbuild unsuffixed, so it cannot link with SCOTCH_NAME_SUFFIX",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "cm64 (INTSIZE=64 IDXSIZE=64 SCOTCH_NAME_SUFFIX=_64 DETERMINISTIC=FULL): 'test_scotch_mesh_build_f.f90:71: undefined reference to scotchfmeshinit_'; nm libscotch.so -> scotchfmeshinit_64_. dummysizes -s_64 on 'scotchfmeshinit##SCOTCH_NAME_SUFFIX(' -> 'scotchfmeshinit_64('; with -s -> unchanged. Patched: generated .f90:71 'call scotchfmeshinit_64(meshdat, ierr)', cm64 links; default build Fortran tests 3/3; Makefile chain check_scotch_mesh_build_f passes.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/check/test_scotch_mesh_build_f.f90.in:71,83",
+  "evidence": "  call scotchfmeshinit(meshdat, ierr)  /  dummysizes.c:282 subsFill (\"##SCOTCH_NAME_SUFFIX\", suffptr);  (same defect as G29's PS2-G29-4, found independently with -DSCOTCH_NAME_SUFFIX=_pys; covered by patch 0011)",
+  "related_ids": [
+   "BLD-14",
+   "BLD-10",
+   "PS2-G29-4"
+  ],
+  "fix_options": [
+   {
+    "label": "Use the ##SCOTCH_NAME_SUFFIX placeholder",
+    "summary": "Append ##SCOTCH_NAME_SUFFIX to the two scotchf* calls.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0011-Bugfix-suffix-Scotch-routine-names-in-Fortran-test-t.patch",
+    "tested": "as above",
+    "tradeoffs": "none for unsuffixed builds (substituted by the empty string)",
+    "preferred": true,
+    "maintainer_fit": "The placeholder exists in dummysizes for this purpose since 2018 (75d50d7) and both build chains run dummysizes -s on the template."
+   },
+   {
+    "label": "Skip Fortran tests under a suffix",
+    "summary": "if(BUILD_FORTRAN AND NOT USE_SUFFIX) around the test, as for esmumps.",
+    "diff_file": "",
+    "tested": "untested",
+    "tradeoffs": "Hides the configuration instead of testing it.",
+    "preferred": false,
+    "maintainer_fit": "He made Fortran tests work with suffixes on purpose (026e38e)."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0011-Bugfix-suffix-Scotch-routine-names-in-Fortran-test-t.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G30-5",
+  "our_title": "test_scotch_arch_build leaks the strategy created by SCOTCH_archBuild0() and every built architecture",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "Pristine 7.0.17 test source compiled against INFRA/asan libs: ./t ./arch3.tgt -> rc=1, 'SUMMARY: AddressSanitizer: 26544 byte(s) leaked in 240 allocation(s)' (stacks: _SCOTCHyyparse <- _SCOTCHstratInit <- SCOTCH_archBuild0 <- C_archBuild). Same in both combined-series ASan trees (make check stops there; make -k check: only failing target). Patched: make check_scotch_arch_build with leak detection on -> rc=0.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/check/test_scotch_arch_build.c:205-213, 428-466",
+  "evidence": "  SCOTCH_stratInit (&stradat);\\n  if (SCOTCH_archBuild0 (archptr, &grafdat, 0, NULL, &stradat) != 0) {...}\\n  SCOTCH_graphExit (&grafdat);   (no SCOTCH_stratExit; main never calls SCOTCH_archExit)",
+  "related_ids": [
+   "BLD-11"
+  ],
+  "fix_options": [
+   {
+    "label": "Free the objects",
+    "summary": "SCOTCH_stratExit after SCOTCH_archBuild0; SCOTCH_archExit at the end of each main loop iteration.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0013-Bugfix-free-strategy-and-architecture-in-test_scotch.patch",
+    "tested": "ASan run with leaks on passes; cm ctest.",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "Test hygiene he applies elsewhere (every other test exits its objects); needed for make check to pass under ASan."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0013-Bugfix-free-strategy-and-architecture-in-test_scotch.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G30-6",
+  "our_title": "test_scotch_arch_build.c does not include module.h/common.h, so it does not compile with SCOTCH_NAME_SUFFIX",
+  "severity": "low",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "cm64 build: test_scotch_arch_build.c:106:3: error: unknown type name 'SCOTCH_Num'; did you mean 'SCOTCH_Num_64'? Pristine has the same includes (added in 6d0d392). Patched: cm64 builds.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/check/test_scotch_arch_build.c:83-90",
+  "evidence": "#include \"scotch.h\"  (every other check program: #include \"../libscotch/module.h\" / \"../libscotch/common.h\" first; test_libesmumps.c is excluded under a suffix, test_multilib.c is Makefile-only)",
+  "related_ids": [
+   "BLD-14"
+  ],
+  "fix_options": [
+   {
+    "label": "Add the two includes like the other tests",
+    "summary": "",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0012-Bugfix-include-renaming-headers-in-test_scotch_arch_.patch",
+    "tested": "cm64 build and ctest",
+    "tradeoffs": "none",
+    "preferred": true,
+    "maintainer_fit": "Copies the include block of test_scotch_arch.c."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0012-Bugfix-include-renaming-headers-in-test_scotch_arch_.patch"
+  ]
+ },
+ {
+  "local_id": "PS2-G30-7",
+  "our_title": "Fortran mesh build test never releases its mesh and arrays, so it fails under LeakSanitizer",
+  "severity": "info",
+  "status": "still-present",
+  "method": "ran",
+  "ran": "QA, 13 oct 2026, full series: `make check` now runs the Fortran tests (check-list fix) and test_scotch_mesh_build_f reports 'LeakSanitizer: detected memory leaks ... 144 byte(s) in 2 allocation(s)' (MAIN__) on the 32-bit and 64-bit ASan trees; after patch 0014 the target passes on both with no sanitizer output.",
+  "read_only": "",
+  "why_not_run": "",
+  "location_7_0_17": "src/check/test_scotch_mesh_build_f.f90.in:78-79 (allocate), no scotchfmeshexit, no deallocate before 'end program'",
+  "evidence": "  allocate(verttab(1+velmnbr+vnodnbr))\n  allocate(edgetab(24))\n  ...\nend program test_scotch_mesh_build",
+  "related_ids": [
+   "PS2-G17-7",
+   "BLD-20"
+  ],
+  "fix_options": [
+   {
+    "label": "A: release the mesh and deallocate before the end of the program",
+    "summary": "call scotchfmeshexit, then deallocate edgetab and verttab, as test_libmetis_dual_f does; header date bumped.",
+    "diff_file": "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0014-Bugfix-release-the-mesh-and-its-arrays-in-the-Fortra.patch",
+    "tested": "ran: check_scotch_mesh_build_f clean under ASan/LSan on both trees of the full series",
+    "tradeoffs": "None.",
+    "preferred": true,
+    "maintainer_fit": "Same idiom as his test_libmetis_dual_f.f90.in; placed after the test-template suffix commit because it uses the suffix macro."
+   },
+   {
+    "label": "B: run the Fortran tests with detect_leaks=0",
+    "summary": "Hide the leak in the check recipe.",
+    "diff_file": "",
+    "tested": "n/a",
+    "tradeoffs": "Masks real leaks in the wrappers.",
+    "preferred": false,
+    "maintainer_fit": "He does not special-case sanitizer options in src/check."
+   }
+  ],
+  "patch_files": [
+   "/tmp/claude-1000/-home-dev-workspace-pyscotch/087f3d41-a5d8-4b0a-9260-769d70cf8179/scratchpad/work/G30-cmake-tests-make-ci/patches/0014-Bugfix-release-the-mesh-and-its-arrays-in-the-Fortra.patch"
+  ]
+ }
+]

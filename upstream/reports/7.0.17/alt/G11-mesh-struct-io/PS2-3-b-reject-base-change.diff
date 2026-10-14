@@ -1,0 +1,18 @@
+--- a/src/libscotch/mesh_io.c	2026-10-13 08:40:02.911404262 +0000
++++ b/src/libscotch/mesh_io.c	2026-10-13 13:25:19.146824815 +0000
+@@ -140,9 +140,13 @@
+     meshptr->baseval = baseadj;                   /* Set graph base as file base */
+     baseadj            = 0;                       /* No base adjustment needed   */
+   }
+-  else {                                          /* If set graph base     */
++  else {                                          /* If set graph base */
++    if (baseval != baseadj) {                     /* Edge ends are shifted between vertex kinds, not rebased */
++      errorPrint ("meshLoad: base change not supported");
++      return (1);
++    }
+     meshptr->baseval = baseval;                   /* Set wanted graph base */
+-    baseadj          = baseval - baseadj;         /* Update base adjust    */
++    baseadj          = 0;                         /* No base adjustment    */
+   }
+   meshptr->flagval = MESHFREEVERT | MESHVERTGROUP; /* Edge array grouped with vertex array */
+   meshptr->velmnbr = velmnbr;
