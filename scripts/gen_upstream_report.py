@@ -39,7 +39,7 @@ from datetime import date
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-REPORT_DIR = REPO / "upstream" / "report"
+REPORT_DIR = REPO / "upstream" / "report-templates"
 
 AREAS = {  # prefix -> (display name, order)
     "COR": "Core utilities, strategy parser, target architectures",
