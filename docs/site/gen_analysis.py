@@ -58,20 +58,12 @@ def fid(f):
     return f.get("id") or f.get("local_id")
 
 
-RX_NO_TEST = re.compile(r'^\s*(""|none\b|n/a|;|\(the file is the test)', re.I)
-
-
-def has_check_test(f):
-    """True when the audit added a regression test to the shipped check suite (not a reproducer, not 'no home')."""
-    t = (f.get("test_added") or "").strip()
-    if not t or RX_NO_TEST.match(t):
-        return False
-    return bool(re.search(r"src/check|check_[a-z0-9_]+|test_[a-z0-9_]+\.(c|f90)", t))
+BLOCKING = {}  # id -> reason, from upstream/reports/<version>/blocking.json
 
 
 def blocking(f):
-    """Still open upstream and covered by a regression test the PyScotch test bench inherits."""
-    return f.get("status") in ("still-present", "partially-fixed") and has_check_test(f)
+    """Blocking the next PyScotch release: listed, with its reason, in the version's curated blocking.json."""
+    return fid(f) in BLOCKING
 
 
 def status_html(s):
@@ -293,7 +285,7 @@ def dashboard_rows(items, versions):
                 "hist": f"{REVIEW['base'] if not i.startswith('PS') else versions[-1]} → "
                 + " → ".join(f"{v}: {h[v]}" for v in versions if v in h),
                 "patches": len(f.get("patch_files") or []),
-                "block": "blocking" if blocking(f) else ("tested" if has_check_test(f) else ""),
+                "block": "blocking" if blocking(f) else "",
                 "group": (f.get("group") or "")[:3],
                 "loc": (f.get("location") or f.get("location_7_0_17") or "")[:80],
             }
@@ -318,7 +310,7 @@ function render() {
   rows.sort((a, b) => { let x = a[sortKey], y = b[sortKey]; if (sortKey === 'sev') { x = sevRank[x] ?? 9; y = sevRank[y] ?? 9; } return (x > y ? 1 : x < y ? -1 : 0) * sortDir; });
   document.querySelector('#an-count').textContent = rows.length + ' of ' + ROWS.length;
   tb.innerHTML = rows.map(r => `<tr><td><a href="findings/${r.id}.html">${r.id}</a></td><td>${r.src}</td><td><a class="t" href="findings/${r.id}.html">${r.title}</a></td><td>${r.area}</td>
-    <td class="sev-${r.sev}">${r.sev}</td><td><span class="st st-${r.status}">${r.status}</span></td><td class="muted">${r.hist}</td><td>${r.method}</td><td>${r.patches || ''}</td><td>${r.block === 'blocking' ? '<span class="st st-still-present">blocking</span>' : (r.block === 'tested' ? '<span class="muted">tested</span>' : '')}</td></tr>`).join('');
+    <td class="sev-${r.sev}">${r.sev}</td><td><span class="st st-${r.status}">${r.status}</span></td><td class="muted">${r.hist}</td><td>${r.method}</td><td>${r.patches || ''}</td><td>${r.block === 'blocking' ? '<span class="st st-still-present">blocking</span>' : ''}</td></tr>`).join('');
 }
 document.querySelectorAll('#an-table th[data-k]').forEach(th => th.addEventListener('click', () => { const k = th.dataset.k; sortDir = (sortKey === k) ? -sortDir : 1; sortKey = k; render(); }));
 [q, ...Object.values(sel)].forEach(e => e.addEventListener('input', render));
@@ -340,6 +332,8 @@ def main():
     findings, new = data["findings"], data["new"]
     items = findings + new
     KNOWN_IDS.update(fid(f) for f in items)
+    blocking_doc = json.load(open(data_dir / "blocking.json")) if (data_dir / "blocking.json").is_file() else {}
+    BLOCKING.update(blocking_doc.get("ids", {}))
     for vd in sorted(data_dir.parent.glob("*/findings.json")):  # every audited version, for the history column
         vdata = json.load(open(vd))
         for x in vdata["findings"] + vdata["new"]:
@@ -408,13 +402,12 @@ def main():
     )
     blk_html = (
         f'<h2 id="blocking">Blocking for the next PyScotch release <span class="muted">({len(blk)})</span></h2>'
-        '<p class="muted">Still open upstream, and the fix ships with a regression test in Scotch\'s own check suite. '
-        "PyScotch ports those tests and runs them against the library it bundles, so these must be fixed upstream or "
-        "carried as PyScotch patches before the next release.</p>"
-        '<table class="an"><tr><th>id</th><th>title</th><th>severity</th><th>status</th></tr>'
+        + f'<p class="muted">{esc(blocking_doc.get("why", ""))}</p>'
+        + '<table class="an"><tr><th>id</th><th>title</th><th>why it blocks</th><th>severity</th><th>status</th></tr>'
         + "".join(
             f'<tr><td><a href="findings/{esc(r["id"])}.html">{esc(r["id"])}</a></td>'
             f'<td><a class="t" href="findings/{esc(r["id"])}.html">{esc(r["title"])}</a></td>'
+            f'<td class="muted">{esc(BLOCKING.get(r["id"], ""))}</td>'
             f'<td class="sev-{esc(r["sev"])}">{esc(r["sev"])}</td><td>{status_html(r["status"])}</td></tr>'
             for r in blk
         )
@@ -429,7 +422,7 @@ def main():
         '<div class="an-controls"><input id="q" placeholder="search id, title, location…" size="32">'
         '<select id="f-src"><option value="">any source</option></select><select id="f-status"><option value="">any status</option></select>'
         '<select id="f-sev"><option value="">any severity</option></select><select id="f-area"><option value="">any area</option></select>'
-        '<select id="f-block"><option value="">PyScotch: any</option><option value="blocking">blocking</option><option value="tested">tested, not blocking</option></select>'
+        '<select id="f-block"><option value="">PyScotch: any</option><option value="blocking">blocking</option></select>'
         '<span class="muted" id="an-count"></span></div>'
     )
     table = (

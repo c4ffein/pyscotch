@@ -1,0 +1,7 @@
+{
+ "why": "Scotch 7.0.17 is in PyScotch's skip list: pristine 7.0.17 fails `make test-reproducibility` (N fresh deterministic runs must give one partition, and 2 threads must equal 4). PyScotch ships 7.0.15 and, for 7.0.17, the behavioural patch pyscotch/_scotch_patches/scotch-7.0.17-bgraph-bipart-gg-determinism.patch, which works around exactly these findings. Once upstream fixes them, 7.0.17 (or its successor) can become the shipped version without a behavioural patch.",
+ "ids": {
+  "SEP-13": "fails test_default_strategy_two_threads and test_h_strategy_four_threads on pristine 7.0.17",
+  "PS2-G08-1": "fails test_thread_count_does_not_matter_above_one (the deterministic option is ignored by the threaded greedy bipartitioner)"
+ }
+}
