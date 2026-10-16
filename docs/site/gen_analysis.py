@@ -24,7 +24,14 @@ sys.path.insert(0, str(SITE_DIR))
 import build as site_build  # noqa: E402  (the docs site generator: nav + page parsing)
 
 REPO = SITE_DIR.parents[1]
-REVIEW = {"author": "R. Perry", "date": "7 Oct 2026", "base": "7.0.16"}
+REVIEW = {
+    "author": "R. Perry",
+    "date": "7 Oct 2026",
+    "base": "7.0.16",
+    # published with its author's agreement; commit-pinned (static-files allows force-pushes)
+    "url": "https://raw.githubusercontent.com/c4ffein/static-files/d5bd26372a8e9e37bd0ebcfea5d00127a6b790d6/projects/pyscotch/external_reports/scotch-bug-review-7-oct-2026-1c64e542-dc42-4f69-b178-bc8b576c5a58.pdf",
+    "archive": "https://raw.githubusercontent.com/c4ffein/static-files/d5bd26372a8e9e37bd0ebcfea5d00127a6b790d6/projects/pyscotch/pyscotch_reports/pyscotch-scotch-7.0.17-handoff-clean.tar.xz",  # agent prompts, logs, bundle, transcripts
+}
 AREAS = {
     "COR": "core & architectures",
     "GRA": "sequential graphs",
@@ -432,6 +439,10 @@ def main():
     )
     dash = (
         f"<h1>Scotch {esc(ver)} AI analysis: all the findings</h1>"
+        + f'<p class="muted">Leads from the <a href="{esc(REVIEW["url"])}">{esc(REVIEW["author"])} review</a> of '
+        f"Scotch {esc(REVIEW['base'])}, re-verified against {esc(ver)}, plus what PyScotch found on the way. "
+        '<a href="about.html">What is this?</a> · '
+        f'<a href="{esc(REVIEW["archive"])}">Process archive</a> (tar.xz, 15 MB)</p>'
         + tiles_html
         + blk_html
         + "<h2>All the findings</h2>"

@@ -39,6 +39,11 @@ upstream-report SCOTCH=7.0.17` builds it; `make docs-serve` serves it locally ne
 - **A report is a column, not a restart.** Each finding carries its history across versions, so the next
   report (including release candidates, `7.0.18rc1`) is "what changed since the last one".
 
+- **The process behind 7.0.17** (agent brief and prompts, full test logs, the series as a git bundle, the
+  transcripts of all 98 agents) is in a separate [handoff archive](https://raw.githubusercontent.com/c4ffein/static-files/d5bd26372a8e9e37bd0ebcfea5d00127a6b790d6/projects/pyscotch/pyscotch_reports/pyscotch-scotch-7.0.17-handoff-clean.tar.xz), next to the
+  [review it started from](https://raw.githubusercontent.com/c4ffein/static-files/d5bd26372a8e9e37bd0ebcfea5d00127a6b790d6/projects/pyscotch/external_reports/scotch-bug-review-7-oct-2026-1c64e542-dc42-4f69-b178-bc8b576c5a58.pdf); [their README](https://github.com/c4ffein/static-files/blob/d5bd26372a8e9e37bd0ebcfea5d00127a6b790d6/projects/pyscotch/README.md) lists contents and sha256. A new round
+  starts from the archive's `HANDOFF.md`.
+
 ## The loop
 
 1. A lead appears — a flaky test, a differential mismatch, a fuzzer crash, a
